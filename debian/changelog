@@ -1,8 +1,9 @@
-trafficserver (7.0.0-6+deb9u2) stable; urgency=medium
+trafficserver (7.0.0-6+deb9u2) stretch-security; urgency=high
 
+  * Add patches for CVE-2108-1318, CVE-2108-8004, CVE-2108-8005, CVE-2108-8040
   * Fixes trafficserver-dev dependencies. Closes: #877457
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 21 Mar 2018 13:54:59 +0100
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 29 Aug 2018 16:01:52 +0200
 
 trafficserver (7.0.0-6+deb9u1) stretch-security; urgency=high
 
