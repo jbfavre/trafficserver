@@ -17,9 +17,9 @@
  */
 
 #include <iostream>
-#include "tscpp/api/GlobalPlugin.h"
-#include "tscpp/api/PluginInit.h"
-#include "tscpp/api/utils.h"
+#include <atscppapi/GlobalPlugin.h>
+#include <atscppapi/PluginInit.h>
+#include <atscppapi/utils.h>
 
 using namespace atscppapi;
 
@@ -52,7 +52,7 @@ public:
       // Give this user an error page and don't make a request to an origin.
       cout << "Sending this request an error page" << endl;
       transaction.error("This is the error response, but the response code is 500."
-                        "In this example no request was made to the origin.");
+                        "In this example no request was made to the orgin.");
       // HTTP/1.1 500 INKApi Error
     } else {
       transaction.resume();
@@ -103,11 +103,12 @@ private:
   void
   printHeadersManual(Headers &headers)
   {
-    for (auto &&header : headers) {
-      cout << "Header " << header.name() << ": " << endl;
+    for (Headers::iterator header_iter = headers.begin(), header_end = headers.end(); header_iter != header_end; ++header_iter) {
+      cout << "Header " << (*header_iter).name() << ": " << endl;
 
-      for (auto &&value_iter : header) {
-        cout << "\t" << value_iter << endl;
+      for (HeaderField::iterator value_iter = (*header_iter).begin(), values_end = (*header_iter).end(); value_iter != values_end;
+           ++value_iter) {
+        cout << "\t" << *value_iter << endl;
       }
     }
 
@@ -118,8 +119,6 @@ private:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  if (!RegisterGlobalPlugin("CPP_Example_ServerResponse", "apache", "dev@trafficserver.apache.org")) {
-    return;
-  }
+  RegisterGlobalPlugin("CPP_Example_ServerResponse", "apache", "dev@trafficserver.apache.org");
   plugin = new ServerResponsePlugin();
 }

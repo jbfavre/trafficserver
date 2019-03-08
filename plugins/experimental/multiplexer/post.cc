@@ -91,12 +91,12 @@ postTransform(const TSCont c, PostState &s)
   if (TSVIONTodoGet(vio) > 0) {
     if (toWrite > 0) {
       TSVIOReenable(s.vio);
-      TSContCall(TSVIOContGet(vio), TS_EVENT_VCONN_WRITE_READY, vio);
+      CHECK(TSContCall(TSVIOContGet(vio), TS_EVENT_VCONN_WRITE_READY, vio));
     }
   } else {
     TSVIONBytesSet(s.vio, TSVIONDoneGet(vio));
     TSVIOReenable(s.vio);
-    TSContCall(TSVIOContGet(vio), TS_EVENT_VCONN_WRITE_COMPLETE, vio);
+    CHECK(TSContCall(TSVIOContGet(vio), TS_EVENT_VCONN_WRITE_COMPLETE, vio));
   }
 }
 
@@ -122,7 +122,7 @@ handlePost(TSCont c, TSEvent e, void *data)
     case TS_EVENT_ERROR: {
       const TSVIO vio = TSVConnWriteVIOGet(c);
       assert(vio != nullptr);
-      TSContCall(TSVIOContGet(vio), TS_EVENT_ERROR, vio);
+      CHECK(TSContCall(TSVIOContGet(vio), TS_EVENT_ERROR, vio));
     } break;
     case TS_EVENT_VCONN_WRITE_COMPLETE:
       TSVConnShutdown(TSTransformOutputVConnGet(c), 0, 1);

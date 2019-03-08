@@ -24,7 +24,7 @@
 #include "WSBuffer.h"
 
 #include <ts/ts.h>
-#include "tscore/ink_config.h"
+#include <ts/ink_config.h>
 #include "openssl/evp.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -56,7 +56,9 @@
 
 static const std::string magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-WSBuffer::WSBuffer() : frame_(0) {}
+WSBuffer::WSBuffer() : frame_(0)
+{
+}
 
 void
 WSBuffer::buffer(std::string const &data)
@@ -85,9 +87,8 @@ WSBuffer::read_buffered_message(std::string &message, int &code)
   size_t avail = ws_buf_.size();
 
   // Check if there is a mask (there should be).
-  if (avail < 2) {
+  if (avail < 2)
     return false;
-  }
   size_t mask_len = (ws_buf_[1] & WS_MASKED) ? 4 : 0;
 
   int frame  = ws_buf_[0] & WS_OPCODE;
@@ -98,14 +99,12 @@ WSBuffer::read_buffered_message(std::string &message, int &code)
   if (first) {
     frame_ = frame;
     msg_buf_.clear();
-  } else {
+  } else
     frame = frame_;
-  }
 
   // Read the msg_length if we have enough data.
-  if (avail < 2 + mask_len) {
+  if (avail < 2 + mask_len)
     return false;
-  }
 
   size_t msg_len = ws_buf_[1] & WS_LENGTH;
   size_t pos;
@@ -126,9 +125,8 @@ WSBuffer::read_buffered_message(std::string &message, int &code)
   }
 
   // Check if we have enough data to read the message.
-  if (ws_buf_.size() < pos + msg_len) {
+  if (ws_buf_.size() < pos + msg_len)
     return false; // not enough data.
-  }
 
   // Copy any mask.
   for (size_t i = 0; i < mask_len; ++i, ++pos) {
@@ -137,7 +135,7 @@ WSBuffer::read_buffered_message(std::string &message, int &code)
 
   // Apply any mask.
   if (mask_len) {
-    for (size_t i = 0, p = pos; i < msg_len && p < ws_buf_.size(); ++i, ++p) {
+    for (size_t i = 0, p = pos; i < msg_len; ++i, ++p) {
       ws_buf_[p] ^= mask[i & 3];
     }
   }
@@ -247,13 +245,11 @@ WSBuffer::get_closing_code(std::string const &message, std::string *desc)
     code = (unsigned char)message[0];
     code <<= 8;
     code += (unsigned char)message[1];
-    if (desc) {
+    if (desc)
       *desc = message.substr(2);
-    }
   } else {
-    if (desc) {
+    if (desc)
       *desc = "";
-    }
   }
   return code;
 }

@@ -1,6 +1,6 @@
 /** @file
 
-  An example plugin showing off how to use versioning.
+  an example plugin showing off how to use versioning
 
   @section license License
 
@@ -24,8 +24,6 @@
 #include <stdio.h>
 #include <ts/ts.h>
 
-#define PLUGIN_NAME "version"
-
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -35,7 +33,7 @@ TSPluginInit(int argc, const char *argv[])
   // Get the version:
   const char *ts_version = TSTrafficServerVersionGet();
   if (!ts_version) {
-    TSError("[%s] Can't get Traffic Server version.", PLUGIN_NAME);
+    TSError("[version] Can't get Traffic Server verion.\n");
     return;
   }
 
@@ -45,14 +43,14 @@ TSPluginInit(int argc, const char *argv[])
   int patch_ts_version = 0;
 
   if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-    TSError("[%s] Can't extract versions.", PLUGIN_NAME);
+    TSError("[version] Can't extract verions.\n");
     return;
   }
 
   TSPluginRegistrationInfo info;
-  info.plugin_name   = PLUGIN_NAME;
-  info.vendor_name   = "Apache Software Foundation";
-  info.support_email = "dev@trafficserver.apache.org";
+  info.plugin_name   = "version-plugin";
+  info.vendor_name   = "MyCompany";
+  info.support_email = "ts-api-support@MyCompany.com";
 
 // partial compilation
 #if (TS_VERSION_NUMBER < 3000000)
@@ -62,8 +60,9 @@ TSPluginInit(int argc, const char *argv[])
 #else
   if (TSPluginRegister(&info) != TS_SUCCESS) {
 #endif
-    TSError("[%s] Plugin registration failed.", PLUGIN_NAME);
+    TSError("[version] Plugin registration failed. \n");
   }
 
-  TSDebug(PLUGIN_NAME, "Running in Apache Traffic Server: v%d.%d.%d", major_ts_version, minor_ts_version, patch_ts_version);
+  TSDebug("debug-version-plugin", "Running in Apache Traffic Server: v%d.%d.%d", major_ts_version, minor_ts_version,
+          patch_ts_version);
 }

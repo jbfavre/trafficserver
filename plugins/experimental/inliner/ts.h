@@ -20,10 +20,10 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+#ifndef TS_H
+#define TS_H
 
-#pragma once
-
-#include <cassert>
+#include <assert.h>
 #include <limits>
 #include <list>
 #include <memory>
@@ -52,14 +52,14 @@ namespace io
     ~IO()
     {
       consume();
-      assert(reader != nullptr);
+      assert(reader != NULL);
       TSIOBufferReaderFree(reader);
-      assert(buffer != nullptr);
+      assert(buffer != NULL);
       TSIOBufferDestroy(buffer);
     }
 
-    IO(void) : buffer(TSIOBufferCreate()), reader(TSIOBufferReaderAlloc(buffer)), vio(nullptr) {}
-    IO(const TSIOBuffer &b) : buffer(b), reader(TSIOBufferReaderAlloc(buffer)), vio(nullptr) { assert(buffer != nullptr); }
+    IO(void) : buffer(TSIOBufferCreate()), reader(TSIOBufferReaderAlloc(buffer)), vio(NULL) {}
+    IO(const TSIOBuffer &b) : buffer(b), reader(TSIOBufferReaderAlloc(buffer)), vio(NULL) { assert(buffer != NULL); }
     static IO *read(TSVConn, TSCont, const int64_t);
 
     static IO *
@@ -90,7 +90,7 @@ namespace io
 
     ReaderSize(const TSIOBufferReader r, const size_t s, const size_t o = 0) : reader(r), offset(o), size(s)
     {
-      assert(reader != nullptr);
+      assert(reader != NULL);
     }
 
     ReaderSize(const ReaderSize &) = delete;
@@ -102,7 +102,7 @@ namespace io
     const TSIOBufferReader reader;
     const size_t offset;
 
-    ReaderOffset(const TSIOBufferReader r, const size_t o) : reader(r), offset(o) { assert(reader != nullptr); }
+    ReaderOffset(const TSIOBufferReader r, const size_t o) : reader(r), offset(o) { assert(reader != NULL); }
     ReaderOffset(const ReaderOffset &) = delete;
     ReaderOffset &operator=(const ReaderOffset &) = delete;
     void *operator new(const std::size_t)         = delete;
@@ -118,23 +118,22 @@ namespace io
 
     ~Lock()
     {
-      if (mutex_ != nullptr) {
+      if (mutex_ != NULL) {
         TSMutexUnlock(mutex_);
       }
     }
 
     Lock(const TSMutex m) : mutex_(m)
     {
-      if (mutex_ != nullptr) {
+      if (mutex_ != NULL) {
         TSMutexLock(mutex_);
       }
     }
 
-    // noncopyable
-    Lock(void) : mutex_(nullptr) {}
+    Lock(void) : mutex_(NULL) {}
     Lock(const Lock &) = delete;
 
-    Lock(Lock &&l) : mutex_(l.mutex_) { const_cast<TSMutex &>(l.mutex_) = nullptr; }
+    Lock(Lock &&l) : mutex_(l.mutex_) { const_cast<TSMutex &>(l.mutex_) = NULL; }
     Lock &operator=(const Lock &) = delete;
   };
 
@@ -151,11 +150,10 @@ namespace io
     bool reenable_;
 
     static int Handle(TSCont, TSEvent, void *);
-    static WriteOperationWeakPointer Create(const TSVConn, const TSMutex mutex = nullptr, const size_t timeout = 0);
+    static WriteOperationWeakPointer Create(const TSVConn, const TSMutex mutex = NULL, const size_t timeout = 0);
 
     ~WriteOperation();
 
-    // noncopyable
     WriteOperation(const WriteOperation &) = delete;
     WriteOperation &operator=(const WriteOperation &) = delete;
 
@@ -191,9 +189,8 @@ namespace io
     DataPointer data_;
 
     ~IOSink();
-
-    // noncopyable
     IOSink(const IOSink &) = delete;
+
     IOSink &operator=(const IOSink &) = delete;
 
     template <class T>
@@ -234,28 +231,27 @@ namespace io
   struct StringNode : Node {
     std::string string_;
     explicit StringNode(std::string &&s) : string_(std::move(s)) {}
-    Node::Result process(const TSIOBuffer) override;
+    Node::Result process(const TSIOBuffer);
   };
 
   struct BufferNode : Node {
     const TSIOBuffer buffer_;
     const TSIOBufferReader reader_;
 
-    ~BufferNode() override
+    ~BufferNode()
     {
-      assert(reader_ != nullptr);
+      assert(reader_ != NULL);
       TSIOBufferReaderFree(reader_);
-      assert(buffer_ != nullptr);
+      assert(buffer_ != NULL);
       TSIOBufferDestroy(buffer_);
     }
 
     BufferNode(void) : buffer_(TSIOBufferCreate()), reader_(TSIOBufferReaderAlloc(buffer_))
     {
-      assert(buffer_ != nullptr);
-      assert(reader_ != nullptr);
+      assert(buffer_ != NULL);
+      assert(reader_ != NULL);
     }
 
-    // noncopyable
     BufferNode(const BufferNode &) = delete;
     BufferNode &operator=(const BufferNode &) = delete;
     BufferNode &operator<<(const TSIOBufferReader);
@@ -263,7 +259,7 @@ namespace io
     BufferNode &operator<<(const ReaderOffset &);
     BufferNode &operator<<(const char *const);
     BufferNode &operator<<(const std::string &);
-    Node::Result process(const TSIOBuffer) override;
+    Node::Result process(const TSIOBuffer);
   };
 
   struct Data : Node {
@@ -272,11 +268,10 @@ namespace io
     bool first_;
 
     template <class T> Data(T &&t) : root_(std::forward<T>(t)), first_(false) {}
-    // noncopyable
     Data(const Data &) = delete;
     Data &operator=(const Data &) = delete;
 
-    Node::Result process(const TSIOBuffer) override;
+    Node::Result process(const TSIOBuffer);
   };
 
   struct Sink {
@@ -285,7 +280,6 @@ namespace io
     ~Sink();
 
     template <class... A> Sink(A &&... a) : data_(std::forward<A>(a)...) {}
-    // noncopyable
     Sink(const Sink &) = delete;
     Sink &operator=(const Sink &) = delete;
 
@@ -299,7 +293,7 @@ namespace io
     {
       if (data_) {
         const Lock lock = data_->root_->lock();
-        assert(data_->root_ != nullptr);
+        assert(data_->root_ != NULL);
         const bool empty = data_->nodes_.empty();
         if (data_->first_ && empty) {
           // TSDebug(PLUGIN_TAG, "flushing");
@@ -307,15 +301,15 @@ namespace io
           *data_->root_ << std::forward<T>(t);
         } else {
           // TSDebug(PLUGIN_TAG, "buffering");
-          BufferNode *buffer = nullptr;
+          BufferNode *buffer = NULL;
           if (!empty) {
             buffer = dynamic_cast<BufferNode *>(data_->nodes_.back().get());
           }
-          if (buffer == nullptr) {
+          if (buffer == NULL) {
             data_->nodes_.emplace_back(new BufferNode());
             buffer = reinterpret_cast<BufferNode *>(data_->nodes_.back().get());
           }
-          assert(buffer != nullptr);
+          assert(buffer != NULL);
           *buffer << std::forward<T>(t);
         }
       }
@@ -323,5 +317,7 @@ namespace io
     }
   };
 
-} // namespace io
-} // namespace ats
+} // end of io namespace
+} // end of ats namespace
+
+#endif // TS_H

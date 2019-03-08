@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef TXN_SM_H
+#define TXN_SM_H
 
 #include "Protocol.h"
 
@@ -78,3 +79,5 @@ typedef struct _TxnSM {
   TSIOBufferReader q_cache_read_buffer_reader;
 
 } TxnSM;
+
+#endif /* Txn_SM_H */

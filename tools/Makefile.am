@@ -22,11 +22,9 @@ bin_SCRIPTS = tsxs tspush
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = trafficserver.pc
 
-AM_CPPFLAGS += \
-	$(iocore_include_dirs) \
-	-I$(abs_top_srcdir)/include \
-	-I$(abs_top_srcdir)/include/wccp \
-	$(TS_INCLUDES)
+AM_CPPFLAGS += $(iocore_include_dirs) \
+  -I$(abs_top_srcdir)/lib \
+  -I$(abs_top_srcdir)/lib/wccp
 
 if BUILD_TEST_TOOLS
 bin_PROGRAMS = jtest/jtest
@@ -35,7 +33,7 @@ noinst_PROGRAMS = jtest/jtest
 endif
 
 jtest_jtest_SOURCES = jtest/jtest.cc
-jtest_jtest_LDADD = $(top_builddir)/src/tscore/libtscore.la $(top_builddir)/src/tscpp/util/libtscpputil.la -lssl -lcrypto
+jtest_jtest_LDADD = $(top_builddir)/lib/ts/libtsutil.la @OPENSSL_LIBS@
 
 if BUILD_HTTP_LOAD
 
@@ -46,11 +44,11 @@ noinst_PROGRAMS += http_load/http_load
 endif
 
 http_load_http_load_LDADD = @OPENSSL_LIBS@
-http_load_http_load_SOURCES = \
-	http_load/http_load.c \
-	http_load/timers.c \
-	http_load/port.h \
-	http_load/timers.h
+http_load_http_load_SOURCES =  \
+  http_load/http_load.c \
+  http_load/timers.c \
+  http_load/port.h \
+  http_load/timers.h
 
 endif
 

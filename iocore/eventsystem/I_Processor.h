@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 
 #define PROCESSOR_RECONFIGURE 0x01
 #define PROCESSOR_CHECK 0x02
@@ -106,10 +106,11 @@ public:
     return 0;
   }
 
-  // noncopyable, prevent unauthorized copies (Not implemented)
-  Processor(const Processor &) = delete;
-  Processor &operator=(const Processor &) = delete;
-
 protected:
   Processor();
+
+private:
+  // prevent unauthorized copies (Not implemented)
+  Processor(const Processor &);
+  Processor &operator=(const Processor &);
 };

@@ -37,7 +37,6 @@ Table of Contents:
    logging/index.en
    monitoring/index.en
    configuring-traffic-server.en
-   layer-4-routing.en
    performance/index.en
    files/index.en
 
@@ -55,3 +54,4 @@ running with your own instance of |TS|. Or so is our hope.
 Should you encounter problems, or find any of the instructions unclear or
 lacking, please seek help through one of the avenues listed in
 :ref:`intro-other-resources`.
+

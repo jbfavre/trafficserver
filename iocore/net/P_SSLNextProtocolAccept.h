@@ -34,9 +34,9 @@ class SSLNextProtocolAccept : public SessionAccept
 {
 public:
   SSLNextProtocolAccept(Continuation *, bool);
-  ~SSLNextProtocolAccept() override;
+  ~SSLNextProtocolAccept();
 
-  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *) override;
+  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *);
 
   // Register handler as an endpoint for the specified protocol. Neither
   // handler nor protocol are copied, so the caller must guarantee their
@@ -51,12 +51,10 @@ public:
   SSLNextProtocolSet *getProtoSet();
   SSLNextProtocolSet *cloneProtoSet();
 
-  // noncopyable
-  SSLNextProtocolAccept(const SSLNextProtocolAccept &) = delete;            // disabled
-  SSLNextProtocolAccept &operator=(const SSLNextProtocolAccept &) = delete; // disabled
-
 private:
-  int mainEvent(int event, void *netvc) override;
+  int mainEvent(int event, void *netvc);
+  SSLNextProtocolAccept(const SSLNextProtocolAccept &);            // disabled
+  SSLNextProtocolAccept &operator=(const SSLNextProtocolAccept &); // disabled
 
   MIOBuffer *buffer; // XXX do we really need this?
   Continuation *endpoint;

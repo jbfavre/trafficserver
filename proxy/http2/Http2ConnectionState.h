@@ -38,8 +38,6 @@ enum class Http2SendDataFrameResult {
   DONE,
 };
 
-enum Http2ShutdownState { HTTP2_SHUTDOWN_NONE, HTTP2_SHUTDOWN_NOT_INITIATED, HTTP2_SHUTDOWN_INITIATED, HTTP2_SHUTDOWN_IN_PROGRESS };
-
 class Http2ConnectionSettings
 {
 public:
@@ -69,7 +67,7 @@ public:
   unsigned
   get(Http2SettingsIdentifier id) const
   {
-    if (0 < id && id < HTTP2_SETTINGS_MAX) {
+    if (id < HTTP2_SETTINGS_MAX) {
       return this->settings[indexof(id)];
     } else {
       ink_assert(!"Bad Settings Identifier");
@@ -81,7 +79,7 @@ public:
   unsigned
   set(Http2SettingsIdentifier id, unsigned value)
   {
-    if (0 < id && id < HTTP2_SETTINGS_MAX) {
+    if (id < HTTP2_SETTINGS_MAX) {
       return this->settings[indexof(id)] = value;
     } else {
       ink_assert(!"Bad Settings Identifier");
@@ -95,7 +93,7 @@ private:
   static unsigned
   indexof(Http2SettingsIdentifier id)
   {
-    ink_assert(0 < id && id < HTTP2_SETTINGS_MAX);
+    ink_assert(id < HTTP2_SETTINGS_MAX);
 
     return id - 1;
   }
@@ -112,14 +110,32 @@ private:
 class Http2ConnectionState : public Continuation
 {
 public:
-  Http2ConnectionState() : stream_list() { SET_HANDLER(&Http2ConnectionState::main_event_handler); }
+  Http2ConnectionState()
+    : Continuation(NULL),
+      ua_session(NULL),
+      dependency_tree(NULL),
+      client_rwnd(HTTP2_INITIAL_WINDOW_SIZE),
+      server_rwnd(Http2::initial_window_size),
+      stream_list(),
+      latest_streamid_in(0),
+      latest_streamid_out(0),
+      stream_requests(0),
+      client_streams_in_count(0),
+      client_streams_out_count(0),
+      total_client_streams_count(0),
+      continued_stream_id(0),
+      _scheduled(false),
+      fini_received(false),
+      recursion(0),
+      fini_event(nullptr)
+  {
+    SET_HANDLER(&Http2ConnectionState::main_event_handler);
+  }
 
-  ProxyError rx_error_code;
-  ProxyError tx_error_code;
-  Http2ClientSession *ua_session   = nullptr;
-  HpackHandle *local_hpack_handle  = nullptr;
-  HpackHandle *remote_hpack_handle = nullptr;
-  DependencyTree *dependency_tree  = nullptr;
+  Http2ClientSession *ua_session;
+  HpackHandle *local_hpack_handle;
+  HpackHandle *remote_hpack_handle;
+  DependencyTree *dependency_tree;
 
   // Settings.
   Http2ConnectionSettings server_settings;
@@ -136,9 +152,6 @@ public:
   void
   destroy()
   {
-    if (shutdown_cont_event) {
-      shutdown_cont_event->cancel();
-    }
     cleanup_streams();
 
     delete local_hpack_handle;
@@ -152,11 +165,7 @@ public:
     if (fini_event) {
       fini_event->cancel();
     }
-    if (zombie_event) {
-      zombie_event->cancel();
-    }
-    // release the mutex after the events are cancelled and sessions are destroyed.
-    mutex = nullptr; // magic happens - assigning to nullptr frees the ProxyMutex
+    mutex = NULL; // magic happens - assigning to NULL frees the ProxyMutex
   }
 
   // Event handlers
@@ -221,8 +230,7 @@ public:
   }
 
   // Connection level window size
-  ssize_t client_rwnd = HTTP2_INITIAL_WINDOW_SIZE;
-  ssize_t server_rwnd = Http2::initial_window_size;
+  ssize_t client_rwnd, server_rwnd;
 
   // HTTP/2 frame sender
   void schedule_stream(Http2Stream *stream);
@@ -240,7 +248,7 @@ public:
   bool
   is_state_closed() const
   {
-    return ua_session == nullptr || fini_received;
+    return ua_session == NULL || fini_received;
   }
 
   bool
@@ -259,40 +267,10 @@ public:
     }
   }
 
-  Http2ShutdownState
-  get_shutdown_state() const
-  {
-    return shutdown_state;
-  }
-
-  void
-  set_shutdown_state(Http2ShutdownState state)
-  {
-    shutdown_state = state;
-  }
-
-  // noncopyable
-  Http2ConnectionState(const Http2ConnectionState &) = delete;
-  Http2ConnectionState &operator=(const Http2ConnectionState &) = delete;
-
-  Event *
-  get_zombie_event()
-  {
-    return zombie_event;
-  }
-
-  void
-  schedule_zombie_event()
-  {
-    if (Http2::zombie_timeout_in) { // If we have zombie debugging enabled
-      if (zombie_event) {
-        zombie_event->cancel();
-      }
-      zombie_event = this_ethread()->schedule_in(this, HRTIME_SECONDS(Http2::zombie_timeout_in));
-    }
-  }
-
 private:
+  Http2ConnectionState(const Http2ConnectionState &);            // noncopyable
+  Http2ConnectionState &operator=(const Http2ConnectionState &); // noncopyable
+
   unsigned _adjust_concurrent_stream();
 
   // NOTE: 'stream_list' has only active streams.
@@ -302,18 +280,18 @@ private:
   //   If given Stream Identifier is not found in stream_list and it is greater
   //   than latest_streamid_in, the state of Stream is IDLE.
   Queue<Http2Stream> stream_list;
-  Http2StreamId latest_streamid_in  = 0;
-  Http2StreamId latest_streamid_out = 0;
-  int stream_requests               = 0;
+  Http2StreamId latest_streamid_in;
+  Http2StreamId latest_streamid_out;
+  int stream_requests;
 
   // Counter for current active streams which is started by client
-  uint32_t client_streams_in_count = 0;
+  uint32_t client_streams_in_count;
 
   // Counter for current acive streams which is started by server
-  uint32_t client_streams_out_count = 0;
+  uint32_t client_streams_out_count;
 
   // Counter for current active streams and streams in the process of shutting down
-  uint32_t total_client_streams_count = 0;
+  uint32_t total_client_streams_count;
 
   // NOTE: Id of stream which MUST receive CONTINUATION frame.
   //   - [RFC 7540] 6.2 HEADERS
@@ -322,12 +300,9 @@ private:
   //   - [RFC 7540] 6.10 CONTINUATION
   //     "If the END_HEADERS bit is not set, this frame MUST be followed by
   //     another CONTINUATION frame."
-  Http2StreamId continued_stream_id = 0;
-  bool _scheduled                   = false;
-  bool fini_received                = false;
-  int recursion                     = 0;
-  Http2ShutdownState shutdown_state = HTTP2_SHUTDOWN_NONE;
-  Event *shutdown_cont_event        = nullptr;
-  Event *fini_event                 = nullptr;
-  Event *zombie_event               = nullptr;
+  Http2StreamId continued_stream_id;
+  bool _scheduled;
+  bool fini_received;
+  int recursion;
+  Event *fini_event;
 };

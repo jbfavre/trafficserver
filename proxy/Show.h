@@ -91,10 +91,10 @@ public:
     if (!action.cancelled) {
       StatPageData data(start, buf - start);
       action.continuation->handleEvent(STAT_PAGE_SUCCESS, &data);
-      start = nullptr;
+      start = 0;
     } else {
       ats_free(start);
-      start = nullptr;
+      start = NULL;
     }
     return done(VIO::CLOSE, event, e);
   }
@@ -116,10 +116,9 @@ public:
   complete_error(int event, Event *e)
   {
     ats_free(start);
-    start = nullptr;
-    if (!action.cancelled) {
-      action.continuation->handleEvent(STAT_PAGE_FAILURE, nullptr);
-    }
+    start = NULL;
+    if (!action.cancelled)
+      action.continuation->handleEvent(STAT_PAGE_FAILURE, NULL);
     return done(VIO::ABORT, event, e);
   }
 
@@ -145,7 +144,7 @@ public:
     return EVENT_DONE;
   }
 
-  ShowCont(Continuation *c, HTTPHdr * /* h ATS_UNUSED */) : Continuation(nullptr), sarg(nullptr)
+  ShowCont(Continuation *c, HTTPHdr * /* h ATS_UNUSED */) : Continuation(NULL), sarg(0)
   {
     size_t sz = ats_pagesize();
 
@@ -156,7 +155,7 @@ public:
     ebuf   = buf + sz;
   }
 
-  ~ShowCont() override
+  ~ShowCont()
   {
     ats_free(sarg);
     ats_free(start);

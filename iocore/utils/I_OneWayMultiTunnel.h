@@ -138,13 +138,13 @@ struct OneWayMultiTunnel : public OneWayTunnel {
   //
   int startEvent(int event, void *data);
 
-  void reenable_all() override;
-  void close_target_vio(int result, VIO *vio = nullptr) override;
+  virtual void reenable_all();
+  virtual void close_target_vio(int result, VIO *vio = nullptr);
 
-  int n_vioTargets                      = 0;
-  bool source_read_previously_completed = false;
-  MIOBufferAccessor topOutBuffer;
+  int n_vioTargets;
   VIO *vioTargets[ONE_WAY_MULTI_TUNNEL_LIMIT];
+  MIOBufferAccessor topOutBuffer;
+  bool source_read_previously_completed;
 };
 
 extern ClassAllocator<OneWayMultiTunnel> OneWayMultiTunnelAllocator;

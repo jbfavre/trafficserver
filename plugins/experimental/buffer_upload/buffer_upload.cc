@@ -190,7 +190,7 @@ call_httpconnect(TSCont contp, pvc_state *my_state)
   // unsigned int client_ip = TSHttpTxnClientIPGet(my_state->http_txnp);
   sockaddr const *client_ip = TSHttpTxnClientAddrGet(my_state->http_txnp);
 
-  TSDebug(DEBUG_TAG, "call TSHttpConnect()");
+  TSDebug(DEBUG_TAG, "call TSHttpConnect() ...");
   if ((my_state->net_vc = TSHttpConnect(client_ip)) == nullptr) {
     LOG_ERROR_AND_RETURN("TSHttpConnect");
   }
@@ -278,8 +278,9 @@ pvc_process_accept(TSCont contp, int event, void *edata, pvc_state *my_state)
     my_state->resp_buffer = TSIOBufferCreate();
     my_state->resp_reader = TSIOBufferReaderAlloc(my_state->resp_buffer);
 
-    if ((my_state->req_reader == nullptr) || (my_state->resp_reader == nullptr)) {
-      LOG_ERROR("TSIOBufferReaderAlloc");
+    if ((my_state->req_buffer == nullptr) || (my_state->req_reader == nullptr) || (my_state->resp_buffer == nullptr) ||
+        (my_state->resp_reader == nullptr)) {
+      LOG_ERROR("TSIOBufferCreate || TSIOBufferReaderAlloc");
       TSVConnClose(my_state->p_vc);
       pvc_cleanup(contp, my_state);
     } else {
@@ -597,10 +598,7 @@ convert_url_func(TSMBuffer req_bufp, TSMLoc req_loc)
     return;
   }
 
-  const char *hostname = getenv("HOSTNAME");
-  if (hostname == nullptr) {
-    return;
-  }
+  char *hostname = (char *)getenv("HOSTNAME");
 
   // in reverse proxy mode, TSUrlHostGet returns NULL here
   str = TSUrlHostGet(req_bufp, url_loc, &len);
@@ -734,7 +732,7 @@ attach_pvc_plugin(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edata)
         if (NOT_VALID_PTR(field_loc)) {
           // if (VALID_PTR(str))
           //  TSHandleStringRelease(req_bufp, url_loc, str);
-          LOG_ERROR("Host field not found");
+          LOG_ERROR("Host field not found.");
           TSHandleMLocRelease(req_bufp, req_loc, url_loc);
           TSHandleMLocRelease(req_bufp, TS_NULL_MLOC, req_loc);
           break;
@@ -885,9 +883,8 @@ attach_pvc_plugin(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edata)
     TSStatIntIncrement(upload_vc_count, 1);
 
     if (!uconfig->use_disk_buffer && my_state->req_size > uconfig->mem_buffer_size) {
-      TSDebug(DEBUG_TAG,
-              "The request size %" PRId64 " is larger than memory buffer size %" PRId64
-              ", bypass upload proxy feature for this request",
+      TSDebug(DEBUG_TAG, "The request size %" PRId64 " is larger than memory buffer size %" PRId64
+                         ", bypass upload proxy feature for this request.",
               my_state->req_size, uconfig->mem_buffer_size);
 
       pvc_cleanup(new_cont, my_state);
@@ -916,7 +913,7 @@ attach_pvc_plugin(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edata)
       }
     }
 
-    TSDebug(DEBUG_TAG, "calling TSHttpTxnIntercept()");
+    TSDebug(DEBUG_TAG, "calling TSHttpTxnIntercept() ...");
     TSHttpTxnIntercept(new_cont, txnp);
 
     break;
@@ -939,17 +936,17 @@ create_directory()
   struct dirent *d;
 
   if (getcwd(cwd, 4096) == nullptr) {
-    TSError("[%s] getcwd fails", PLUGIN_NAME);
+    TSError("[buffer_upload] getcwd fails");
     return 0;
   }
 
   if (chdir(uconfig->base_dir) < 0) {
     if (mkdir(uconfig->base_dir, S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-      TSError("[%s] Unable to enter or create %s", PLUGIN_NAME, uconfig->base_dir);
+      TSError("[buffer_upload] Unable to enter or create %s", uconfig->base_dir);
       goto error_out;
     }
     if (chdir(uconfig->base_dir) < 0) {
-      TSError("[%s] Unable enter %s", PLUGIN_NAME, uconfig->base_dir);
+      TSError("[buffer_upload] Unable enter %s", uconfig->base_dir);
       goto error_out;
     }
   }
@@ -957,11 +954,11 @@ create_directory()
     snprintf(str, 10, "%02X", i);
     if (chdir(str) < 0) {
       if (mkdir(str, S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-        TSError("[%s] Unable to enter or create %s/%s", PLUGIN_NAME, uconfig->base_dir, str);
+        TSError("[buffer_upload] Unable to enter or create %s/%s", uconfig->base_dir, str);
         goto error_out;
       }
       if (chdir(str) < 0) {
-        TSError("[%s] Unable to enter %s/%s", PLUGIN_NAME, uconfig->base_dir, str);
+        TSError("[buffer_upload] Unable to enter %s/%s", uconfig->base_dir, str);
         goto error_out;
       }
     }
@@ -970,11 +967,7 @@ create_directory()
       goto error_out;
     }
     while ((d = readdir(dir))) {
-      if (remove(d->d_name) < 0) {
-        TSError("[%s] Unable to remove '%s': %s", PLUGIN_NAME, d->d_name, strerror(errno));
-        closedir(dir);
-        goto error_out;
-      }
+      remove(d->d_name);
     }
     closedir(dir);
     if (chdir("..") == -1) {
@@ -1014,7 +1007,7 @@ load_urls(char *filename)
   for (i = 0; i < 2; i++) {
     if ((file = TSfopen(filename, "r")) == nullptr) {
       TSfree(url_buf);
-      TSError("[%s] Fail to open %s", PLUGIN_NAME, filename);
+      TSError("[buffer_upload] Fail to open %s", filename);
       return;
     }
     if (i == 0) { // first round
@@ -1062,7 +1055,7 @@ parse_config_line(char *line, const struct config_val_ul *cv)
           int iv    = strtol(tok, &end, 10);
           if (end && *end == '\0') {
             *((int *)cv->val) = iv;
-            TSError("[%s] Parsed int config value %s : %d", PLUGIN_NAME, cv->str, iv);
+            TSError("[buffer_upload] Parsed int config value %s : %d", cv->str, iv);
             TSDebug(DEBUG_TAG, "Parsed int config value %s : %d", cv->str, iv);
           }
           break;
@@ -1072,7 +1065,7 @@ parse_config_line(char *line, const struct config_val_ul *cv)
           unsigned int uiv = strtoul(tok, &end, 10);
           if (end && *end == '\0') {
             *((unsigned int *)cv->val) = uiv;
-            TSError("[%s] Parsed uint config value %s : %u", PLUGIN_NAME, cv->str, uiv);
+            TSError("[buffer_upload] Parsed uint config value %s : %u", cv->str, uiv);
             TSDebug(DEBUG_TAG, "Parsed uint config value %s : %u", cv->str, uiv);
           }
           break;
@@ -1082,7 +1075,7 @@ parse_config_line(char *line, const struct config_val_ul *cv)
           long lv   = strtol(tok, &end, 10);
           if (end && *end == '\0') {
             *((long *)cv->val) = lv;
-            TSError("[%s] Parsed long config value %s : %ld", PLUGIN_NAME, cv->str, lv);
+            TSError("[buffer_upload] Parsed long config value %s : %ld", cv->str, lv);
             TSDebug(DEBUG_TAG, "Parsed long config value %s : %ld", cv->str, lv);
           }
           break;
@@ -1092,7 +1085,7 @@ parse_config_line(char *line, const struct config_val_ul *cv)
           unsigned long ulv = strtoul(tok, &end, 10);
           if (end && *end == '\0') {
             *((unsigned long *)cv->val) = ulv;
-            TSError("[%s] Parsed ulong config value %s : %lu", PLUGIN_NAME, cv->str, ulv);
+            TSError("[buffer_upload] Parsed ulong config value %s : %lu", cv->str, ulv);
             TSDebug(DEBUG_TAG, "Parsed ulong config value %s : %lu", cv->str, ulv);
           }
           break;
@@ -1102,7 +1095,7 @@ parse_config_line(char *line, const struct config_val_ul *cv)
           if (len > 0) {
             *((char **)cv->val) = (char *)TSmalloc(len + 1);
             strcpy(*((char **)cv->val), tok);
-            TSError("[%s] Parsed string config value %s : %s", PLUGIN_NAME, cv->str, tok);
+            TSError("[buffer_upload] Parsed string config value %s : %s", cv->str, tok);
             TSDebug(DEBUG_TAG, "Parsed string config value %s : %s", cv->str, tok);
           }
           break;
@@ -1115,7 +1108,7 @@ parse_config_line(char *line, const struct config_val_ul *cv)
             } else {
               *((bool *)cv->val) = false;
             }
-            TSError("[%s] Parsed bool config value %s : %d", PLUGIN_NAME, cv->str, *((bool *)cv->val));
+            TSError("[buffer_upload] Parsed bool config value %s : %d", cv->str, *((bool *)cv->val));
             TSDebug(DEBUG_TAG, "Parsed bool config value %s : %d", cv->str, *((bool *)cv->val));
           }
           break;
@@ -1169,7 +1162,7 @@ read_upload_config(const char *file_name)
     }
     TSfclose(conf_file);
   } else {
-    TSError("[%s] Failed to open upload config file %s", PLUGIN_NAME, file_name);
+    TSError("[buffer_upload] Failed to open upload config file %s", file_name);
     // if fail to open config file, use the default config
   }
 
@@ -1212,16 +1205,15 @@ TSPluginInit(int argc, const char *argv[])
 
   if (!read_upload_config(conf_filename) || !uconfig) {
     if (argc > 1) {
-      TSError("[%s] Failed to read upload config %s", PLUGIN_NAME, argv[1]);
+      TSError("[buffer_upload] Failed to read upload config %s", argv[1]);
     } else {
-      TSError("[%s] No config file specified. Specify conf file in plugin.conf: "
-              "'buffer_upload.so /path/to/upload.conf'",
-              PLUGIN_NAME);
+      TSError("[buffer_upload] No config file specified. Specify conf file in plugin.conf: "
+              "'buffer_upload.so /path/to/upload.conf'");
     }
   }
   // set the num of threads for disk AIO
   if (TSAIOThreadNumSet(uconfig->thread_num) == TS_ERROR) {
-    TSError("[%s] Failed to set thread number", PLUGIN_NAME);
+    TSError("[buffer_upload] Failed to set thread number.");
   }
 
   TSDebug(DEBUG_TAG, "uconfig->url_list_file: %s", uconfig->url_list_file);
@@ -1235,12 +1227,12 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = const_cast<char *>("dev@trafficserver.apache.org");
 
   if (uconfig->use_disk_buffer && !create_directory()) {
-    TSError("[%s] Directory creation failed", PLUGIN_NAME);
+    TSError("[buffer_upload] Directory creation failed.");
     uconfig->use_disk_buffer = false;
   }
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[%s] Plugin registration failed", PLUGIN_NAME);
+    TSError("[buffer_upload] Plugin registration failed.");
   }
 
   /* create the statistic variables */

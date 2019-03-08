@@ -32,13 +32,14 @@
  *
  */
 
-#pragma once
+#ifndef _ALARMS_H
+#define _ALARMS_H
 
-#include <cstdlib>
-#include <cstdio>
+#include <stdlib.h>
+#include <stdio.h>
 
-#include "tscore/ink_hash_table.h"
-#include "tscore/ink_mutex.h"
+#include "ts/ink_hash_table.h"
+#include "ts/ink_mutex.h"
 
 class AppVersionInfo;
 
@@ -69,8 +70,11 @@ class AppVersionInfo;
 #define MGMT_ALARM_WEB_ERROR 15
 #define MGMT_ALARM_PING_FAILURE 16
 #define MGMT_ALARM_MGMT_CONFIG_ERROR 17
-#define MGMT_ALARM_ADD_ALARM 18              /* OEM_ALARM */
-#define MGMT_ALARM_PROXY_LOG_SPACE_ROLLED 19 /* Alarm when log files will be rolled */
+#define MGMT_ALARM_ADD_ALARM 18                    /* OEM_ALARM */
+#define MGMT_ALARM_PROXY_LOG_SPACE_ROLLED 19       /* Alarm when log files will be rolled */
+#define MGMT_ALARM_PROXY_HTTP_CONGESTED_SERVER 20  /* Congestion control -- congested server */
+#define MGMT_ALARM_PROXY_HTTP_ALLEVIATED_SERVER 21 /* Congestion control -- alleviated server */
+#define MGMT_ALARM_PROXY_FTP_ERROR 22
 
 #define MGMT_ALARM_SAC_SERVER_DOWN 400
 
@@ -103,10 +107,10 @@ public:
   ~Alarms();
 
   void registerCallback(AlarmCallbackFunc func);
-  bool isCurrentAlarm(alarm_t a, char *ip = nullptr);
+  bool isCurrentAlarm(alarm_t a, char *ip = NULL);
 
-  void signalAlarm(alarm_t t, const char *desc, const char *ip = nullptr);
-  void resolveAlarm(alarm_t a, char *ip = nullptr);
+  void signalAlarm(alarm_t t, const char *desc, const char *ip = NULL);
+  void resolveAlarm(alarm_t a, char *ip = NULL);
 
   void constructAlarmMessage(const AppVersionInfo &version, char *ip, char *message, int max);
   void resetSeenFlag(char *ip);
@@ -136,3 +140,5 @@ private:
   int alarmOEMcount;
 
 }; /* End class Alarms */
+
+#endif /* _ALARMS_H */

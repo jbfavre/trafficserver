@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _HTTP_DATA_FETCHER_IMPL_H
+#define _HTTP_DATA_FETCHER_IMPL_H
 
 #include <string>
 #include <list>
@@ -41,7 +42,7 @@ public:
 
   void useHeaders(const EsiLib::HttpHeaderList &headers);
 
-  bool addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = nullptr) override;
+  bool addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = 0);
 
   bool handleFetchEvent(TSEvent event, void *edata);
 
@@ -58,10 +59,10 @@ public:
     return (_n_pending_requests == 0);
   };
 
-  DataStatus getRequestStatus(const std::string &url) const override;
+  DataStatus getRequestStatus(const std::string &url) const;
 
   int
-  getNumPendingRequests() const override
+  getNumPendingRequests() const
   {
     return _n_pending_requests;
   };
@@ -73,19 +74,19 @@ public:
     TSMBuffer bufp;
     TSMLoc hdr_loc;
     TSHttpStatus status;
-    ResponseData() { set(nullptr, 0, nullptr, nullptr, TS_HTTP_STATUS_NONE); }
+    ResponseData() { set(0, 0, 0, 0, TS_HTTP_STATUS_NONE); }
     inline void set(const char *c, int clen, TSMBuffer b, TSMLoc loc, TSHttpStatus s);
     void
     clear()
     {
-      set(nullptr, 0, nullptr, nullptr, TS_HTTP_STATUS_NONE);
+      set(0, 0, 0, 0, TS_HTTP_STATUS_NONE);
     }
   };
 
   bool getData(const std::string &url, ResponseData &resp_data) const;
 
   bool
-  getContent(const std::string &url, const char *&content, int &content_len) const override
+  getContent(const std::string &url, const char *&content, int &content_len) const
   {
     ResponseData resp;
     if (getData(url, resp)) {
@@ -98,7 +99,7 @@ public:
 
   void clear();
 
-  ~HttpDataFetcherImpl() override;
+  ~HttpDataFetcherImpl();
 
 private:
   TSCont _contp;
@@ -118,9 +119,7 @@ private:
     TSMBuffer bufp;
     TSMLoc hdr_loc;
 
-    RequestData() : body(nullptr), body_len(0), resp_status(TS_HTTP_STATUS_NONE), complete(false), bufp(nullptr), hdr_loc(nullptr)
-    {
-    }
+    RequestData() : body(0), body_len(0), resp_status(TS_HTTP_STATUS_NONE), complete(false), bufp(0), hdr_loc(0) {}
   };
 
   typedef __gnu_cxx::hash_map<std::string, RequestData, EsiLib::StringHasher> UrlToContentMap;
@@ -161,3 +160,5 @@ HttpDataFetcherImpl::ResponseData::set(const char *c, int clen, TSMBuffer b, TSM
   hdr_loc     = loc;
   status      = s;
 }
+
+#endif

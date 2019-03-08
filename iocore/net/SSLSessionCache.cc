@@ -33,6 +33,8 @@
 #define PRINT_BUCKET(x)
 #endif
 
+using ts::detail::RBNode;
+
 /* Session Cache */
 SSLSessionCache::SSLSessionCache() : session_bucket(nullptr), nbuckets(SSLConfigParams::session_cache_number_buckets)
 {
@@ -45,16 +47,6 @@ SSLSessionCache::SSLSessionCache() : session_bucket(nullptr), nbuckets(SSLConfig
 SSLSessionCache::~SSLSessionCache()
 {
   delete[] session_bucket;
-}
-
-int
-SSLSessionCache::getSessionBuffer(const SSLSessionID &sid, char *buffer, int &len) const
-{
-  uint64_t hash            = sid.hash();
-  uint64_t target_bucket   = hash % nbuckets;
-  SSLSessionBucket *bucket = &session_bucket[target_bucket];
-
-  return bucket->getSessionBuffer(sid, buffer, len);
 }
 
 bool
@@ -88,9 +80,7 @@ SSLSessionCache::removeSession(const SSLSessionID &sid)
           target_bucket, bucket, buf, hash);
   }
 
-  if (ssl_rsb) {
-    SSL_INCREMENT_DYN_STAT(ssl_session_cache_eviction);
-  }
+  SSL_INCREMENT_DYN_STAT(ssl_session_cache_eviction);
   bucket->removeSession(sid);
 }
 
@@ -127,31 +117,6 @@ SSLSessionBucket::insertSession(const SSLSessionID &id, SSL_SESSION *sess)
     Debug("ssl.session_cache", "Inserting session '%s' to bucket %p.", buf, this);
   }
 
-  MUTEX_TRY_LOCK(lock, mutex, this_ethread());
-  if (!lock.is_locked()) {
-    if (ssl_rsb) {
-      SSL_INCREMENT_DYN_STAT(ssl_session_cache_lock_contention);
-    }
-    if (SSLConfigParams::session_cache_skip_on_lock_contention) {
-      return;
-    }
-    lock.acquire(this_ethread());
-  }
-
-  PRINT_BUCKET("insertSession before")
-  if (queue.size >= static_cast<int>(SSLConfigParams::session_cache_max_bucket_size)) {
-    removeOldestSession();
-  }
-
-  // Don't insert if it is already there
-  SSLSession *node = queue.tail;
-  while (node) {
-    if (node->session_id == id) {
-      return;
-    }
-    node = node->link.prev;
-  }
-
   Ptr<IOBufferData> buf;
   buf = new_IOBufferData(buffer_size_to_index(len, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
   ink_release_assert(static_cast<size_t>(buf->block_size()) >= len);
@@ -160,45 +125,24 @@ SSLSessionBucket::insertSession(const SSLSessionID &id, SSL_SESSION *sess)
 
   ats_scoped_obj<SSLSession> ssl_session(new SSLSession(id, buf, len));
 
-  /* do the actual insert */
-  queue.enqueue(ssl_session.release());
-
-  PRINT_BUCKET("insertSession after")
-}
-
-int
-SSLSessionBucket::getSessionBuffer(const SSLSessionID &id, char *buffer, int &len)
-{
-  int true_len = 0;
   MUTEX_TRY_LOCK(lock, mutex, this_ethread());
   if (!lock.is_locked()) {
-    if (ssl_rsb) {
-      SSL_INCREMENT_DYN_STAT(ssl_session_cache_lock_contention);
-    }
-    if (SSLConfigParams::session_cache_skip_on_lock_contention) {
-      return true_len;
-    }
+    SSL_INCREMENT_DYN_STAT(ssl_session_cache_lock_contention);
+    if (SSLConfigParams::session_cache_skip_on_lock_contention)
+      return;
 
     lock.acquire(this_ethread());
   }
 
-  // We work backwards because that's the most likely place we'll find our session...
-  SSLSession *node = queue.tail;
-  while (node) {
-    if (node->session_id == id) {
-      true_len = node->len_asn1_data;
-      if (buffer) {
-        const unsigned char *loc = reinterpret_cast<const unsigned char *>(node->asn1_data->data());
-        if (true_len < len) {
-          len = true_len;
-        }
-        memcpy(buffer, loc, len);
-        return true_len;
-      }
-    }
-    node = node->link.prev;
+  PRINT_BUCKET("insertSession before")
+  if (queue.size >= static_cast<int>(SSLConfigParams::session_cache_max_bucket_size)) {
+    removeOldestSession();
   }
-  return 0;
+
+  /* do the actual insert */
+  queue.enqueue(ssl_session.release());
+
+  PRINT_BUCKET("insertSession after")
 }
 
 bool
@@ -214,12 +158,9 @@ SSLSessionBucket::getSession(const SSLSessionID &id, SSL_SESSION **sess)
 
   MUTEX_TRY_LOCK(lock, mutex, this_ethread());
   if (!lock.is_locked()) {
-    if (ssl_rsb) {
-      SSL_INCREMENT_DYN_STAT(ssl_session_cache_lock_contention);
-    }
-    if (SSLConfigParams::session_cache_skip_on_lock_contention) {
+    SSL_INCREMENT_DYN_STAT(ssl_session_cache_lock_contention);
+    if (SSLConfigParams::session_cache_skip_on_lock_contention)
       return false;
-    }
 
     lock.acquire(this_ethread());
   }
@@ -297,6 +238,10 @@ SSLSessionBucket::removeSession(const SSLSessionID &id)
 }
 
 /* Session Bucket */
-SSLSessionBucket::SSLSessionBucket() : mutex(new_ProxyMutex()) {}
+SSLSessionBucket::SSLSessionBucket() : mutex(new_ProxyMutex())
+{
+}
 
-SSLSessionBucket::~SSLSessionBucket() {}
+SSLSessionBucket::~SSLSessionBucket()
+{
+}

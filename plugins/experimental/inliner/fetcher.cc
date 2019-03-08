@@ -81,4 +81,4 @@ HttpParser::parse(io::IO &io)
   return false;
 }
 
-} // namespace ats
+} // end of ats namespace

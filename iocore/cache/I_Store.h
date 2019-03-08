@@ -30,8 +30,7 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
-#include "tscore/Result.h"
+#include "ts/ink_platform.h"
 
 #define STORE_BLOCK_SIZE 8192
 #define STORE_BLOCK_SHIFT 13
@@ -117,9 +116,8 @@ public:
   nth(unsigned i)
   {
     Span *x = this;
-    while (x && i--) {
+    while (x && i--)
       x = x->link.next;
-    }
     return x;
   }
 
@@ -127,10 +125,8 @@ public:
   paths() const
   {
     int i = 0;
-    for (const Span *x = this; x; i++, x = x->link.next) {
+    for (const Span *x = this; x; i++, x = x->link.next)
       ;
-    }
-
     return i;
   }
 
@@ -174,14 +170,12 @@ public:
   /// at every call site. We also need this because we have ats_scoped_str members.
   Span(Span const &that)
   {
-    memcpy(this, &that, reinterpret_cast<intptr_t>(&(static_cast<Span *>(nullptr)->pathname)));
-    if (that.pathname) {
+    memcpy(this, &that, reinterpret_cast<intptr_t>(&(static_cast<Span *>(0)->pathname)));
+    if (that.pathname)
       pathname = ats_strdup(that.pathname);
-    }
-    if (that.hash_base_string) {
+    if (that.hash_base_string)
       hash_base_string = ats_strdup(that.hash_base_string);
-    }
-    link.next = nullptr;
+    link.next          = nullptr;
   }
 
   ~Span();
@@ -263,9 +257,12 @@ struct Store {
   // The number of disks/paths we could actually read and parse.
   unsigned n_disks;
   Span **disk;
-
-  Result read_config();
-
+  //
+  // returns nullptr on success
+  // if fd >= 0 then on failure it returns an error string
+  //            otherwise on failure it returns (char *)-1
+  //
+  const char *read_config();
   int write_config_data(int fd) const;
 
   /// Additional configuration key values.

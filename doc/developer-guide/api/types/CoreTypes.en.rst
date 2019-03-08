@@ -33,12 +33,16 @@ Description
 
 These types are provided by the compiler ("built-in") or from a required operating system, POSIX, or package header.
 
+
+   
 .. cpp:type:: uint24_t
+   
 
-.. cpp:class:: IpEndpoint
+   
+.. cpp:type:: Event
 
-   A wrapper for :code:`sockaddr` types.
 
-.. cpp:class:: IpAddr
+.. cpp:type:: DLL
 
-   Storage for an IP address.
+
+.. cpp:type:: INK_MD5

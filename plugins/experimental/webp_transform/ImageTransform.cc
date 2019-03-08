@@ -18,11 +18,10 @@
 
 #include <sstream>
 #include <iostream>
-#include <string_view>
-#include "tscpp/api/PluginInit.h"
-#include "tscpp/api/GlobalPlugin.h"
-#include "tscpp/api/TransformationPlugin.h"
-#include "tscpp/api/Logger.h"
+#include <atscppapi/PluginInit.h>
+#include <atscppapi/GlobalPlugin.h>
+#include <atscppapi/TransformationPlugin.h>
+#include <atscppapi/Logger.h>
 
 #include <Magick++.h>
 
@@ -30,11 +29,9 @@ using std::string;
 using namespace Magick;
 using namespace atscppapi;
 
-#define TAG "webp_transform"
-
 namespace
 {
-GlobalPlugin *plugin;
+#define TAG "webp_transform"
 }
 
 class ImageTransform : public TransformationPlugin
@@ -56,9 +53,9 @@ public:
   }
 
   void
-  consume(std::string_view data) override
+  consume(const string &data) override
   {
-    _img.write(data.data(), data.length());
+    _img.write(data.data(), data.size());
   }
 
   void
@@ -72,13 +69,13 @@ public:
     Blob output_blob;
     image.magick("WEBP");
     image.write(&output_blob);
-    produce(std::string_view(reinterpret_cast<const char *>(output_blob.data()), output_blob.length()));
+    string output_data(reinterpret_cast<const char *>(output_blob.data()), output_blob.length());
+    produce(output_data);
 
     setOutputComplete();
   }
 
   ~ImageTransform() override {}
-
 private:
   std::stringstream _img;
 };
@@ -104,9 +101,7 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  if (!RegisterGlobalPlugin("CPP_Webp_Transform", "apache", "dev@trafficserver.apache.org")) {
-    return;
-  }
+  RegisterGlobalPlugin("CPP_Webp_Transform", "apache", "dev@trafficserver.apache.org");
   InitializeMagick("");
-  plugin = new GlobalHookPlugin();
+  new GlobalHookPlugin();
 }

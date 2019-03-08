@@ -38,7 +38,7 @@
  ****************************************************************************/
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "P_Connection.h"
 #include "P_NetAccept.h"
 
@@ -47,9 +47,9 @@
 // Handles accepting connections.
 //
 struct SSLNetAccept : public NetAccept {
-  NetProcessor *getNetProcessor() const override;
-  NetAccept *clone() const override;
+  virtual NetProcessor *getNetProcessor() const;
+  virtual NetAccept *clone() const;
 
   SSLNetAccept(const NetProcessor::AcceptOptions &opt);
-  ~SSLNetAccept() override;
+  virtual ~SSLNetAccept();
 };

@@ -31,34 +31,26 @@
  *
  */
 
-#pragma once
-
-#include <string>
+#ifndef _LOCAL_MANAGER_H
+#define _LOCAL_MANAGER_H
 
 #include "Alarms.h"
 #include "BaseManager.h"
 #include <records/I_RecHttp.h>
-#include <syslog.h>
 #if TS_HAS_WCCP
 #include <wccp/Wccp.h>
 #endif
-#if HAVE_EVENTFD
-#include <sys/eventfd.h>
-#endif
 
 class FileManager;
+class ClusterCom;
+class VMap;
 
 enum ManagementPendingOperation {
   MGMT_PENDING_NONE,         // Do nothing
   MGMT_PENDING_RESTART,      // Restart TS and TM
   MGMT_PENDING_BOUNCE,       // Restart TS
-  MGMT_PENDING_STOP,         // Stop TS
-  MGMT_PENDING_DRAIN,        // Drain TS
   MGMT_PENDING_IDLE_RESTART, // Restart TS and TM when TS is idle
-  MGMT_PENDING_IDLE_BOUNCE,  // Restart TS when TS is idle
-  MGMT_PENDING_IDLE_STOP,    // Stop TS when TS is idle
-  MGMT_PENDING_IDLE_DRAIN,   // Drain TS when TS is idle from new connections
-  MGMT_PENDING_UNDO_DRAIN,   // Recover TS from drain
+  MGMT_PENDING_IDLE_BOUNCE   // Restart TS when TS is idle
 };
 
 class LocalManager : public BaseManager
@@ -79,7 +71,7 @@ public:
   void signalFileChange(const char *var_name, bool incVersion = true);
   void signalEvent(int msg_id, const char *data_str);
   void signalEvent(int msg_id, const char *data_raw, int data_len);
-  void signalAlarm(int alarm_id, const char *desc = nullptr, const char *ip = nullptr);
+  void signalAlarm(int alarm_id, const char *desc = NULL, const char *ip = NULL);
 
   void processEventQueue();
   bool startProxy(const char *onetime_options);
@@ -92,24 +84,20 @@ public:
   void processShutdown(bool mainThread = false);
   void processRestart();
   void processBounce();
-  void processDrain(int to_drain = 1);
   void rollLogFiles();
-  void clearStats(const char *name = nullptr);
-  void hostStatusSetDown(const char *marshalled_req, int len);
-  void hostStatusSetUp(const char *marshalled_req);
+  void clearStats(const char *name = NULL);
 
   bool processRunning();
+  bool clusterOk();
 
-  bool run_proxy;
-  bool proxy_recoverable = true; // false if traffic_server cannot recover with a reboot
-  time_t manager_started_at;
-  time_t proxy_started_at                              = -1;
-  int proxy_launch_count                               = 0;
-  bool proxy_launch_outstanding                        = false;
-  ManagementPendingOperation mgmt_shutdown_outstanding = MGMT_PENDING_NONE;
-  time_t mgmt_shutdown_triggered_at;
-  time_t mgmt_drain_triggered_at;
-  int proxy_running = 0;
+  volatile bool run_proxy;
+  volatile bool proxy_recoverable; // false if traffic_server cannot recover with a reboot
+  volatile time_t manager_started_at;
+  volatile time_t proxy_started_at;
+  volatile int proxy_launch_count;
+  volatile bool proxy_launch_outstanding;
+  volatile ManagementPendingOperation mgmt_shutdown_outstanding;
+  volatile int proxy_running;
   HttpProxyPort::Group m_proxy_ports;
   // Local inbound addresses to bind, if set.
   IpAddr m_inbound_ip4;
@@ -121,22 +109,22 @@ public:
   char *absolute_proxy_binary;
   char *proxy_name;
   char *proxy_binary;
-  std::string proxy_options; // These options should persist across proxy reboots
+  char *proxy_options; // These options should persist across proxy reboots
   char *env_prep;
 
-  int process_server_sockfd = ts::NO_FD;
-  int watched_process_fd    = ts::NO_FD;
-#if HAVE_EVENTFD
-  int wakeup_fd = ts::NO_FD; // external trigger to stop polling
-#endif
-  pid_t proxy_launch_pid = -1;
+  int process_server_sockfd;
+  volatile int watched_process_fd;
+  volatile pid_t proxy_launch_pid;
 
-  Alarms *alarm_keeper     = nullptr;
-  FileManager *configFiles = nullptr;
+  Alarms *alarm_keeper;
+  VMap *virt_map;
+  FileManager *configFiles;
 
-  pid_t watched_process_pid = -1;
+  ClusterCom *ccom;
 
-  int syslog_facility = LOG_DAEMON;
+  volatile pid_t watched_process_pid;
+
+  int syslog_facility;
 
 #if TS_HAS_WCCP
   wccp::Cache wccp_cache;
@@ -145,3 +133,5 @@ private:
 }; /* End class LocalManager */
 
 extern LocalManager *lmgmt;
+
+#endif /* _LOCAL_MANAGER_H */

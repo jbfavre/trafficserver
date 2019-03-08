@@ -24,21 +24,20 @@
 #include <stdio.h>
 
 #include "ts/ts.h"
-
-#define PLUGIN_NAME "hello"
+#include "ts/ink_defs.h"
 
 void
-TSPluginInit(int argc, const char *argv[])
+TSPluginInit(int argc ATS_UNUSED, const char *argv[] ATS_UNUSED)
 {
   TSPluginRegistrationInfo info;
 
-  info.plugin_name   = PLUGIN_NAME;
-  info.vendor_name   = "Apache Software Foundation";
-  info.support_email = "dev@trafficserver.apache.org";
+  info.plugin_name   = "hello-world";
+  info.vendor_name   = "MyCompany";
+  info.support_email = "ts-api-support@MyCompany.com";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[%s] Plugin registration failed", PLUGIN_NAME);
+    TSError("[hello-world] Plugin registration failed.");
   }
 
-  TSDebug(PLUGIN_NAME, "Hello World!");
+  TSDebug("debug-hello", "Hello World!");
 }

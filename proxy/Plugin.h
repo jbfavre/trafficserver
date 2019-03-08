@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "tscore/List.h"
+#include "ts/List.h"
 
 struct PluginRegInfo {
   PluginRegInfo();
@@ -73,7 +73,7 @@ public:
   virtual char const *
   getPluginTag() const
   {
-    return nullptr;
+    return NULL;
   }
   /** Get the plugin instance ID.
       A plugin can create multiple subsidiary instances. This is used as the

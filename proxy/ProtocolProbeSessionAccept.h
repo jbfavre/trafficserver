@@ -39,24 +39,20 @@ struct ProtocolProbeSessionAcceptEnums {
 class ProtocolProbeSessionAccept : public SessionAccept, public ProtocolProbeSessionAcceptEnums
 {
 public:
-  ProtocolProbeSessionAccept() : SessionAccept(nullptr)
+  ProtocolProbeSessionAccept() : SessionAccept(NULL)
   {
     memset(endpoint, 0, sizeof(endpoint));
     SET_HANDLER(&ProtocolProbeSessionAccept::mainEvent);
   }
-  ~ProtocolProbeSessionAccept() override {}
+  ~ProtocolProbeSessionAccept() {}
   void registerEndpoint(ProtoGroupKey key, SessionAccept *ap);
 
-  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *) override;
-
-  // noncopyable
-  ProtocolProbeSessionAccept(const ProtocolProbeSessionAccept &) = delete;            // disabled
-  ProtocolProbeSessionAccept &operator=(const ProtocolProbeSessionAccept &) = delete; // disabled
-
-  IpMap *proxy_protocol_ipmap = nullptr;
+  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *);
 
 private:
-  int mainEvent(int event, void *netvc) override;
+  int mainEvent(int event, void *netvc);
+  ProtocolProbeSessionAccept(const ProtocolProbeSessionAccept &);            // disabled
+  ProtocolProbeSessionAccept &operator=(const ProtocolProbeSessionAccept &); // disabled
 
   /** Child acceptors, index by @c ProtoGroupKey
 

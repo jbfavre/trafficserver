@@ -86,20 +86,19 @@
 
 #pragma once
 
-#include "tscore/DynArray.h"
-#include "tscore/ink_hash_table.h"
-#include "tscore/IpMap.h"
-#include "tscore/Result.h"
-#include "tscore/MatcherUtils.h"
+#include "ts/DynArray.h"
+#include "ts/ink_hash_table.h"
+#include "ts/IpMap.h"
+#include "ts/MatcherUtils.h"
 
-#include "tscore/ink_apidefs.h"
-#include "tscore/ink_defs.h"
+#include "ts/ink_apidefs.h"
+#include "ts/ink_defs.h"
 #include "HTTP.h"
-#include "tscore/Regex.h"
+#include "ts/Regex.h"
 #include "URL.h"
 
 #ifdef HAVE_CTYPE_H
-#include <cctype>
+#include <ctype.h>
 #endif
 
 #define SignalError(_buf, _already)                         \
@@ -132,21 +131,21 @@ public:
 class HttpRequestData : public RequestData
 {
 public:
-  inkcoreapi char *get_string() override;
-  inkcoreapi const char *get_host() override;
-  inkcoreapi sockaddr const *get_ip() override;
-  inkcoreapi sockaddr const *get_client_ip() override;
+  inkcoreapi char *get_string();
+  inkcoreapi const char *get_host();
+  inkcoreapi sockaddr const *get_ip();
+  inkcoreapi sockaddr const *get_client_ip();
 
   HttpRequestData()
-    : hdr(nullptr),
-      hostname_str(nullptr),
-      api_info(nullptr),
+    : hdr(NULL),
+      hostname_str(NULL),
+      api_info(NULL),
       xact_start(0),
       incoming_port(0),
-      tag(nullptr),
+      tag(NULL),
       internal_txn(false),
-      cache_info_lookup_url(nullptr),
-      cache_info_parent_selection_url(nullptr)
+      cache_info_lookup_url(NULL),
+      cache_info_parent_selection_url(NULL)
   {
     ink_zero(src_ip);
     ink_zero(dest_ip);
@@ -165,105 +164,96 @@ public:
   URL **cache_info_parent_selection_url;
 };
 
-// Mixin class for shared info across all templates. This just wraps the
-// shared members such that we don't have to duplicate all these initialixers
-// etc. If someone wants to rewrite all this code to use setters and getters,
-// by all means, please do so. The plumbing is in place :).
-template <class Data> class BaseMatcher
+template <class Data, class Result> class UrlMatcher
 {
-public:
-  BaseMatcher(const char *name, const char *filename) : matcher_name(name), file_name(filename) {}
-
-  ~BaseMatcher() { delete[] data_array; }
-
-protected:
-  int num_el               = -1;        // number of elements in the table
-  const char *matcher_name = "unknown"; // Used for Debug/Warning/Error messages
-  const char *file_name    = nullptr;   // Used for Debug/Warning/Error messages
-  Data *data_array         = nullptr;   // Array with the Data elements
-  int array_len            = -1;        // length of the arrays (all three are the same length)
-};
-
-template <class Data, class MatchResult> class UrlMatcher : protected BaseMatcher<Data>
-{
-  typedef BaseMatcher<Data> super;
-
 public:
   UrlMatcher(const char *name, const char *filename);
   ~UrlMatcher();
-  void Match(RequestData *rdata, MatchResult *result);
+  void Match(RequestData *rdata, Result *result);
   void AllocateSpace(int num_entries);
-  Result NewEntry(matcher_line *line_info);
+  config_parse_error NewEntry(matcher_line *line_info);
   void Print();
 
-  using super::num_el;
-  using super::matcher_name;
-  using super::file_name;
-  using super::data_array;
-  using super::array_len;
+  int
+  getNumElements()
+  {
+    return num_el;
+  }
+  Data *
+  getDataArray()
+  {
+    return data_array;
+  }
 
-private:
+protected:
   InkHashTable *url_ht;
-  char **url_str = nullptr; // array of url strings
-  int *url_value = nullptr; // array of posion of url strings
+  char **url_str;           // array of url strings
+  int *url_value;           // array of posion of url strings
+  Data *data_array;         // data array.  Corresponds to re_array
+  int array_len;            // length of the arrays (all three are the same length)
+  int num_el;               // number of elements in the table
+  const char *matcher_name; // Used for Debug/Warning/Error messages
+  const char *file_name;    // Used for Debug/Warning/Error messages
 };
 
-template <class Data, class MatchResult> class RegexMatcher : protected BaseMatcher<Data>
+template <class Data, class Result> class RegexMatcher
 {
-  typedef BaseMatcher<Data> super;
-
 public:
   RegexMatcher(const char *name, const char *filename);
   ~RegexMatcher();
-  void Match(RequestData *rdata, MatchResult *result);
+  void Match(RequestData *rdata, Result *result);
   void AllocateSpace(int num_entries);
-  Result NewEntry(matcher_line *line_info);
+  config_parse_error NewEntry(matcher_line *line_info);
   void Print();
 
-  using super::num_el;
-  using super::matcher_name;
-  using super::file_name;
-  using super::data_array;
-  using super::array_len;
+  int
+  getNumElements()
+  {
+    return num_el;
+  }
+  Data *
+  getDataArray()
+  {
+    return data_array;
+  }
 
 protected:
-  pcre **re_array = nullptr; // array of compiled regexs
-  char **re_str   = nullptr; // array of uncompiled regex strings
+  pcre **re_array;          // array of compiled regexs
+  char **re_str;            // array of uncompiled regex strings
+  Data *data_array;         // data array.  Corresponds to re_array
+  int array_len;            // length of the arrays (all three are the same length)
+  int num_el;               // number of elements in the table
+  const char *matcher_name; // Used for Debug/Warning/Error messages
+  const char *file_name;    // Used for Debug/Warning/Error messages
 };
 
-template <class Data, class MatchResult> class HostRegexMatcher : public RegexMatcher<Data, MatchResult>
+template <class Data, class Result> class HostRegexMatcher : public RegexMatcher<Data, Result>
 {
-  typedef BaseMatcher<Data> super;
-
 public:
   HostRegexMatcher(const char *name, const char *filename);
-  void Match(RequestData *rdata, MatchResult *result);
-
-  using super::num_el;
-  using super::matcher_name;
-  using super::file_name;
-  using super::data_array;
-  using super::array_len;
+  void Match(RequestData *rdata, Result *result);
 };
 
-template <class Data, class MatchResult> class HostMatcher : protected BaseMatcher<Data>
+template <class Data, class Result> class HostMatcher
 {
-  typedef BaseMatcher<Data> super;
-
 public:
   HostMatcher(const char *name, const char *filename);
   ~HostMatcher();
-  void Match(RequestData *rdata, MatchResult *result);
+  void Match(RequestData *rdata, Result *result);
   void AllocateSpace(int num_entries);
-  Result NewEntry(matcher_line *line_info);
+  config_parse_error NewEntry(matcher_line *line_info);
   void Print();
 
-  using super::num_el;
-  using super::matcher_name;
-  using super::file_name;
-  using super::data_array;
-  using super::array_len;
-
+  int
+  getNumElements()
+  {
+    return num_el;
+  }
+  Data *
+  getDataArray()
+  {
+    return data_array;
+  }
   HostLookup *
   getHLookup()
   {
@@ -272,29 +262,42 @@ public:
 
 private:
   static void PrintFunc(void *opaque_data);
-  HostLookup *host_lookup = nullptr; // Data structure to do the lookups
+  HostLookup *host_lookup;  // Data structure to do the lookups
+  Data *data_array;         // array of all data items
+  int array_len;            // the length of the arrays
+  int num_el;               // the numbe of itmems in the tree
+  const char *matcher_name; // Used for Debug/Warning/Error messages
+  const char *file_name;    // Used for Debug/Warning/Error messages
 };
 
-template <class Data, class MatchResult> class IpMatcher : protected BaseMatcher<Data>
+template <class Data, class Result> class IpMatcher
 {
-  typedef BaseMatcher<Data> super;
-
 public:
   IpMatcher(const char *name, const char *filename);
-  void Match(sockaddr const *ip_addr, RequestData *rdata, MatchResult *result);
+  ~IpMatcher();
+  void Match(sockaddr const *ip_addr, RequestData *rdata, Result *result);
   void AllocateSpace(int num_entries);
-  Result NewEntry(matcher_line *line_info);
+  config_parse_error NewEntry(matcher_line *line_info);
   void Print();
 
-  using super::num_el;
-  using super::matcher_name;
-  using super::file_name;
-  using super::data_array;
-  using super::array_len;
+  int
+  getNumElements()
+  {
+    return num_el;
+  }
+  Data *
+  getDataArray()
+  {
+    return data_array;
+  }
 
-private:
   static void PrintFunc(void *opaque_data);
-  IpMap ip_map; // Data structure to do lookups
+  IpMap ip_map;             // Data structure to do lookups
+  Data *data_array;         // array of the data lements with in the table
+  int array_len;            // size of the arrays
+  int num_el;               // number of elements in the table
+  const char *matcher_name; // Used for Debug/Warning/Error messages
+  const char *file_name;    // Used for Debug/Warning/Error messages
 };
 
 #define ALLOW_HOST_TABLE 1 << 0
@@ -304,7 +307,7 @@ private:
 #define ALLOW_URL_TABLE 1 << 4
 #define DONT_BUILD_TABLE 1 << 5 // for testing
 
-template <class Data, class MatchResult> class ControlMatcher
+template <class Data, class Result> class ControlMatcher
 {
 public:
   // Parameter name must not be deallocated before this
@@ -314,7 +317,7 @@ public:
   ~ControlMatcher();
   int BuildTable();
   int BuildTableFromString(char *str);
-  void Match(RequestData *rdata, MatchResult *result);
+  void Match(RequestData *rdata, Result *result);
   void Print();
 
   int
@@ -322,47 +325,41 @@ public:
   {
     return m_numEntries;
   }
-
-  HostMatcher<Data, MatchResult> *
+  HostMatcher<Data, Result> *
   getHostMatcher()
   {
     return hostMatch;
   }
-
-  RegexMatcher<Data, MatchResult> *
+  RegexMatcher<Data, Result> *
   getReMatcher()
   {
     return reMatch;
   }
-
-  UrlMatcher<Data, MatchResult> *
+  UrlMatcher<Data, Result> *
   getUrlMatcher()
   {
     return urlMatch;
   }
-
-  IpMatcher<Data, MatchResult> *
+  IpMatcher<Data, Result> *
   getIPMatcher()
   {
     return ipMatch;
   }
-
-  HostRegexMatcher<Data, MatchResult> *
+  HostRegexMatcher<Data, Result> *
   getHrMatcher()
   {
     return hrMatch;
   }
 
   // private:
-  RegexMatcher<Data, MatchResult> *reMatch;
-  UrlMatcher<Data, MatchResult> *urlMatch;
-  HostMatcher<Data, MatchResult> *hostMatch;
-  IpMatcher<Data, MatchResult> *ipMatch;
-  HostRegexMatcher<Data, MatchResult> *hrMatch;
-
-  const matcher_tags *config_tags = nullptr;
+  RegexMatcher<Data, Result> *reMatch;
+  UrlMatcher<Data, Result> *urlMatch;
+  HostMatcher<Data, Result> *hostMatch;
+  IpMatcher<Data, Result> *ipMatch;
+  HostRegexMatcher<Data, Result> *hrMatch;
+  const matcher_tags *config_tags;
   char config_file_path[PATH_NAME_MAX];
-  int flags                = 0;
-  int m_numEntries         = 0;
-  const char *matcher_name = "unknown"; // Used for Debug/Warning/Error messages
+  int flags;
+  int m_numEntries;
+  const char *matcher_name; // Used for Debug/Warning/Error messages
 };

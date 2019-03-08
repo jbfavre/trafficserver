@@ -21,10 +21,10 @@
   limitations under the License.
  */
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "ProxyConfig.h"
 #include "P_EventSystem.h"
-#include "tscore/TestBox.h"
+#include "ts/TestBox.h"
 
 ConfigProcessor configProcessor;
 
@@ -168,6 +168,7 @@ ConfigProcessor::get(unsigned int id)
   ConfigInfo *info;
   int idx;
 
+  ink_assert(id != 0);
   ink_assert(id <= MAX_CONFIGS);
 
   if (id == 0 || id > MAX_CONFIGS) {
@@ -213,7 +214,7 @@ enum {
 };
 
 struct RegressionConfig : public ConfigInfo {
-  static int nobjects; // count of outstanding RegressionConfig objects (not-reentrant)
+  static volatile int nobjects; // count of outstanding RegressionConfig objects (not-reentrant)
 
   // DeferredCall is a simple function call wrapper that defers itself until the RegressionConfig
   // object count drops below the specified count.
@@ -275,7 +276,7 @@ struct RegressionConfig : public ConfigInfo {
   unsigned flags;
 };
 
-int RegressionConfig::nobjects = 0;
+volatile int RegressionConfig::nobjects = 0;
 
 struct ProxyConfig_Set_Completion {
   ProxyConfig_Set_Completion(int _id, RegressionConfig *_c) : configid(_id), config(_c) {}

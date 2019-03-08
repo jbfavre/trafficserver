@@ -22,7 +22,7 @@
  */
 
 #include "P_SSLCertLookup.h"
-#include "tscore/TestBox.h"
+#include "ts/TestBox.h"
 #include <fstream>
 
 static IpEndpoint

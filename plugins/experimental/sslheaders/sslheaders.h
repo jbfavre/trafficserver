@@ -86,9 +86,9 @@ struct SslHdrInstance {
 
   void register_hooks();
 
-  // noncopyable
-  SslHdrInstance(const SslHdrInstance &) = delete;
-  SslHdrInstance &operator=(const SslHdrInstance &) = delete;
+private:
+  SslHdrInstance(const SslHdrInstance &);
+  SslHdrInstance &operator=(const SslHdrInstance &);
 };
 
 bool SslHdrParseExpansion(const char *spec, SslHdrExpansion &exp);

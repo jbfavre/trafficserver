@@ -116,8 +116,8 @@ Client/Traffic Server connections, you must do the following:
    which your Traffic Server system will be using to terminate SSL connections
    with clients. ::
 
-        ip_dest=1.2.3.4 ssl_cert_name=example.com.pem
-        ip_dest=* ssl_cert_name=default.pem
+        dest_ip=1.2.3.4 ssl_cert_name=example.com.pem
+        dest_ip=* ssl_cert_name=default.pem
 
 #. *Optional*: Configure the use of client certificates using the variable
    :ts:cv:`proxy.config.ssl.client.certification_level` in :file:`records.config`.
@@ -148,7 +148,9 @@ Client/Traffic Server connections, you must do the following:
 
         CONFIG proxy.config.ssl.CA.cert.path STRING "/opt/CA/certs/private-ca.pem"
 
-#. Run the command :option:`traffic_ctl server restart` to restart Traffic Server.
+#. Run the command :option:`traffic_ctl server restart` to restart Traffic Server on the
+   local node or :option:`traffic_ctl cluster restart` to restart Traffic Server on all
+   the nodes in a cluster.
 
 .. _traffic-server-and-origin-server-connections:
 
@@ -233,7 +235,9 @@ and origin server connections, you must do the following:
         CONFIG proxy.config.ssl.client.CA.cert.path STRING "/opt/ts/etc/ssl/certs/"
         CONFIG proxy.config.ssl.client.CA.cert.filename STRING "CAs.pem"
 
-#. Run the command :option:`traffic_ctl server restart` to restart Traffic Server.
+#. Run the command :option:`traffic_ctl server restart` to restart Traffic Server on the
+   local node or :option:`traffic_ctl cluster restart` to restart Traffic Server on all
+   the nodes in a cluster.
 
 .. _admin-rotating-tls-session-ticket-keys:
 

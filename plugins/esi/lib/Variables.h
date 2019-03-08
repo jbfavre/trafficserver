@@ -21,7 +21,9 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _ESI_VARIABLES_H
+
+#define _ESI_VARIABLES_H
 
 #include <list>
 
@@ -53,8 +55,8 @@ public:
   void
   populate(const HttpHeaderList &headers)
   {
-    for (const auto &header : headers) {
-      populate(header);
+    for (HttpHeaderList::const_iterator iter = headers.begin(); iter != headers.end(); ++iter) {
+      populate(*iter);
     }
   };
 
@@ -95,13 +97,11 @@ public:
 
   void clear();
 
-  ~Variables() override { _releaseCookieJar(); };
-
-  // noncopyable
-  Variables(const Variables &) = delete;            // non-copyable
-  Variables &operator=(const Variables &) = delete; // non-copyable
-
+  virtual ~Variables() { _releaseCookieJar(); };
 private:
+  Variables(const Variables &);            // non-copyable
+  Variables &operator=(const Variables &); // non-copyable
+
   static const std::string EMPTY_STRING;
   static const std::string TRUE_STRING;
   static const std::string VENDOR_STRING;
@@ -176,4 +176,6 @@ private:
   mutable std::string _cached_sub_cookie_value;
   const std::string &_getSubCookieValue(const std::string &cookie_str, size_t cookie_part_divider) const;
 };
-}; // namespace EsiLib
+};
+
+#endif // _ESI_VARIABLES_H

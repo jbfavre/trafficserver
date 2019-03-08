@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
-#include "tscore/ink_resource.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_resource.h"
 
 // TODO: I think we're overly aggressive here on making MIOBuffer 64-bit
 // but not sure it's worthwhile changing anything to 32-bit honestly.
@@ -40,32 +40,29 @@ buffer_size_to_index(int64_t size, int64_t max = max_iobuffer_size)
 {
   int64_t r = max;
 
-  while (r && BUFFER_SIZE_FOR_INDEX(r - 1) >= size) {
+  while (r && BUFFER_SIZE_FOR_INDEX(r - 1) >= size)
     r--;
-  }
   return r;
 }
 
 TS_INLINE int64_t
 iobuffer_size_to_index(int64_t size, int64_t max)
 {
-  if (size > BUFFER_SIZE_FOR_INDEX(max)) {
+  if (size > BUFFER_SIZE_FOR_INDEX(max))
     return BUFFER_SIZE_INDEX_FOR_XMALLOC_SIZE(size);
-  }
   return buffer_size_to_index(size, max);
 }
 
 TS_INLINE int64_t
 index_to_buffer_size(int64_t idx)
 {
-  if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(idx)) {
+  if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(idx))
     return BUFFER_SIZE_FOR_INDEX(idx);
-  } else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(idx)) {
+  else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(idx))
     return BUFFER_SIZE_FOR_XMALLOC(idx);
-    // coverity[dead_error_condition]
-  } else if (BUFFER_SIZE_INDEX_IS_CONSTANT(idx)) {
+  // coverity[dead_error_condition]
+  else if (BUFFER_SIZE_INDEX_IS_CONSTANT(idx))
     return BUFFER_SIZE_FOR_CONSTANT(idx);
-  }
   // coverity[dead_error_line]
   return 0;
 }
@@ -150,33 +147,27 @@ iobufferblock_skip(IOBufferBlock *b, int64_t *poffset, int64_t *plen, int64_t wr
 TS_INLINE void
 iobuffer_mem_inc(const char *_loc, int64_t _size_index)
 {
-  if (!res_track_memory) {
+  if (!res_track_memory)
     return;
-  }
 
-  if (!BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index)) {
+  if (!BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index))
     return;
-  }
 
-  if (!_loc) {
+  if (!_loc)
     _loc = "memory/IOBuffer/UNKNOWN-LOCATION";
-  }
   ResourceTracker::increment(_loc, index_to_buffer_size(_size_index));
 }
 
 TS_INLINE void
 iobuffer_mem_dec(const char *_loc, int64_t _size_index)
 {
-  if (!res_track_memory) {
+  if (!res_track_memory)
     return;
-  }
 
-  if (!BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index)) {
+  if (!BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index))
     return;
-  }
-  if (!_loc) {
+  if (!_loc)
     _loc = "memory/IOBuffer/UNKNOWN-LOCATION";
-  }
   ResourceTracker::increment(_loc, -index_to_buffer_size(_size_index));
 }
 #endif
@@ -280,9 +271,8 @@ new_IOBufferData_internal(
 TS_INLINE void
 IOBufferData::alloc(int64_t size_index, AllocType type)
 {
-  if (_data) {
+  if (_data)
     dealloc();
-  }
   _size_index = size_index;
   _mem_type   = type;
 #ifdef TRACK_BUFFER_USER
@@ -290,20 +280,18 @@ IOBufferData::alloc(int64_t size_index, AllocType type)
 #endif
   switch (type) {
   case MEMALIGNED:
-    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(size_index)) {
+    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(size_index))
       _data = (char *)ioBufAllocator[size_index].alloc_void();
-      // coverity[dead_error_condition]
-    } else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index)) {
+    // coverity[dead_error_condition]
+    else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index))
       _data = (char *)ats_memalign(ats_pagesize(), index_to_buffer_size(size_index));
-    }
     break;
   default:
   case DEFAULT_ALLOC:
-    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(size_index)) {
+    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(size_index))
       _data = (char *)ioBufAllocator[size_index].alloc_void();
-    } else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index)) {
+    else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index))
       _data = (char *)ats_malloc(BUFFER_SIZE_FOR_XMALLOC(size_index));
-    }
     break;
   }
 }
@@ -318,22 +306,20 @@ IOBufferData::dealloc()
 #endif
   switch (_mem_type) {
   case MEMALIGNED:
-    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index)) {
+    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index))
       ioBufAllocator[_size_index].free_void(_data);
-    } else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(_size_index)) {
+    else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(_size_index))
       ::free((void *)_data);
-    }
     break;
   default:
   case DEFAULT_ALLOC:
-    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index)) {
+    if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index))
       ioBufAllocator[_size_index].free_void(_data);
-    } else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(_size_index)) {
+    else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(_size_index))
       ats_free(_data);
-    }
     break;
   }
-  _data       = nullptr;
+  _data       = 0;
   _size_index = BUFFER_SIZE_NOT_ALLOCATED;
   _mem_type   = NO_ALLOC;
 }
@@ -356,7 +342,7 @@ new_IOBufferBlock_internal(
 #ifdef TRACK_BUFFER_USER
   const char *location
 #endif
-)
+  )
 {
   IOBufferBlock *b = THREAD_ALLOC(ioBlockAllocator, this_thread());
 #ifdef TRACK_BUFFER_USER
@@ -382,12 +368,12 @@ new_IOBufferBlock_internal(
 
 TS_INLINE
 IOBufferBlock::IOBufferBlock()
-  : _start(nullptr),
-    _end(nullptr),
-    _buf_end(nullptr)
+  : _start(0),
+    _end(0),
+    _buf_end(0)
 #ifdef TRACK_BUFFER_USER
     ,
-    _location(nullptr)
+    _location(0)
 #endif
 {
   return;
@@ -592,7 +578,7 @@ TS_INLINE char *
 IOBufferReader::start()
 {
   if (!block) {
-    return nullptr;
+    return 0;
   }
 
   skip_empty_blocks();
@@ -603,7 +589,7 @@ TS_INLINE char *
 IOBufferReader::end()
 {
   if (!block) {
-    return nullptr;
+    return 0;
   }
 
   skip_empty_blocks();
@@ -701,9 +687,8 @@ TS_INLINE char &IOBufferReader::operator[](int64_t i)
   i += start_offset;
   while (b) {
     int64_t bytes = b->read_avail();
-    if (bytes > i) {
+    if (bytes > i)
       return b->start()[i];
-    }
     i -= bytes;
     b = b->next.get();
   }
@@ -803,7 +788,6 @@ new_MIOBuffer_internal(
   b->_location = location;
 #endif
   b->alloc(size_index);
-  b->water_mark = 0;
   return b;
 }
 
@@ -824,7 +808,6 @@ new_empty_MIOBuffer_internal(
 {
   MIOBuffer *b  = THREAD_ALLOC(ioAllocator, this_thread());
   b->size_index = size_index;
-  b->water_mark = 0;
 #ifdef TRACK_BUFFER_USER
   b->_location = location;
 #endif
@@ -841,11 +824,9 @@ TS_INLINE IOBufferReader *
 MIOBuffer::alloc_accessor(MIOBufferAccessor *anAccessor)
 {
   int i;
-  for (i = 0; i < MAX_MIOBUFFER_READERS; i++) {
-    if (!readers[i].allocated()) {
+  for (i = 0; i < MAX_MIOBUFFER_READERS; i++)
+    if (!readers[i].allocated())
       break;
-    }
-  }
 
   // TODO refactor code to return nullptr at some point
   ink_release_assert(i < MAX_MIOBUFFER_READERS);
@@ -862,11 +843,9 @@ TS_INLINE IOBufferReader *
 MIOBuffer::alloc_reader()
 {
   int i;
-  for (i = 0; i < MAX_MIOBUFFER_READERS; i++) {
-    if (!readers[i].allocated()) {
+  for (i = 0; i < MAX_MIOBUFFER_READERS; i++)
+    if (!readers[i].allocated())
       break;
-    }
-  }
 
   // TODO refactor code to return nullptr at some point
   ink_release_assert(i < MAX_MIOBUFFER_READERS);
@@ -888,11 +867,9 @@ TS_INLINE IOBufferReader *
 MIOBuffer::clone_reader(IOBufferReader *r)
 {
   int i;
-  for (i = 0; i < MAX_MIOBUFFER_READERS; i++) {
-    if (!readers[i].allocated()) {
+  for (i = 0; i < MAX_MIOBUFFER_READERS; i++)
+    if (!readers[i].allocated())
       break;
-    }
-  }
 
   // TODO refactor code to return nullptr at some point
   ink_release_assert(i < MAX_MIOBUFFER_READERS);
@@ -945,14 +922,12 @@ MIOBuffer::append_block_internal(IOBufferBlock *b)
     while (b->read_avail()) {
       _writer = b;
       b       = b->next.get();
-      if (!b) {
+      if (!b)
         break;
-      }
     }
   }
-  while (_writer->next && !_writer->write_avail() && _writer->next->read_avail()) {
+  while (_writer->next && !_writer->write_avail() && _writer->next->read_avail())
     _writer = _writer->next;
-  }
 }
 
 TS_INLINE void
@@ -993,9 +968,8 @@ MIOBuffer::add_block()
 TS_INLINE void
 MIOBuffer::check_add_block()
 {
-  if (!high_water() && current_low_water()) {
+  if (!high_water() && current_low_water())
     add_block();
-  }
 }
 
 TS_INLINE IOBufferBlock *
@@ -1049,10 +1023,9 @@ MIOBuffer::fill(int64_t len)
   while (f < len) {
     _writer->fill(f);
     len -= f;
-    if (len > 0) {
+    if (len > 0)
       _writer = _writer->next;
-    }
-    f = _writer->write_avail();
+    f         = _writer->write_avail();
   }
   _writer->fill(len);
 }
@@ -1061,9 +1034,9 @@ TS_INLINE int
 MIOBuffer::max_block_count()
 {
   int maxb = 0;
-  for (auto &reader : readers) {
-    if (reader.allocated()) {
-      int c = reader.block_count();
+  for (int i = 0; i < MAX_MIOBUFFER_READERS; i++) {
+    if (readers[i].allocated()) {
+      int c = readers[i].block_count();
       if (c > maxb) {
         maxb = c;
       }
@@ -1077,18 +1050,17 @@ MIOBuffer::max_read_avail()
 {
   int64_t s = 0;
   int found = 0;
-  for (auto &reader : readers) {
-    if (reader.allocated()) {
-      int64_t ss = reader.read_avail();
+  for (int i = 0; i < MAX_MIOBUFFER_READERS; i++) {
+    if (readers[i].allocated()) {
+      int64_t ss = readers[i].read_avail();
       if (ss > s) {
         s = ss;
       }
       found = 1;
     }
   }
-  if (!found && _writer) {
+  if (!found && _writer)
     return _writer->read_avail();
-  }
   return s;
 }
 
@@ -1150,6 +1122,7 @@ MIOBuffer::alloc(int64_t i)
 #endif
   _writer->alloc(i);
   size_index = i;
+  water_mark = 0;
   init_readers();
 }
 
@@ -1186,11 +1159,9 @@ IOBufferReader::dealloc()
 TS_INLINE void
 MIOBuffer::dealloc_all_readers()
 {
-  for (auto &reader : readers) {
-    if (reader.allocated()) {
-      dealloc_reader(&reader);
-    }
-  }
+  for (int i = 0; i < MAX_MIOBUFFER_READERS; i++)
+    if (readers[i].allocated())
+      dealloc_reader(&readers[i]);
 }
 
 TS_INLINE void
@@ -1203,19 +1174,17 @@ TS_INLINE void
 MIOBufferAccessor::reader_for(MIOBuffer *abuf)
 {
   mbuf = abuf;
-  if (abuf) {
+  if (abuf)
     entry = mbuf->alloc_accessor(this);
-  } else {
+  else
     entry = nullptr;
-  }
 }
 
 TS_INLINE void
 MIOBufferAccessor::reader_for(IOBufferReader *areader)
 {
-  if (entry == areader) {
+  if (entry == areader)
     return;
-  }
   mbuf  = areader->mbuf;
   entry = areader;
   ink_assert(mbuf);
@@ -1229,4 +1198,6 @@ MIOBufferAccessor::writer_for(MIOBuffer *abuf)
 }
 
 TS_INLINE
-MIOBufferAccessor::~MIOBufferAccessor() {}
+MIOBufferAccessor::~MIOBufferAccessor()
+{
+}

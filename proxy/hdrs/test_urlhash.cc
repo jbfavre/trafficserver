@@ -24,10 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "tscore/Arena.h"
+#include "ts/Arena.h"
 #include "HTTP.h"
 #include "MIME.h"
-#include "tscore/Regex.h"
+#include "ts/Regex.h"
 #include "URL.h"
 #include "HttpCompat.h"
 

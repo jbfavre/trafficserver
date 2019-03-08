@@ -25,21 +25,21 @@
 
 #include <vector>
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 #include "AclFiltering.h"
 #include "Main.h"
 #include "URL.h"
 #include "RemapPluginInfo.h"
-#include "tscore/Regex.h"
-#include "tscore/List.h"
+#include "ts/Regex.h"
+#include "ts/List.h"
 
 /**
  * Used to store http referer strings (and/or regexp)
- **/
+**/
 class referer_info
 {
 public:
-  referer_info(char *_ref, bool *error_flag = nullptr, char *errmsgbuf = nullptr, int errmsgbuf_size = 0);
+  referer_info(char *_ref, bool *error_flag = NULL, char *errmsgbuf = NULL, int errmsgbuf_size = 0);
   ~referer_info();
   referer_info *next;
   char *referer;
@@ -52,17 +52,17 @@ public:
 
 /**
  *
- **/
+**/
 class redirect_tag_str
 {
 public:
-  redirect_tag_str() : next(nullptr), chunk_str(nullptr), type(0) {}
+  redirect_tag_str() : next(0), chunk_str(NULL), type(0) {}
   ~redirect_tag_str()
   {
     type = 0;
     if (chunk_str) {
       ats_free(chunk_str);
-      chunk_str = nullptr;
+      chunk_str = NULL;
     }
   }
 
@@ -74,7 +74,7 @@ public:
 
 /**
  * Used to store the mapping for class UrlRewrite
- **/
+**/
 class url_mapping
 {
 public:
@@ -131,12 +131,12 @@ private:
 /**
  * UrlMappingContainer wraps a url_mapping object and allows a caller to rewrite the target URL.
  * This is used while evaluating remap rules.
- **/
+**/
 class UrlMappingContainer
 {
 public:
-  UrlMappingContainer() : _mapping(nullptr), _toURLPtr(nullptr), _heap(nullptr) {}
-  explicit UrlMappingContainer(HdrHeap *heap) : _mapping(nullptr), _toURLPtr(nullptr), _heap(heap) {}
+  UrlMappingContainer() : _mapping(NULL), _toURLPtr(NULL), _heap(NULL) {}
+  explicit UrlMappingContainer(HdrHeap *heap) : _mapping(NULL), _toURLPtr(NULL), _heap(heap) {}
   ~UrlMappingContainer() { deleteToURL(); }
   URL *
   getToURL() const
@@ -146,7 +146,7 @@ public:
   URL *
   getFromURL() const
   {
-    return _mapping ? &(_mapping->fromURL) : nullptr;
+    return _mapping ? &(_mapping->fromURL) : NULL;
   };
 
   url_mapping *
@@ -160,7 +160,7 @@ public:
   {
     deleteToURL();
     _mapping  = m;
-    _toURLPtr = m ? &(m->toUrl) : nullptr;
+    _toURLPtr = m ? &(m->toUrl) : NULL;
   }
 
   void
@@ -172,7 +172,7 @@ public:
   URL *
   createNewToURL()
   {
-    ink_assert(_heap != nullptr);
+    ink_assert(_heap != NULL);
     deleteToURL();
     _toURL.create(_heap);
     _toURLPtr = &_toURL;
@@ -191,18 +191,18 @@ public:
   clear()
   {
     deleteToURL();
-    _mapping  = nullptr;
-    _toURLPtr = nullptr;
-    _heap     = nullptr;
+    _mapping  = NULL;
+    _toURLPtr = NULL;
+    _heap     = NULL;
   }
-
-  // noncopyable, non-assignable
-  UrlMappingContainer(const UrlMappingContainer &orig) = delete;
-  UrlMappingContainer &operator=(const UrlMappingContainer &rhs) = delete;
 
 private:
   url_mapping *_mapping;
   URL *_toURLPtr;
   URL _toURL;
   HdrHeap *_heap;
+
+  // non-copyable, non-assignable
+  UrlMappingContainer(const UrlMappingContainer &orig);
+  UrlMappingContainer &operator=(const UrlMappingContainer &rhs);
 };

@@ -36,7 +36,7 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 
 class VIO;
 class MIOBuffer;
@@ -70,7 +70,7 @@ class NetTestDriver : public Continuation
 {
 public:
   NetTestDriver();
-  ~NetTestDriver() override;
+  ~NetTestDriver();
 
   int errors;
 
@@ -83,7 +83,7 @@ class NetVCTest : public Continuation
 {
 public:
   NetVCTest();
-  ~NetVCTest() override;
+  ~NetVCTest();
   NetVcTestType_t test_cont_type;
 
   int main_handler(int event, void *data);

@@ -35,5 +35,5 @@ namespace io
     return io;
   }
 
-} // namespace io
-} // namespace ats
+} // end of io namespace
+} // end of ats namespace

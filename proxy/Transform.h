@@ -78,7 +78,9 @@ public:
                            ) = 0;
 };
 
-inline TransformVCChain::TransformVCChain(ProxyMutex *m) : VConnection(m) {}
+inline TransformVCChain::TransformVCChain(ProxyMutex *m) : VConnection(m)
+{
+}
 
 ///////////////////////////////////////////////////////////////////
 /// RangeTransform implementation
@@ -93,13 +95,11 @@ num_chars_for_int(int64_t i)
 {
   int k = 1;
 
-  if (i < 0) {
+  if (i < 0)
     return 0;
-  }
 
-  while ((i /= 10) != 0) {
+  while ((i /= 10) != 0)
     ++k;
-  }
 
   return k;
 }

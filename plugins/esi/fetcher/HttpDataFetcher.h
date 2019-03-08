@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _HTTP_DATA_FETCHER_H
+#define _HTTP_DATA_FETCHER_H
 
 #include <string>
 
@@ -37,18 +38,18 @@ class HttpDataFetcher
 {
 public:
   virtual bool
-  addFetchRequest(const char *url, int url_len, FetchedDataProcessor *callback_obj = nullptr)
+  addFetchRequest(const char *url, int url_len, FetchedDataProcessor *callback_obj = 0)
   {
     return addFetchRequest(std::string(url, url_len), callback_obj);
   }
 
   virtual bool
-  addFetchRequest(const char *url, FetchedDataProcessor *callback_obj = nullptr)
+  addFetchRequest(const char *url, FetchedDataProcessor *callback_obj = 0)
   {
     return addFetchRequest(std::string(url), callback_obj);
   }
 
-  virtual bool addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = nullptr) = 0;
+  virtual bool addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = 0) = 0;
 
   virtual DataStatus
   getRequestStatus(const char *url, int url_len) const
@@ -82,3 +83,5 @@ public:
 
   virtual ~HttpDataFetcher(){};
 };
+
+#endif

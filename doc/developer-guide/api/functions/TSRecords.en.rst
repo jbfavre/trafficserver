@@ -21,7 +21,7 @@
 Traffic Server Records
 **********************
 
-|TS| maintains a set of records which cover both configuration values and statistics.
+|TS| maintains a set of records which cover both configuration values and statistics. 
 
 Synopsis
 ========
@@ -32,12 +32,14 @@ Synopsis
                                               const TSMgmtString data_default, TSRecordUpdateType update_type, \
                                               TSRecordCheckType check_type, \
                                               const char* check_regex, TSRecordAccessType access_type)
-
+                                              
 
 .. function:: TSReturnCode TSMgmtIntCreate(TSRecordType rec_type, const char* name, \
                                            const TSMgmtInt data_default, TSRecordUpdateType update_type, \
                                            TSRecordCheckType check_type, \
                                            const char* check_regex, TSRecordAccessType access_type)
+
+.. function:: int TSStatCreate(const char* name, TSRecordDataType type, TSStatPersistence persistence, TSStatSync sync_style)
 
 Description
 ===========
@@ -50,6 +52,7 @@ Return Values
 =============
 
 :func:`TSMgmtStringCreate` and :func:`TSMgmtIntCreate` return :const:`TS_SUCCESS` if the management value was created and :const:`TS_ERROR` if not.
+
 
 See Also
 ========

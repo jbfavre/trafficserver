@@ -27,13 +27,13 @@
 #include "I_EventSystem.h"
 #include "I_Net.h"
 #include "I_Cache.h"
-#include "tscore/I_Version.h"
+#include "I_Version.h"
 
-#include "ts/ts.h" // plugin header
+#include "ts.h" // plugin header
 #include "protocol_binary.h"
-#include "tscore/ink_memory.h"
-#include "tscore/ink_hrtime.h"
-#include "tscore/CryptoHash.h"
+#include "ink_memory.h"
+#include "ink_hrtime.h"
+#include "INK_MD5.h"
 
 #define TSMEMCACHE_VERSION "1.0.0"
 #define TSMEMCACHE_MAX_CMD_SIZE (128 * 1024 * 1024) // silly large
@@ -80,18 +80,16 @@ struct MCCacheHeader {
 };
 
 struct MCAccept : public Continuation {
+  int accept_port;
 #ifndef HAVE_TLS
   ProxyAllocator *theMCThreadAllocator;
 #endif
-  int accept_port;
   int main_event(int event, void *netvc);
 
   MCAccept()
-    :
 #ifndef HAVE_TLS
-      theMCThreadAllocator(NULL),
+    : theMCThreadAllocator(NULL)
 #endif
-      accept_port(0)
   {
     SET_HANDLER(&MCAccept::main_event);
   }
@@ -154,9 +152,9 @@ struct MC : Continuation {
   uint64_t nbytes;
   uint64_t delta;
 
-  static int32_t verbosity;
-  static ink_hrtime last_flush;
-  static int64_t next_cas;
+  static volatile int32_t verbosity;
+  static volatile ink_hrtime last_flush;
+  static volatile int64_t next_cas;
 
   int write_to_client(int64_t ntowrite = -1);
   int write_then_read_from_client(int64_t ntowrite = -1);
@@ -230,9 +228,8 @@ xatoull(char *s, char *e)
   if (isdigit(*s)) {
     n = *s - '0';
     s++;
-    if (s >= e) {
+    if (s >= e)
       return n;
-    }
   }
   while (isdigit(*s)) {
     n *= 10;

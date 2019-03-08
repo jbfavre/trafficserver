@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "P_HostDB.h"
 #include "P_Net.h"
 #include "HttpConfig.h"
@@ -35,17 +35,26 @@
 #include "ProxyConfig.h"
 #include "Transform.h"
 #include "Milestones.h"
-#include "ts/remap.h"
+//#include "HttpAuthParams.h"
+#include "api/ts/remap.h"
 #include "RemapPluginInfo.h"
 #include "UrlMapping.h"
-#include "records/I_RecHttp.h"
-#include "ProxyClientSession.h"
+#include <records/I_RecHttp.h>
+
+#include "congest/Congestion.h"
+
+#define MAX_DNS_LOOKUPS 2
 
 #define HTTP_RELEASE_ASSERT(X) ink_release_assert(X)
+// #define ink_cluster_time(X) time(X)
+
+#define ACQUIRE_PRINT_LOCK() // ink_mutex_acquire(&print_lock);
+#define RELEASE_PRINT_LOCK() // ink_mutex_release(&print_lock);
 
 #define DUMP_HEADER(T, H, I, S)                                 \
   {                                                             \
     if (diags->on(T)) {                                         \
+      ACQUIRE_PRINT_LOCK()                                      \
       fprintf(stderr, "+++++++++ %s +++++++++\n", S);           \
       fprintf(stderr, "-- State Machine Id: %" PRId64 "\n", I); \
       char b[4096];                                             \
@@ -62,7 +71,32 @@
           fprintf(stderr, "%s", b);                             \
         } while (!done);                                        \
       }                                                         \
+      RELEASE_PRINT_LOCK()                                      \
     }                                                           \
+  }
+
+#define TRANSACT_SETUP_RETURN(n, r) \
+  s->next_action           = n;     \
+  s->transact_return_point = r;     \
+  DebugSpecific((s->state_machine && s->state_machine->debug_on), "http_trans", "Next action %s; %s", #n, #r);
+
+#define TRANSACT_RETURN(n, r) \
+  TRANSACT_SETUP_RETURN(n, r) \
+  return;
+
+#define TRANSACT_RETURN_VAL(n, r, v) \
+  TRANSACT_SETUP_RETURN(n, r)        \
+  return v;
+
+#define SET_UNPREPARE_CACHE_ACTION(C)                               \
+  {                                                                 \
+    if (C.action == HttpTransact::CACHE_PREPARE_TO_DELETE) {        \
+      C.action = HttpTransact::CACHE_DO_DELETE;                     \
+    } else if (C.action == HttpTransact::CACHE_PREPARE_TO_UPDATE) { \
+      C.action = HttpTransact::CACHE_DO_UPDATE;                     \
+    } else {                                                        \
+      C.action = HttpTransact::CACHE_DO_WRITE;                      \
+    }                                                               \
   }
 
 typedef time_t ink_time_t;
@@ -70,7 +104,7 @@ typedef time_t ink_time_t;
 struct HttpConfigParams;
 class HttpSM;
 
-#include "tscore/InkErrno.h"
+#include "ts/InkErrno.h"
 #define UNKNOWN_INTERNAL_ERROR (INK_START_ERRNO - 1)
 
 enum ViaStringIndex_t {
@@ -96,6 +130,8 @@ enum ViaStringIndex_t {
   VIA_DETAIL_CACHE_DESCRIPTOR,
   VIA_DETAIL_CACHE_TYPE,
   VIA_DETAIL_CACHE_LOOKUP,
+  VIA_DETAIL_ICP_DESCRIPTOR,
+  VIA_DETAIL_ICP_CONNECT,
   VIA_DETAIL_PP_DESCRIPTOR,
   VIA_DETAIL_PP_CONNECT,
   VIA_DETAIL_SERVER_DESCRIPTOR,
@@ -163,6 +199,7 @@ enum ViaString_t {
   VIA_DETAIL_CACHE_DESCRIPTOR_STRING = 'c',
   VIA_DETAIL_CACHE                   = 'C',
   VIA_DETAIL_CLUSTER                 = 'L',
+  VIA_DETAIL_ICP                     = 'I',
   VIA_DETAIL_PARENT                  = 'P',
   VIA_DETAIL_SERVER                  = 'S',
   // result of cache lookup
@@ -175,6 +212,10 @@ enum ViaString_t {
   VIA_DETAIL_MISS_CLIENT      = 'U',
   VIA_DETAIL_MISS_METHOD      = 'D',
   VIA_DETAIL_MISS_COOKIE      = 'K',
+  // result of icp suggested host lookup
+  VIA_DETAIL_ICP_DESCRIPTOR_STRING = 'i',
+  VIA_DETAIL_ICP_SUCCESS           = 'S',
+  VIA_DETAIL_ICP_FAILURE           = 'F',
   // result of pp suggested host lookup
   VIA_DETAIL_PP_DESCRIPTOR_STRING = 'p',
   VIA_DETAIL_PP_SUCCESS           = 'S',
@@ -186,14 +227,22 @@ enum ViaString_t {
 };
 
 struct HttpApiInfo {
-  char *parent_proxy_name       = nullptr;
-  int parent_proxy_port         = -1;
-  bool cache_untransformed      = false;
-  bool cache_transformed        = true;
-  bool logging_enabled          = true;
-  bool retry_intercept_failures = false;
+  char *parent_proxy_name;
+  int parent_proxy_port;
+  bool cache_untransformed;
+  bool cache_transformed;
+  bool logging_enabled;
+  bool retry_intercept_failures;
 
-  HttpApiInfo() {}
+  HttpApiInfo()
+    : parent_proxy_name(NULL),
+      parent_proxy_port(-1),
+      cache_untransformed(false),
+      cache_transformed(true),
+      logging_enabled(true),
+      retry_intercept_failures(false)
+  {
+  }
 };
 
 const int32_t HTTP_UNDEFINED_CL = -1;
@@ -212,6 +261,12 @@ const int32_t HTTP_UNDEFINED_CL = -1;
 class HttpTransact
 {
 public:
+  enum UrlRemapMode_t {
+    URL_REMAP_DEFAULT = 0, // which is the same as URL_REMAP_ALL
+    URL_REMAP_ALL,
+    URL_REMAP_FOR_OS
+  };
+
   enum AbortState_t {
     ABORT_UNDEFINED = 0,
     DIDNOT_ABORT,
@@ -297,6 +352,7 @@ public:
   enum LookingUp_t {
     ORIGIN_SERVER,
     UNDEFINED_LOOKUP,
+    ICP_SUGGESTED_HOST,
     PARENT_PROXY,
     INCOMING_ROUTER,
     HOST_NONE,
@@ -349,7 +405,9 @@ public:
     OPEN_RAW_ERROR,
     PARSE_ERROR,
     TRANSACTION_COMPLETE,
-    PARENT_RETRY
+    CONGEST_CONTROL_CONGESTED_ON_F,
+    CONGEST_CONTROL_CONGESTED_ON_M,
+    PARENT_ORIGIN_RETRY
   };
 
   enum CacheWriteStatus_t {
@@ -396,6 +454,8 @@ public:
     SM_ACTION_CACHE_PREPARE_UPDATE,
     SM_ACTION_CACHE_ISSUE_UPDATE,
 
+    SM_ACTION_ICP_QUERY,
+
     SM_ACTION_ORIGIN_SERVER_OPEN,
     SM_ACTION_ORIGIN_SERVER_RAW_OPEN,
     SM_ACTION_ORIGIN_SERVER_RR_MARK_DOWN,
@@ -411,8 +471,6 @@ public:
     SM_ACTION_INTERNAL_REQUEST,
     SM_ACTION_SEND_ERROR_CACHE_NOOP,
 
-    SM_ACTION_WAIT_FOR_FULL_BODY,
-    SM_ACTION_REQUEST_BUFFER_READ_COMPLETE,
     SM_ACTION_SERVE_FROM_CACHE,
     SM_ACTION_SERVER_READ,
     SM_ACTION_SERVER_PARSE_NEXT_HDR,
@@ -449,6 +507,11 @@ public:
     VARIABILITY_ALL,
   };
 
+  struct StatRecord_t {
+    uint16_t index;
+    int64_t increment;
+  };
+
   enum CacheLookupResult_t {
     CACHE_LOOKUP_NONE,
     CACHE_LOOKUP_MISS,
@@ -466,6 +529,14 @@ public:
     UPDATE_CACHED_OBJECT_ERROR,
     UPDATE_CACHED_OBJECT_SUCCEED,
     UPDATE_CACHED_OBJECT_FAIL
+  };
+
+  enum LockUrl_t {
+    LOCK_URL_FIRST = 0,
+    LOCK_URL_SECOND,
+    LOCK_URL_ORIGINAL,
+    LOCK_URL_DONE,
+    LOCK_URL_QUIT,
   };
 
   enum RangeSetup_t {
@@ -488,64 +559,97 @@ public:
   typedef void (*TransactFunc_t)(HttpTransact::State *);
 
   typedef struct _CacheDirectives {
-    bool does_client_permit_lookup      = true;
-    bool does_client_permit_storing     = true;
-    bool does_client_permit_dns_storing = true;
-    bool does_config_permit_lookup      = true;
-    bool does_config_permit_storing     = true;
-    bool does_server_permit_lookup      = true;
-    bool does_server_permit_storing     = true;
+    bool does_client_permit_lookup;
+    bool does_client_permit_storing;
+    bool does_client_permit_dns_storing;
+    bool does_config_permit_lookup;
+    bool does_config_permit_storing;
+    bool does_server_permit_lookup;
+    bool does_server_permit_storing;
 
-    _CacheDirectives() {}
+    _CacheDirectives()
+      : does_client_permit_lookup(true),
+        does_client_permit_storing(true),
+        does_client_permit_dns_storing(true),
+        does_config_permit_lookup(true),
+        does_config_permit_storing(true),
+        does_server_permit_lookup(true),
+        does_server_permit_storing(true)
+    {
+    }
   } CacheDirectives;
 
   typedef struct _CacheLookupInfo {
-    HttpTransact::CacheAction_t action           = CACHE_DO_UNDEFINED;
-    HttpTransact::CacheAction_t transform_action = CACHE_DO_UNDEFINED;
+    HttpTransact::CacheAction_t action;
+    HttpTransact::CacheAction_t transform_action;
 
-    HttpTransact::CacheWriteStatus_t write_status           = NO_CACHE_WRITE;
-    HttpTransact::CacheWriteStatus_t transform_write_status = NO_CACHE_WRITE;
+    HttpTransact::CacheWriteStatus_t write_status;
+    HttpTransact::CacheWriteStatus_t transform_write_status;
 
-    URL *lookup_url = nullptr;
+    URL *lookup_url;
     URL lookup_url_storage;
     URL original_url;
+    HTTPInfo *object_read;
+    HTTPInfo *second_object_read;
     HTTPInfo object_store;
     HTTPInfo transform_store;
+    CacheLookupHttpConfig config;
     CacheDirectives directives;
-    HTTPInfo *object_read             = nullptr;
-    int open_read_retries             = 0;
-    int open_write_retries            = 0;
-    CacheWriteLock_t write_lock_state = CACHE_WL_INIT;
-    int lookup_count                  = 0;
-    SquidHitMissCode hit_miss_code    = SQUID_MISS_NONE;
-    URL *parent_selection_url         = nullptr;
+    int open_read_retries;
+    int open_write_retries;
+    CacheWriteLock_t write_lock_state;
+    int lookup_count;
+    SquidHitMissCode hit_miss_code;
+    URL *parent_selection_url;
     URL parent_selection_url_storage;
 
-    _CacheLookupInfo() {}
+    _CacheLookupInfo()
+      : action(CACHE_DO_UNDEFINED),
+        transform_action(CACHE_DO_UNDEFINED),
+        write_status(NO_CACHE_WRITE),
+        transform_write_status(NO_CACHE_WRITE),
+        lookup_url(NULL),
+        lookup_url_storage(),
+        original_url(),
+        object_read(NULL),
+        second_object_read(NULL),
+        object_store(),
+        transform_store(),
+        config(),
+        directives(),
+        open_read_retries(0),
+        open_write_retries(0),
+        write_lock_state(CACHE_WL_INIT),
+        lookup_count(0),
+        hit_miss_code(SQUID_MISS_NONE),
+        parent_selection_url(NULL),
+        parent_selection_url_storage()
+    {
+    }
   } CacheLookupInfo;
 
   typedef struct _RedirectInfo {
-    bool redirect_in_process = false;
+    bool redirect_in_process;
     URL original_url;
     URL redirect_url;
 
-    _RedirectInfo() {}
+    _RedirectInfo() : redirect_in_process(false), original_url(), redirect_url() {}
   } RedirectInfo;
 
   struct ConnectionAttributes {
     HTTPVersion http_version;
-    HTTPKeepAlive keep_alive = HTTP_KEEPALIVE_UNDEFINED;
+    HTTPKeepAlive keep_alive;
 
     // The following variable is true if the client expects to
     // received a chunked response.
-    bool receive_chunked_response = false;
-    bool pipeline_possible        = false;
-    bool proxy_connect_hdr        = false;
+    bool receive_chunked_response;
+    bool pipeline_possible;
+    bool proxy_connect_hdr;
     /// @c errno from the most recent attempt to connect.
     /// zero means no failure (not attempted, succeeded).
-    int connect_result                   = 0;
-    char *name                           = nullptr;
-    TransferEncoding_t transfer_encoding = NO_TRANSFER_ENCODING;
+    int connect_result;
+    char *name;
+    TransferEncoding_t transfer_encoding;
 
     /** This is the source address of the connection from the point of view of the transaction.
         It is the address of the source of the request.
@@ -556,14 +660,12 @@ public:
     */
     IpEndpoint dst_addr;
 
-    ServerState_t state                         = STATE_UNDEFINED;
-    AbortState_t abort                          = ABORT_UNDEFINED;
-    HttpProxyPort::TransportType port_attribute = HttpProxyPort::TRANSPORT_DEFAULT;
+    ServerState_t state;
+    AbortState_t abort;
+    HttpProxyPort::TransportType port_attribute;
 
     /// @c true if the connection is transparent.
-    bool is_transparent = false;
-    ProxyError rx_error_code;
-    ProxyError tx_error_code;
+    bool is_transparent;
 
     bool
     had_connect_fail() const
@@ -581,8 +683,22 @@ public:
       connect_result = e;
     }
 
-    ConnectionAttributes() { clear(); }
-
+    ConnectionAttributes()
+      : http_version(),
+        keep_alive(HTTP_KEEPALIVE_UNDEFINED),
+        receive_chunked_response(false),
+        pipeline_possible(false),
+        proxy_connect_hdr(false),
+        connect_result(0),
+        name(NULL),
+        transfer_encoding(NO_TRANSFER_ENCODING),
+        state(STATE_UNDEFINED),
+        abort(ABORT_UNDEFINED),
+        port_attribute(HttpProxyPort::TRANSPORT_DEFAULT),
+        is_transparent(false)
+    {
+      clear();
+    }
     void
     clear()
     {
@@ -593,21 +709,30 @@ public:
   };
 
   typedef struct _CurrentInfo {
-    ProxyMode_t mode                           = UNDEFINED_MODE;
-    LookingUp_t request_to                     = UNDEFINED_LOOKUP;
-    ConnectionAttributes *server               = nullptr;
-    ink_time_t now                             = 0;
-    ServerState_t state                        = STATE_UNDEFINED;
-    unsigned attempts                          = 1;
-    unsigned simple_retry_attempts             = 0;
-    unsigned unavailable_server_retry_attempts = 0;
-    ParentRetry_t retry_type                   = PARENT_RETRY_NONE;
+    ProxyMode_t mode;
+    LookingUp_t request_to;
+    ConnectionAttributes *server;
+    ink_time_t now;
+    ServerState_t state;
+    unsigned attempts;
+    unsigned simple_retry_attempts;
+    unsigned unavailable_server_retry_attempts;
+    ParentRetry_t retry_type;
 
-    _CurrentInfo() {}
+    _CurrentInfo()
+      : mode(UNDEFINED_MODE),
+        request_to(UNDEFINED_LOOKUP),
+        server(NULL),
+        now(0),
+        state(STATE_UNDEFINED),
+        attempts(1),
+        simple_retry_attempts(0),
+        unavailable_server_retry_attempts(0),
+        retry_type(PARENT_RETRY_NONE){};
   } CurrentInfo;
 
   typedef struct _DNSLookupInfo {
-    int attempts = 0;
+    int attempts;
     /** Origin server address source selection.
 
         If config says to use CTA (client target addr) state is
@@ -619,29 +744,40 @@ public:
         we try to treat the CTA as if it were another RR value in the
         HostDB record.
      */
-    enum class OS_Addr {
+    enum {
       OS_ADDR_TRY_DEFAULT, ///< Initial state, use what config says.
       OS_ADDR_TRY_HOSTDB,  ///< Try HostDB data.
       OS_ADDR_TRY_CLIENT,  ///< Try client target addr.
       OS_ADDR_USE_HOSTDB,  ///< Force use of HostDB target address.
       OS_ADDR_USE_CLIENT   ///< Use client target addr, no fallback.
-    };
+    } os_addr_style;
 
-    OS_Addr os_addr_style = OS_Addr::OS_ADDR_TRY_DEFAULT;
-
-    bool lookup_success         = false;
-    char *lookup_name           = nullptr;
-    char srv_hostname[MAXDNAME] = {0};
-    LookingUp_t looking_up      = UNDEFINED_LOOKUP;
-    bool srv_lookup_success     = false;
-    short srv_port              = 0;
+    bool lookup_success;
+    char *lookup_name;
+    char srv_hostname[MAXDNAME];
+    LookingUp_t looking_up;
+    bool srv_lookup_success;
+    short srv_port;
     HostDBApplicationInfo srv_app;
     /*** Set to true by default.  If use_client_target_address is set
      * to 1, this value will be set to false if the client address is
      * not in the DNS pool */
-    bool lookup_validated = true;
+    bool lookup_validated;
 
-    _DNSLookupInfo() {}
+    _DNSLookupInfo()
+      : attempts(0),
+        os_addr_style(OS_ADDR_TRY_DEFAULT),
+        lookup_success(false),
+        lookup_name(NULL),
+        looking_up(UNDEFINED_LOOKUP),
+        srv_lookup_success(false),
+        srv_port(0),
+        lookup_validated(true)
+    {
+      srv_hostname[0]                = '\0';
+      srv_app.allotment.application1 = 0;
+      srv_app.allotment.application2 = 0;
+    }
   } DNSLookupInfo;
 
   typedef struct _HeaderInfo {
@@ -651,50 +787,69 @@ public:
     HTTPHdr server_response;
     HTTPHdr transform_response;
     HTTPHdr cache_response;
-    int64_t request_content_length  = HTTP_UNDEFINED_CL;
-    int64_t response_content_length = HTTP_UNDEFINED_CL;
-    int64_t transform_request_cl    = HTTP_UNDEFINED_CL;
-    int64_t transform_response_cl   = HTTP_UNDEFINED_CL;
-    bool client_req_is_server_style = false;
-    bool trust_response_cl          = false;
-    ResponseError_t response_error  = NO_RESPONSE_HEADER_ERROR;
-    bool extension_method           = false;
+    int64_t request_content_length;
+    int64_t response_content_length;
+    int64_t transform_request_cl;
+    int64_t transform_response_cl;
+    bool client_req_is_server_style;
+    bool trust_response_cl;
+    ResponseError_t response_error;
+    bool extension_method;
 
-    _HeaderInfo() {}
+    _HeaderInfo()
+      : client_request(),
+        client_response(),
+        server_request(),
+        server_response(),
+        transform_response(),
+        cache_response(),
+        request_content_length(HTTP_UNDEFINED_CL),
+        response_content_length(HTTP_UNDEFINED_CL),
+        transform_request_cl(HTTP_UNDEFINED_CL),
+        transform_response_cl(HTTP_UNDEFINED_CL),
+        client_req_is_server_style(false),
+        trust_response_cl(false),
+        response_error(NO_RESPONSE_HEADER_ERROR),
+        extension_method(false)
+    {
+    }
   } HeaderInfo;
 
   typedef struct _SquidLogInfo {
-    SquidLogCode log_code          = SQUID_LOG_ERR_UNKNOWN;
-    SquidSubcode subcode           = SQUID_SUBCODE_EMPTY;
-    SquidHierarchyCode hier_code   = SQUID_HIER_EMPTY;
-    SquidHitMissCode hit_miss_code = SQUID_MISS_NONE;
+    SquidLogCode log_code;
+    SquidHierarchyCode hier_code;
+    SquidHitMissCode hit_miss_code;
 
-    _SquidLogInfo() {}
+    _SquidLogInfo() : log_code(SQUID_LOG_ERR_UNKNOWN), hier_code(SQUID_HIER_EMPTY), hit_miss_code(SQUID_MISS_NONE) {}
   } SquidLogInfo;
 
-  struct State {
-    HttpTransactMagic_t m_magic = HTTP_TRANSACT_MAGIC_ALIVE;
+#define HTTP_TRANSACT_STATE_MAX_XBUF_SIZE (1024 * 2) /* max size of plugin exchange buffer */
 
-    HttpSM *state_machine = nullptr;
+  struct State {
+    HttpTransactMagic_t m_magic;
+
+    HttpSM *state_machine;
 
     Arena arena;
 
-    HttpConfigParams *http_config_param = nullptr;
+    HttpConfigParams *http_config_param;
     CacheLookupInfo cache_info;
     DNSLookupInfo dns_info;
     RedirectInfo redirect_info;
-    unsigned int updated_server_version   = HostDBApplicationInfo::HTTP_VERSION_UNDEFINED;
-    bool force_dns                        = false;
-    MgmtByte cache_open_write_fail_action = 0;
-    bool is_revalidation_necessary        = false; // Added to check if revalidation is necessary - YTS Team, yamsat
-    bool request_will_not_selfloop        = false; // To determine if process done - YTS Team, yamsat
+    unsigned int updated_server_version;
+    bool force_dns;
+    MgmtByte cache_open_write_fail_action;
+    bool is_revalidation_necessary; // Added to check if revalidation is necessary - YTS Team, yamsat
+    bool request_will_not_selfloop; // To determine if process done - YTS Team, yamsat
     ConnectionAttributes client_info;
+    ConnectionAttributes icp_info;
     ConnectionAttributes parent_info;
     ConnectionAttributes server_info;
+    // ConnectionAttributes     router_info;
 
-    Source_t source                = SOURCE_NONE;
-    Source_t pre_transform_source  = SOURCE_NONE;
-    HttpRequestFlavor_t req_flavor = REQ_FLAVOR_FWDPROXY;
+    Source_t source;
+    Source_t pre_transform_source;
+    HttpRequestFlavor_t req_flavor;
 
     CurrentInfo current;
     HeaderInfo hdr_info;
@@ -702,127 +857,139 @@ public:
     HttpApiInfo api_info;
     // To handle parent proxy case, we need to be
     //  able to defer some work in building the request
-    TransactFunc_t pending_work = nullptr;
+    TransactFunc_t pending_work;
 
     // Sandbox of Variables
-    StateMachineAction_t cdn_saved_next_action        = SM_ACTION_UNDEFINED;
-    void (*cdn_saved_transact_return_point)(State *s) = nullptr;
-    bool cdn_remap_complete                           = false;
-    bool first_dns_lookup                             = true;
+    StateMachineAction_t cdn_saved_next_action;
+    void (*cdn_saved_transact_return_point)(State *s);
+    bool cdn_remap_complete;
+    bool first_dns_lookup;
 
-    bool backdoor_request = false; // internal
+    bool backdoor_request; // internal
+    bool cop_test_page;    // internal
     HttpRequestData request_data;
-    ParentConfigParams *parent_params = nullptr;
+    ParentConfigParams *parent_params;
     ParentResult parent_result;
     CacheControlResult cache_control;
-    CacheLookupResult_t cache_lookup_result = CACHE_LOOKUP_NONE;
+    CacheLookupResult_t cache_lookup_result;
+    // FilterResult             content_control;
 
-    StateMachineAction_t next_action                      = SM_ACTION_UNDEFINED; // out
-    StateMachineAction_t api_next_action                  = SM_ACTION_UNDEFINED; // out
-    void (*transact_return_point)(HttpTransact::State *s) = nullptr;             // out
+    StateMachineAction_t next_action;                      // out
+    StateMachineAction_t api_next_action;                  // out
+    void (*transact_return_point)(HttpTransact::State *s); // out
 
     // We keep this so we can jump back to the upgrade handler after remap is complete
-    void (*post_remap_upgrade_return_point)(HttpTransact::State *s) = nullptr; // out
-    const char *upgrade_token_wks                                   = nullptr;
-    bool is_upgrade_request                                         = false;
+    void (*post_remap_upgrade_return_point)(HttpTransact::State *s); // out
+    const char *upgrade_token_wks;
+    bool is_upgrade_request;
 
     // Some WebSocket state
-    bool is_websocket        = false;
-    bool did_upgrade_succeed = false;
+    bool is_websocket;
+    bool did_upgrade_succeed;
 
     // Some queue info
-    bool origin_request_queued = false;
+    bool origin_request_queued;
 
-    char *internal_msg_buffer                       = nullptr; // out
-    char *internal_msg_buffer_type                  = nullptr; // out
-    int64_t internal_msg_buffer_size                = 0;       // out
-    int64_t internal_msg_buffer_fast_allocator_size = -1;
+    char *internal_msg_buffer;        // out
+    char *internal_msg_buffer_type;   // out
+    int64_t internal_msg_buffer_size; // out
+    int64_t internal_msg_buffer_fast_allocator_size;
 
-    int scheme               = -1;     // out
-    int next_hop_scheme      = scheme; // out
-    int orig_scheme          = scheme; // pre-mapped scheme
-    int method               = 0;
-    int cause_of_death_errno = -UNKNOWN_INTERNAL_ERROR; // in
-    Ptr<HostDBInfo> hostdb_entry;                       // Pointer to the entry we are referencing in hostdb-- to keep our ref
-    HostDBInfo host_db_info;                            // in
+    struct sockaddr_in icp_ip_result; // in
+    bool icp_lookup_success;          // in
 
-    ink_time_t client_request_time    = UNDEFINED_TIME; // internal
-    ink_time_t request_sent_time      = UNDEFINED_TIME; // internal
-    ink_time_t response_received_time = UNDEFINED_TIME; // internal
-    ink_time_t plugin_set_expire_time = UNDEFINED_TIME;
+    int scheme;          // out
+    int next_hop_scheme; // out
+    int orig_scheme;     // pre-mapped scheme
+    int method;
+    int cause_of_death_errno;     // in
+    Ptr<HostDBInfo> hostdb_entry; // Pointer to the entry we are referencing in hostdb-- to keep our ref
+    HostDBInfo host_db_info;      // in
+
+    ink_time_t client_request_time;    // internal
+    ink_time_t request_sent_time;      // internal
+    ink_time_t response_received_time; // internal
+    ink_time_t plugin_set_expire_time;
 
     char via_string[MAX_VIA_INDICES + 1];
 
-    int64_t state_machine_id = 0;
+    int64_t state_machine_id;
 
     // HttpAuthParams auth_params;
 
     // new ACL filtering result (calculated immediately after remap)
-    bool client_connection_enabled = true;
-    bool acl_filtering_performed   = false;
+    bool client_connection_enabled;
+    bool acl_filtering_performed;
 
     // for negative caching
-    bool negative_caching = false;
+    bool negative_caching;
     // for authenticated content caching
-    CacheAuth_t www_auth_content = CACHE_AUTH_NONE;
+    CacheAuth_t www_auth_content;
 
     // INK API/Remap API plugin interface
-    void *remap_plugin_instance = nullptr;
-    void *user_args[TS_HTTP_MAX_USER_ARG];
-    remap_plugin_info::_tsremap_os_response *fp_tsremap_os_response = nullptr;
-    HTTPStatus http_return_code                                     = HTTP_STATUS_NONE;
+    void *remap_plugin_instance;
+    void *user_args[HTTP_SSN_TXN_MAX_USER_ARG];
+    remap_plugin_info::_tsremap_os_response *fp_tsremap_os_response;
+    HTTPStatus http_return_code;
 
-    int api_txn_active_timeout_value      = -1;
-    int api_txn_connect_timeout_value     = -1;
-    int api_txn_dns_timeout_value         = -1;
-    int api_txn_no_activity_timeout_value = -1;
+    int api_txn_active_timeout_value;
+    int api_txn_connect_timeout_value;
+    int api_txn_dns_timeout_value;
+    int api_txn_no_activity_timeout_value;
 
     // Used by INKHttpTxnCachedReqGet and INKHttpTxnCachedRespGet SDK functions
     // to copy part of HdrHeap (only the writable portion) for cached response headers
     // and request headers
     // These ptrs are deallocate when transaction is over.
-    HdrHeapSDKHandle *cache_req_hdr_heap_handle   = nullptr;
-    HdrHeapSDKHandle *cache_resp_hdr_heap_handle  = nullptr;
-    bool api_cleanup_cache_read                   = false;
-    bool api_server_response_no_store             = false;
-    bool api_server_response_ignore               = false;
-    bool api_http_sm_shutdown                     = false;
-    bool api_modifiable_cached_resp               = false;
-    bool api_server_request_body_set              = false;
-    bool api_req_cacheable                        = false;
-    bool api_resp_cacheable                       = false;
-    bool api_server_addr_set                      = false;
-    UpdateCachedObject_t api_update_cached_object = UPDATE_CACHED_OBJECT_NONE;
-    StateMachineAction_t saved_update_next_action = SM_ACTION_UNDEFINED;
-    CacheAction_t saved_update_cache_action       = CACHE_DO_UNDEFINED;
+    HdrHeapSDKHandle *cache_req_hdr_heap_handle;
+    HdrHeapSDKHandle *cache_resp_hdr_heap_handle;
+    bool api_cleanup_cache_read;
+    bool api_server_response_no_store;
+    bool api_server_response_ignore;
+    bool api_http_sm_shutdown;
+    bool api_modifiable_cached_resp;
+    bool api_server_request_body_set;
+    bool api_req_cacheable;
+    bool api_resp_cacheable;
+    bool api_server_addr_set;
+    bool stale_icp_lookup;
+    UpdateCachedObject_t api_update_cached_object;
+    LockUrl_t api_lock_url;
+    StateMachineAction_t saved_update_next_action;
+    CacheAction_t saved_update_cache_action;
 
     // Remap plugin processor support
     UrlMappingContainer url_map;
-    host_hdr_info hh_info = {nullptr, 0, 0};
+    host_hdr_info hh_info;
 
-    int congestion_control_crat = 0; // Client retry after
+    // congestion control
+    CongestionEntry *pCongestionEntry;
+    StateMachineAction_t congest_saved_next_action;
+    int congestion_control_crat; // 'client retry after'
+    int congestion_congested_or_failed;
+    int congestion_connection_opened;
 
-    unsigned int filter_mask = 0;
-    char *remap_redirect     = nullptr;
-    bool reverse_proxy       = false;
-    bool url_remap_success   = false;
+    unsigned int filter_mask;
+    char *remap_redirect;
+    bool reverse_proxy;
+    bool url_remap_success;
 
-    bool api_skip_all_remapping = false;
+    bool api_skip_all_remapping;
 
-    bool already_downgraded = false;
+    bool already_downgraded;
     URL unmapped_url; // unmapped url is the effective url before remap
 
     // Http Range: related variables
-    RangeSetup_t range_setup = RANGE_NONE;
-    int64_t num_range_fields = 0;
-    int64_t range_output_cl  = 0;
-    RangeRecord *ranges      = nullptr;
+    RangeSetup_t range_setup;
+    int64_t num_range_fields;
+    int64_t range_output_cl;
+    RangeRecord *ranges;
 
-    OverridableHttpConfigParams *txn_conf = nullptr;
+    OverridableHttpConfigParams *txn_conf;
     OverridableHttpConfigParams my_txn_conf; // Storage for plugins, to avoid malloc
 
-    bool transparent_passthrough = false;
-    bool range_in_cache          = false;
+    bool transparent_passthrough;
+    bool range_in_cache;
 
     // Methods
     void
@@ -833,6 +1000,96 @@ public:
 
     // Constructor
     State()
+      : m_magic(HTTP_TRANSACT_MAGIC_ALIVE),
+        state_machine(NULL),
+        http_config_param(NULL),
+        updated_server_version(HostDBApplicationInfo::HTTP_VERSION_UNDEFINED),
+        force_dns(false),
+        cache_open_write_fail_action(0),
+        is_revalidation_necessary(false),
+        request_will_not_selfloop(false), // YTS Team, yamsat
+        source(SOURCE_NONE),
+        pre_transform_source(SOURCE_NONE),
+        req_flavor(REQ_FLAVOR_FWDPROXY),
+        pending_work(NULL),
+        cdn_saved_next_action(SM_ACTION_UNDEFINED),
+        cdn_saved_transact_return_point(NULL),
+        cdn_remap_complete(false),
+        first_dns_lookup(true),
+        backdoor_request(false),
+        cop_test_page(false),
+        parent_params(NULL),
+        cache_lookup_result(CACHE_LOOKUP_NONE),
+        next_action(SM_ACTION_UNDEFINED),
+        api_next_action(SM_ACTION_UNDEFINED),
+        transact_return_point(NULL),
+        post_remap_upgrade_return_point(NULL),
+        upgrade_token_wks(NULL),
+        is_upgrade_request(false),
+        is_websocket(false),
+        did_upgrade_succeed(false),
+        origin_request_queued(false),
+        internal_msg_buffer(NULL),
+        internal_msg_buffer_type(NULL),
+        internal_msg_buffer_size(0),
+        internal_msg_buffer_fast_allocator_size(-1),
+        icp_lookup_success(false),
+        scheme(-1),
+        next_hop_scheme(scheme),
+        orig_scheme(scheme),
+        method(0),
+        cause_of_death_errno(-UNKNOWN_INTERNAL_ERROR),
+        client_request_time(UNDEFINED_TIME),
+        request_sent_time(UNDEFINED_TIME),
+        response_received_time(UNDEFINED_TIME),
+        plugin_set_expire_time(UNDEFINED_TIME),
+        state_machine_id(0),
+        client_connection_enabled(true),
+        acl_filtering_performed(false),
+        negative_caching(false),
+        www_auth_content(CACHE_AUTH_NONE),
+        remap_plugin_instance(0),
+        fp_tsremap_os_response(NULL),
+        http_return_code(HTTP_STATUS_NONE),
+        api_txn_active_timeout_value(-1),
+        api_txn_connect_timeout_value(-1),
+        api_txn_dns_timeout_value(-1),
+        api_txn_no_activity_timeout_value(-1),
+        cache_req_hdr_heap_handle(NULL),
+        cache_resp_hdr_heap_handle(NULL),
+        api_cleanup_cache_read(false),
+        api_server_response_no_store(false),
+        api_server_response_ignore(false),
+        api_http_sm_shutdown(false),
+        api_modifiable_cached_resp(false),
+        api_server_request_body_set(false),
+        api_req_cacheable(false),
+        api_resp_cacheable(false),
+        api_server_addr_set(false),
+        stale_icp_lookup(false),
+        api_update_cached_object(UPDATE_CACHED_OBJECT_NONE),
+        api_lock_url(LOCK_URL_FIRST),
+        saved_update_next_action(SM_ACTION_UNDEFINED),
+        saved_update_cache_action(CACHE_DO_UNDEFINED),
+        url_map(),
+        pCongestionEntry(NULL),
+        congest_saved_next_action(SM_ACTION_UNDEFINED),
+        congestion_control_crat(0),
+        congestion_congested_or_failed(0),
+        congestion_connection_opened(0),
+        filter_mask(0),
+        remap_redirect(NULL),
+        reverse_proxy(false),
+        url_remap_success(false),
+        api_skip_all_remapping(false),
+        already_downgraded(false),
+        range_setup(RANGE_NONE),
+        num_range_fields(0),
+        range_output_cl(0),
+        ranges(NULL),
+        txn_conf(NULL),
+        transparent_passthrough(false),
+        range_in_cache(false)
     {
       int i;
       char *via_ptr = via_string;
@@ -851,6 +1108,7 @@ public:
       via_string[VIA_DETAIL_SEPARATOR]         = VIA_DETAIL_SEPARATOR_STRING;
       via_string[VIA_DETAIL_TUNNEL_DESCRIPTOR] = VIA_DETAIL_TUNNEL_DESCRIPTOR_STRING;
       via_string[VIA_DETAIL_CACHE_DESCRIPTOR]  = VIA_DETAIL_CACHE_DESCRIPTOR_STRING;
+      via_string[VIA_DETAIL_ICP_DESCRIPTOR]    = VIA_DETAIL_ICP_DESCRIPTOR_STRING;
       via_string[VIA_DETAIL_PP_DESCRIPTOR]     = VIA_DETAIL_PP_DESCRIPTOR_STRING;
       via_string[VIA_DETAIL_SERVER_DESCRIPTOR] = VIA_DETAIL_SERVER_DESCRIPTOR_STRING;
       via_string[MAX_VIA_INDICES]              = '\0';
@@ -868,7 +1126,7 @@ public:
       ats_free(internal_msg_buffer_type);
 
       ParentConfig::release(parent_params);
-      parent_params = nullptr;
+      parent_params = NULL;
 
       hdr_info.client_request.destroy();
       hdr_info.client_response.destroy();
@@ -884,13 +1142,21 @@ public:
       redirect_info.original_url.destroy();
       redirect_info.redirect_url.destroy();
 
+      if (pCongestionEntry) {
+        if (congestion_connection_opened == 1) {
+          pCongestionEntry->connection_closed();
+          congestion_connection_opened = 0;
+        }
+        pCongestionEntry->put(), pCongestionEntry = NULL;
+      }
+
       url_map.clear();
       arena.reset();
       unmapped_url.clear();
       hostdb_entry.clear();
 
       delete[] ranges;
-      ranges      = nullptr;
+      ranges      = NULL;
       range_setup = RANGE_NONE;
       return;
     }
@@ -915,13 +1181,10 @@ public:
         } else {
           ats_free(internal_msg_buffer);
         }
-        internal_msg_buffer = nullptr;
+        internal_msg_buffer = NULL;
       }
       internal_msg_buffer_size = 0;
     }
-
-    NetVConnection::ProxyProtocol pp_info;
-
   }; // End of State struct.
 
   static void HandleBlindTunnel(State *s);
@@ -931,7 +1194,6 @@ public:
   static void PerformRemap(State *s);
   static void ModifyRequest(State *s);
   static void HandleRequest(State *s);
-  static void HandleRequestBufferDone(State *s);
   static bool handleIfRedirect(State *s);
 
   static void StartAccessControl(State *s);
@@ -958,6 +1220,7 @@ public:
   static void HandleCacheOpenReadMiss(State *s);
   static void build_response_from_cache(State *s, HTTPWarningCode warning_code);
   static void handle_cache_write_lock(State *s);
+  static void HandleICPLookup(State *s);
   static void HandleResponse(State *s);
   static void HandleUpdateCachedObject(State *s);
   static void HandleUpdateCachedObjectContinue(State *s);
@@ -965,6 +1228,7 @@ public:
   static void handle_100_continue_response(State *s);
   static void handle_transform_ready(State *s);
   static void handle_transform_cache_write(State *s);
+  static void handle_response_from_icp_suggested_host(State *s);
   static void handle_response_from_parent(State *s);
   static void handle_response_from_server(State *s);
   static void delete_server_rr_entry(State *s, int max_retries);
@@ -1038,10 +1302,10 @@ public:
 
   static void build_request(State *s, HTTPHdr *base_request, HTTPHdr *outgoing_request, HTTPVersion outgoing_version);
   static void build_response(State *s, HTTPHdr *base_response, HTTPHdr *outgoing_response, HTTPVersion outgoing_version,
-                             HTTPStatus status_code, const char *reason_phrase = nullptr);
+                             HTTPStatus status_code, const char *reason_phrase = NULL);
   static void build_response(State *s, HTTPHdr *base_response, HTTPHdr *outgoing_response, HTTPVersion outgoing_version);
   static void build_response(State *s, HTTPHdr *outgoing_response, HTTPVersion outgoing_version, HTTPStatus status_code,
-                             const char *reason_phrase = nullptr);
+                             const char *reason_phrase = NULL);
 
   static void build_response_copy(State *s, HTTPHdr *base_response, HTTPHdr *outgoing_response, HTTPVersion outgoing_version);
   static void handle_content_length_header(State *s, HTTPHdr *header, HTTPHdr *base);
@@ -1056,8 +1320,8 @@ public:
                                                HTTPHdr *obj_response);
   static void handle_parent_died(State *s);
   static void handle_server_died(State *s);
-  static void build_error_response(State *s, HTTPStatus status_code, const char *reason_phrase_or_null,
-                                   const char *error_body_type);
+  static void build_error_response(State *s, HTTPStatus status_code, const char *reason_phrase_or_null, const char *error_body_type,
+                                   const char *format, ...);
   static void build_redirect_response(State *s);
   static void build_upgrade_response(State *s);
   static const char *get_error_string(int erno);
@@ -1112,4 +1376,4 @@ is_response_body_precluded(HTTPStatus status_code, int method)
   }
 }
 
-inkcoreapi extern ink_time_t ink_local_time(void);
+inkcoreapi extern ink_time_t ink_cluster_time(void);

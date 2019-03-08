@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "I_Net.h"
 
 // XXX HttpSessionAccept::Options needs to be refactored and separated from HttpSessionAccept so that
@@ -40,15 +40,14 @@
 
 struct Http2SessionAccept : public SessionAccept {
   explicit Http2SessionAccept(const HttpSessionAccept::Options &);
-  ~Http2SessionAccept() override;
+  ~Http2SessionAccept();
 
-  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *) override;
-  int mainEvent(int event, void *netvc) override;
-
-  // noncopyable
-  Http2SessionAccept(const Http2SessionAccept &) = delete;
-  Http2SessionAccept &operator=(const Http2SessionAccept &) = delete;
+  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *);
+  int mainEvent(int event, void *netvc);
 
 private:
+  Http2SessionAccept(const Http2SessionAccept &);
+  Http2SessionAccept &operator=(const Http2SessionAccept &);
+
   HttpSessionAccept::Options options;
 };

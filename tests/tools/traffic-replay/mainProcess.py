@@ -29,17 +29,7 @@ import subprocess
 import shlex
 from multiprocessing import Pool, Process
 from collections import deque
-#from progress.bar import Bar
-
-sys.path.append(
-    os.path.normpath(
-        os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            '..'
-        )
-    )
-)
-
+from progress.bar import Bar
 import sessionvalidation.sessionvalidation as sv
 import lib.result as result
 import WorkerTask
@@ -65,12 +55,9 @@ def check_for_ats(hostname, port):
 # Hopefully this isn't an issue because multi-line headers are deprecated now
 
 
-def main(path, replay_type, Bverbose, pHost=Config.proxy_host, pNSSLport=Config.proxy_nonssl_port, pSSL=Config.proxy_ssl_port):
+def main(path, replay_type, Bverbose):
     global verbose
     verbose = Bverbose
-    check_for_ats(pHost, pNSSLport)
-    Config.proxy_host = pHost
-    Config.proxy_nonssl_port = pNSSLport
-    Config.proxy_ssl_port = pSSL
+    check_for_ats(Config.proxy_host, Config.proxy_nonssl_port)
     proxy = {"http": "http://{0}:{1}".format(Config.proxy_host, Config.proxy_nonssl_port)}
     Scheduler.LaunchWorkers(path, Config.nProcess, proxy, replay_type, Config.nThread)

@@ -37,7 +37,7 @@
 
 #pragma once
 
-#include "tscore/ink_llqueue.h"
+#include "ts/ink_llqueue.h"
 
 #include "mgmtapi.h"
 #include "CoreAPIShared.h"

@@ -27,7 +27,15 @@
 
 static int64_t next_cs_id = 0;
 
-ProxyClientSession::ProxyClientSession() : VConnection(nullptr)
+ProxyClientSession::ProxyClientSession()
+  : VConnection(nullptr),
+    acl_record(nullptr),
+    host_res_style(HOST_RES_IPV4),
+    debug_on(false),
+    hooks_on(true),
+    in_destroy(false),
+    con_id(0),
+    m_active(false)
 {
   ink_zero(this->user_args);
 }
@@ -197,11 +205,6 @@ ProxyClientSession::handle_api_return(int event)
     }
     break;
   case TS_HTTP_SSN_CLOSE_HOOK: {
-    NetVConnection *vc = this->get_netvc();
-    if (vc) {
-      vc->do_io_close();
-      this->release_netvc();
-    }
     free(); // You can now clean things up
     break;
   }

@@ -115,7 +115,7 @@ cache file with::
 
 .. note::
     When using on-filesystem cache disk storage, you can only have one such
-    directory specified. This will be addressed in a future version.
+    directory specified. This will be address in a future version.
 
 
 Solaris Example
@@ -184,10 +184,3 @@ following rules are stored in :manpage:`devfs.conf(5)`::
 
    # Assign /dev/ada1 and /dev/ada2 to the tserver user
    own    ada[12]  tserver:tserver
-
-Advanced
---------
-
-Because relative paths in :file:`storage.config` are relative to the base prefix, when using customized runroot
-it may be necessary to adjust such paths in :file:`storage.config` or adjust ``runroot.yaml`` itself.
-Despite the name, the cachedir value is not used for this file.

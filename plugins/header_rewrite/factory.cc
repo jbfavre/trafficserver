@@ -64,8 +64,6 @@ operator_factory(const std::string &op)
     o = new OperatorAddCookie();
   } else if (op == "set-conn-dscp") {
     o = new OperatorSetConnDSCP();
-  } else if (op == "set-conn-mark") {
-    o = new OperatorSetConnMark();
   } else if (op == "set-debug") {
     o = new OperatorSetDebug();
   } else {
@@ -125,8 +123,8 @@ condition_factory(const std::string &cond)
     c = new ConditionInternalTxn();
   } else if (c_name == "INTERNAL-TXN") {
     c = new ConditionInternalTxn();
-  } else if (c_name == "IP") {
-    c = new ConditionIp();
+  } else if (c_name == "CLIENT-IP") {
+    c = new ConditionClientIp();
   } else if (c_name == "INCOMING-PORT") {
     c = new ConditionIncomingPort();
   } else if (c_name == "METHOD") {
@@ -139,10 +137,6 @@ condition_factory(const std::string &cond)
     c = new ConditionGeo();
   } else if (c_name == "ID") {
     c = new ConditionId();
-  } else if (c_name == "CIDR") {
-    c = new ConditionCidr();
-  } else if (c_name == "INBOUND") {
-    c = new ConditionInbound();
   } else {
     TSError("[%s] Unknown condition: %s", PLUGIN_NAME, c_name.c_str());
     return nullptr;

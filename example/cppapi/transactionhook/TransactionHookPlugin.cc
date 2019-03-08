@@ -17,9 +17,9 @@
  */
 
 #include <iostream>
-#include "tscpp/api/GlobalPlugin.h"
-#include "tscpp/api/TransactionPlugin.h"
-#include "tscpp/api/PluginInit.h"
+#include <atscppapi/GlobalPlugin.h>
+#include <atscppapi/TransactionPlugin.h>
+#include <atscppapi/PluginInit.h>
 
 using namespace atscppapi;
 
@@ -69,8 +69,6 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  if (!RegisterGlobalPlugin("CPP_Example_TransactionHook", "apache", "dev@trafficserver.apache.org")) {
-    return;
-  }
+  RegisterGlobalPlugin("CPP_Example_TransactionHook", "apache", "dev@trafficserver.apache.org");
   plugin = new GlobalHookPlugin();
 }

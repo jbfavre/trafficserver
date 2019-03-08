@@ -20,7 +20,7 @@
  */
 
 #include "P_OCSPStapling.h"
-#ifdef TS_USE_TLS_OCSP
+#ifdef HAVE_OPENSSL_OCSP_STAPLING
 
 #include <openssl/ssl.h>
 #include <openssl/ocsp.h>
@@ -51,15 +51,12 @@ certinfo_free(void * /*parent*/, void *ptr, CRYPTO_EX_DATA * /*ad*/, int /*idx*/
 {
   certinfo *cinf = (certinfo *)ptr;
 
-  if (!cinf) {
+  if (!cinf)
     return;
-  }
-  if (cinf->uri) {
+  if (cinf->uri)
     OPENSSL_free(cinf->uri);
-  }
-  if (cinf->certname) {
+  if (cinf->certname)
     ats_free(cinf->certname);
-  }
   ink_mutex_destroy(&cinf->stapling_mutex);
   OPENSSL_free(cinf);
 }
@@ -69,9 +66,8 @@ static int ssl_stapling_index = -1;
 void
 ssl_stapling_ex_init()
 {
-  if (ssl_stapling_index != -1) {
+  if (ssl_stapling_index != -1)
     return;
-  }
   ssl_stapling_index = SSL_CTX_get_ex_new_index(0, nullptr, nullptr, nullptr, certinfo_free);
 }
 
@@ -159,7 +155,7 @@ ssl_stapling_init_cert(SSL_CTX *ctx, X509 *cert, const char *certname)
   cinf->uri         = nullptr;
   cinf->certname    = ats_strdup(certname);
   cinf->resp_derlen = 0;
-  ink_mutex_init(&cinf->stapling_mutex);
+  ink_mutex_init(&cinf->stapling_mutex, "stapling_mutex");
   cinf->is_expire   = true;
   cinf->expire_time = 0;
 
@@ -213,9 +209,8 @@ stapling_get_cert_info(SSL_CTX *ctx)
   certinfo *cinf;
 
   cinf = (certinfo *)SSL_CTX_get_ex_data(ctx, ssl_stapling_index);
-  if (cinf && cinf->cid) {
+  if (cinf && cinf->cid)
     return cinf;
-  }
 
   return nullptr;
 }
@@ -318,9 +313,8 @@ query_responder(BIO *b, char *host, char *path, OCSP_REQUEST *req, int req_timeo
 
   OCSP_REQ_CTX_free(ctx);
 
-  if (rv) {
+  if (rv)
     return resp;
-  }
 
   return nullptr;
 }
@@ -334,9 +328,8 @@ process_responder(OCSP_REQUEST *req, char *host, char *path, char *port, int req
   if (!cbio) {
     goto end;
   }
-  if (port) {
+  if (port)
     BIO_set_conn_port(cbio, port);
-  }
 
   BIO_set_nbio(cbio, 1);
   if (BIO_do_connect(cbio) <= 0 && !BIO_should_retry(cbio)) {
@@ -346,9 +339,8 @@ process_responder(OCSP_REQUEST *req, char *host, char *path, char *port, int req
   resp = query_responder(cbio, host, path, req, req_timeout);
 
 end:
-  if (cbio) {
+  if (cbio)
     BIO_free_all(cbio);
-  }
   return resp;
 }
 
@@ -370,16 +362,13 @@ stapling_refresh_response(certinfo *cinf, OCSP_RESPONSE **prsp)
   }
 
   req = OCSP_REQUEST_new();
-  if (!req) {
+  if (!req)
     goto err;
-  }
   id = OCSP_CERTID_dup(cinf->cid);
-  if (!id) {
+  if (!id)
     goto err;
-  }
-  if (!OCSP_request_add0_id(req, id)) {
+  if (!OCSP_request_add0_id(req, id))
     goto err;
-  }
 
   req_timeout = SSLConfigParams::ssl_ocsp_request_timeout;
   *prsp       = process_responder(req, host, path, port, req_timeout);
@@ -408,12 +397,11 @@ err:
   Error("stapling_refresh_response: failed to refresh OCSP response");
 
 done:
-  if (req) {
+  if (req)
     OCSP_REQUEST_free(req);
-  }
-  if (*prsp) {
+  if (*prsp)
     OCSP_RESPONSE_free(*prsp);
-  }
+
   OPENSSL_free(host);
   OPENSSL_free(path);
   OPENSSL_free(port);
@@ -489,4 +477,4 @@ ssl_callback_ocsp_stapling(SSL *ssl)
   }
 }
 
-#endif /* TS_USE_TLS_OCSP */
+#endif /* HAVE_OPENSSL_OCSP_STAPLING */

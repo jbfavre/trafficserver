@@ -40,10 +40,11 @@
 
 class HttpSM;
 class HttpCacheSM;
+class CacheLookupHttpConfig;
 
 struct HttpCacheAction : public Action {
   HttpCacheAction();
-  void cancel(Continuation *c = nullptr) override;
+  virtual void cancel(Continuation *c = NULL);
   void
   init(HttpCacheSM *sm_arg)
   {
@@ -65,7 +66,7 @@ public:
     captive_action.init(this);
   }
 
-  Action *open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, OverridableHttpConfigParams *params, time_t pin_in_cache);
+  Action *open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, CacheLookupHttpConfig *params, time_t pin_in_cache);
 
   Action *open_write(const HttpCacheKey *key, URL *url, HTTPHdr *request, CacheHTTPInfo *old_info, time_t pin_in_cache, bool retry,
                      bool allow_multiple);
@@ -98,13 +99,13 @@ public:
   bool
   is_ram_cache_hit()
   {
-    return cache_read_vc ? (cache_read_vc->is_ram_cache_hit()) : false;
+    return cache_read_vc ? (cache_read_vc->is_ram_cache_hit()) : 0;
   }
 
   bool
   is_compressed_in_ram()
   {
-    return cache_read_vc ? (cache_read_vc->is_compressed_in_ram()) : false;
+    return cache_read_vc ? (cache_read_vc->is_compressed_in_ram()) : 0;
   }
 
   inline void
@@ -142,8 +143,8 @@ public:
   {
     if (cache_read_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_read_vc->do_io_close(0); // passing zero as aborting read is not an error
-      cache_read_vc = nullptr;
+      cache_read_vc->do_io(VIO::ABORT);
+      cache_read_vc = NULL;
     }
   }
   inline void
@@ -151,8 +152,8 @@ public:
   {
     if (cache_write_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_write_vc->do_io_close(0); // passing zero as aborting write is not an error
-      cache_write_vc = nullptr;
+      cache_write_vc->do_io(VIO::ABORT);
+      cache_write_vc = NULL;
     }
   }
   inline void
@@ -160,8 +161,8 @@ public:
   {
     if (cache_write_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_write_vc->do_io_close();
-      cache_write_vc = nullptr;
+      cache_write_vc->do_io(VIO::CLOSE);
+      cache_write_vc = NULL;
     }
   }
   inline void
@@ -169,8 +170,8 @@ public:
   {
     if (cache_read_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_read_vc->do_io_close();
-      cache_read_vc = nullptr;
+      cache_read_vc->do_io(VIO::CLOSE);
+      cache_read_vc = NULL;
     }
   }
   inline void
@@ -196,7 +197,7 @@ private:
   // Open read parameters
   int open_read_tries;
   HTTPHdr *read_request_hdr;
-  OverridableHttpConfigParams *http_params;
+  CacheLookupHttpConfig *read_config;
   time_t read_pin_in_cache;
 
   // Open write parameters

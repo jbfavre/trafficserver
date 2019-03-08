@@ -483,5 +483,5 @@ namespace io
     return *this;
   }
 
-} // namespace io
-} // namespace ats
+} // end of io namespace
+} // end of ats namespace

@@ -30,9 +30,9 @@
  ****************************************************************************/
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "I_EventSystem.h"
-#include "records/I_RecProcess.h"
+#include "I_RecProcess.h"
 
 #define AIO_MODULE_MAJOR_VERSION 1
 #define AIO_MODULE_MINOR_VERSION 0
@@ -58,7 +58,7 @@
 
 #define MAX_AIO_EVENTS 1024
 
-typedef struct iocb ink_aiocb;
+typedef struct iocb ink_aiocb_t;
 typedef struct io_event ink_io_event_t;
 
 // XXX hokey old-school compatibility with ink_aiocb.h ...
@@ -68,17 +68,17 @@ typedef struct io_event ink_io_event_t;
 
 #else
 
-struct ink_aiocb {
-  int aio_fildes    = 0;
-  void *aio_buf     = nullptr; /* buffer location */
-  size_t aio_nbytes = 0;       /* length of transfer */
-  off_t aio_offset  = 0;       /* file offset */
+typedef struct ink_aiocb {
+  int aio_fildes;
+  volatile void *aio_buf; /* buffer location */
+  size_t aio_nbytes;      /* length of transfer */
+  off_t aio_offset;       /* file offset */
 
-  int aio_reqprio    = 0; /* request priority offset */
-  int aio_lio_opcode = 0; /* listio operation */
-  int aio_state      = 0; /* state flag for List I/O */
-  int aio__pad[1];        /* extension padding */
-};
+  int aio_reqprio;    /* request priority offset */
+  int aio_lio_opcode; /* listio operation */
+  int aio_state;      /* state flag for List I/O */
+  int aio__pad[1];    /* extension padding */
+} ink_aiocb_t;
 
 bool ink_aio_thread_num_set(int thread_num);
 
@@ -93,15 +93,15 @@ bool ink_aio_thread_num_set(int thread_num);
 
 struct AIOCallback : public Continuation {
   // set before calling aio_read/aio_write
-  ink_aiocb aiocb;
+  ink_aiocb_t aiocb;
   Action action;
-  EThread *thread   = AIO_CALLBACK_THREAD_ANY;
-  AIOCallback *then = nullptr;
+  EThread *thread;
+  AIOCallback *then;
   // set on return from aio_read/aio_write
-  int64_t aio_result = 0;
+  int64_t aio_result;
 
   int ok();
-  AIOCallback() {}
+  AIOCallback() : thread(AIO_CALLBACK_THREAD_ANY), then(0) { aiocb.aio_reqprio = AIO_DEFAULT_PRIORITY; }
 };
 
 #if AIO_MODE == AIO_MODE_NATIVE

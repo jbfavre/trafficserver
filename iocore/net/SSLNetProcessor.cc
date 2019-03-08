@@ -19,14 +19,13 @@
   limitations under the License.
  */
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 
 #include "P_Net.h"
-#include "tscore/I_Layout.h"
-#include "records/I_RecHttp.h"
+#include "ts/I_Layout.h"
+#include "I_RecHttp.h"
 #include "P_SSLUtils.h"
 #include "P_OCSPStapling.h"
-#include "P_SSLSNI.h"
 
 //
 // Global Data
@@ -34,9 +33,8 @@
 
 SSLNetProcessor ssl_NetProcessor;
 NetProcessor &sslNetProcessor = ssl_NetProcessor;
-SNIActionPerformer sni_action_performer;
 
-#ifdef TS_USE_TLS_OCSP
+#ifdef HAVE_OPENSSL_OCSP_STAPLING
 struct OCSPContinuation : public Continuation {
   int
   mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
@@ -48,7 +46,7 @@ struct OCSPContinuation : public Continuation {
 
   OCSPContinuation() : Continuation(new_ProxyMutex()) { SET_HANDLER(&OCSPContinuation::mainEvent); }
 };
-#endif /* TS_USE_TLS_OCSP */
+#endif /* HAVE_OPENSSL_OCSP_STAPLING */
 
 void
 SSLNetProcessor::cleanup()
@@ -61,12 +59,10 @@ SSLNetProcessor::start(int, size_t stacksize)
   // This initialization order matters ...
   SSLInitializeLibrary();
   SSLConfig::startup();
-  SSLPostConfigInitialize();
-  SNIConfig::startup();
 
-  if (!SSLCertificateConfig::startup()) {
+  if (!SSLCertificateConfig::startup())
     return -1;
-  }
+
   SSLTicketKeyConfig::startup();
 
   // Acquire a SSLConfigParams instance *after* we start SSL up.
@@ -75,12 +71,12 @@ SSLNetProcessor::start(int, size_t stacksize)
   // Initialize SSL statistics. This depends on an initial set of certificates being loaded above.
   SSLInitializeStatistics();
 
-#ifdef TS_USE_TLS_OCSP
+#ifdef HAVE_OPENSSL_OCSP_STAPLING
   if (SSLConfigParams::ssl_ocsp_enabled) {
-    EventType ET_OCSP = eventProcessor.spawn_event_threads("ET_OCSP", 1, stacksize);
+    EventType ET_OCSP = eventProcessor.spawn_event_threads(1, "ET_OCSP", stacksize);
     eventProcessor.schedule_every(new OCSPContinuation(), HRTIME_SECONDS(SSLConfigParams::ssl_ocsp_update_period), ET_OCSP);
   }
-#endif /* TS_USE_TLS_OCSP */
+#endif /* HAVE_OPENSSL_OCSP_STAPLING */
 
   // We have removed the difference between ET_SSL threads and ET_NET threads,
   // So just keep on chugging
@@ -109,7 +105,9 @@ SSLNetProcessor::allocate_vc(EThread *t)
   return vc;
 }
 
-SSLNetProcessor::SSLNetProcessor() {}
+SSLNetProcessor::SSLNetProcessor()
+{
+}
 
 SSLNetProcessor::~SSLNetProcessor()
 {

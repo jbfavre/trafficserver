@@ -28,14 +28,14 @@
  *
  ****************************************************************************/
 
-#include "tscore/ink_platform.h"
-#include "tscore/Tokenizer.h"
+#include "ts/ink_platform.h"
+#include "ts/Tokenizer.h"
 
 #ifdef SPLIT_DNS
 #include <sys/types.h>
 #include "P_SplitDNS.h"
-#include "tscore/MatcherUtils.h"
-#include "tscore/HostLookup.h"
+#include "ts/MatcherUtils.h"
+#include "ts/HostLookup.h"
 
 /* --------------------------------------------------------------
    this file is built using "ParentSelection.cc as a template.
@@ -74,7 +74,9 @@ Ptr<ProxyMutex> SplitDNSConfig::dnsHandler_mutex;
 /* --------------------------------------------------------------
    SplitDNSResult::SplitDNSResult()
    -------------------------------------------------------------- */
-inline SplitDNSResult::SplitDNSResult() : r(DNS_SRVR_UNDEFINED), m_line_number(0), m_rec(nullptr), m_wrap_around(false) {}
+inline SplitDNSResult::SplitDNSResult() : r(DNS_SRVR_UNDEFINED), m_line_number(0), m_rec(nullptr), m_wrap_around(false)
+{
+}
 
 /* --------------------------------------------------------------
    SplitDNS::SplitDNS()
@@ -128,22 +130,21 @@ SplitDNSConfig::startup()
 void
 SplitDNSConfig::reconfigure()
 {
-  if (0 == gsplit_dns_enabled) {
+  if (0 == gsplit_dns_enabled)
     return;
-  }
 
   SplitDNS *params = new SplitDNS;
 
   params->m_SplitDNSlEnable = gsplit_dns_enabled;
   params->m_DNSSrvrTable    = new DNS_table("proxy.config.dns.splitdns.filename", modulePrefix, &sdns_dest_tags);
 
-  if (nullptr == params->m_DNSSrvrTable || (0 == params->m_DNSSrvrTable->getEntryCount())) {
+  params->m_numEle = params->m_DNSSrvrTable->getEntryCount();
+  if (nullptr == params->m_DNSSrvrTable || (0 == params->m_numEle)) {
     Warning("No NAMEDs provided! Disabling SplitDNS");
     gsplit_dns_enabled = 0;
     delete params;
     return;
   }
-  params->m_numEle = params->m_DNSSrvrTable->getEntryCount();
 
   if (nullptr != params->m_DNSSrvrTable->getHostMatcher() && nullptr == params->m_DNSSrvrTable->getReMatcher() &&
       nullptr == params->m_DNSSrvrTable->getIPMatcher() && 4 >= params->m_numEle) {
@@ -232,22 +233,19 @@ SplitDNS::findServer(RequestData *rdata, SplitDNSResult *result)
     int len        = strlen(pHost);
     HostLeaf *pxHL = (HostLeaf *)m_pxLeafArray;
     for (int i = 0; i < m_numEle; i++) {
-      if (nullptr == pxHL) {
+      if (nullptr == pxHL)
         break;
-      }
 
-      if (false == pxHL[i].isNot && pxHL[i].len > len) {
+      if (false == pxHL[i].isNot && pxHL[i].len > len)
         continue;
-      }
 
       int idx      = len - pxHL[i].len;
       char *pH     = &pHost[idx];
       char *pMatch = (char *)pxHL[i].match;
       char cNot    = *pMatch;
 
-      if ('!' == cNot) {
+      if ('!' == cNot)
         pMatch++;
-      }
 
       int res = memcmp(pH, pMatch, pxHL[i].len);
 
@@ -327,12 +325,10 @@ SplitDNSRecord::ProcessDNSHosts(char *val)
        ---------------------------------------- */
     if (tmp) {
       char *scan = tmp + 1;
-      for (; *scan != '\0' && ParseRules::is_digit(*scan); scan++) {
+      for (; *scan != '\0' && ParseRules::is_digit(*scan); scan++)
         ;
-      }
-      for (; *scan != '\0' && ParseRules::is_wslfcr(*scan); scan++) {
+      for (; *scan != '\0' && ParseRules::is_wslfcr(*scan); scan++)
         ;
-      }
 
       if (*scan != '\0') {
         return "Garbage trailing entry or invalid separator";
@@ -415,9 +411,8 @@ SplitDNSRecord::ProcessDomainSrchList(char *val)
     current = pTok[i];
     cnt     = sz += strlen(current);
 
-    if (MAXDNAME - 1 < sz) {
+    if (MAXDNAME - 1 < sz)
       break;
-    }
 
     memcpy(pSp, current, cnt);
     pSp += (cnt + 1);
@@ -433,7 +428,7 @@ SplitDNSRecord::ProcessDomainSrchList(char *val)
    matcher_line* line_info - contains parsed label/value pairs
    of the current split.config line
    -------------------------------------------------------------- */
-Result
+config_parse_error
 SplitDNSRecord::Init(matcher_line *line_info)
 {
   const char *errPtr = nullptr;
@@ -452,7 +447,7 @@ SplitDNSRecord::Init(matcher_line *line_info)
 
     if (strcasecmp(label, "def_domain") == 0) {
       if (nullptr != (errPtr = ProcessDefDomain(val))) {
-        return Result::failure("%s %s at line %d", modulePrefix, errPtr, line_num);
+        return config_parse_error("%s %s at line %d", modulePrefix, errPtr, line_num);
       }
       line_info->line[0][i] = nullptr;
       line_info->num_el--;
@@ -461,7 +456,7 @@ SplitDNSRecord::Init(matcher_line *line_info)
 
     if (strcasecmp(label, "search_list") == 0) {
       if (nullptr != (errPtr = ProcessDomainSrchList(val))) {
-        return Result::failure("%s %s at line %d", modulePrefix, errPtr, line_num);
+        return config_parse_error("%s %s at line %d", modulePrefix, errPtr, line_num);
       }
       line_info->line[0][i] = nullptr;
       line_info->num_el--;
@@ -470,7 +465,7 @@ SplitDNSRecord::Init(matcher_line *line_info)
 
     if (strcasecmp(label, "named") == 0) {
       if (nullptr != (errPtr = ProcessDNSHosts(val))) {
-        return Result::failure("%s %s at line %d", modulePrefix, errPtr, line_num);
+        return config_parse_error("%s %s at line %d", modulePrefix, errPtr, line_num);
       }
       line_info->line[0][i] = nullptr;
       line_info->num_el--;
@@ -479,7 +474,7 @@ SplitDNSRecord::Init(matcher_line *line_info)
   }
 
   if (!ats_is_ip(&m_servers.x_server_ip[0].sa)) {
-    return Result::failure("%s No server specified in splitdns.config at line %d", modulePrefix, line_num);
+    return config_parse_error("%s No server specified in splitdns.config at line %d", modulePrefix, line_num);
   }
 
   DNSHandler *dnsH  = new DNSHandler;
@@ -489,8 +484,8 @@ SplitDNSRecord::Init(matcher_line *line_info)
   if ((-1 == ink_res_init(res, m_servers.x_server_ip, m_dnsSrvr_cnt, dns_search, m_servers.x_def_domain,
                           m_servers.x_domain_srch_list, nullptr))) {
     char ab[INET6_ADDRPORTSTRLEN];
-    return Result::failure("Failed to build res record for the servers %s ...",
-                           ats_ip_ntop(&m_servers.x_server_ip[0].sa, ab, sizeof ab));
+    return config_parse_error("Failed to build res record for the servers %s ...",
+                              ats_ip_ntop(&m_servers.x_server_ip[0].sa, ab, sizeof ab));
   }
 
   dnsH->m_res = res;
@@ -500,7 +495,7 @@ SplitDNSRecord::Init(matcher_line *line_info)
   m_servers.x_dnsH = dnsH;
 
   SET_CONTINUATION_HANDLER(dnsH, &DNSHandler::startEvent_sdns);
-  eventProcessor.thread_group[ET_DNS]._thread[0]->schedule_imm(dnsH);
+  (eventProcessor.eventthread[ET_DNS][0])->schedule_imm(dnsH);
 
   /* -----------------------------------------------------
      Process any modifiers to the directive, if they exist
@@ -508,11 +503,11 @@ SplitDNSRecord::Init(matcher_line *line_info)
   if (line_info->num_el > 0) {
     tmp = ProcessModifiers(line_info);
     if (tmp != nullptr) {
-      return Result::failure("%s %s at line %d in splitdns.config", modulePrefix, tmp, line_num);
+      return config_parse_error("%s %s at line %d in splitdns.config", modulePrefix, tmp, line_num);
     }
   }
 
-  return Result::ok();
+  return config_parse_error::ok();
 }
 
 /* --------------------------------------------------------------
@@ -549,9 +544,8 @@ ink_split_dns_init(ModuleVersion v)
   static int init_called = 0;
 
   ink_release_assert(!checkModuleVersion(v, SPLITDNS_MODULE_VERSION));
-  if (init_called) {
+  if (init_called)
     return;
-  }
 
   init_called = 1;
 }

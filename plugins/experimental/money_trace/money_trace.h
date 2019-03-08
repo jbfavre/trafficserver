@@ -17,10 +17,11 @@
  * under the License.
  */
 
-#pragma once
+#ifndef __MONEY_TRACE_H
+#define __MONEY_TRACE_H
 
 #include <random>
-#include <ctime>
+#include <time.h>
 #include "ts/ts.h"
 #include "ts/remap.h"
 
@@ -42,7 +43,7 @@
 struct MT {
   std::minstd_rand0 generator;
 
-  MT() { generator.seed(time(nullptr)); }
+  MT() { generator.seed(time(0)); }
   long
   spanId()
   {
@@ -64,3 +65,5 @@ static void mt_check_request_header(TSHttpTxn txnp);
 static void mt_send_client_response(TSHttpTxn txnp, struct txndata *txn_data);
 static void mt_send_server_request(TSHttpTxn txnp, struct txndata *txn_data);
 static int transaction_handler(TSCont contp, TSEvent event, void *edata);
+
+#endif

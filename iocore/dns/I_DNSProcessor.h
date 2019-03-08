@@ -25,14 +25,12 @@
 
 #include "SRV.h"
 
-const int DOMAIN_SERVICE_PORT        = NAMESERVER_PORT;
-const int DEFAULT_DOMAIN_NAME_SERVER = 0;
-
-const int MAX_DNS_PACKET_LEN = 8192;
-const int DNS_RR_MAX_COUNT   = (MAX_DNS_PACKET_LEN - HFIXEDSZ + RRFIXEDSZ - 1) / RRFIXEDSZ;
-const int DNS_MAX_ALIASES    = DNS_RR_MAX_COUNT;
-const int DNS_MAX_ADDRS      = DNS_RR_MAX_COUNT;
-const int DNS_HOSTBUF_SIZE   = MAX_DNS_PACKET_LEN;
+#define MAX_DNS_PACKET_LEN 8192
+#define DNS_MAX_ALIASES 35
+#define DNS_MAX_ADDRS 35
+#define DNS_HOSTBUF_SIZE 8192
+#define DOMAIN_SERVICE_PORT 53
+#define DEFAULT_DOMAIN_NAME_SERVER 0 // use the default server
 
 /**
   All buffering required to handle a DNS receipt. For asynchronous DNS,
@@ -41,17 +39,23 @@ const int DNS_HOSTBUF_SIZE   = MAX_DNS_PACKET_LEN;
 
 */
 struct HostEnt : RefCountObj {
-  struct hostent ent           = {.h_name = nullptr, .h_aliases = nullptr, .h_addrtype = 0, .h_length = 0, .h_addr_list = nullptr};
-  uint32_t ttl                 = 0;
-  int packet_size              = 0;
-  char buf[MAX_DNS_PACKET_LEN] = {0};
-  u_char *host_aliases[DNS_MAX_ALIASES]  = {nullptr};
-  u_char *h_addr_ptrs[DNS_MAX_ADDRS + 1] = {nullptr};
-  u_char hostbuf[DNS_HOSTBUF_SIZE]       = {0};
+  struct hostent ent;
+  uint32_t ttl;
+  int packet_size;
+  char buf[MAX_DNS_PACKET_LEN];
+  u_char *host_aliases[DNS_MAX_ALIASES];
+  u_char *h_addr_ptrs[DNS_MAX_ADDRS + 1];
+  u_char hostbuf[DNS_HOSTBUF_SIZE];
+
   SRVHosts srv_hosts;
-  bool good = true;
-  bool isNameError();
-  void free() override;
+
+  virtual void free();
+
+  HostEnt()
+  {
+    size_t base = sizeof(force_VFPT_to_top); // preserve VFPT
+    memset(((char *)this) + base, 0, sizeof(*this) - base);
+  }
 };
 
 extern EventType ET_DNS;
@@ -111,11 +115,11 @@ struct DNSProcessor : public Processor {
   //
   /* currently dns system uses event threads
    * dont pass any value to the call */
-  int start(int no_of_extra_dns_threads = 0, size_t stacksize = DEFAULT_STACKSIZE) override;
+  int start(int no_of_extra_dns_threads = 0, size_t stacksize = DEFAULT_STACKSIZE);
 
   // Open/close a link to a 'named' (done in start())
   //
-  void open(sockaddr const *ns = nullptr);
+  void open(sockaddr const *ns = 0);
 
   DNSProcessor();
 
@@ -172,7 +176,9 @@ DNSProcessor::gethostbyaddr(Continuation *cont, IpAddr const *addr, Options cons
   return getby(reinterpret_cast<const char *>(addr), 0, T_PTR, cont, opt);
 }
 
-inline DNSProcessor::Options::Options() : handler(nullptr), timeout(0), host_res_style(HOST_RES_IPV4) {}
+inline DNSProcessor::Options::Options() : handler(0), timeout(0), host_res_style(HOST_RES_IPV4)
+{
+}
 
 inline DNSProcessor::Options &
 DNSProcessor::Options::setHandler(DNSHandler *h)

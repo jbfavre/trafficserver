@@ -26,16 +26,11 @@ Synopsis
 
 `#include <ts/ts.h>`
 
-.. function:: ssize_t TSfread(TSFile filep, void * buf, size_t length)
+.. function:: size_t TSfread(TSFile filep, void * buf, size_t length)
 
 Description
 ===========
 
 Attempts to read :arg:`length` bytes of data from the file pointed to by
-:arg:`filep` into the buffer :arg:`buf`. The behavior is undefined if
-:arg:`length` is greater than SSIZE_MAX.
+:arg:`filep` into the buffer :arg:`buf`.
 
-Return Value
-============
-
-Returns the number of bytes read on success, or -1 on failure.

@@ -25,14 +25,15 @@
 #pragma once
 #define I_VIO_h
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "I_EventSystem.h"
 #if !defined(I_IOBuffer_h)
 #error "include I_IOBuffer.h"
----include I_IOBuffer.h
+-- -
+  include I_IOBuffer.h
 #endif
-#include "tscore/ink_apidefs.h"
-   class Continuation;
+#include "ts/ink_apidefs.h"
+  class Continuation;
 class VConnection;
 class IOVConnection;
 class MIOBuffer;
@@ -165,7 +166,7 @@ public:
     call with events for this operation.
 
   */
-  Continuation *cont;
+  Continuation *_cont;
 
   /**
     Number of bytes to be done for this operation.

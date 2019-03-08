@@ -46,9 +46,6 @@ refer to the :ref:`developer-api-reference`.
 
 Below is a section-by-section breakdown of this guide:
 
-:ref:`developer-header-files`
-   The header file directory structure, where to find headers for particular tasks.
-
 :ref:`developer-plugins-getting-started`
    How to compile and load plugins. Walks through a simple "hello world"
    example; explains how to initialize and register plugins. Basic structures
@@ -65,7 +62,7 @@ Below is a section-by-section breakdown of this guide:
    plugins.
 
 :ref:`developer-plugins-http-transformations`
-   Detailed explanation of the null_transform example; also discusses
+   Detailed explanation of the null-transform example; also discusses
    ``VConnections``, ``VIOs``, and IO buffers.
 
 :ref:`developer-plugins-new-protocol-plugins`
@@ -117,7 +114,4 @@ function type:
 :ref:`developer-api-ref-functions`
    Traffic Server API Function Documentation.
 
-.. toctree::
-   :hidden:
 
-   header-file-structure.en

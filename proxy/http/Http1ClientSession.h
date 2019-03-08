@@ -54,27 +54,26 @@ public:
   Http1ClientSession();
 
   // Implement ProxyClientSession interface.
-  void destroy() override;
-  void free() override;
+  virtual void destroy();
+  virtual void free();
   void release_transaction();
 
-  void
-  start() override
+  virtual void
+  start()
   {
     // Troll for data to get a new transaction
     this->release(&trans);
   }
 
-  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
+  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor);
 
   // Implement VConnection interface.
-  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = nullptr) override;
-  VIO *do_io_write(Continuation *c = nullptr, int64_t nbytes = INT64_MAX, IOBufferReader *buf = nullptr,
-                   bool owner = false) override;
+  virtual VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0);
+  virtual VIO *do_io_write(Continuation *c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader *buf = 0, bool owner = false);
 
-  void do_io_close(int lerrno = -1) override;
-  void do_io_shutdown(ShutdownHowTo_t howto) override;
-  void reenable(VIO *vio) override;
+  virtual void do_io_close(int lerrno = -1);
+  virtual void do_io_shutdown(ShutdownHowTo_t howto);
+  virtual void reenable(VIO *vio);
 
   bool
   allow_half_open()
@@ -84,44 +83,25 @@ public:
   }
 
   void
-  set_half_close_flag(bool flag) override
+  set_half_close_flag(bool flag)
   {
     half_close = flag;
   }
 
   bool
-  get_half_close_flag() const override
+  get_half_close_flag() const
   {
     return half_close;
   }
 
-  bool
-  is_chunked_encoding_supported() const override
-  {
-    return true;
-  }
-
-  NetVConnection *
-  get_netvc() const override
+  virtual NetVConnection *
+  get_netvc() const
   {
     return client_vc;
   }
 
-  void
-  release_netvc() override
-  {
-    // Make sure the vio's are also released to avoid
-    // later surprises in inactivity timeout
-    if (client_vc) {
-      client_vc->do_io_read(nullptr, 0, nullptr);
-      client_vc->do_io_write(nullptr, 0, nullptr);
-      client_vc->set_action(nullptr);
-      client_vc = nullptr;
-    }
-  }
-
   int
-  get_transact_count() const override
+  get_transact_count() const
   {
     return transact_count;
   }
@@ -133,47 +113,59 @@ public:
   }
 
   // Indicate we are done with a transaction
-  void release(ProxyClientTransaction *trans) override;
+  virtual void release(ProxyClientTransaction *trans);
 
-  void attach_server_session(HttpServerSession *ssession, bool transaction_done = true) override;
+  virtual uint16_t
+  get_outbound_port() const
+  {
+    return outbound_port;
+  }
 
-  HttpServerSession *
-  get_server_session() const override
+  virtual IpAddr
+  get_outbound_ip4() const
+  {
+    return outbound_ip4;
+  }
+
+  virtual IpAddr
+  get_outbound_ip6() const
+  {
+    return outbound_ip6;
+  }
+
+  virtual void attach_server_session(HttpServerSession *ssession, bool transaction_done = true);
+
+  virtual HttpServerSession *
+  get_server_session() const
   {
     return bound_ss;
   }
 
   void
-  set_active_timeout(ink_hrtime timeout_in) override
+  set_active_timeout(ink_hrtime timeout_in)
   {
     if (client_vc)
       client_vc->set_active_timeout(timeout_in);
   }
 
   void
-  set_inactivity_timeout(ink_hrtime timeout_in) override
+  set_inactivity_timeout(ink_hrtime timeout_in)
   {
     if (client_vc)
       client_vc->set_inactivity_timeout(timeout_in);
   }
 
   void
-  cancel_inactivity_timeout() override
+  cancel_inactivity_timeout()
   {
     if (client_vc)
       client_vc->cancel_inactivity_timeout();
   }
 
-  const char *
-  get_protocol_string() const override
+  virtual const char *
+  get_protocol_string() const
   {
     return "http";
-  }
-
-  bool
-  is_transparent_passthrough_allowed() const override
-  {
-    return f_transparent_passthrough;
   }
 
 private:
@@ -204,7 +196,11 @@ private:
   MIOBuffer *read_buffer;
   IOBufferReader *sm_reader;
 
-  C_Read_State read_state;
+  /*
+   * Volatile should not be necessary, but there appears to be a bug in the 4.9 rhel gcc
+   * compiler that was using an old version of read_state to make decisions in really_destroy
+   */
+  volatile C_Read_State read_state;
 
   VIO *ka_vio;
   VIO *slave_ka_vio;
@@ -217,6 +213,12 @@ public:
   // Link<Http1ClientSession> debug_link;
   LINK(Http1ClientSession, debug_link);
 
+  /// Local address for outbound connection.
+  IpAddr outbound_ip4;
+  /// Local address for outbound connection.
+  IpAddr outbound_ip6;
+  /// Local port for outbound connection.
+  uint16_t outbound_port;
   /// Set outbound connection to transparent.
   bool f_outbound_transparent;
   /// Transparently pass-through non-HTTP traffic.

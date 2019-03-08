@@ -33,26 +33,19 @@
  ****************************************************************************/
 #pragma once
 
-#include <cstdlib>
-#include <cstdio>
-#include <bitset>
+#include <stdlib.h>
+#include <stdio.h>
 
 #ifdef HAVE_CTYPE_H
-#include <cctype>
+#include <ctype.h>
 #endif
 
-#include "tscore/ink_platform.h"
-#include "tscore/ink_inet.h"
-#include "tscore/IpMap.h"
-#include "tscore/Regex.h"
-#include "string_view"
-#include "tscore/BufferWriter.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_inet.h"
+#include "ts/Regex.h"
 #include "HttpProxyAPIEnums.h"
 #include "ProxyConfig.h"
-#include "records/P_RecProcess.h"
-
-static const unsigned HTTP_STATUS_NUMBER = 600;
-using HttpStatusBitset                   = std::bitset<HTTP_STATUS_NUMBER>;
+#include "P_RecProcess.h"
 
 /* Instead of enumerating the stats in DynamicStats.h, each module needs
    to enumerate its stats separately and register them with librecords
@@ -120,6 +113,8 @@ enum {
 
   http_tunnels_stat,
   http_throttled_proxy_only_stat,
+
+  http_icp_suggested_lookups_stat,
 
   // document size stats
   http_user_agent_request_header_total_size_stat,
@@ -214,9 +209,6 @@ enum {
   http_err_client_abort_count_stat,
   http_err_client_abort_user_agent_bytes_stat,
   http_err_client_abort_origin_server_bytes_stat,
-  http_err_client_read_error_count_stat,
-  http_err_client_read_error_user_agent_bytes_stat,
-  http_err_client_read_error_origin_server_bytes_stat,
   http_err_connect_fail_count_stat,
   http_err_connect_fail_user_agent_bytes_stat,
   http_err_connect_fail_origin_server_bytes_stat,
@@ -271,7 +263,6 @@ enum {
   http_response_status_304_count_stat,
   http_response_status_305_count_stat,
   http_response_status_307_count_stat,
-  http_response_status_308_count_stat,
   http_response_status_3xx_count_stat,
   http_response_status_400_count_stat,
   http_response_status_401_count_stat,
@@ -360,41 +351,13 @@ struct HttpConfigPortRange {
   int high;
   HttpConfigPortRange *next;
 
-  HttpConfigPortRange() : low(0), high(0), next(nullptr) {}
+  HttpConfigPortRange() : low(0), high(0), next(0) {}
   ~HttpConfigPortRange()
   {
     if (next)
       delete next;
   }
 };
-
-namespace HttpForwarded
-{
-// Options for what parameters will be included in "Forwarded" field header.
-//
-enum Option {
-  FOR,
-  BY_IP,              // by=<numeric IP address>.
-  BY_UNKNOWN,         // by=unknown.
-  BY_SERVER_NAME,     // by=<configured server name>.
-  BY_UUID,            // Obfuscated value for by, by=_<UUID>.
-  PROTO,              // Basic protocol (http, https) of incoming message.
-  HOST,               // Host from URL before any remapping.
-  CONNECTION_COMPACT, // Same value as 'proto' parameter.
-  CONNECTION_STD,     // Verbose protocol from Via: field, with dashes instead of spaces.
-  CONNECTION_FULL,    // Ultra-verbose protocol from Via: field, with dashes instead of spaces.
-
-  NUM_OPTIONS // Number of options.
-};
-
-using OptionBitSet = std::bitset<NUM_OPTIONS>;
-
-// Converts string specifier for Forwarded options to bitset of options, and return the result.  If there are errors, an error
-// message will be inserted into 'error'.
-//
-OptionBitSet optStrToBitset(std::string_view optConfigStr, ts::FixedBufferWriter &error);
-
-} // namespace HttpForwarded
 
 /////////////////////////////////////////////////////////////
 // This is a little helper class, used by the HttpConfigParams
@@ -415,6 +378,7 @@ struct OverridableHttpConfigParams {
       fwd_proxy_auth_to_parent(0),
       uncacheable_requests_bypass_parent(1),
       attach_server_session_to_client(0),
+      safe_requests_retryable(1),
       forward_connect_method(0),
       insert_age_in_response(1),
       anonymize_remove_from(0),
@@ -426,9 +390,9 @@ struct OverridableHttpConfigParams {
       proxy_response_server_enabled(1),
       proxy_response_hsts_include_subdomains(0),
       insert_squid_x_forwarded_for(1),
-      insert_forwarded(HttpForwarded::OptionBitSet()),
       send_http11_requests(1),
       cache_http(1),
+      cache_cluster_cache_local(0),
       cache_ignore_client_no_cache(1),
       cache_ignore_client_cc_max_age(0),
       cache_ims_on_client_no_cache(1),
@@ -440,25 +404,19 @@ struct OverridableHttpConfigParams {
       cache_range_lookup(1),
       cache_range_write(0),
       allow_multi_range(0),
-      cache_enable_default_vary_headers(0),
-      ignore_accept_mismatch(0),
-      ignore_accept_language_mismatch(0),
-      ignore_accept_encoding_mismatch(0),
-      ignore_accept_charset_mismatch(0),
       insert_request_via_string(1),
       insert_response_via_string(0),
       doc_in_cache_skip_dns(1),
       flow_control_enabled(0),
-      normalize_ae(0),
+      normalize_ae_gzip(0),
       srv_enabled(0),
       parent_failures_update_hostdb(0),
       cache_open_write_fail_action(0),
       post_check_content_length_enabled(1),
-      request_buffer_enabled(0),
-      allow_half_open(1),
       ssl_client_verify_server(0),
+      redirection_enabled(0),
       redirect_use_orig_cache_key(0),
-      number_of_redirections(0),
+      number_of_redirections(1),
       proxy_response_hsts_max_age(-1),
       negative_caching_lifetime(1800),
       negative_revalidating_lifetime(1800),
@@ -497,6 +455,8 @@ struct OverridableHttpConfigParams {
       parent_connect_timeout(30),
       down_server_timeout(300),
       client_abort_threshold(10),
+      freshness_fuzz_time(240),
+      freshness_fuzz_min_time(0),
       max_cache_open_read_retries(-1),
       cache_open_read_retry_time(10),
       cache_generation_number(-1),
@@ -508,19 +468,17 @@ struct OverridableHttpConfigParams {
       default_buffer_size_index(8),
       default_buffer_water_mark(32768),
       slow_log_threshold(0),
-      body_factory_template_base(nullptr),
+      body_factory_template_base(NULL),
       body_factory_template_base_len(0),
-      proxy_response_server_string(nullptr),
+      proxy_response_server_string(NULL),
       proxy_response_server_string_len(0),
-      global_user_agent_header(nullptr),
+      global_user_agent_header(NULL),
       global_user_agent_header_size(0),
       cache_heuristic_lm_factor(0.10),
+      freshness_fuzz_prob(0.005),
       background_fill_threshold(0.5),
-      client_cert_filename(nullptr),
-      client_cert_filepath(nullptr),
-      cache_vary_default_text(nullptr),
-      cache_vary_default_images(nullptr),
-      cache_vary_default_other(nullptr)
+      client_cert_filename(NULL),
+      client_cert_filepath(NULL)
   {
   }
 
@@ -548,6 +506,8 @@ struct OverridableHttpConfigParams {
   MgmtByte uncacheable_requests_bypass_parent;
   MgmtByte attach_server_session_to_client;
 
+  MgmtByte safe_requests_retryable;
+
   MgmtByte forward_connect_method;
 
   MgmtByte insert_age_in_response;
@@ -570,11 +530,6 @@ struct OverridableHttpConfigParams {
   /////////////////////
   MgmtByte insert_squid_x_forwarded_for;
 
-  ///////////////
-  // Forwarded //
-  ///////////////
-  HttpForwarded::OptionBitSet insert_forwarded;
-
   //////////////////////
   //  Version Hell    //
   //////////////////////
@@ -584,6 +539,7 @@ struct OverridableHttpConfigParams {
   // cache control //
   ///////////////////
   MgmtByte cache_http;
+  MgmtByte cache_cluster_cache_local;
   MgmtByte cache_ignore_client_no_cache;
   MgmtByte cache_ignore_client_cc_max_age;
   MgmtByte cache_ims_on_client_no_cache;
@@ -595,13 +551,6 @@ struct OverridableHttpConfigParams {
   MgmtByte cache_range_lookup;
   MgmtByte cache_range_write;
   MgmtByte allow_multi_range;
-
-  MgmtByte cache_enable_default_vary_headers;
-
-  MgmtByte ignore_accept_mismatch;
-  MgmtByte ignore_accept_language_mismatch;
-  MgmtByte ignore_accept_encoding_mismatch;
-  MgmtByte ignore_accept_charset_mismatch;
 
   MgmtByte insert_request_via_string;
   MgmtByte insert_response_via_string;
@@ -615,7 +564,7 @@ struct OverridableHttpConfigParams {
   ////////////////////////////////
   // Optimize gzip alternates   //
   ////////////////////////////////
-  MgmtByte normalize_ae;
+  MgmtByte normalize_ae_gzip;
 
   //////////////////////////
   // hostdb/dns variables //
@@ -630,24 +579,21 @@ struct OverridableHttpConfigParams {
   ////////////////////////
   MgmtByte post_check_content_length_enabled;
 
-  ////////////////////////////////////////////////
-  // Buffer post body before connecting servers //
-  ////////////////////////////////////////////////
-  MgmtByte request_buffer_enabled;
-
-  /////////////////////////////////////////////////
-  // Keep connection open after client sends FIN //
-  /////////////////////////////////////////////////
-  MgmtByte allow_half_open;
-
   /////////////////////////////
   // server verification mode//
   /////////////////////////////
   MgmtByte ssl_client_verify_server;
 
-  //////////////////
-  // Redirection  //
-  //////////////////
+  //##############################################################################
+  //#
+  //# Redirection
+  //#
+  //# 1. redirection_enabled: if set to 1, redirection is enabled.
+  //# 2. number_of_redirectionse: The maximum number of redirections YTS permits
+  //# 3. post_copy_size: The maximum POST data size YTS permits to copy
+  //#
+  //##############################################################################
+  MgmtByte redirection_enabled;
   MgmtByte redirect_use_orig_cache_key;
   MgmtInt number_of_redirections;
 
@@ -723,6 +669,9 @@ struct OverridableHttpConfigParams {
   MgmtInt down_server_timeout;
   MgmtInt client_abort_threshold;
 
+  MgmtInt freshness_fuzz_time;
+  MgmtInt freshness_fuzz_min_time;
+
   // open read failure retries.
   MgmtInt max_cache_open_read_retries;
   MgmtInt cache_open_read_retry_time; // time is in mseconds
@@ -756,15 +705,10 @@ struct OverridableHttpConfigParams {
   size_t global_user_agent_header_size; // Updated when user_agent is set.
 
   MgmtFloat cache_heuristic_lm_factor;
+  MgmtFloat freshness_fuzz_prob;
   MgmtFloat background_fill_threshold;
-
-  // Various strings, good place for them here ...
   char *client_cert_filename;
   char *client_cert_filepath;
-
-  char *cache_vary_default_text;
-  char *cache_vary_default_images;
-  char *cache_vary_default_other;
 };
 
 /////////////////////////////////////////////////////////////
@@ -777,7 +721,7 @@ struct OverridableHttpConfigParams {
 struct HttpConfigParams : public ConfigInfo {
 public:
   HttpConfigParams();
-  ~HttpConfigParams() override;
+  ~HttpConfigParams();
 
   enum {
     CACHE_REQUIRED_HEADERS_NONE                   = 0,
@@ -795,90 +739,108 @@ public:
 public:
   IpAddr inbound_ip4, inbound_ip6;
   IpAddr outbound_ip4, outbound_ip6;
-  IpAddr proxy_protocol_ip4, proxy_protocol_ip6;
-  IpMap config_proxy_protocol_ipmap;
 
-  MgmtInt server_max_connections            = 0;
-  MgmtInt origin_min_keep_alive_connections = 0; // TODO: This one really ought to be overridable, but difficult right now.
-  MgmtInt max_websocket_connections         = -1;
+  MgmtInt server_max_connections;
+  MgmtInt origin_min_keep_alive_connections; // TODO: This one really ought to be overridable, but difficult right now.
+  MgmtInt max_websocket_connections;
 
-  char *proxy_request_via_string    = nullptr;
-  char *proxy_response_via_string   = nullptr;
-  int proxy_request_via_string_len  = 0;
-  int proxy_response_via_string_len = 0;
+  char *proxy_request_via_string;
+  char *proxy_response_via_string;
+  int proxy_request_via_string_len;
+  int proxy_response_via_string_len;
 
-  MgmtInt accept_no_activity_timeout = 120;
+  // Cluster time delta is not a config variable,
+  //  rather it is the time skew which the manager observes
+  int32_t cluster_time_delta;
+
+  MgmtInt accept_no_activity_timeout;
 
   ///////////////////////////////////////////////////////////////////
   // Privacy: fields which are removed from the user agent request //
   ///////////////////////////////////////////////////////////////////
-  char *anonymize_other_header_list = nullptr;
+  char *anonymize_other_header_list;
+
+  char *cache_vary_default_text;
+  char *cache_vary_default_images;
+  char *cache_vary_default_other;
 
   ////////////////////////////////////////////
   // CONNECT ports (used to be == ssl_ports //
   ////////////////////////////////////////////
-  char *connect_ports_string         = nullptr;
-  HttpConfigPortRange *connect_ports = nullptr;
+  char *connect_ports_string;
+  HttpConfigPortRange *connect_ports;
 
-  char *reverse_proxy_no_host_redirect   = nullptr;
-  char *proxy_hostname                   = nullptr;
-  int reverse_proxy_no_host_redirect_len = 0;
-  int proxy_hostname_len                 = 0;
+  char *reverse_proxy_no_host_redirect;
+  char *proxy_hostname;
+  int reverse_proxy_no_host_redirect_len;
+  int proxy_hostname_len;
 
-  MgmtInt post_copy_size = 2048;
-  MgmtInt max_post_size  = 0;
+  MgmtInt post_copy_size;
+  MgmtInt max_post_size;
+
+  ////////////////////
+  // Local Manager  //
+  ////////////////////
+  MgmtInt synthetic_port;
 
   ///////////////////////////////////////////////////////////////////
   // Put all MgmtByte members down here, avoids additional padding //
   ///////////////////////////////////////////////////////////////////
-  MgmtByte disable_ssl_parenting = 0;
+  MgmtByte session_auth_cache_keep_alive_enabled;
+  MgmtByte disable_ssl_parenting;
 
-  MgmtByte no_dns_forward_to_parent = 0;
-  MgmtByte no_origin_server_dns     = 0;
-  MgmtByte use_client_target_addr   = 0;
-  MgmtByte use_client_source_port   = 0;
+  MgmtByte no_dns_forward_to_parent;
+  MgmtByte no_origin_server_dns;
+  MgmtByte use_client_target_addr;
+  MgmtByte use_client_source_port;
 
-  MgmtByte enable_http_stats = 1; // Can be "slow"
+  MgmtByte enable_http_stats; // Can be "slow"
 
-  MgmtByte cache_post_method = 0;
+  MgmtByte icp_enabled;
+  MgmtByte stale_icp_enabled;
 
-  MgmtByte push_method_enabled = 0;
+  MgmtByte cache_enable_default_vary_headers;
+  MgmtByte cache_post_method;
 
-  MgmtByte referer_filter_enabled  = 0;
-  MgmtByte referer_format_redirect = 0;
+  MgmtByte push_method_enabled;
 
-  MgmtByte strict_uri_parsing = 0;
+  MgmtByte referer_filter_enabled;
+  MgmtByte referer_format_redirect;
 
-  MgmtByte reverse_proxy_enabled = 0;
-  MgmtByte url_remap_required    = 1;
+  MgmtByte strict_uri_parsing;
 
-  MgmtByte errors_log_error_pages = 1;
-  MgmtByte enable_http_info       = 0;
+  MgmtByte reverse_proxy_enabled;
+  MgmtByte url_remap_required;
 
-  MgmtByte redirection_host_no_port = 1;
+  MgmtByte record_cop_page;
 
-  MgmtByte send_100_continue_response = 0;
-  MgmtByte disallow_post_100_continue = 0;
-  MgmtByte parser_allow_non_http      = 1;
-  MgmtByte keepalive_internal_vc      = 0;
+  MgmtByte errors_log_error_pages;
+  MgmtByte enable_http_info;
 
-  MgmtByte server_session_sharing_pool = TS_SERVER_SESSION_SHARING_POOL_THREAD;
+  MgmtByte redirection_host_no_port;
 
-  // bitset to hold the status codes that will BE cached with negative caching enabled
-  HttpStatusBitset negative_caching_list;
+  MgmtByte ignore_accept_mismatch;
+  MgmtByte ignore_accept_language_mismatch;
+  MgmtByte ignore_accept_encoding_mismatch;
+  MgmtByte ignore_accept_charset_mismatch;
+
+  MgmtByte send_100_continue_response;
+  MgmtByte disallow_post_100_continue;
+  MgmtByte parser_allow_non_http;
+  MgmtByte keepalive_internal_vc;
+
+  MgmtByte server_session_sharing_pool;
 
   // All the overridable configurations goes into this class member, but they
   // are not copied over until needed ("lazy").
   OverridableHttpConfigParams oride;
 
-  MgmtInt body_factory_response_max_size = 8192;
-
-  // noncopyable
+private:
   /////////////////////////////////////
   // operator = and copy constructor //
   /////////////////////////////////////
-  HttpConfigParams(const HttpConfigParams &) = delete;
-  HttpConfigParams &operator=(const HttpConfigParams &) = delete;
+  HttpConfigParams(const HttpConfigParams &);
+  HttpConfigParams &operator=(const HttpConfigParams &);
 };
 
 /////////////////////////////////////////////////////////////
@@ -889,6 +851,8 @@ public:
 class HttpConfig
 {
 public:
+  static int init_aeua_filter(char *config_fname);
+
   static void startup();
 
   static void reconfigure();
@@ -896,13 +860,20 @@ public:
   inkcoreapi static HttpConfigParams *acquire();
   inkcoreapi static void release(HttpConfigParams *params);
 
+  // dump
+  static void dump_config();
+
   // parse ssl ports configuration string
   static HttpConfigPortRange *parse_ports_list(char *ports_str);
+  static void *cluster_delta_cb(void *opaque_token, char *data_raw, int data_len);
 
 public:
   static int m_id;
   static HttpConfigParams m_master;
 };
+
+// DI's request to disable ICP on the fly
+extern volatile int32_t icp_dynamic_enabled;
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
@@ -911,7 +882,61 @@ public:
 //
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
-inline HttpConfigParams::HttpConfigParams() {}
+inline HttpConfigParams::HttpConfigParams()
+  : server_max_connections(0),
+    origin_min_keep_alive_connections(0),
+    max_websocket_connections(-1),
+    proxy_request_via_string(NULL),
+    proxy_response_via_string(NULL),
+    proxy_request_via_string_len(0),
+    proxy_response_via_string_len(0),
+    cluster_time_delta(0),
+    accept_no_activity_timeout(120),
+    anonymize_other_header_list(NULL),
+    cache_vary_default_text(NULL),
+    cache_vary_default_images(NULL),
+    cache_vary_default_other(NULL),
+    connect_ports_string(NULL),
+    connect_ports(NULL),
+    proxy_hostname(NULL),
+    proxy_hostname_len(0),
+    post_copy_size(2048),
+    max_post_size(0),
+    synthetic_port(0),
+
+    // MgmtByte's here
+    session_auth_cache_keep_alive_enabled(1),
+    disable_ssl_parenting(0),
+    no_dns_forward_to_parent(0),
+    no_origin_server_dns(0),
+    use_client_target_addr(0),
+    use_client_source_port(0),
+    enable_http_stats(1),
+    icp_enabled(0),
+    stale_icp_enabled(0),
+    cache_enable_default_vary_headers(0),
+    cache_post_method(0),
+    push_method_enabled(0),
+    referer_filter_enabled(0),
+    referer_format_redirect(0),
+    strict_uri_parsing(0),
+    reverse_proxy_enabled(0),
+    url_remap_required(1),
+    record_cop_page(0),
+    errors_log_error_pages(1),
+    enable_http_info(0),
+    redirection_host_no_port(1),
+    ignore_accept_mismatch(0),
+    ignore_accept_language_mismatch(0),
+    ignore_accept_encoding_mismatch(0),
+    ignore_accept_charset_mismatch(0),
+    send_100_continue_response(0),
+    disallow_post_100_continue(0),
+    parser_allow_non_http(1),
+    keepalive_internal_vc(0),
+    server_session_sharing_pool(TS_SERVER_SESSION_SHARING_POOL_THREAD)
+{
+}
 
 inline HttpConfigParams::~HttpConfigParams()
 {
@@ -922,11 +947,9 @@ inline HttpConfigParams::~HttpConfigParams()
   ats_free(oride.body_factory_template_base);
   ats_free(oride.proxy_response_server_string);
   ats_free(oride.global_user_agent_header);
-  ats_free(oride.client_cert_filename);
-  ats_free(oride.client_cert_filepath);
-  ats_free(oride.cache_vary_default_text);
-  ats_free(oride.cache_vary_default_images);
-  ats_free(oride.cache_vary_default_other);
+  ats_free(cache_vary_default_text);
+  ats_free(cache_vary_default_images);
+  ats_free(cache_vary_default_other);
   ats_free(connect_ports_string);
   ats_free(reverse_proxy_no_host_redirect);
 

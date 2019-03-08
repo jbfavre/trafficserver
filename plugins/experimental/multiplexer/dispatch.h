@@ -20,10 +20,10 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+#ifndef DISPATCH_H
+#define DISPATCH_H
 
-#pragma once
-
-#include <cassert>
+#include <assert.h>
 #include <memory>
 #include <string>
 #include <ts/ts.h>
@@ -54,8 +54,7 @@ struct Request {
   std::unique_ptr<ats::io::IO> io;
 
   Request(const std::string &, const TSMBuffer, const TSMLoc);
-  Request(const Request &) = delete;
-  Request(Request &&);
+  Request(const Request &);
   Request &operator=(const Request &);
 };
 
@@ -70,3 +69,5 @@ extern size_t timeout;
 void generateRequests(const Origins &, const TSMBuffer, const TSMLoc, Requests &);
 void addBody(Requests &, const TSIOBufferReader);
 void dispatch(Requests &, const int timeout = 0);
+
+#endif // DISPATCH_H

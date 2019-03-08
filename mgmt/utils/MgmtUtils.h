@@ -31,14 +31,13 @@
  *
  */
 
-#pragma once
+#ifndef _MGMT_UTILS_H
+#define _MGMT_UTILS_H
 
-#include "tscore/ink_platform.h"
-#include "tscore/Diags.h"
+#include "ts/ink_platform.h"
+#include "ts/Diags.h"
 
-#include "records/P_RecCore.h"
-
-constexpr const char SSL_SERVER_NAME_CONFIG[] = "ssl_server_name.yaml";
+#include "P_RecCore.h"
 
 int mgmt_readline(int fd, char *buf, int maxlen);
 int mgmt_writeline(int fd, const char *data, int nbytes);
@@ -50,7 +49,7 @@ void mgmt_use_syslog();
 void mgmt_cleanup();
 
 struct in_addr *mgmt_sortipaddrs(int num, struct in_addr **list);
-bool mgmt_getAddrForIntr(char *intrName, sockaddr *addr, int *mtu = nullptr);
+bool mgmt_getAddrForIntr(char *intrName, sockaddr *addr, int *mtu = 0);
 
 /* the following functions are all DEPRECATED.  The Diags
    interface should be used exclusively in the future */
@@ -60,3 +59,5 @@ void mgmt_fatal(const int lerrno, const char *message_format, ...) TS_NORETURN;
 
 void mgmt_sleep_sec(int);
 void mgmt_sleep_msec(int);
+
+#endif /* _MGMT_UTILS_H */

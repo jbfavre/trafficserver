@@ -30,7 +30,7 @@ int
 RemapProcessor::start(int num_threads, size_t stacksize)
 {
   if (_use_separate_remap_thread) {
-    ET_REMAP = eventProcessor.spawn_event_threads("ET_REMAP", num_threads, stacksize); // ET_REMAP is a class member
+    ET_REMAP = eventProcessor.spawn_event_threads(num_threads, "ET_REMAP", stacksize); // ET_REMAP is a class member
   }
 
   return 0;
@@ -38,13 +38,13 @@ RemapProcessor::start(int num_threads, size_t stacksize)
 
 /**
   Most of this comes from UrlRewrite::Remap(). Generally, all this does
-  is set "map" to the appropriate entry from the HttpSM's leased m_remap
+  is set "map" to the appropriate entry from the global rewrite_table
   such that we will then have access to the correct url_mapping inside
   perform_remap.
 
 */
 bool
-RemapProcessor::setup_for_remap(HttpTransact::State *s, UrlRewrite *table)
+RemapProcessor::setup_for_remap(HttpTransact::State *s)
 {
   Debug("url_rewrite", "setting up for remap: %p", s);
   URL *request_url        = nullptr;
@@ -56,13 +56,13 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s, UrlRewrite *table)
   int request_port;
   bool proxy_request = false;
 
-  s->reverse_proxy = table->reverse_proxy;
+  s->reverse_proxy = rewrite_table->reverse_proxy;
   s->url_map.set(s->hdr_info.client_request.m_heap);
 
   ink_assert(redirect_url != nullptr);
 
-  if (unlikely((table->num_rules_forward == 0) && (table->num_rules_forward_with_recv_port == 0))) {
-    ink_assert(table->forward_mappings.empty() && table->forward_mappings_with_recv_port.empty());
+  if (unlikely((rewrite_table->num_rules_forward == 0) && (rewrite_table->num_rules_forward_with_recv_port == 0))) {
+    ink_assert(rewrite_table->forward_mappings.empty() && rewrite_table->forward_mappings_with_recv_port.empty());
     Debug("url_rewrite", "[lookup] No forward mappings found; Skipping...");
     return false;
   }
@@ -78,6 +78,7 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s, UrlRewrite *table)
   request_host  = request_header->host_get(&request_host_len);
   request_port  = request_header->port_get();
   proxy_request = request_header->is_target_in_url() || !s->reverse_proxy;
+
   // Default to empty host.
   if (!request_host) {
     request_host     = "";
@@ -86,29 +87,29 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s, UrlRewrite *table)
 
   Debug("url_rewrite", "[lookup] attempting %s lookup", proxy_request ? "proxy" : "normal");
 
-  if (table->num_rules_forward_with_recv_port) {
+  if (rewrite_table->num_rules_forward_with_recv_port) {
     Debug("url_rewrite", "[lookup] forward mappings with recv port found; Using recv port %d", s->client_info.dst_addr.port());
-    if (table->forwardMappingWithRecvPortLookup(request_url, s->client_info.dst_addr.port(), request_host, request_host_len,
-                                                s->url_map)) {
+    if (rewrite_table->forwardMappingWithRecvPortLookup(request_url, s->client_info.dst_addr.port(), request_host, request_host_len,
+                                                        s->url_map)) {
       Debug("url_rewrite", "Found forward mapping with recv port");
       mapping_found = true;
-    } else if (table->num_rules_forward == 0) {
-      ink_assert(table->forward_mappings.empty());
+    } else if (rewrite_table->num_rules_forward == 0) {
+      ink_assert(rewrite_table->forward_mappings.empty());
       Debug("url_rewrite", "No forward mappings left");
       return false;
     }
   }
 
   if (!mapping_found) {
-    mapping_found = table->forwardMappingLookup(request_url, request_port, request_host, request_host_len, s->url_map);
+    mapping_found = rewrite_table->forwardMappingLookup(request_url, request_port, request_host, request_host_len, s->url_map);
   }
 
   // If no rules match and we have a host, check empty host rules since
   // they function as default rules for server requests.
   // If there's no host, we've already done this.
-  if (!mapping_found && table->nohost_rules && request_host_len) {
+  if (!mapping_found && rewrite_table->nohost_rules && request_host_len) {
     Debug("url_rewrite", "[lookup] nothing matched");
-    mapping_found = table->forwardMappingLookup(request_url, 0, "", 0, s->url_map);
+    mapping_found = rewrite_table->forwardMappingLookup(request_url, 0, "", 0, s->url_map);
   }
 
   if (!proxy_request) { // do extra checks on a server request
@@ -138,7 +139,7 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s, UrlRewrite *table)
 }
 
 bool
-RemapProcessor::finish_remap(HttpTransact::State *s, UrlRewrite *table)
+RemapProcessor::finish_remap(HttpTransact::State *s)
 {
   url_mapping *map        = nullptr;
   HTTPHdr *request_header = &s->hdr_info.client_request;
@@ -156,7 +157,7 @@ RemapProcessor::finish_remap(HttpTransact::State *s, UrlRewrite *table)
     return false;
   }
   // Do fast ACL filtering (it is safe to check map here)
-  table->PerformACLFiltering(s, map);
+  rewrite_table->PerformACLFiltering(s, map);
 
   // Check referer filtering rules
   if ((s->filter_mask & URL_REMAP_FILTER_REFERER) != 0 && (ri = map->referer_list) != nullptr) {
@@ -220,15 +221,13 @@ RemapProcessor::finish_remap(HttpTransact::State *s, UrlRewrite *table)
           *redirect_url                                  = ats_strdup(tmp_redirect_buf);
         }
       } else {
-        *redirect_url = ats_strdup(table->http_default_redirect_url);
+        *redirect_url = ats_strdup(rewrite_table->http_default_redirect_url);
       }
 
       if (*redirect_url == nullptr) {
-        *redirect_url = ats_strdup(map->filter_redirect_url ? map->filter_redirect_url : table->http_default_redirect_url);
+        *redirect_url = ats_strdup(map->filter_redirect_url ? map->filter_redirect_url : rewrite_table->http_default_redirect_url);
       }
-      if (HTTP_STATUS_NONE == s->http_return_code) {
-        s->http_return_code = HTTP_STATUS_MOVED_TEMPORARILY;
-      }
+
       return false;
     }
   }
@@ -244,9 +243,8 @@ RemapProcessor::finish_remap(HttpTransact::State *s, UrlRewrite *table)
     if (is_debug_tag_set("url_rewrite")) {
       int old_host_hdr_len;
       char *old_host_hdr = (char *)request_header->value_get(MIME_FIELD_HOST, MIME_LEN_HOST, &old_host_hdr_len);
-      if (old_host_hdr) {
+      if (old_host_hdr)
         Debug("url_rewrite", "Host: Header before rewrite %.*s", old_host_hdr_len, old_host_hdr);
-      }
     }
     //
     // Create the new host header field being careful that our

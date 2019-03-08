@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
-#include "tscore/Diags.h"
+#include "ts/ink_platform.h"
+#include "ts/Diags.h"
 #include "LogFormat.h"
 #include "LogLimits.h"
 #include "LogAccess.h"
@@ -96,15 +96,15 @@ struct LogBufferHeader {
 
 union LB_State {
   LB_State() : ival(0) {}
-  LB_State(LB_State &vs) { ival = vs.ival; }
+  LB_State(volatile LB_State &vs) { ival = vs.ival; }
   LB_State &
-  operator=(LB_State &vs)
+  operator=(volatile LB_State &vs)
   {
     ival = vs.ival;
     return *this;
   }
 
-  int64_t ival; // ival is used to help do an atomic CAS for struct s
+  int64_t ival;
   struct {
     uint32_t offset;           // buffer offset(bytes in buffer)
     uint16_t num_entries;      // number of entries in buffer
@@ -182,18 +182,18 @@ public:
   LINK(LogBuffer, link);
 
   // static variables
-  static int32_t M_ID;
+  static vint32 M_ID;
 
   // static functions
   static size_t max_entry_bytes();
   static int to_ascii(LogEntryHeader *entry, LogFormatType type, char *buf, int max_len, const char *symbol_str, char *printf_str,
-                      unsigned buffer_version, const char *alt_format = nullptr);
+                      unsigned buffer_version, const char *alt_format = NULL);
   static int resolve_custom_entry(LogFieldList *fieldlist, char *printf_str, char *read_from, char *write_to, int write_to_len,
-                                  long timestamp, long timestamp_us, unsigned buffer_version, LogFieldList *alt_fieldlist = nullptr,
-                                  char *alt_printf_str = nullptr);
+                                  long timestamp, long timestamp_us, unsigned buffer_version, LogFieldList *alt_fieldlist = NULL,
+                                  char *alt_printf_str = NULL);
 
   static void
-  destroy(LogBuffer *&lb)
+  destroy(LogBuffer *lb)
   {
     // ink_atomic_increment() returns the previous value, so when it was 1, we are
     // the thread that decremented to zero and should delete ...
@@ -201,7 +201,6 @@ public:
 
     if (refcnt == 1) {
       delete lb;
-      lb = nullptr;
     }
 
     ink_release_assert(refcnt >= 0);
@@ -222,14 +221,8 @@ private:
 
   uint32_t m_id; // unique buffer id (for debugging)
 public:
-  LB_State m_state; // buffer state
-  int m_references; // oustanding checkout_write references.
-
-  // noncopyable
-  // -- member functions that are not allowed --
-  LogBuffer(const LogBuffer &rhs) = delete;
-  LogBuffer &operator=(const LogBuffer &rhs) = delete;
-
+  volatile LB_State m_state; // buffer state
+  volatile int m_references; // oustanding checkout_write references.
 private:
   // private functions
   size_t _add_buffer_header();
@@ -238,6 +231,8 @@ private:
 
   // -- member functions that are not allowed --
   LogBuffer();
+  LogBuffer(const LogBuffer &rhs);
+  LogBuffer &operator=(const LogBuffer &rhs);
 
   friend class LogBufferIterator;
 };
@@ -284,11 +279,6 @@ public:
 
   LogEntryHeader *next();
 
-  // noncopyable
-  // -- member functions not allowed --
-  LogBufferIterator(const LogBufferIterator &) = delete;
-  LogBufferIterator &operator=(const LogBufferIterator &) = delete;
-
 private:
   bool m_in_network_order;
   char *m_next;
@@ -297,6 +287,8 @@ private:
 
   // -- member functions not allowed --
   LogBufferIterator();
+  LogBufferIterator(const LogBufferIterator &);
+  LogBufferIterator &operator=(const LogBufferIterator &);
 };
 
 /*-------------------------------------------------------------------------
@@ -307,7 +299,7 @@ private:
   -------------------------------------------------------------------------*/
 
 inline LogBufferIterator::LogBufferIterator(LogBufferHeader *header, bool in_network_order)
-  : m_in_network_order(in_network_order), m_next(nullptr), m_iter_entry_count(0), m_buffer_entry_count(0)
+  : m_in_network_order(in_network_order), m_next(0), m_iter_entry_count(0), m_buffer_entry_count(0)
 {
   ink_assert(header);
 
@@ -328,4 +320,6 @@ inline LogBufferIterator::LogBufferIterator(LogBufferHeader *header, bool in_net
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline LogBufferIterator::~LogBufferIterator() {}
+inline LogBufferIterator::~LogBufferIterator()
+{
+}

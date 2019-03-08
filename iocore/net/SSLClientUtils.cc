@@ -19,13 +19,12 @@
   limitations under the License.
  */
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 #include "records/I_RecHttp.h"
-#include "tscore/ink_platform.h"
-#include "tscore/X509HostnameValidator.h"
+#include "ts/ink_platform.h"
+#include "ts/X509HostnameValidator.h"
 #include "P_Net.h"
 #include "P_SSLClientUtils.h"
-#include "YamlSNIConfig.h"
 
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -43,65 +42,51 @@ verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
   int depth;
   int err;
   SSL *ssl;
+  SSLNetVConnection *netvc;
 
   SSLDebug("Entered verify cb");
   depth = X509_STORE_CTX_get_error_depth(ctx);
   cert  = X509_STORE_CTX_get_current_cert(ctx);
   err   = X509_STORE_CTX_get_error(ctx);
 
-  /*
-   * Retrieve the pointer to the SSL of the connection currently treated
-   * and the application specific data stored into the SSL object.
-   */
-  ssl                      = static_cast<SSL *>(X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
-  SSLNetVConnection *netvc = SSLNetVCAccess(ssl);
-  bool enforce_mode        = (netvc && netvc->options.clientVerificationFlag == static_cast<uint8_t>(YamlSNIConfig::Level::STRICT));
-  if (!preverify_ok && netvc != nullptr) {
+  if (!preverify_ok) {
     // Don't bother to check the hostname if we failed openssl's verification
     SSLDebug("verify error:num=%d:%s:depth=%d", err, X509_verify_cert_error_string(err), depth);
-    const char *sni_name;
-    char buff[INET6_ADDRSTRLEN];
-    ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
-    if (netvc->options.sni_servername) {
-      sni_name = netvc->options.sni_servername.get();
-    } else {
-      sni_name = buff;
-    }
-    Warning("Core server certificate verification failed for (%s). Action=%s Error=%s server=%s(%s) depth=%d", sni_name,
-            enforce_mode ? "Terminate" : "Continue", X509_verify_cert_error_string(err), netvc->options.ssl_servername.get(), buff,
-            depth);
-    // If not enforcing ignore the error, just log warning
-    return enforce_mode ? preverify_ok : 1;
+    return preverify_ok;
   }
+
   if (depth != 0) {
     // Not server cert....
     return preverify_ok;
   }
 
+  // Retrieve the pointer to the SSL of the connection currently treated
+  // and the application specific data stored into the SSL object.
+  ssl   = static_cast<SSL *>(X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
+  netvc = SSLNetVCAccess(ssl);
+
   if (netvc != nullptr) {
-    netvc->callHooks(TS_EVENT_SSL_SERVER_VERIFY_HOOK);
-    char *matched_name = nullptr;
-    unsigned char *sni_name;
-    char buff[INET6_ADDRSTRLEN];
+    // Match SNI if present
     if (netvc->options.sni_servername) {
-      sni_name = reinterpret_cast<unsigned char *>(netvc->options.sni_servername.get());
-    } else {
-      sni_name = reinterpret_cast<unsigned char *>(buff);
+      char *matched_name = nullptr;
+      if (validate_hostname(cert, reinterpret_cast<unsigned char *>(netvc->options.sni_servername.get()), false, &matched_name)) {
+        SSLDebug("Hostname %s verified OK, matched %s", netvc->options.sni_servername.get(), matched_name);
+        ats_free(matched_name);
+        return preverify_ok;
+      }
+      SSLDebug("Hostname verification failed for (%s)", netvc->options.sni_servername.get());
+    }
+    // Otherwise match by IP
+    else {
+      char buff[INET6_ADDRSTRLEN];
       ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
+      if (validate_hostname(cert, reinterpret_cast<unsigned char *>(buff), true, nullptr)) {
+        SSLDebug("IP %s verified OK", buff);
+        return preverify_ok;
+      }
+      SSLDebug("IP verification failed for (%s)", buff);
     }
-    if (validate_hostname(cert, sni_name, false, &matched_name)) {
-      SSLDebug("Hostname %s verified OK, matched %s", netvc->options.sni_servername.get(), matched_name);
-      ats_free(matched_name);
-      return preverify_ok;
-    }
-    // Get the server address if we did't already compute it
-    if (netvc->options.sni_servername) {
-      ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
-    }
-    // If we got here the verification failed
-    Warning("SNI (%s) not in certificate. Action=%s server=%s(%s)", sni_name, enforce_mode ? "Terminate" : "Continue",
-            netvc->options.ssl_servername.get(), buff);
-    return enforce_mode ? 0 : preverify_ok;
+    return 0;
   }
   return preverify_ok;
 }
@@ -133,24 +118,6 @@ SSLInitClientContext(const SSLConfigParams *params)
     }
   }
 
-#if TS_USE_TLS_SET_CIPHERSUITES
-  if (params->client_tls13_cipher_suites != nullptr) {
-    if (!SSL_CTX_set_ciphersuites(client_ctx, params->client_tls13_cipher_suites)) {
-      SSLError("invalid tls client cipher suites in records.config");
-      goto fail;
-    }
-  }
-#endif
-
-#ifdef SSL_CTX_set1_groups_list
-  if (params->client_groups_list != nullptr) {
-    if (!SSL_CTX_set1_groups_list(client_ctx, params->client_groups_list)) {
-      SSLError("invalid groups list for client in records.config");
-      goto fail;
-    }
-  }
-#endif
-
   // if no path is given for the client private key,
   // assume it is contained in the client certificate file.
   clientKeyPtr = params->clientKeyPath;
@@ -158,7 +125,7 @@ SSLInitClientContext(const SSLConfigParams *params)
     clientKeyPtr = params->clientCertPath;
   }
 
-  if (params->clientCertPath != nullptr && params->clientCertPath[0] != '\0') {
+  if (params->clientCertPath != nullptr) {
     if (!SSL_CTX_use_certificate_chain_file(client_ctx, params->clientCertPath)) {
       SSLError("failed to load client certificate from %s", params->clientCertPath);
       goto fail;

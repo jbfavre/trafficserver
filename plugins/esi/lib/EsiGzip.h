@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _ESI_GZIP_H
+#define _ESI_GZIP_H
 
 #include "ComponentBase.h"
 #include <zlib.h>
@@ -32,7 +33,7 @@ class EsiGzip : private EsiLib::ComponentBase
 public:
   EsiGzip(const char *debug_tag, EsiLib::ComponentBase::Debug debug_func, EsiLib::ComponentBase::Error error_func);
 
-  ~EsiGzip() override;
+  virtual ~EsiGzip();
 
   bool stream_encode(const char *data, int data_len, std::string &cdata);
 
@@ -51,3 +52,5 @@ private:
   z_stream _zstrm;
   uLong _crc;
 };
+
+#endif // _ESI_GZIP_H

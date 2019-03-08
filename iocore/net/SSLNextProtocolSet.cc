@@ -21,9 +21,9 @@
   limitations under the License.
  */
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 #include "ts/apidefs.h"
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "P_SSLNextProtocolSet.h"
 
 // For currently defined protocol strings, see
@@ -48,10 +48,7 @@ create_npn_advertisement(const SSLNextProtocolSet::NextProtocolEndpoint::list_ty
   const SSLNextProtocolSet::NextProtocolEndpoint *ep;
   unsigned char *advertised;
 
-  if (*npn) {
-    ats_free(*npn);
-    *npn = nullptr;
-  }
+  *npn = nullptr;
   *len = 0;
 
   for (ep = endpoints.head; ep != nullptr; ep = endpoints.next(ep)) {
@@ -121,6 +118,7 @@ SSLNextProtocolSet::registerEndpoint(const char *proto, Continuation *ep)
       npn   = nullptr;
       npnsz = 0;
     }
+
     create_npn_advertisement(this->endpoints, &npn, &npnsz);
 
     return true;
@@ -137,7 +135,6 @@ SSLNextProtocolSet::unregisterEndpoint(const char *proto, Continuation *ep)
       // Protocol must be registered only once; no need to remove
       // any more entries.
       this->endpoints.remove(e);
-      create_npn_advertisement(this->endpoints, &npn, &npnsz);
       return true;
     }
   }
@@ -157,7 +154,9 @@ SSLNextProtocolSet::findEndpoint(const unsigned char *proto, unsigned len) const
   return nullptr;
 }
 
-SSLNextProtocolSet::SSLNextProtocolSet() : npn(nullptr), npnsz(0) {}
+SSLNextProtocolSet::SSLNextProtocolSet() : npn(nullptr), npnsz(0)
+{
+}
 
 SSLNextProtocolSet::~SSLNextProtocolSet()
 {
@@ -173,4 +172,6 @@ SSLNextProtocolSet::NextProtocolEndpoint::NextProtocolEndpoint(const char *_prot
 {
 }
 
-SSLNextProtocolSet::NextProtocolEndpoint::~NextProtocolEndpoint() {}
+SSLNextProtocolSet::NextProtocolEndpoint::~NextProtocolEndpoint()
+{
+}

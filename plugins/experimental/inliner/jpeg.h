@@ -20,8 +20,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#pragma once
+#ifndef JPEG_H
+#define JPEG_H
 
 #include <algorithm>
 
@@ -41,5 +41,7 @@ namespace inliner
       return content.size() >= SIGNATURE_SIZE && std::equal(SIGNATURE, SIGNATURE + SIGNATURE_SIZE, content.begin());
     }
   };
-} // namespace inliner
-} // namespace ats
+} // end of inliner namespace
+} // end of ats namespace
+
+#endif // JPEG_H

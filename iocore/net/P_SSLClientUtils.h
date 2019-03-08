@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include "tscore/ink_config.h"
-#include "tscore/Diags.h"
+#include "ts/ink_config.h"
+#include "ts/Diags.h"
 #include "P_SSLUtils.h"
 #include "P_SSLConfig.h"
 

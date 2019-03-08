@@ -16,9 +16,9 @@
    limitations under the License.
 */
 
-#include "tscpp/api/GlobalPlugin.h"
-#include "tscpp/api/InterceptPlugin.h"
-#include "tscpp/api/PluginInit.h"
+#include <atscppapi/GlobalPlugin.h>
+#include <atscppapi/InterceptPlugin.h>
+#include <atscppapi/PluginInit.h>
 
 #include <iostream>
 
@@ -60,9 +60,7 @@ public:
 void
 TSPluginInit(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */ [])
 {
-  if (!RegisterGlobalPlugin("CPP_Example_Intercept", "apache", "dev@trafficserver.apache.org")) {
-    return;
-  }
+  RegisterGlobalPlugin("CPP_Example_Intercept", "apache", "dev@trafficserver.apache.org");
   plugin = new InterceptInstaller();
 }
 

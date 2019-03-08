@@ -31,13 +31,14 @@
  *
  */
 
-#pragma once
+#ifndef _MGMT_DEFS_H
+#define _MGMT_DEFS_H
 
 /*
  * Type definitions.
  */
-#include "tscore/ink_defs.h"
-//#include "tscore/ink_hrtime.h"
+#include "ts/ink_defs.h"
+//#include "ts/ink_hrtime.h"
 
 typedef int64_t MgmtIntCounter;
 typedef int64_t MgmtInt;
@@ -61,3 +62,5 @@ typedef enum {
 typedef void *(*MgmtCallback)(void *opaque_cb_data, char *data_raw, int data_len);
 
 #define LM_CONNECTION_SERVER "processerver.sock"
+
+#endif /* _MGMT_DEFS_H */

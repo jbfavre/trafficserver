@@ -21,15 +21,15 @@
   limitations under the License.
  */
 
-#include "tscore/ink_defs.h"
-#include "tscore/ink_platform.h"
-#include "tscore/ink_inet.h"
+#include "ts/ink_defs.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_inet.h"
 #include <cassert>
 #include <cstdio>
 #include <cstring>
 #include "HTTP.h"
 #include "HdrToken.h"
-#include "tscore/Diags.h"
+#include "ts/Diags.h"
 
 /***********************************************************************
  *                                                                     *
@@ -54,6 +54,7 @@ const char *HTTP_METHOD_CONNECT;
 const char *HTTP_METHOD_DELETE;
 const char *HTTP_METHOD_GET;
 const char *HTTP_METHOD_HEAD;
+const char *HTTP_METHOD_ICP_QUERY;
 const char *HTTP_METHOD_OPTIONS;
 const char *HTTP_METHOD_POST;
 const char *HTTP_METHOD_PURGE;
@@ -65,6 +66,7 @@ int HTTP_WKSIDX_CONNECT;
 int HTTP_WKSIDX_DELETE;
 int HTTP_WKSIDX_GET;
 int HTTP_WKSIDX_HEAD;
+int HTTP_WKSIDX_ICP_QUERY;
 int HTTP_WKSIDX_OPTIONS;
 int HTTP_WKSIDX_POST;
 int HTTP_WKSIDX_PURGE;
@@ -77,6 +79,7 @@ int HTTP_LEN_CONNECT;
 int HTTP_LEN_DELETE;
 int HTTP_LEN_GET;
 int HTTP_LEN_HEAD;
+int HTTP_LEN_ICP_QUERY;
 int HTTP_LEN_OPTIONS;
 int HTTP_LEN_POST;
 int HTTP_LEN_PURGE;
@@ -184,16 +187,17 @@ http_init()
     mime_init();
     url_init();
 
-    HTTP_METHOD_CONNECT = hdrtoken_string_to_wks("CONNECT");
-    HTTP_METHOD_DELETE  = hdrtoken_string_to_wks("DELETE");
-    HTTP_METHOD_GET     = hdrtoken_string_to_wks("GET");
-    HTTP_METHOD_HEAD    = hdrtoken_string_to_wks("HEAD");
-    HTTP_METHOD_OPTIONS = hdrtoken_string_to_wks("OPTIONS");
-    HTTP_METHOD_POST    = hdrtoken_string_to_wks("POST");
-    HTTP_METHOD_PURGE   = hdrtoken_string_to_wks("PURGE");
-    HTTP_METHOD_PUT     = hdrtoken_string_to_wks("PUT");
-    HTTP_METHOD_TRACE   = hdrtoken_string_to_wks("TRACE");
-    HTTP_METHOD_PUSH    = hdrtoken_string_to_wks("PUSH");
+    HTTP_METHOD_CONNECT   = hdrtoken_string_to_wks("CONNECT");
+    HTTP_METHOD_DELETE    = hdrtoken_string_to_wks("DELETE");
+    HTTP_METHOD_GET       = hdrtoken_string_to_wks("GET");
+    HTTP_METHOD_HEAD      = hdrtoken_string_to_wks("HEAD");
+    HTTP_METHOD_ICP_QUERY = hdrtoken_string_to_wks("ICP_QUERY");
+    HTTP_METHOD_OPTIONS   = hdrtoken_string_to_wks("OPTIONS");
+    HTTP_METHOD_POST      = hdrtoken_string_to_wks("POST");
+    HTTP_METHOD_PURGE     = hdrtoken_string_to_wks("PURGE");
+    HTTP_METHOD_PUT       = hdrtoken_string_to_wks("PUT");
+    HTTP_METHOD_TRACE     = hdrtoken_string_to_wks("TRACE");
+    HTTP_METHOD_PUSH      = hdrtoken_string_to_wks("PUSH");
 
     // HTTP methods index calculation. Don't forget to count them!
     // Don't change the order of calculation! Each index has related bitmask (see http quick filter)
@@ -204,6 +208,8 @@ http_init()
     HTTP_WKSIDX_GET = hdrtoken_wks_to_index(HTTP_METHOD_GET);
     HTTP_WKSIDX_METHODS_CNT++;
     HTTP_WKSIDX_HEAD = hdrtoken_wks_to_index(HTTP_METHOD_HEAD);
+    HTTP_WKSIDX_METHODS_CNT++;
+    HTTP_WKSIDX_ICP_QUERY = hdrtoken_wks_to_index(HTTP_METHOD_ICP_QUERY);
     HTTP_WKSIDX_METHODS_CNT++;
     HTTP_WKSIDX_OPTIONS = hdrtoken_wks_to_index(HTTP_METHOD_OPTIONS);
     HTTP_WKSIDX_METHODS_CNT++;
@@ -218,16 +224,17 @@ http_init()
     HTTP_WKSIDX_PUSH = hdrtoken_wks_to_index(HTTP_METHOD_PUSH);
     HTTP_WKSIDX_METHODS_CNT++;
 
-    HTTP_LEN_CONNECT = hdrtoken_wks_to_length(HTTP_METHOD_CONNECT);
-    HTTP_LEN_DELETE  = hdrtoken_wks_to_length(HTTP_METHOD_DELETE);
-    HTTP_LEN_GET     = hdrtoken_wks_to_length(HTTP_METHOD_GET);
-    HTTP_LEN_HEAD    = hdrtoken_wks_to_length(HTTP_METHOD_HEAD);
-    HTTP_LEN_OPTIONS = hdrtoken_wks_to_length(HTTP_METHOD_OPTIONS);
-    HTTP_LEN_POST    = hdrtoken_wks_to_length(HTTP_METHOD_POST);
-    HTTP_LEN_PURGE   = hdrtoken_wks_to_length(HTTP_METHOD_PURGE);
-    HTTP_LEN_PUT     = hdrtoken_wks_to_length(HTTP_METHOD_PUT);
-    HTTP_LEN_TRACE   = hdrtoken_wks_to_length(HTTP_METHOD_TRACE);
-    HTTP_LEN_PUSH    = hdrtoken_wks_to_length(HTTP_METHOD_PUSH);
+    HTTP_LEN_CONNECT   = hdrtoken_wks_to_length(HTTP_METHOD_CONNECT);
+    HTTP_LEN_DELETE    = hdrtoken_wks_to_length(HTTP_METHOD_DELETE);
+    HTTP_LEN_GET       = hdrtoken_wks_to_length(HTTP_METHOD_GET);
+    HTTP_LEN_HEAD      = hdrtoken_wks_to_length(HTTP_METHOD_HEAD);
+    HTTP_LEN_ICP_QUERY = hdrtoken_wks_to_length(HTTP_METHOD_ICP_QUERY);
+    HTTP_LEN_OPTIONS   = hdrtoken_wks_to_length(HTTP_METHOD_OPTIONS);
+    HTTP_LEN_POST      = hdrtoken_wks_to_length(HTTP_METHOD_POST);
+    HTTP_LEN_PURGE     = hdrtoken_wks_to_length(HTTP_METHOD_PURGE);
+    HTTP_LEN_PUT       = hdrtoken_wks_to_length(HTTP_METHOD_PUT);
+    HTTP_LEN_TRACE     = hdrtoken_wks_to_length(HTTP_METHOD_TRACE);
+    HTTP_LEN_PUSH      = hdrtoken_wks_to_length(HTTP_METHOD_PUSH);
 
     HTTP_VALUE_BYTES                = hdrtoken_string_to_wks("bytes");
     HTTP_VALUE_CHUNKED              = hdrtoken_string_to_wks("chunked");
@@ -699,19 +706,7 @@ http_hdr_url_set(HdrHeap *heap, HTTPHdrImpl *hh, URLImpl *url)
     if (hh->u.req.m_url_impl != nullptr) {
       heap->deallocate_obj(hh->u.req.m_url_impl);
     }
-    // Clone into new heap if the URL was allocated against a different heap
-    if ((char *)url < heap->m_data_start || (char *)url >= heap->m_free_start) {
-      hh->u.req.m_url_impl = static_cast<URLImpl *>(heap->allocate_obj(url->m_length, url->m_type));
-      memcpy(hh->u.req.m_url_impl, url, url->m_length);
-      // Make sure there is a read_write heap
-      if (heap->m_read_write_heap.get() == nullptr) {
-        int url_string_length   = url->strings_length();
-        heap->m_read_write_heap = new_HdrStrHeap(url_string_length);
-      }
-      hh->u.req.m_url_impl->move_strings(heap->m_read_write_heap.get());
-    } else {
-      hh->u.req.m_url_impl = url;
-    }
+    hh->u.req.m_url_impl = url;
   }
 }
 
@@ -1151,9 +1146,9 @@ validate_hdr_host(HTTPHdrImpl *hh)
     } else {
       int host_len         = 0;
       const char *host_val = host_field->value_get(&host_len);
-      std::string_view addr, port, rest, host(host_val, host_len);
+      ts::ConstBuffer addr, port, rest, host(host_val, host_len);
       if (0 == ats_ip_parse(host, &addr, &port, &rest)) {
-        if (!port.empty()) {
+        if (port) {
           if (port.size() > 5) {
             return PARSE_RESULT_ERROR;
           }
@@ -1165,8 +1160,11 @@ validate_hdr_host(HTTPHdrImpl *hh)
         if (!validate_host_name(addr)) {
           return PARSE_RESULT_ERROR;
         }
-        if (PARSE_RESULT_DONE == ret && !std::all_of(rest.begin(), rest.end(), &ParseRules::is_ws)) {
-          return PARSE_RESULT_ERROR;
+        while (rest && PARSE_RESULT_DONE == ret) {
+          if (!ParseRules::is_ws(*rest)) {
+            return PARSE_RESULT_ERROR;
+          }
+          ++rest;
         }
       } else {
         ret = PARSE_RESULT_ERROR;
@@ -1610,7 +1608,6 @@ HTTPHdr::_fill_target_cache() const
 {
   URL *url = this->url_get();
   const char *port_ptr;
-  int port_len;
 
   m_target_in_url  = false;
   m_port_in_header = false;
@@ -1622,10 +1619,10 @@ HTTPHdr::_fill_target_cache() const
     m_port_in_header = 0 != url->port_get_raw();
     m_host_mime      = nullptr;
   } else if (nullptr !=
-             (m_host_mime = const_cast<HTTPHdr *>(this)->get_host_port_values(nullptr, &m_host_length, &port_ptr, &port_len))) {
+             (m_host_mime = const_cast<HTTPHdr *>(this)->get_host_port_values(nullptr, &m_host_length, &port_ptr, nullptr))) {
     m_port = 0;
     if (port_ptr) {
-      for (; port_len > 0 && is_digit(*port_ptr); ++port_ptr, --port_len) {
+      for (; is_digit(*port_ptr); ++port_ptr) {
         m_port = m_port * 10 + *port_ptr - '0';
       }
     }
@@ -1742,9 +1739,9 @@ class UrlPrintHack
 
   /// Saved values.
   ///@{
-  bool m_host_modified_p = false;
-  bool m_port_modified_p = false;
-  HTTPHdr *m_hdr         = nullptr;
+  bool m_host_modified_p;
+  bool m_port_modified_p;
+  HTTPHdr *m_hdr;
   ///@}
   /// Temporary buffer for port data.
   char m_port_buff[32];
@@ -1891,7 +1888,10 @@ HTTPCacheAlt::HTTPCacheAlt()
     m_frag_offsets(nullptr),
     m_ext_buffer(nullptr)
 {
-  memset(&m_object_key[0], 0, CRYPTO_HASH_SIZE);
+  m_object_key[0]  = 0;
+  m_object_key[1]  = 0;
+  m_object_key[2]  = 0;
+  m_object_key[3]  = 0;
   m_object_size[0] = 0;
   m_object_size[1] = 0;
 }
@@ -1918,10 +1918,13 @@ HTTPCacheAlt::copy(HTTPCacheAlt *to_copy)
 {
   m_magic = to_copy->m_magic;
   // m_writeable =      to_copy->m_writeable;
-  m_unmarshal_len = to_copy->m_unmarshal_len;
-  m_id            = to_copy->m_id;
-  m_rid           = to_copy->m_rid;
-  memcpy(&m_object_key[0], &to_copy->m_object_key[0], CRYPTO_HASH_SIZE);
+  m_unmarshal_len  = to_copy->m_unmarshal_len;
+  m_id             = to_copy->m_id;
+  m_rid            = to_copy->m_rid;
+  m_object_key[0]  = to_copy->m_object_key[0];
+  m_object_key[1]  = to_copy->m_object_key[1];
+  m_object_key[2]  = to_copy->m_object_key[2];
+  m_object_key[3]  = to_copy->m_object_key[3];
   m_object_size[0] = to_copy->m_object_size[0];
   m_object_size[1] = to_copy->m_object_size[1];
 

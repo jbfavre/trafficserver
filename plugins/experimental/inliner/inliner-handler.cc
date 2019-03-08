@@ -146,5 +146,5 @@ namespace inliner
     ioSink_->abort();
   }
 
-} // namespace inliner
-} // namespace ats
+} // end of inliner namespace
+} // end of ats namespace

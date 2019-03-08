@@ -29,8 +29,8 @@
  *
  ***************************************************************************/
 
-#include "tscore/ink_config.h"
-#include "tscore/ink_memory.h"
+#include "ts/ink_config.h"
+#include "ts/ink_memory.h"
 
 #include "EventCallback.h"
 #include "CoreAPIShared.h"
@@ -79,7 +79,7 @@ delete_event_callback(EventCallbackT *event_cb)
  * notes: None
  **********************************************************************/
 CallbackTable *
-create_callback_table(const char *)
+create_callback_table(const char *lock_name)
 {
   CallbackTable *cb_table = (CallbackTable *)ats_malloc(sizeof(CallbackTable));
 
@@ -88,7 +88,7 @@ create_callback_table(const char *)
   }
 
   // initialize the mutex
-  ink_mutex_init(&cb_table->event_callback_lock);
+  ink_mutex_init(&cb_table->event_callback_lock, lock_name);
   return cb_table;
 }
 

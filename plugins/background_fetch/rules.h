@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include <cstdlib>
+#include <stdlib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -38,7 +38,7 @@ class BgFetchRule
 {
 public:
   BgFetchRule(bool exc, const char *field, const char *value)
-    : _exclude(exc), _field(TSstrdup(field)), _value(TSstrdup(value)), _next(nullptr)
+    : _exclude(exc), _field(TSstrdup(field)), _value(TSstrdup(value)), _next(NULL)
   {
   }
 

@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "I_Action.h"
 
 //
@@ -56,6 +56,7 @@
 #define VC_EVENT_EVENTS_START 100
 #define NET_EVENT_EVENTS_START 200
 #define DISK_EVENT_EVENTS_START 300
+#define CLUSTER_EVENT_EVENTS_START 400
 #define HOSTDB_EVENT_EVENTS_START 500
 #define DNS_EVENT_EVENTS_START 600
 #define CONFIG_EVENT_EVENTS_START 800
@@ -67,6 +68,7 @@
 #define HTTP_NET_CONNECTION_EVENT_EVENTS_START 1400
 #define HTTP_NET_VCONNECTION_EVENT_EVENTS_START 1500
 #define GC_EVENT_EVENTS_START 1600
+#define ICP_EVENT_EVENTS_START 1800
 #define TRANSFORM_EVENTS_START 2000
 #define STAT_PAGES_EVENTS_START 2100
 #define HTTP_SESSION_EVENTS_START 2200
@@ -82,6 +84,7 @@
 #define AIO_EVENT_EVENTS_START 3900
 #define BLOCK_CACHE_EVENT_EVENTS_START 4000
 #define UTILS_EVENT_EVENTS_START 5000
+#define CONGESTION_EVENT_EVENTS_START 5100
 #define INK_API_EVENT_EVENTS_START 60000
 #define SRV_EVENT_EVENTS_START 62000
 #define REMAP_EVENT_EVENTS_START 63000
@@ -201,17 +204,17 @@ public:
 
   void free();
 
-  EThread *ethread = nullptr;
+  EThread *ethread;
 
   unsigned int in_the_prot_queue : 1;
   unsigned int in_the_priority_queue : 1;
   unsigned int immediate : 1;
   unsigned int globally_allocated : 1;
   unsigned int in_heap : 4;
-  int callback_event = 0;
+  int callback_event;
 
-  ink_hrtime timeout_at = 0;
-  ink_hrtime period     = 0;
+  ink_hrtime timeout_at;
+  ink_hrtime period;
 
   /**
     This field can be set when an event is created. It is returned
@@ -219,7 +222,7 @@ public:
     is called.
 
   */
-  void *cookie = nullptr;
+  void *cookie;
 
   // Private
 
@@ -231,19 +234,20 @@ public:
   ink_hrtime start_time;
 #endif
 
-  // noncopyable: prevent unauthorized copies (Not implemented)
-  Event(const Event &) = delete;
-  Event &operator=(const Event &) = delete;
-
 private:
   void *operator new(size_t size); // use the fast allocators
+
+private:
+  // prevent unauthorized copies (Not implemented)
+  Event(const Event &);
+  Event &operator=(const Event &);
 
 public:
   LINK(Event, link);
 
-  /*-------------------------------------------------------*\
-  | UNIX/non-NT Interface                                   |
-  \*-------------------------------------------------------*/
+/*-------------------------------------------------------*\
+| UNIX/non-NT Interface                                   |
+\*-------------------------------------------------------*/
 
 #ifdef ONLY_USED_FOR_FIB_AND_BIN_HEAP
   void *node_pointer;
@@ -260,7 +264,7 @@ public:
 #endif
 
 #if defined(__GNUC__)
-  ~Event() override {}
+  virtual ~Event() {}
 #endif
 };
 
@@ -275,4 +279,4 @@ extern ClassAllocator<Event> eventAllocator;
   if (_p->globally_allocated)  \
     ::_a.free(_p);             \
   else                         \
-    THREAD_FREE(_p, _a, _t)
+  THREAD_FREE(_p, _a, _t)

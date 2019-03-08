@@ -21,7 +21,9 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _ESI_UTILS_H
+
+#define _ESI_UTILS_H
 
 #include "DocNode.h"
 #include "ComponentBase.h"
@@ -30,7 +32,7 @@
 #include <string>
 #include <map>
 #include <list>
-#include <cctype>
+#include <ctype.h>
 
 namespace EsiLib
 {
@@ -46,7 +48,7 @@ namespace Utils
   // also be specified apart from the end_pos; attr_info will point
   // to data inside data string
   bool getAttribute(const std::string &data, const std::string &attr, size_t curr_pos, size_t end_pos, Attribute &attr_info,
-                    size_t *term_pos = nullptr, char terminator = 0);
+                    size_t *term_pos = 0, char terminator = 0);
 
   // less specialized version of method above
   inline bool
@@ -122,5 +124,7 @@ namespace Utils
     }
     return retval;
   }
-}; // namespace Utils
-}; // namespace EsiLib
+};
+};
+
+#endif

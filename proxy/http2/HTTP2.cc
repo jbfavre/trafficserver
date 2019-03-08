@@ -24,9 +24,9 @@
 #include "HTTP2.h"
 #include "HPACK.h"
 #include "HuffmanCodec.h"
-#include "tscore/ink_assert.h"
-#include "records/P_RecCore.h"
-#include "records/P_RecProcess.h"
+#include "ts/ink_assert.h"
+#include "P_RecCore.h"
+#include "P_RecProcess.h"
 
 const char *const HTTP2_CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -48,20 +48,19 @@ static const int HTTP2_MAX_TABLE_SIZE_LIMIT = 64 * 1024;
 
 // Statistics
 RecRawStatBlock *http2_rsb;
-static const char *const HTTP2_STAT_CURRENT_CLIENT_SESSION_NAME    = "proxy.process.http2.current_client_sessions"; // DEPRECATED
-static const char *const HTTP2_STAT_CURRENT_CLIENT_CONNECTION_NAME = "proxy.process.http2.current_client_connections";
-static const char *const HTTP2_STAT_CURRENT_CLIENT_STREAM_NAME     = "proxy.process.http2.current_client_streams";
-static const char *const HTTP2_STAT_TOTAL_CLIENT_STREAM_NAME       = "proxy.process.http2.total_client_streams";
-static const char *const HTTP2_STAT_TOTAL_TRANSACTIONS_TIME_NAME   = "proxy.process.http2.total_transactions_time";
-static const char *const HTTP2_STAT_TOTAL_CLIENT_CONNECTION_NAME   = "proxy.process.http2.total_client_connections";
-static const char *const HTTP2_STAT_CONNECTION_ERRORS_NAME         = "proxy.process.http2.connection_errors";
-static const char *const HTTP2_STAT_STREAM_ERRORS_NAME             = "proxy.process.http2.stream_errors";
-static const char *const HTTP2_STAT_SESSION_DIE_DEFAULT_NAME       = "proxy.process.http2.session_die_default";
-static const char *const HTTP2_STAT_SESSION_DIE_OTHER_NAME         = "proxy.process.http2.session_die_other";
-static const char *const HTTP2_STAT_SESSION_DIE_ACTIVE_NAME        = "proxy.process.http2.session_die_active";
-static const char *const HTTP2_STAT_SESSION_DIE_INACTIVE_NAME      = "proxy.process.http2.session_die_inactive";
-static const char *const HTTP2_STAT_SESSION_DIE_EOS_NAME           = "proxy.process.http2.session_die_eos";
-static const char *const HTTP2_STAT_SESSION_DIE_ERROR_NAME         = "proxy.process.http2.session_die_error";
+static const char *const HTTP2_STAT_CURRENT_CLIENT_SESSION_NAME  = "proxy.process.http2.current_client_sessions";
+static const char *const HTTP2_STAT_CURRENT_CLIENT_STREAM_NAME   = "proxy.process.http2.current_client_streams";
+static const char *const HTTP2_STAT_TOTAL_CLIENT_STREAM_NAME     = "proxy.process.http2.total_client_streams";
+static const char *const HTTP2_STAT_TOTAL_TRANSACTIONS_TIME_NAME = "proxy.process.http2.total_transactions_time";
+static const char *const HTTP2_STAT_TOTAL_CLIENT_CONNECTION_NAME = "proxy.process.http2.total_client_connections";
+static const char *const HTTP2_STAT_CONNECTION_ERRORS_NAME       = "proxy.process.http2.connection_errors";
+static const char *const HTTP2_STAT_STREAM_ERRORS_NAME           = "proxy.process.http2.stream_errors";
+static const char *const HTTP2_STAT_SESSION_DIE_DEFAULT_NAME     = "proxy.process.http2.session_die_default";
+static const char *const HTTP2_STAT_SESSION_DIE_OTHER_NAME       = "proxy.process.http2.session_die_other";
+static const char *const HTTP2_STAT_SESSION_DIE_ACTIVE_NAME      = "proxy.process.http2.session_die_active";
+static const char *const HTTP2_STAT_SESSION_DIE_INACTIVE_NAME    = "proxy.process.http2.session_die_inactive";
+static const char *const HTTP2_STAT_SESSION_DIE_EOS_NAME         = "proxy.process.http2.session_die_eos";
+static const char *const HTTP2_STAT_SESSION_DIE_ERROR_NAME       = "proxy.process.http2.session_die_error";
 
 union byte_pointer {
   byte_pointer(void *p) : ptr(p) {}
@@ -731,7 +730,6 @@ uint32_t Http2::accept_no_activity_timeout = 120;
 uint32_t Http2::no_activity_timeout_in     = 120;
 uint32_t Http2::active_timeout_in          = 0;
 uint32_t Http2::push_diary_size            = 256;
-uint32_t Http2::zombie_timeout_in          = 0;
 
 void
 Http2::init()
@@ -749,7 +747,6 @@ Http2::init()
   REC_EstablishStaticConfigInt32U(no_activity_timeout_in, "proxy.config.http2.no_activity_timeout_in");
   REC_EstablishStaticConfigInt32U(active_timeout_in, "proxy.config.http2.active_timeout_in");
   REC_EstablishStaticConfigInt32U(push_diary_size, "proxy.config.http2.push_diary_size");
-  REC_EstablishStaticConfigInt32U(zombie_timeout_in, "proxy.config.http2.zombie_debug_timeout_in");
 
   // If any settings is broken, ATS should not start
   ink_release_assert(http2_settings_parameter_is_valid({HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, max_concurrent_streams_in}));
@@ -768,8 +765,6 @@ Http2::init()
   // Setup statistics
   http2_rsb = RecAllocateRawStatBlock(static_cast<int>(HTTP2_N_STATS));
   RecRegisterRawStat(http2_rsb, RECT_PROCESS, HTTP2_STAT_CURRENT_CLIENT_SESSION_NAME, RECD_INT, RECP_NON_PERSISTENT,
-                     static_cast<int>(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT), RecRawStatSyncSum);
-  RecRegisterRawStat(http2_rsb, RECT_PROCESS, HTTP2_STAT_CURRENT_CLIENT_CONNECTION_NAME, RECD_INT, RECP_NON_PERSISTENT,
                      static_cast<int>(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT), RecRawStatSyncSum);
   HTTP2_CLEAR_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT);
   RecRegisterRawStat(http2_rsb, RECT_PROCESS, HTTP2_STAT_CURRENT_CLIENT_STREAM_NAME, RECD_INT, RECP_NON_PERSISTENT,
@@ -808,7 +803,7 @@ forceLinkRegressionHPACKCaller()
   forceLinkRegressionHPACK();
 }
 
-#include "tscore/TestBox.h"
+#include "ts/TestBox.h"
 
 /***********************************************************************************
  *                                                                                 *

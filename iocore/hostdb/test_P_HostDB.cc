@@ -74,4 +74,6 @@ struct NetTesterSM : public Continuation {
   }
 };
 
-main() {}
+main()
+{
+}

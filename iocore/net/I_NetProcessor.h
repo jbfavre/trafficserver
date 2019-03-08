@@ -24,7 +24,6 @@
 
 #pragma once
 
-#include "tscore/IpMap.h"
 #include "I_EventSystem.h"
 #include "I_Socks.h"
 struct socks_conf_struct;
@@ -97,9 +96,6 @@ public:
     */
     bool f_inbound_transparent;
 
-    /// Proxy Protocol enabled
-    bool f_proxy_protocol;
-
     /// Default constructor.
     /// Instance is constructed with default values.
     AcceptOptions() { this->reset(); }
@@ -155,7 +151,6 @@ public:
 
   */
   virtual Action *main_accept(Continuation *cont, SOCKET listen_socket_in, AcceptOptions const &opt = DEFAULT_ACCEPT_OPTIONS);
-  virtual void stop_accept();
 
   /**
     Open a NetVConnection for connection oriented I/O. Connects
@@ -170,8 +165,6 @@ public:
       call back with success. If this behaviour is desired use
       synchronous connect connet_s method.
 
-    @see connect_s()
-
     @param cont Continuation to be called back with events.
     @param addr target address and port to connect to.
     @param options @see NetVCOptions.
@@ -181,31 +174,13 @@ public:
   inkcoreapi Action *connect_re(Continuation *cont, sockaddr const *addr, NetVCOptions *options = nullptr);
 
   /**
-    Open a NetVConnection for connection oriented I/O. This call
-    is simliar to connect method except that the cont is called
-    back only after the connections has been established. In the
-    case of connect the cont could be called back with NET_EVENT_OPEN
-    event and OS could still be in the process of establishing the
-    connection. Re-entrant Callbacks: same as connect. If unix
-    asynchronous type connect is desired use connect_re().
+    Starts the Netprocessor. This has to be called before doing any
+    other net call.
 
-    @param cont Continuation to be called back with events.
-    @param addr Address to which to connect (includes port).
-    @param timeout for connect, the cont will get NET_EVENT_OPEN_FAILED
-      if connection could not be established for timeout msecs. The
-      default is 30 secs.
-    @param options @see NetVCOptions.
-
-    @see connect_re()
-
+    @param number_of_net_threads is not used. The net processor
+      uses the Event Processor threads for its activity.
   */
-  Action *connect_s(Continuation *cont, sockaddr const *addr, int timeout = NET_CONNECT_TIMEOUT, NetVCOptions *opts = nullptr);
-
-  /**
-    Initializes the net processor. This must be called before the event threads are started.
-
-  */
-  virtual void init() = 0;
+  virtual int start(int number_of_net_threads, size_t stacksize) = 0;
 
   inkcoreapi virtual NetVConnection *allocate_vc(EThread *) = 0;
 
@@ -213,7 +188,7 @@ public:
   NetProcessor(){};
 
   /** Private destructor. */
-  ~NetProcessor() override{};
+  virtual ~NetProcessor(){};
 
   /** This is MSS for connections we accept (client connections). */
   static int accept_mss;
@@ -237,10 +212,6 @@ public:
   /// Default options instance.
   static AcceptOptions const DEFAULT_ACCEPT_OPTIONS;
 
-  // noncopyable
-  NetProcessor(const NetProcessor &) = delete;
-  NetProcessor &operator=(const NetProcessor &) = delete;
-
 private:
   /** @note Not implemented. */
   virtual int
@@ -249,6 +220,9 @@ private:
     ink_release_assert(!"NetProcessor::stop not implemented");
     return 1;
   }
+
+  NetProcessor(const NetProcessor &);
+  NetProcessor &operator=(const NetProcessor &);
 };
 
 /**

@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _LIB_BULK_IO_H
+#define _LIB_BULK_IO_H
 
 #if defined(solaris)
 #include <stdio.h>
@@ -169,4 +170,6 @@ void BulkIORequestComplete(struct InkBulkIOState *bioCookie, struct InkBulkIOAgg
 void BulkIOFlush(struct InkBulkIOState *bioCookie, struct InkBulkIOAggregator *bioAggregator);
 
 void CopyFromIOBufferBlock(char *dest, Ptr<IOBufferBlock> pktChain, uint32_t nbytes);
+#endif
+
 #endif

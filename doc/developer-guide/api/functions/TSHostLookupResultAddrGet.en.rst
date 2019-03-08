@@ -30,17 +30,3 @@ Synopsis
 
 Description
 ===========
-
-Retrieves the pointer to a ``sockaddr`` of a the given :arg:`lookup_result` from a previous call to :func:`TSHostLookup`.
-
-For example:
-
-.. code-block:: c
-
-    int
-    handler(TSCont contp, TSEvent event, void *edata) {
-        if (event == TS_EVENT_HOST_LOOKUP) {
-            const sockaddr *addr = TSHostLookupResultAddrGet(static_cast<TSHostLookupResult>(edata));
-            // TODO Add logic here.
-        }
-    }

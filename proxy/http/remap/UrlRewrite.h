@@ -23,10 +23,10 @@
 
 #pragma once
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 #include "UrlMapping.h"
 #include "HttpTransact.h"
-#include "tscore/Regex.h"
+#include "ts/Regex.h"
 
 #define URL_REMAP_FILTER_NONE 0x00000000
 #define URL_REMAP_FILTER_REFERER 0x00000001      /* enable "referer" header validation */
@@ -36,7 +36,7 @@ struct BUILD_TABLE_INFO;
 
 /**
  * used for redirection, mapping, and reverse mapping
- **/
+**/
 enum mapping_type {
   FORWARD_MAP,
   REVERSE_MAP,
@@ -49,43 +49,24 @@ enum mapping_type {
 
 /**
  *
- **/
-class UrlRewrite : public RefCountObj
+**/
+class UrlRewrite
 {
 public:
   UrlRewrite();
-  ~UrlRewrite() override;
+  ~UrlRewrite();
 
   int BuildTable(const char *path);
   mapping_type Remap_redirect(HTTPHdr *request_header, URL *redirect_url);
   bool ReverseMap(HTTPHdr *response_header);
   void SetReverseFlag(int flag);
   void Print();
-
-  // The UrlRewrite object is-a RefCountObj, but this is a convenience to make it clear that we
-  // don't delete() these objects directly, but via the release() method only.
-  UrlRewrite *
-  acquire()
-  {
-    this->refcount_inc();
-    return this;
-  }
-
-  void
-  release()
-  {
-    if (0 == this->refcount_dec()) {
-      // Delete this on an ET_TASK thread, which avoids doing potentially slow things on an ET_NET thread.
-      Debug("url_rewrite", "Deleting old configuration immediately");
-      new_Deleter(this, 0);
-    }
-  }
-
   bool
   is_valid() const
   {
     return _valid;
   };
+  //  private:
 
   static const int MAX_REGEX_SUBS = 10;
 
@@ -119,7 +100,7 @@ public:
     bool
     empty()
     {
-      return ((hash_lookup == nullptr) && regex_list.empty());
+      return ((hash_lookup == NULL) && regex_list.empty());
     }
   };
 
@@ -180,6 +161,9 @@ public:
 
   int nohost_rules;
   int reverse_proxy;
+
+  // Vars for synthetic health checks
+  int mgmt_synthetic_port;
 
   char *ts_name; // Used to send redirects when no host info
 

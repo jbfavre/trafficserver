@@ -21,26 +21,26 @@
   limitations under the License.
  */
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 #include "I_RecMutex.h"
 
-void
-rec_mutex_init(RecMutex *m, const char *)
+int
+rec_mutex_init(RecMutex *m, const char *name)
 {
   m->nthread_holding = 0;
   m->thread_holding  = ink_thread_null();
-  ink_mutex_init(&(m->the_mutex));
+  return ink_mutex_init(&(m->the_mutex), name);
 }
 
-void
+int
 rec_mutex_destroy(RecMutex *m)
 {
   ink_assert(m->nthread_holding == 0);
   ink_assert(m->thread_holding == ink_thread_null());
-  ink_mutex_destroy(&(m->the_mutex));
+  return ink_mutex_destroy(&(m->the_mutex));
 }
 
-void
+int
 rec_mutex_acquire(RecMutex *m)
 {
   ink_thread this_thread = ink_thread_self();
@@ -51,9 +51,10 @@ rec_mutex_acquire(RecMutex *m)
   }
 
   m->nthread_holding++;
+  return 0;
 }
 
-void
+int
 rec_mutex_release(RecMutex *m)
 {
   if (m->nthread_holding != 0) {
@@ -63,4 +64,5 @@ rec_mutex_release(RecMutex *m)
       ink_mutex_release(&(m->the_mutex));
     }
   }
+  return 0;
 }

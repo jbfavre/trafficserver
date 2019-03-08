@@ -21,13 +21,12 @@
   limitations under the License.
  */
 
-#pragma once
-
-#include <ctime>
+#ifndef FAILURE_INFO_H
+#define FAILURE_INFO_H
+#include <time.h>
 #include <vector>
 #include <map>
 #include <sys/time.h>
-
 #if defined(solaris) && !defined(timersub)
 #define timersub(a, b, result)                       \
   do {                                               \
@@ -39,12 +38,9 @@
     }                                                \
   } while (0)
 #endif
-
 #include <string>
 #include <pthread.h>
-
 #include "ComponentBase.h"
-
 using namespace std;
 
 typedef std::vector<std::pair<double, double>> FailureToSuccess;
@@ -67,7 +63,7 @@ public:
     _debugLog(_debug_tag, "FailureInfo Ctor:inserting URL object into the statistics map [FailureInfo object]%p", this);
   };
 
-  ~FailureInfo() override {}
+  ~FailureInfo() {}
   /* Fills the statistics vector depending
    * upon the position of the window marker
    */
@@ -110,3 +106,5 @@ public:
   /*Was a reqeust made*/
   bool _requestMade;
 };
+
+#endif

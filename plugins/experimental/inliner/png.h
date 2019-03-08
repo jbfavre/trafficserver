@@ -20,8 +20,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#pragma once
+#ifndef PNG_H
+#define PNG_H
 
 #include <algorithm>
 #include <exception>
@@ -118,5 +118,7 @@ namespace inliner
   };
 
   // const uint32_t PNG::HEADER_SIZE = 8;
-} // namespace inliner
-} // namespace ats
+} // end of inliner namespace
+} // end of ats namespace
+
+#endif // PNG_H

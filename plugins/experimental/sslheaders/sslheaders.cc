@@ -17,7 +17,7 @@
  */
 
 #include "sslheaders.h"
-#include "tscore/ink_memory.h"
+#include "ts/ink_memory.h"
 
 #include <getopt.h>
 #include <openssl/ssl.h>
@@ -32,11 +32,11 @@ SslHdrExpandRequestHook(TSCont cont, TSEvent event, void *edata)
   TSHttpTxn txn;
   TSMBuffer mbuf;
   TSMLoc mhdr;
+  SSL *ssl;
 
-  txn                 = (TSHttpTxn)edata;
-  hdr                 = (const SslHdrInstance *)TSContDataGet(cont);
-  TSVConn vconn       = TSHttpSsnClientVConnGet(TSHttpTxnSsnGet(txn));
-  TSSslConnection ssl = TSVConnSSLConnectionGet(vconn);
+  txn = (TSHttpTxn)edata;
+  hdr = (const SslHdrInstance *)TSContDataGet(cont);
+  ssl = (SSL *)TSHttpSsnSSLConnectionGet(TSHttpTxnSsnGet(txn));
 
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
@@ -61,7 +61,7 @@ SslHdrExpandRequestHook(TSCont cont, TSEvent event, void *edata)
     goto done;
   }
 
-  SslHdrExpand((SSL *)ssl, hdr->expansions, mbuf, mhdr);
+  SslHdrExpand(ssl, hdr->expansions, mbuf, mhdr);
   TSHandleMLocRelease(mbuf, TS_NULL_MLOC, mhdr);
 
 done:
@@ -122,7 +122,6 @@ template <bool IsClient> class WrapX509
 {
 public:
   WrapX509(SSL *ssl) : _ssl(ssl), _x509(_nonNullInvalidValue()) {}
-
   X509 *
   get()
   {
@@ -211,8 +210,7 @@ static SslHdrInstance *
 SslHdrParseOptions(int argc, const char **argv)
 {
   static const struct option longopt[] = {
-    {const_cast<char *>("attach"), required_argument, nullptr, 'a'},
-    {nullptr, 0, nullptr, 0},
+    {const_cast<char *>("attach"), required_argument, nullptr, 'a'}, {nullptr, 0, nullptr, 0},
   };
 
   ats_scoped_obj<SslHdrInstance> hdr(new SslHdrInstance());

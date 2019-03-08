@@ -45,8 +45,7 @@ public:
     _field = it._field;
     return *this;
   }
-  HeaderIterator &
-  operator++()
+  HeaderIterator &operator++()
   {
     /* @todo this is said to be slow in the API call comments, do something better here */
     TSMLoc next = TSMimeHdrFieldNext(_bufp, _hdrs, _field);
@@ -54,8 +53,7 @@ public:
     _field = next;
     return *this;
   }
-  HeaderIterator
-  operator++(int)
+  HeaderIterator operator++(int)
   {
     HeaderIterator tmp(*this);
     operator++();
@@ -91,34 +89,34 @@ class TsApi : public TsInterface
 {
 public:
   TsApi(TSMBuffer bufp, TSMLoc hdrs, TSMLoc url) : _bufp(bufp), _hdrs(hdrs), _url(url) {}
-  ~TsApi() override {}
+  ~TsApi() {}
   const char *
-  getMethod(int *len) override
+  getMethod(int *len)
   {
     return TSHttpHdrMethodGet(_bufp, _hdrs, len);
   }
   const char *
-  getHost(int *len) override
+  getHost(int *len)
   {
     return TSHttpHdrHostGet(_bufp, _hdrs, len);
   }
   const char *
-  getPath(int *len) override
+  getPath(int *len)
   {
     return TSUrlPathGet(_bufp, _url, len);
   }
   const char *
-  getQuery(int *len) override
+  getQuery(int *len)
   {
     return TSUrlHttpQueryGet(_bufp, _url, len);
   }
   HeaderIterator
-  headerBegin() override
+  headerBegin()
   {
     return HeaderIterator(_bufp, _hdrs, TSMimeHdrFieldGet(_bufp, _hdrs, 0));
   }
   HeaderIterator
-  headerEnd() override
+  headerEnd()
   {
     return HeaderIterator(_bufp, _hdrs, TS_NULL_MLOC);
   }

@@ -34,16 +34,19 @@
 
 UnixUDPConnection::~UnixUDPConnection()
 {
-  UDPPacketInternal *p = nullptr;
+  UDPPacketInternal *p = (UDPPacketInternal *)ink_atomiclist_popall(&inQueue);
 
-  SList(UDPPacketInternal, alink) aq(inQueue.popall());
-
-  if (!tobedestroyed) {
+  if (!tobedestroyed)
     tobedestroyed = 1;
-  }
 
-  while ((p = aq.pop())) {
-    p->free();
+  if (p) {
+    UDPPacketInternal *pnext = nullptr;
+    while (p) {
+      pnext         = p->alink.next;
+      p->alink.next = nullptr;
+      p->free();
+      p = pnext;
+    }
   }
   if (callbackAction) {
     callbackAction->cancel();
@@ -64,32 +67,32 @@ UnixUDPConnection::callbackHandler(int event, void *data)
   (void)event;
   (void)data;
   callbackAction = nullptr;
-  if (continuation == nullptr) {
+  if (continuation == nullptr)
     return EVENT_CONT;
-  }
 
   if (m_errno) {
-    if (!shouldDestroy()) {
+    if (!shouldDestroy())
       continuation->handleEvent(NET_EVENT_DATAGRAM_ERROR, this);
-    }
     destroy(); // don't destroy until after calling back with error
     Release();
     return EVENT_CONT;
   } else {
-    UDPPacketInternal *p = nullptr;
-    SList(UDPPacketInternal, alink) aq(inQueue.popall());
-
-    Debug("udpnet", "UDPConnection::callbackHandler");
-    Queue<UDPPacketInternal> result;
-    while ((p = aq.pop())) {
-      result.push(p);
-    }
-
-    if (!shouldDestroy()) {
-      continuation->handleEvent(NET_EVENT_DATAGRAM_READ_READY, &result);
-    } else {
-      while ((p = result.dequeue())) {
-        p->free();
+    UDPPacketInternal *p = (UDPPacketInternal *)ink_atomiclist_popall(&inQueue);
+    if (p) {
+      Debug("udpnet", "UDPConnection::callbackHandler");
+      UDPPacketInternal *pnext = nullptr;
+      Queue<UDPPacketInternal> result;
+      while (p) {
+        pnext         = p->alink.next;
+        p->alink.next = nullptr;
+        result.push(p);
+        p = pnext;
+      }
+      if (!shouldDestroy())
+        continuation->handleEvent(NET_EVENT_DATAGRAM_READ_READY, &result);
+      else {
+        while ((p = result.dequeue()))
+          p->free();
       }
     }
   }
@@ -109,7 +112,7 @@ UDPConnection::bindToThread(Continuation *c)
   AddRef();
   uc->continuation = c;
   mutex            = c->mutex;
-  get_UDPNetHandler(t)->newconn_list.push(uc);
+  ink_atomiclist_push(&get_UDPNetHandler(t)->udpNewConnections, uc);
 }
 
 Action *
@@ -140,13 +143,13 @@ UDPConnection::Release()
 {
   UnixUDPConnection *p = (UnixUDPConnection *)this;
 
-  if (ink_atomic_increment(&p->refcount, -1) == 1) {
-    p->ep.stop();
+  p->ep.stop();
 
+  if (ink_atomic_increment(&p->refcount, -1) == 1) {
     ink_assert(p->callback_link.next == nullptr);
     ink_assert(p->callback_link.prev == nullptr);
-    ink_assert(p->link.next == nullptr);
-    ink_assert(p->link.prev == nullptr);
+    ink_assert(p->polling_link.next == nullptr);
+    ink_assert(p->polling_link.prev == nullptr);
     ink_assert(p->newconn_alink.next == nullptr);
 
     delete this;

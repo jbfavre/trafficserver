@@ -24,17 +24,15 @@
 
 #pragma once
 
-#include "tscore/ink_inet.h"
+#include "ts/ink_inet.h"
 #include "I_Action.h"
 #include "I_VConnection.h"
 #include "I_Event.h"
-#include "tscore/List.h"
+#include "ts/List.h"
 #include "I_IOBuffer.h"
 #include "I_Socks.h"
-#include "ts/apidefs.h"
-#include <string_view>
-#include "tscpp/util/TextView.h"
-#include "tscore/IpMap.h"
+#include <ts/apidefs.h>
+#include <ts/MemView.h>
 
 #define CONNECT_SUCCESS 1
 #define CONNECT_FAILURE 0
@@ -131,12 +129,10 @@ struct NetVCOptions {
       @see ip_family
   */
   IpAddr local_ip;
-
   /** Local port for connection.
       Set to 0 for "don't care" (default).
-  */
+   */
   uint16_t local_port;
-
   /// How to bind the local address.
   /// @note Default is @c ANY_ADDR.
   addr_bind_style addr_binding;
@@ -181,10 +177,6 @@ struct NetVCOptions {
   /** Server name to use for SNI data on an outbound connection.
    */
   ats_scoped_str sni_servername;
-  /** FQDN used to connect to the origin.  May be different
-   * than sni_servername if pristine host headers are used
-   */
-  ats_scoped_str ssl_servername;
 
   /**
    * Client certificate to use in response to OS's certificate request
@@ -209,20 +201,10 @@ struct NetVCOptions {
     IpEndpoint ip;
 
     // Literal IPv4 and IPv6 addresses are not permitted in "HostName".(rfc6066#section-3)
-    if (name && len && ats_ip_pton(std::string_view(name, len), &ip) != 0) {
+    if (name && len && ats_ip_pton(ts::ConstBuffer(name, len), &ip) != 0) {
       sni_servername = ats_strndup(name, len);
     } else {
       sni_servername = nullptr;
-    }
-    return *this;
-  }
-  self &
-  set_ssl_servername(const char *name)
-  {
-    if (name) {
-      ssl_servername = ats_strdup(name);
-    } else {
-      ssl_servername = nullptr;
     }
     return *this;
   }
@@ -238,39 +220,24 @@ struct NetVCOptions {
   operator=(self const &that)
   {
     if (&that != this) {
-      /*
-       * It is odd but necessary to null the scoped string pointer here
-       * and then explicitly call release on them in the string assignements
-       * below.
-       * We a memcpy from that to this.  This will put that's string pointers into
-       * this's memory.  Therefore we must first explicitly null out
-       * this's original version of the string.  The release after the
-       * memcpy removes the extra reference to that's copy of the string
-       * Removing the release will eventualy cause a double free crash
-       */
       sni_servername    = nullptr; // release any current name.
-      ssl_servername    = nullptr;
       clientCertificate = nullptr;
       memcpy(static_cast<void *>(this), &that, sizeof(self));
       if (that.sni_servername) {
         sni_servername.release(); // otherwise we'll free the source string.
         this->sni_servername = ats_strdup(that.sni_servername);
       }
-      if (that.ssl_servername) {
-        ssl_servername.release(); // otherwise we'll free the source string.
-        this->ssl_servername = ats_strdup(that.ssl_servername);
-      }
       if (that.clientCertificate) {
-        clientCertificate.release(); // otherwise we'll free the source string.
+        clientCertificate.release();
         this->clientCertificate = ats_strdup(that.clientCertificate);
       }
     }
     return *this;
   }
 
-  std::string_view get_family_string() const;
+  ts::StringView get_family_string() const;
 
-  std::string_view get_proto_string() const;
+  ts::StringView get_proto_string() const;
 
   /// @name Debugging
   //@{
@@ -278,8 +245,8 @@ struct NetVCOptions {
   static const char *toString(addr_bind_style s);
   //@}
 
-  // noncopyable
-  NetVCOptions(const NetVCOptions &) = delete;
+private:
+  NetVCOptions(const NetVCOptions &);
 };
 
 /**
@@ -290,7 +257,7 @@ struct NetVCOptions {
   stream IO to be done based on a single read or write call.
 
 */
-class NetVConnection : public AnnotatedVConnection
+class NetVConnection : public VConnection
 {
 public:
   // How many bytes have been queued to the OS for sending by haven't been sent yet
@@ -325,7 +292,7 @@ public:
     @return vio
 
   */
-  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override = 0;
+  virtual VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) = 0;
 
   /**
     Initiates write. Thread-safe, may be called when not handling
@@ -361,7 +328,7 @@ public:
     @return vio pointer
 
   */
-  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override = 0;
+  virtual VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) = 0;
 
   /**
     Closes the vconnection. A state machine MUST call do_io_close()
@@ -379,7 +346,7 @@ public:
     @param lerrno VIO:CLOSE for regular close or VIO::ABORT for aborts
 
   */
-  void do_io_close(int lerrno = -1) override = 0;
+  virtual void do_io_close(int lerrno = -1) = 0;
 
   /**
     Shuts down read side, write side, or both. do_io_shutdown() can
@@ -397,7 +364,7 @@ public:
     @param howto IO_SHUTDOWN_READ, IO_SHUTDOWN_WRITE, IO_SHUTDOWN_READWRITE
 
   */
-  void do_io_shutdown(ShutdownHowTo_t howto) override = 0;
+  virtual void do_io_shutdown(ShutdownHowTo_t howto) = 0;
 
   /**
     Sends out of band messages over the connection. This function
@@ -604,13 +571,13 @@ public:
   EThread *thread;
 
   /// PRIVATE: The public interface is VIO::reenable()
-  void reenable(VIO *vio) override = 0;
+  virtual void reenable(VIO *vio) = 0;
 
   /// PRIVATE: The public interface is VIO::reenable()
-  void reenable_re(VIO *vio) override = 0;
+  virtual void reenable_re(VIO *vio) = 0;
 
   /// PRIVATE
-  ~NetVConnection() override {}
+  virtual ~NetVConnection() {}
   /**
     PRIVATE: instances of NetVConnection cannot be created directly
     by the state machines. The objects are created by NetProcessor
@@ -633,9 +600,6 @@ public:
 
   /** Set remote sock addr struct. */
   virtual void set_remote_addr() = 0;
-
-  /** Set remote sock addr struct. */
-  virtual void set_remote_addr(const sockaddr *) = 0;
 
   // for InkAPI
   bool
@@ -663,141 +627,21 @@ public:
     is_transparent = state;
   }
 
-  /// Get the proxy protocol enabled flag
-  bool
-  get_is_proxy_protocol() const
-  {
-    return is_proxy_protocol;
-  }
-  /// Set the proxy protocol enabled flag on the port
-  void
-  set_is_proxy_protocol(bool state = true)
-  {
-    is_proxy_protocol = state;
-  }
-
   virtual int
-  populate_protocol(std::string_view *results, int n) const
+  populate_protocol(ts::StringView *results, int n) const
   {
     return 0;
   }
 
   virtual const char *
-  protocol_contains(std::string_view prefix) const
+  protocol_contains(ts::StringView prefix) const
   {
     return nullptr;
   }
 
-  // noncopyable
-  NetVConnection(const NetVConnection &) = delete;
-  NetVConnection &operator=(const NetVConnection &) = delete;
-
-  enum class ProxyProtocolVersion {
-    UNDEFINED,
-    V1,
-    V2,
-  };
-
-  enum class ProxyProtocolData {
-    UNDEFINED,
-    SRC,
-    DST,
-  };
-
-  int
-  set_proxy_protocol_addr(const ProxyProtocolData src_or_dst, ts::TextView &ip_addr_str)
-  {
-    int ret = -1;
-
-    if (src_or_dst == ProxyProtocolData::SRC) {
-      ret = ats_ip_pton(ip_addr_str, &pp_info.src_addr);
-    } else {
-      ret = ats_ip_pton(ip_addr_str, &pp_info.dst_addr);
-    }
-    return ret;
-  }
-
-  int
-  set_proxy_protocol_src_addr(ts::TextView src)
-  {
-    return set_proxy_protocol_addr(ProxyProtocolData::SRC, src);
-  }
-
-  int
-  set_proxy_protocol_dst_addr(ts::TextView src)
-  {
-    return set_proxy_protocol_addr(ProxyProtocolData::DST, src);
-  }
-
-  int
-  set_proxy_protocol_port(const ProxyProtocolData src_or_dst, in_port_t port)
-  {
-    if (src_or_dst == ProxyProtocolData::SRC) {
-      pp_info.src_addr.port() = htons(port);
-    } else {
-      pp_info.dst_addr.port() = htons(port);
-    }
-    return port;
-  }
-
-  int
-  set_proxy_protocol_src_port(in_port_t port)
-  {
-    return set_proxy_protocol_port(ProxyProtocolData::SRC, port);
-  }
-
-  int
-  set_proxy_protocol_dst_port(in_port_t port)
-  {
-    return set_proxy_protocol_port(ProxyProtocolData::DST, port);
-  }
-
-  void
-  set_proxy_protocol_version(const ProxyProtocolVersion ver)
-  {
-    pp_info.proxy_protocol_version = ver;
-  }
-
-  ProxyProtocolVersion
-  get_proxy_protocol_version()
-  {
-    return pp_info.proxy_protocol_version;
-  }
-
-  sockaddr const *get_proxy_protocol_addr(const ProxyProtocolData);
-
-  sockaddr const *
-  get_proxy_protocol_src_addr()
-  {
-    return get_proxy_protocol_addr(ProxyProtocolData::SRC);
-  }
-
-  uint16_t
-  get_proxy_protocol_src_port()
-  {
-    return ats_ip_port_host_order(this->get_proxy_protocol_addr(ProxyProtocolData::SRC));
-  }
-
-  sockaddr const *
-  get_proxy_protocol_dst_addr()
-  {
-    return get_proxy_protocol_addr(ProxyProtocolData::DST);
-  }
-
-  uint16_t
-  get_proxy_protocol_dst_port()
-  {
-    return ats_ip_port_host_order(this->get_proxy_protocol_addr(ProxyProtocolData::DST));
-  };
-
-  typedef struct _ProxyProtocol {
-    ProxyProtocolVersion proxy_protocol_version = ProxyProtocolVersion::UNDEFINED;
-    uint16_t ip_family;
-    IpEndpoint src_addr;
-    IpEndpoint dst_addr;
-  } ProxyProtocol;
-
-  ProxyProtocol pp_info;
+private:
+  NetVConnection(const NetVConnection &);
+  NetVConnection &operator=(const NetVConnection &);
 
 protected:
   IpEndpoint local_addr;
@@ -809,8 +653,6 @@ protected:
   bool is_internal_request;
   /// Set if this connection is transparent.
   bool is_transparent;
-  /// Set if proxy protocol is enabled
-  bool is_proxy_protocol;
   /// Set if the next write IO that empties the write buffer should generate an event.
   int write_buffer_empty_event;
   /// NetVConnection Context.
@@ -818,14 +660,13 @@ protected:
 };
 
 inline NetVConnection::NetVConnection()
-  : AnnotatedVConnection(nullptr),
+  : VConnection(nullptr),
     attributes(0),
     thread(nullptr),
-    got_local_addr(false),
-    got_remote_addr(false),
+    got_local_addr(0),
+    got_remote_addr(0),
     is_internal_request(false),
     is_transparent(false),
-    is_proxy_protocol(false),
     write_buffer_empty_event(0),
     netvc_context(NET_VCONNECTION_UNSET)
 {

@@ -17,7 +17,7 @@
  */
 
 #include "sslheaders.h"
-#include "tscore/ink_defs.h"
+#include "ts/ink_defs.h"
 
 #include <openssl/x509.h>
 #include <openssl/pem.h>

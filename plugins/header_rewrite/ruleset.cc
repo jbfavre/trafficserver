@@ -81,8 +81,6 @@ RuleSet::add_operator(Parser &p, const char *filename, int lineno)
     o->initialize(p);
     if (!o->set_hook(_hook)) {
       delete o;
-      TSDebug(PLUGIN_NAME, "in %s:%d: can't use this operator in hook=%s:  %s(%s)", filename, lineno, TSHttpHookNameLookup(_hook),
-              p.get_op().c_str(), p.get_arg().c_str());
       TSError("[%s] in %s:%d: can't use this operator in hook=%s:  %s(%s)", PLUGIN_NAME, filename, lineno,
               TSHttpHookNameLookup(_hook), p.get_op().c_str(), p.get_arg().c_str());
       return false;

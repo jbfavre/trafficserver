@@ -20,8 +20,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#pragma once
+#ifndef GIF_H
+#define GIF_H
 
 #include <algorithm>
 
@@ -44,5 +44,7 @@ namespace inliner
                                                   std::equal(SIGNATURE2, SIGNATURE2 + SIGNATURE_SIZE, content.begin()));
     }
   };
-} // namespace inliner
-} // namespace ats
+} // end of inliner namespace
+} // end of ats namespace
+
+#endif // GIF_H

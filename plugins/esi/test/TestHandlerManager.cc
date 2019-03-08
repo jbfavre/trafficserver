@@ -39,4 +39,6 @@ HandlerManager::getHandler(Variables &esi_vars, Expression &esi_expr, HttpDataFe
   return handler;
 }
 
-HandlerManager::~HandlerManager() {}
+HandlerManager::~HandlerManager()
+{
+}

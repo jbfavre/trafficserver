@@ -32,16 +32,16 @@
 
 #pragma once
 
-#include "tscore/ink_memory.h"
-#include "tscore/ink_hash_table.h"
-#include "tscore/ink_mutex.h"
+#include "ts/ink_memory.h"
+#include "ts/ink_hash_table.h"
+#include "ts/ink_mutex.h"
 
 class MgmtHashTable
 {
 public:
-  MgmtHashTable(const char *, bool free_on_delete, InkHashTableKeyType type)
+  MgmtHashTable(const char *name, bool free_on_delete, InkHashTableKeyType type)
   {
-    ink_mutex_init(&mutex);
+    ink_mutex_init(&mutex, name);
     destroy_and_free = free_on_delete;
     ht               = ink_hash_table_create(type);
   }

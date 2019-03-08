@@ -40,9 +40,9 @@ public:
   Action *connect(Continuation *cont, UnixNetVConnection **vc, sockaddr const *target, NetVCOptions *opt = nullptr);
 
   virtual NetAccept *createNetAccept(const NetProcessor::AcceptOptions &opt);
-  NetVConnection *allocate_vc(EThread *t) override;
+  virtual NetVConnection *allocate_vc(EThread *t);
 
-  void init() override;
+  virtual int start(int number_of_net_threads, size_t stacksize);
 
   Event *accept_thread_event;
 

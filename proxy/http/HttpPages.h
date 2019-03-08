@@ -33,9 +33,9 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "P_EventSystem.h"
-#include "tscore/DynArray.h"
+#include "ts/DynArray.h"
 #include "HTTP.h"
 #include "StatPages.h"
 #include "HttpSM.h"
@@ -56,7 +56,7 @@ class HttpPagesHandler : public BaseStatPagesHandler
 {
 public:
   HttpPagesHandler(Continuation *cont, HTTPHdr *header);
-  ~HttpPagesHandler() override;
+  ~HttpPagesHandler();
 
   int handle_smlist(int event, void *edata);
   int handle_smdetails(int event, void *edata);

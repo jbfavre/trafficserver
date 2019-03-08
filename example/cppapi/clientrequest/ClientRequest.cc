@@ -17,9 +17,9 @@
  */
 
 #include <iostream>
-#include "tscpp/api/GlobalPlugin.h"
-#include "tscpp/api/PluginInit.h"
-#include "tscpp/api/utils.h"
+#include <atscppapi/GlobalPlugin.h>
+#include <atscppapi/PluginInit.h>
+#include <atscppapi/utils.h>
 
 using namespace atscppapi;
 
@@ -101,17 +101,18 @@ public:
     cout << "Adding a new accept type accept header" << endl;
     client_request_headers.append("accept", "text/blah");
 
-    for (auto &&client_request_header : client_request_headers) {
-      cout << client_request_header.str() << endl;
+    for (Headers::iterator header_iter = client_request_headers.begin(), header_end = client_request_headers.end();
+         header_iter != header_end; ++header_iter) {
+      cout << (*header_iter).str() << endl;
     }
 
     /*
      * These will output:
-     * Joining on a non-existent header gives:
+     * Joining on a non-existant header gives:
      * Joining the accept encoding header gives: gzip,identity,my_special_format
      * Joining the accept encoding header with space gives: gzip identity my_special_format
      */
-    cout << "Joining on a non-existent header gives: " << client_request_headers.values("i_dont_exist") << endl;
+    cout << "Joining on a non-existant header gives: " << client_request_headers.values("i_dont_exist") << endl;
     cout << "Joining the accept encoding header gives: " << client_request_headers.values("accept-encoding") << endl;
     cout << "Joining the accept encoding header with space gives: " << client_request_headers.values("accept-encoding", ' ')
          << endl;
@@ -137,8 +138,6 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  if (!RegisterGlobalPlugin("CPP_Example_ClientRequest", "apache", "dev@trafficserver.apache.org")) {
-    return;
-  }
+  RegisterGlobalPlugin("CPP_Example_ClientRequest", "apache", "dev@trafficserver.apache.org");
   plugin = new GlobalHookPlugin();
 }

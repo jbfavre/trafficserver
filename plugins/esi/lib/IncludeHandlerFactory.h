@@ -21,7 +21,9 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _INCLUDE_HANDLER_FACTORY_H
+
+#define _INCLUDE_HANDLER_FACTORY_H
 
 #include <string>
 #include "SpecialIncludeHandler.h"
@@ -42,3 +44,5 @@ namespace EsiLib
 typedef SpecialIncludeHandler *(*SpecialIncludeHandlerCreator)(Variables &esi_vars, Expression &esi_expr, HttpDataFetcher &fetcher,
                                                                const std::string &id);
 };
+
+#endif

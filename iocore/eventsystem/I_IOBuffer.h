@@ -39,12 +39,12 @@
 #pragma once
 #define I_IOBuffer_h
 
-#include "tscore/ink_platform.h"
-#include "tscore/ink_apidefs.h"
-#include "tscore/Allocator.h"
-#include "tscore/Ptr.h"
-#include "tscore/ink_assert.h"
-#include "tscore/ink_resource.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_apidefs.h"
+#include "ts/Allocator.h"
+#include "ts/Ptr.h"
+#include "ts/ink_assert.h"
+#include "ts/ink_resource.h"
 
 struct MIOBufferAccessor;
 
@@ -228,7 +228,7 @@ public:
     should not use this object or reference after this call.
 
   */
-  void free() override;
+  virtual void free();
 
   int64_t _size_index;
 
@@ -269,9 +269,10 @@ public:
   {
   }
 
-  // noncopyable, declaration only
-  IOBufferData(const IOBufferData &) = delete;
-  IOBufferData &operator=(const IOBufferData &) = delete;
+private:
+  // declaration only
+  IOBufferData(const IOBufferData &);
+  IOBufferData &operator=(const IOBufferData &);
 };
 
 inkcoreapi extern ClassAllocator<IOBufferData> ioDataAllocator;
@@ -487,7 +488,7 @@ public:
     call.
 
   */
-  void free() override;
+  virtual void free();
 
   char *_start;
   char *_end;
@@ -519,9 +520,9 @@ public:
   */
   IOBufferBlock();
 
-  // noncopyable
-  IOBufferBlock(const IOBufferBlock &) = delete;
-  IOBufferBlock &operator=(const IOBufferBlock &) = delete;
+private:
+  IOBufferBlock(const IOBufferBlock &);
+  IOBufferBlock &operator=(const IOBufferBlock &);
 };
 
 extern inkcoreapi ClassAllocator<IOBufferBlock> ioBlockAllocator;
@@ -935,7 +936,7 @@ public:
   buf()
   {
     IOBufferBlock *b = first_write_block();
-    return b ? b->buf() : nullptr;
+    return b ? b->buf() : 0;
   }
 
   char *
@@ -1100,21 +1101,18 @@ public:
     if (_writer) {
       _writer->reset();
     }
-    for (auto &reader : readers) {
-      if (reader.allocated()) {
-        reader.reset();
+    for (int j = 0; j < MAX_MIOBUFFER_READERS; j++)
+      if (readers[j].allocated()) {
+        readers[j].reset();
       }
-    }
   }
 
   void
   init_readers()
   {
-    for (auto &reader : readers) {
-      if (reader.allocated() && !reader.block) {
-        reader.block = _writer;
-      }
-    }
+    for (int j = 0; j < MAX_MIOBUFFER_READERS; j++)
+      if (readers[j].allocated() && !readers[j].block)
+        readers[j].block = _writer;
   }
 
   void
@@ -1234,11 +1232,10 @@ struct MIOBufferAccessor {
   const char *name;
 #endif
 
-  // noncopyable
-  MIOBufferAccessor(const MIOBufferAccessor &) = delete;
-  MIOBufferAccessor &operator=(const MIOBufferAccessor &) = delete;
-
 private:
+  MIOBufferAccessor(const MIOBufferAccessor &);
+  MIOBufferAccessor &operator=(const MIOBufferAccessor &);
+
   MIOBuffer *mbuf;
   IOBufferReader *entry;
 };
@@ -1300,7 +1297,7 @@ extern IOBufferBlock *new_IOBufferBlock_internal(
 #ifdef TRACK_BUFFER_USER
   const char *loc
 #endif
-);
+  );
 
 extern IOBufferBlock *new_IOBufferBlock_internal(
 #ifdef TRACK_BUFFER_USER

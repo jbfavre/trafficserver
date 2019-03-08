@@ -41,28 +41,30 @@ public:
   void errorAndDie(int e);
   int callbackHandler(int event, void *data);
 
-  SLINK(UnixUDPConnection, newconn_alink);
+  LINK(UnixUDPConnection, polling_link);
   LINK(UnixUDPConnection, callback_link);
+  SLINK(UnixUDPConnection, newconn_alink);
 
-  // Incoming UDP Packet Queue
-  ASLL(UDPPacketInternal, alink) inQueue;
+  InkAtomicList inQueue;
   int onCallbackQueue;
   Action *callbackAction;
   EThread *ethread;
   EventIO ep;
 
   UnixUDPConnection(int the_fd);
-  ~UnixUDPConnection() override;
+  virtual ~UnixUDPConnection();
 
 private:
   int m_errno;
-  void UDPConnection_is_abstract() override{};
+  virtual void UDPConnection_is_abstract(){};
 };
 
 TS_INLINE
 UnixUDPConnection::UnixUDPConnection(int the_fd) : onCallbackQueue(0), callbackAction(nullptr), ethread(nullptr), m_errno(0)
 {
   fd = the_fd;
+  UDPPacketInternal p;
+  ink_atomiclist_init(&inQueue, "Incoming UDP Packet queue", (char *)&p.alink.next - (char *)&p);
   SET_HANDLER(&UnixUDPConnection::callbackHandler);
 }
 
@@ -75,6 +77,8 @@ UnixUDPConnection::init(int the_fd)
   ethread         = nullptr;
   m_errno         = 0;
 
+  UDPPacketInternal p;
+  ink_atomiclist_init(&inQueue, "Incoming UDP Packet queue", (char *)&p.alink.next - (char *)&p);
   SET_HANDLER(&UnixUDPConnection::callbackHandler);
 }
 
@@ -105,5 +109,5 @@ UDPConnection::recv(Continuation *c)
 TS_INLINE UDPConnection *
 new_UDPConnection(int fd)
 {
-  return (fd >= 0) ? new UnixUDPConnection(fd) : nullptr;
+  return (fd >= 0) ? new UnixUDPConnection(fd) : 0;
 }

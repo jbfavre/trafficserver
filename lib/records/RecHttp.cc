@@ -23,13 +23,12 @@
 
 #include <records/I_RecCore.h>
 #include <records/I_RecHttp.h>
-#include "tscore/ink_defs.h"
-#include "tscore/ink_hash_table.h"
-#include "tscore/Tokenizer.h"
+#include <ts/ink_defs.h>
+#include <ts/ink_hash_table.h>
+#include <ts/Tokenizer.h>
+#include <ts/MemView.h>
 #include <strings.h>
-#include "tscore/ink_inet.h"
-#include <string_view>
-#include "tscore/IpMapConf.h"
+#include <ts/ink_inet.h>
 
 SessionProtocolNameRegistry globalSessionProtocolNameRegistry;
 
@@ -37,10 +36,10 @@ SessionProtocolNameRegistry globalSessionProtocolNameRegistry;
    These are also used for NPN setup.
 */
 
-const char *const TS_ALPN_PROTOCOL_HTTP_0_9 = IP_PROTO_TAG_HTTP_0_9.data();
-const char *const TS_ALPN_PROTOCOL_HTTP_1_0 = IP_PROTO_TAG_HTTP_1_0.data();
-const char *const TS_ALPN_PROTOCOL_HTTP_1_1 = IP_PROTO_TAG_HTTP_1_1.data();
-const char *const TS_ALPN_PROTOCOL_HTTP_2_0 = IP_PROTO_TAG_HTTP_2_0.data();
+const char *const TS_ALPN_PROTOCOL_HTTP_0_9 = IP_PROTO_TAG_HTTP_0_9.ptr();
+const char *const TS_ALPN_PROTOCOL_HTTP_1_0 = IP_PROTO_TAG_HTTP_1_0.ptr();
+const char *const TS_ALPN_PROTOCOL_HTTP_1_1 = IP_PROTO_TAG_HTTP_1_1.ptr();
+const char *const TS_ALPN_PROTOCOL_HTTP_2_0 = IP_PROTO_TAG_HTTP_2_0.ptr();
 
 const char *const TS_ALPN_PROTOCOL_GROUP_HTTP  = "http";
 const char *const TS_ALPN_PROTOCOL_GROUP_HTTP2 = "http2";
@@ -48,14 +47,14 @@ const char *const TS_ALPN_PROTOCOL_GROUP_HTTP2 = "http2";
 const char *const TS_PROTO_TAG_HTTP_1_0 = TS_ALPN_PROTOCOL_HTTP_1_0;
 const char *const TS_PROTO_TAG_HTTP_1_1 = TS_ALPN_PROTOCOL_HTTP_1_1;
 const char *const TS_PROTO_TAG_HTTP_2_0 = TS_ALPN_PROTOCOL_HTTP_2_0;
-const char *const TS_PROTO_TAG_TLS_1_3  = IP_PROTO_TAG_TLS_1_3.data();
-const char *const TS_PROTO_TAG_TLS_1_2  = IP_PROTO_TAG_TLS_1_2.data();
-const char *const TS_PROTO_TAG_TLS_1_1  = IP_PROTO_TAG_TLS_1_1.data();
-const char *const TS_PROTO_TAG_TLS_1_0  = IP_PROTO_TAG_TLS_1_0.data();
-const char *const TS_PROTO_TAG_TCP      = IP_PROTO_TAG_TCP.data();
-const char *const TS_PROTO_TAG_UDP      = IP_PROTO_TAG_UDP.data();
-const char *const TS_PROTO_TAG_IPV4     = IP_PROTO_TAG_IPV4.data();
-const char *const TS_PROTO_TAG_IPV6     = IP_PROTO_TAG_IPV6.data();
+const char *const TS_PROTO_TAG_TLS_1_3  = IP_PROTO_TAG_TLS_1_3.ptr();
+const char *const TS_PROTO_TAG_TLS_1_2  = IP_PROTO_TAG_TLS_1_2.ptr();
+const char *const TS_PROTO_TAG_TLS_1_1  = IP_PROTO_TAG_TLS_1_1.ptr();
+const char *const TS_PROTO_TAG_TLS_1_0  = IP_PROTO_TAG_TLS_1_0.ptr();
+const char *const TS_PROTO_TAG_TCP      = IP_PROTO_TAG_TCP.ptr();
+const char *const TS_PROTO_TAG_UDP      = IP_PROTO_TAG_UDP.ptr();
+const char *const TS_PROTO_TAG_IPV4     = IP_PROTO_TAG_IPV4.ptr();
+const char *const TS_PROTO_TAG_IPV6     = IP_PROTO_TAG_IPV6.ptr();
 
 InkHashTable *TSProtoTags;
 
@@ -107,30 +106,6 @@ RecHttpLoadIp(const char *value_name, IpAddr &ip4, IpAddr &ip6)
   }
 }
 
-void
-RecHttpLoadIpMap(const char *value_name, IpMap &ipmap)
-{
-  char value[1024];
-  IpAddr laddr;
-  IpAddr raddr;
-  void *payload = nullptr;
-
-  if (REC_ERR_OKAY == RecGetRecordString(value_name, value, sizeof(value))) {
-    Debug("config", "RecHttpLoadIpMap: parsing the name [%s] and value [%s] to an IpMap", value_name, value);
-    Tokenizer tokens(", ");
-    int n_addrs = tokens.Initialize(value);
-    for (int i = 0; i < n_addrs; ++i) {
-      const char *val = tokens[i];
-
-      Debug("config", "RecHttpLoadIpMap: marking the value [%s] to an IpMap entry", val);
-      if (0 == ats_ip_range_parse(val, laddr, raddr)) {
-        ipmap.fill(laddr, raddr, payload);
-      }
-    }
-  }
-  Debug("config", "RecHttpLoadIpMap: parsed %zu IpMap entries", ipmap.getCount());
-}
-
 const char *const HttpProxyPort::DEFAULT_VALUE = "8080";
 
 const char *const HttpProxyPort::PORTS_CONFIG_NAME = "proxy.config.http.server_ports";
@@ -152,7 +127,6 @@ const char *const HttpProxyPort::OPT_TRANSPARENT_OUTBOUND    = "tr-out";
 const char *const HttpProxyPort::OPT_TRANSPARENT_FULL        = "tr-full";
 const char *const HttpProxyPort::OPT_TRANSPARENT_PASSTHROUGH = "tr-pass";
 const char *const HttpProxyPort::OPT_SSL                     = "ssl";
-const char *const HttpProxyPort::OPT_PROXY_PROTO             = "pp";
 const char *const HttpProxyPort::OPT_PLUGIN                  = "plugin";
 const char *const HttpProxyPort::OPT_BLIND_TUNNEL            = "blind";
 const char *const HttpProxyPort::OPT_COMPRESSED              = "compressed";
@@ -166,7 +140,7 @@ size_t const OPT_OUTBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_OUTBOUND_IP_
 size_t const OPT_INBOUND_IP_PREFIX_LEN  = strlen(HttpProxyPort::OPT_INBOUND_IP_PREFIX);
 size_t const OPT_HOST_RES_PREFIX_LEN    = strlen(HttpProxyPort::OPT_HOST_RES_PREFIX);
 size_t const OPT_PROTO_PREFIX_LEN       = strlen(HttpProxyPort::OPT_PROTO_PREFIX);
-} // namespace
+}
 
 namespace
 {
@@ -176,7 +150,7 @@ namespace
 // reference. Might be a problem with Vec<> creating a fixed array
 // rather than allocating on first use (compared to std::vector<>).
 HttpProxyPort::Group GLOBAL_DATA;
-} // namespace
+}
 HttpProxyPort::Group &HttpProxyPort::m_global = GLOBAL_DATA;
 
 HttpProxyPort::HttpProxyPort()
@@ -184,7 +158,6 @@ HttpProxyPort::HttpProxyPort()
     m_type(TRANSPORT_DEFAULT),
     m_port(0),
     m_family(AF_INET),
-    m_proxy_protocol(false),
     m_inbound_transparent_p(false),
     m_outbound_transparent_p(false),
     m_transparent_passthrough(false)
@@ -195,20 +168,26 @@ HttpProxyPort::HttpProxyPort()
 bool
 HttpProxyPort::hasSSL(Group const &ports)
 {
-  return std::any_of(ports.begin(), ports.end(), [](HttpProxyPort const &port) { return port.isSSL(); });
+  bool zret = false;
+  for (int i = 0, n = ports.length(); i < n && !zret; ++i) {
+    if (ports[i].isSSL()) {
+      zret = true;
+    }
+  }
+  return zret;
 }
 
-const HttpProxyPort *
+HttpProxyPort *
 HttpProxyPort::findHttp(Group const &ports, uint16_t family)
 {
   bool check_family_p = ats_is_ip(family);
-  const self *zret    = nullptr;
-  for (int i = 0, n = ports.size(); i < n && !zret; ++i) {
-    const self &p = ports[i];
+  self *zret          = nullptr;
+  for (int i = 0, n = ports.length(); i < n && !zret; ++i) {
+    HttpProxyPort &p = ports[i];
     if (p.m_port &&                               // has a valid port
         TRANSPORT_DEFAULT == p.m_type &&          // is normal HTTP
         (!check_family_p || p.m_family == family) // right address family
-    ) {
+        ) {
       zret = &p;
     };
   }
@@ -230,7 +209,7 @@ HttpProxyPort::checkPrefix(const char *src, char const *prefix, size_t prefix_le
 }
 
 bool
-HttpProxyPort::loadConfig(std::vector<self> &entries)
+HttpProxyPort::loadConfig(Vec<self> &entries)
 {
   char *text;
   bool found_p;
@@ -241,23 +220,23 @@ HttpProxyPort::loadConfig(std::vector<self> &entries)
   }
   ats_free(text);
 
-  return 0 < entries.size();
+  return 0 < entries.length();
 }
 
 bool
 HttpProxyPort::loadDefaultIfEmpty(Group &ports)
 {
-  if (0 == ports.size()) {
+  if (0 == ports.length()) {
     self::loadValue(ports, DEFAULT_VALUE);
   }
 
-  return 0 < ports.size();
+  return 0 < ports.length();
 }
 
 bool
-HttpProxyPort::loadValue(std::vector<self> &ports, const char *text)
+HttpProxyPort::loadValue(Vec<self> &ports, const char *text)
 {
-  unsigned old_port_length = ports.size(); // remember this.
+  unsigned old_port_length = ports.length(); // remember this.
   if (text && *text) {
     Tokenizer tokens(", ");
     int n_ports = tokens.Initialize(text);
@@ -273,7 +252,7 @@ HttpProxyPort::loadValue(std::vector<self> &ports, const char *text)
       }
     }
   }
-  return ports.size() > old_port_length; // we added at least one port.
+  return ports.length() > old_port_length; // we added at least one port.
 }
 
 bool
@@ -286,7 +265,7 @@ HttpProxyPort::processOptions(const char *opts)
   bool bracket_p      = false; // found an open bracket in the input?
   const char *value;           // Temp holder for value of a prefix option.
   IpAddr ip;                   // temp for loading IP addresses.
-  std::vector<char *> values;  // Pointers to single option values.
+  Vec<char *> values;          // Pointers to single option values.
 
   // Make a copy we can modify safely.
   size_t opts_len = strlen(opts) + 1;
@@ -318,7 +297,8 @@ HttpProxyPort::processOptions(const char *opts)
     return zret;
   }
 
-  for (auto item : values) {
+  for (int i = 0, n_items = values.length(); i < n_items; ++i) {
+    const char *item = values[i];
     if (isdigit(item[0])) { // leading digit -> port value
       char *ptr;
       int port = strtoul(item, &ptr, 10);
@@ -366,8 +346,6 @@ HttpProxyPort::processOptions(const char *opts)
       m_type = TRANSPORT_SSL;
     } else if (0 == strcasecmp(OPT_PLUGIN, item)) {
       m_type = TRANSPORT_PLUGIN;
-    } else if (0 == strcasecmp(OPT_PROXY_PROTO, item)) {
-      m_proxy_protocol = true;
     } else if (0 == strcasecmp(OPT_TRANSPARENT_INBOUND, item)) {
 #if TS_USE_TPROXY
       m_inbound_transparent_p = true;
@@ -400,7 +378,7 @@ HttpProxyPort::processOptions(const char *opts)
       this->processSessionProtocolPreference(value);
       sp_set_p = true;
     } else {
-      Warning("Invalid option '%s' in proxy port descriptor '%s'", item, opts);
+      Warning("Invalid option '%s' in proxy port configuration '%s'", item, opts);
     }
   }
 
@@ -408,11 +386,9 @@ HttpProxyPort::processOptions(const char *opts)
 
   if (af_set_p) {
     if (in_ip_set_p && m_family != m_inbound_ip.family()) {
-      std::string_view iname{ats_ip_family_name(m_inbound_ip.family())};
-      std::string_view fname{ats_ip_family_name(m_family)};
-      Warning("Invalid port descriptor '%s' - the inbound adddress family [%.*s] is not the same type as the explicit family value "
-              "[%.*s]",
-              opts, static_cast<int>(iname.size()), iname.data(), static_cast<int>(fname.size()), fname.data());
+      Warning(
+        "Invalid port descriptor '%s' - the inbound adddress family [%s] is not the same type as the explicit family value [%s]",
+        opts, ats_ip_family_name(m_inbound_ip.family()).ptr(), ats_ip_family_name(m_family).ptr());
       zret = false;
     }
   } else if (in_ip_set_p) {
@@ -560,10 +536,6 @@ HttpProxyPort::print(char *out, size_t n)
   }
   if (zret >= n) {
     return n;
-  }
-
-  if (m_proxy_protocol) {
-    zret += snprintf(out + zret, n - zret, ":%s", OPT_PROXY_PROTO);
   }
 
   if (m_outbound_transparent_p && m_inbound_transparent_p) {

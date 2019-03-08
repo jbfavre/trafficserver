@@ -21,13 +21,10 @@
 %define _hardened_build 1
 %endif
 
-# This can be overriden via command line option, e.g.  --define “release 12"
-%{!?release: %define release 1}
-
 Summary:	Apache Traffic Server, a reverse, forward and transparent HTTP proxy cache
 Name:		trafficserver
-Version:	8.0.2
-Release:	%{release}%{?dist}
+Version:	7.1.5
+Release:	1%{?dist}
 License:	Apache Software License 2.0 (AL2)
 Group:		System Environment/Daemons
 URL:		https://trafficserver.apache.org/
@@ -149,12 +146,14 @@ getent passwd ats >/dev/null || useradd -r -u 176 -g ats -d / -s /sbin/nologin -
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %doc README CHANGELOG* NOTICE STATUS
+%attr(0755, ats, ats) %dir /etc/trafficserver
 %config(noreplace) /etc/trafficserver/*
 %{_bindir}/traffic*
 %{_bindir}/tspush
 %dir %{_libdir}/trafficserver
 %dir %{_libdir}/trafficserver/plugins
 %{_libdir}/trafficserver/libts*.so*
+%{_libdir}/trafficserver/libats*.so*
 %{_libdir}/trafficserver/plugins/*.so
 
 %if %{?fedora}0 > 0 || %{?rhel}0 >= 70
@@ -163,13 +162,9 @@ getent passwd ats >/dev/null || useradd -r -u 176 -g ats -d / -s /sbin/nologin -
 %config(noreplace) /etc/init.d/trafficserver
 %endif
 
-# Change the default file and directory permissions
-%attr(0755, ats, ats) %dir /etc/trafficserver
 %attr(0755, ats, ats) %dir /var/log/trafficserver
 %attr(0755, ats, ats) %dir /run/trafficserver
 %attr(0755, ats, ats) %dir /var/cache/trafficserver
-%attr(0644, ats, ats) /etc/trafficserver/*.config
-%attr(0644, ats, ats) /etc/trafficserver/*.yaml
 
 %files perl
 %defattr(-,root,root,-)
@@ -180,16 +175,14 @@ getent passwd ats >/dev/null || useradd -r -u 176 -g ats -d / -s /sbin/nologin -
 %defattr(-,root,root,-)
 %{_bindir}/tsxs
 %{_includedir}/ts
-%{_includedir}/tscpp
+%{_includedir}/atscppapi
 %{_datadir}/pkgconfig/trafficserver.pc
 
 %changelog
-* Wed Sep 19 2018 Bryan Call <bcall@apache.org> - 8.0.0-1
-- Changed the owner ofthe configuration files to ats
-- Include files for the C++ APIs moved
-- C++ library name changed
-
 * Tue Dec 19 2017 Leif Hedstrom <zwoop@apache.org> - 7.1.2-1
 - Cleanup for 7.1.x, and various other changes. This needs more work
   upstream though, since I'm finding issues.
 - Losely based on ideas from the Fedora .spec
+
+* Fri Oct 19 2018 Leif Hedstrom <zwoop@apache.org> - 7.1.5-1
+- More cleanup, fixes from Bryan Call for permissions

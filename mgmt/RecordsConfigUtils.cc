@@ -21,9 +21,9 @@
   limitations under the License.
  */
 
-#include "tscore/ink_config.h"
+#include "ts/ink_config.h"
 #include "RecordsConfig.h"
-#include "tscore/ParseRules.h"
+#include "ts/ParseRules.h"
 
 //-------------------------------------------------------------------------
 // RecordsConfigOverrideFromEnvironment
@@ -51,7 +51,7 @@ override_record(const RecordElement *record, void *)
 
 // We process environment variable overrides when we parse the records.config configuration file, but the
 // operator might choose to override a variable that is not present in records.config so we have to post-
-// process the full set of configuration variables as well.
+// process the full set of configuration valriables as well.
 void
 RecordsConfigOverrideFromEnvironment()
 {
@@ -157,5 +157,6 @@ test_librecords()
 {
   RecRegisterStatInt(RECT_PROCESS, "proxy.process.librecords.testing.int", (RecInt)100, RECP_NON_PERSISTENT);
   RecRegisterStatFloat(RECT_NODE, "proxy.node.librecords.testing.float", (RecFloat)100.1, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_CLUSTER, "proxy.cluster.librecords.testing.string", (RecString) "Hello World\n", RECP_NON_PERSISTENT);
   RecRegisterStatCounter(RECT_LOCAL, "proxy.local.librecords.testing.counter", (RecCounter)99, RECP_NON_PERSISTENT);
 }

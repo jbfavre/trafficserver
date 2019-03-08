@@ -45,7 +45,8 @@ AC_ARG_WITH([tcmalloc], [AC_HELP_STRING([--with-tcmalloc=DIR], [use the tcmalloc
     fi
     AC_SEARCH_LIBS([tc_cfree], ${with_tcmalloc_lib}, [tcmalloc_have_lib=1])
     if test "$tcmalloc_have_lib" != "0"; then
-      has_tcmalloc=1
+      TS_ADDTO(LIBS, [-l${with_tcmalloc_lib}])
+      has_tcmalloc=1      
     fi
   fi
 ])

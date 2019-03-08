@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _INK_BULK_IO_H
+#define _INK_BULK_IO_H
 
 #ifndef _KERNEL_
 #include <netinet/ip.h>
@@ -164,3 +165,5 @@ struct InkBulkIORequest {
   ((INKBIO_PKT_SIZE_WO_UDPHDR -                                                                           \
     (sizeof(struct InkBulkIORequest) + sizeof(struct InkBulkIOPkt) + sizeof(struct InkBulkIOAddrInfo))) / \
    (sizeof(struct InkBulkIOPkt) + sizeof(struct InkBulkIOAddrInfo)))
+
+#endif

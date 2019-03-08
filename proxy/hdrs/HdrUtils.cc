@@ -31,7 +31,7 @@
 
  ****************************************************************************/
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "HdrUtils.h"
 
 #define GETNEXT()     \

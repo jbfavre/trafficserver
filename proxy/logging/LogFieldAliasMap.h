@@ -28,13 +28,13 @@
 
 #pragma once
 
-#include <cstdarg>
-#include <cstring>
+#include <stdarg.h>
+#include <string.h>
 
-#include "tscore/ink_platform.h"
-#include "tscore/Ptr.h"
+#include "ts/ink_platform.h"
+#include "ts/Ptr.h"
 #include "LogUtils.h"
-#include "tscore/ink_string.h"
+#include "ts/ink_string.h"
 
 /*****************************************************************************
 
@@ -86,8 +86,8 @@ public:
     BUFFER_TOO_SMALL,
   };
 
-  virtual int asInt(char *key, IntType *val, bool case_sensitive = false) const                 = 0;
-  virtual int asString(IntType key, char *buf, size_t bufLen, size_t *numChars = nullptr) const = 0;
+  virtual int asInt(char *key, IntType *val, bool case_sensitive = 0) const = 0;
+  virtual int asString(IntType key, char *buf, size_t bufLen, size_t *numChars = 0) const = 0;
 };
 
 /*****************************************************************************
@@ -107,7 +107,7 @@ struct LogFieldAliasTableEntry {
   char *name;    // the string equivalent
   size_t length; // the length of the string
 
-  LogFieldAliasTableEntry() : valid(false), name(nullptr), length(0) {}
+  LogFieldAliasTableEntry() : valid(false), name(NULL), length(0) {}
   ~LogFieldAliasTableEntry()
   {
     if (name) {
@@ -125,12 +125,12 @@ private:
   LogFieldAliasTableEntry *m_table; // array of table entries
 
 public:
-  LogFieldAliasTable() : m_min(0), m_max(0), m_entries(0), m_table(nullptr) {}
-  ~LogFieldAliasTable() override { delete[] m_table; }
+  LogFieldAliasTable() : m_min(0), m_max(0), m_entries(0), m_table(0) {}
+  ~LogFieldAliasTable() { delete[] m_table; }
   void init(size_t numPairs, ...);
 
   int
-  asInt(char *key, IntType *val, bool case_sensitive) const override
+  asInt(char *key, IntType *val, bool case_sensitive) const
   {
     int retVal = INVALID_STRING;
 
@@ -156,7 +156,7 @@ public:
   }
 
   int
-  asString(IntType key, char *buf, size_t bufLen, size_t *numCharsPtr = nullptr) const override
+  asString(IntType key, char *buf, size_t bufLen, size_t *numCharsPtr = 0) const
   {
     int retVal;
     size_t numChars;
@@ -194,7 +194,7 @@ class LogFieldAliasTimeHex : public LogFieldAliasMap
 {
 public:
   int
-  asInt(char *str, IntType *time, bool /* case_sensitive ATS_UNUSED */) const override
+  asInt(char *str, IntType *time, bool /* case_sensitive ATS_UNUSED */) const
   {
     unsigned long a;
     // coverity[secure_coding]
@@ -207,7 +207,7 @@ public:
   }
 
   int
-  asString(IntType time, char *buf, size_t bufLen, size_t *numCharsPtr = nullptr) const override
+  asString(IntType time, char *buf, size_t bufLen, size_t *numCharsPtr = 0) const
   {
     return (LogUtils::timestamp_to_hex_str(time, buf, bufLen, numCharsPtr) ? BUFFER_TOO_SMALL : ALL_OK);
   }

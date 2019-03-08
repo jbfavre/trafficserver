@@ -27,7 +27,7 @@
 
 #ifdef SOCKS_WITH_TS
 #include "ParentSelection.h"
-#include "tscore/IpMap.h"
+#include <ts/IpMap.h>
 #endif
 
 enum {
@@ -107,31 +107,31 @@ class UnixNetVConnection;
 typedef UnixNetVConnection SocksNetVC;
 
 struct SocksEntry : public Continuation {
-  MIOBuffer *buf         = nullptr;
-  IOBufferReader *reader = nullptr;
+  MIOBuffer *buf;
+  IOBufferReader *reader;
 
-  SocksNetVC *netVConnection = nullptr;
+  SocksNetVC *netVConnection;
 
   // Changed from @a ip and @a port.
   IpEndpoint target_addr; ///< Original target address.
   // Changed from @a server_ip, @a server_port.
   IpEndpoint server_addr; ///< Origin server address.
 
-  int nattempts = 0;
+  int nattempts;
 
   Action action_;
-  int lerrno            = 0;
-  Event *timeout        = nullptr;
-  unsigned char version = 5;
+  int lerrno;
+  Event *timeout;
+  unsigned char version;
 
-  bool write_done = false;
+  bool write_done;
 
-  SocksAuthHandler auth_handler = nullptr;
-  unsigned char socks_cmd       = NORMAL_SOCKS;
+  SocksAuthHandler auth_handler;
+  unsigned char socks_cmd;
 
 #ifdef SOCKS_WITH_TS
   // socks server selection:
-  ParentConfigParams *server_params = nullptr;
+  ParentConfigParams *server_params;
   HttpRequestData req_data; // We dont use any http specific fields.
   ParentResult server_result;
 #endif
@@ -143,6 +143,15 @@ struct SocksEntry : public Continuation {
   void free();
 
   SocksEntry()
+    : Continuation(nullptr),
+      netVConnection(0),
+      nattempts(0),
+      lerrno(0),
+      timeout(0),
+      version(5),
+      write_done(false),
+      auth_handler(nullptr),
+      socks_cmd(NORMAL_SOCKS)
   {
     memset(&target_addr, 0, sizeof(target_addr));
     memset(&server_addr, 0, sizeof(server_addr));
@@ -160,6 +169,6 @@ SocksAddrType::reset()
     ats_free(addr.buf);
   }
 
-  addr.buf = nullptr;
+  addr.buf = 0;
   type     = SOCKS_ATYPE_NONE;
 }

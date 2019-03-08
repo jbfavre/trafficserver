@@ -51,8 +51,6 @@ Example
     #include <stdio.h>
     #include <ts/ts.h>
 
-    #define PLUGIN_NAME "hello_world"
-
     int
     check_ts_version()
     {
@@ -82,21 +80,20 @@ Example
     TSPluginInit (int argc, const char *argv[])
     {
         TSPluginRegistrationInfo info;
-
-        info.plugin_name = PLUGIN_NAME;
+        info.plugin_name = "hello-world";
         info.vendor_name = "MyCompany";
         info.support_email = "ts-api-support@MyCompany.com";
 
         if (TSPluginRegister(&info) != TS_SUCCESS) {
-            TSError("[%s] Plugin registration failed", PLUGIN_NAME);
+            TSError("Plugin registration failed. 0);
         }
 
         if (!check_ts_version()) {
-            TSError("[%s] Plugin requires Traffic Server 3.0 or later", PLUGIN_NAME);
+            TSError("Plugin requires Traffic Server 3.0 or later0);
             return;
         }
 
-        TSDebug(PLUGIN_NAME, "Hello World!");
+        TSDebug("debug-hello", "Hello World!0);
     }
 
 See Also

@@ -25,13 +25,14 @@
 #include <I_EventSystem.h>
 #include <P_EventSystem.h> // TODO: less? just need ET_TASK
 
-#include "tscore/Map.h"
-#include "tscore/PriorityQueue.h"
+#include <ts/Map.h>
+#include <ts/PriorityQueue.h>
 
-#include "tscore/List.h"
-#include "tscore/ink_hrtime.h"
+#include <ts/List.h>
+#include <ts/ink_hrtime.h>
 
-#include "tscore/I_Version.h"
+#include <ts/Vec.h>
+#include <ts/I_Version.h>
 #include <unistd.h>
 
 #define REFCOUNT_CACHE_EVENT_SYNC REFCOUNT_CACHE_EVENT_EVENTS_START
@@ -152,7 +153,7 @@ public:
   template <class Iterator> void dealloc_entry(Iterator ptr);
 
   size_t count() const;
-  void copy(std::vector<RefCountCacheHashEntry *> &items);
+  void copy(Vec<RefCountCacheHashEntry *> &items);
 
   typedef typename TSHashTable<RefCountCacheHashing>::iterator iterator_type;
   typedef typename TSHashTable<RefCountCacheHashing>::self hash_type;
@@ -337,7 +338,7 @@ RefCountCachePartition<C>::count() const
 
 template <class C>
 void
-RefCountCachePartition<C>::copy(std::vector<RefCountCacheHashEntry *> &items)
+RefCountCachePartition<C>::copy(Vec<RefCountCacheHashEntry *> &items)
 {
   for (RefCountCachePartition<C>::iterator_type i = this->item_map.begin(); i != this->item_map.end(); ++i) {
     RefCountCacheHashEntry *val = RefCountCacheHashEntry::alloc();
@@ -417,7 +418,7 @@ private:
   int max_size;  // Total size
   int max_items; // Total number of items allowed
   unsigned int num_partitions;
-  std::vector<RefCountCachePartition<C> *> partitions;
+  Vec<RefCountCachePartition<C> *> partitions;
   // Header
   RefCountCacheHeader header; // Our header
   RecRawStatBlock *rsb;

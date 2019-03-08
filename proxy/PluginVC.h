@@ -37,7 +37,7 @@
 
 #include "Plugin.h"
 #include "P_Net.h"
-#include "tscore/ink_atomic.h"
+#include "ts/ink_atomic.h"
 
 class PluginVCCore;
 
@@ -47,7 +47,9 @@ struct PluginVCState {
   bool shutdown;
 };
 
-inline PluginVCState::PluginVCState() : vio(), shutdown(false) {}
+inline PluginVCState::PluginVCState() : vio(), shutdown(false)
+{
+}
 
 enum PluginVC_t {
   PLUGIN_VC_UNKNOWN,
@@ -72,43 +74,41 @@ class PluginVC : public NetVConnection, public PluginIdentity
 
 public:
   PluginVC(PluginVCCore *core_obj);
-  ~PluginVC() override;
+  ~PluginVC();
 
-  VIO *do_io_read(Continuation *c = nullptr, int64_t nbytes = INT64_MAX, MIOBuffer *buf = nullptr) override;
+  virtual VIO *do_io_read(Continuation *c = NULL, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0);
 
-  VIO *do_io_write(Continuation *c = nullptr, int64_t nbytes = INT64_MAX, IOBufferReader *buf = nullptr,
-                   bool owner = false) override;
+  virtual VIO *do_io_write(Continuation *c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader *buf = 0, bool owner = false);
 
-  void do_io_close(int lerrno = -1) override;
-  void do_io_shutdown(ShutdownHowTo_t howto) override;
+  virtual void do_io_close(int lerrno = -1);
+  virtual void do_io_shutdown(ShutdownHowTo_t howto);
 
   // Reenable a given vio.  The public interface is through VIO::reenable
-  void reenable(VIO *vio) override;
-  void reenable_re(VIO *vio) override;
+  virtual void reenable(VIO *vio);
+  virtual void reenable_re(VIO *vio);
 
   // Timeouts
-  void set_active_timeout(ink_hrtime timeout_in) override;
-  void set_inactivity_timeout(ink_hrtime timeout_in) override;
-  void cancel_active_timeout() override;
-  void cancel_inactivity_timeout() override;
-  void add_to_keep_alive_queue() override;
-  void remove_from_keep_alive_queue() override;
-  bool add_to_active_queue() override;
-  ink_hrtime get_active_timeout() override;
-  ink_hrtime get_inactivity_timeout() override;
+  virtual void set_active_timeout(ink_hrtime timeout_in);
+  virtual void set_inactivity_timeout(ink_hrtime timeout_in);
+  virtual void cancel_active_timeout();
+  virtual void cancel_inactivity_timeout();
+  virtual void add_to_keep_alive_queue();
+  virtual void remove_from_keep_alive_queue();
+  virtual bool add_to_active_queue();
+  virtual ink_hrtime get_active_timeout();
+  virtual ink_hrtime get_inactivity_timeout();
 
   // Pure virutal functions we need to compile
-  SOCKET get_socket() override;
-  void set_local_addr() override;
-  void set_remote_addr() override;
-  void set_remote_addr(const sockaddr *) override;
-  int set_tcp_init_cwnd(int init_cwnd) override;
-  int set_tcp_congestion_control(int) override;
+  virtual SOCKET get_socket();
+  virtual void set_local_addr();
+  virtual void set_remote_addr();
+  virtual int set_tcp_init_cwnd(int init_cwnd);
+  virtual int set_tcp_congestion_control(int);
 
-  void apply_options() override;
+  virtual void apply_options();
 
-  bool get_data(int id, void *data) override;
-  bool set_data(int id, void *data) override;
+  virtual bool get_data(int id, void *data);
+  virtual bool set_data(int id, void *data);
 
   virtual PluginVC *
   get_other_side()
@@ -118,14 +118,14 @@ public:
 
   //@{ @name Plugin identity.
   /// Override for @c PluginIdentity.
-  const char *
-  getPluginTag() const override
+  virtual const char *
+  getPluginTag() const
   {
     return plugin_tag;
   }
   /// Override for @c PluginIdentity.
-  int64_t
-  getPluginId() const override
+  virtual int64_t
+  getPluginId() const
   {
     return plugin_id;
   }
@@ -173,7 +173,7 @@ private:
   bool need_read_process;
   bool need_write_process;
 
-  bool closed;
+  volatile bool closed;
   Event *sm_lock_retry_event;
   Event *core_lock_retry_event;
 
@@ -197,7 +197,7 @@ class PluginVCCore : public Continuation
 
 public:
   PluginVCCore();
-  ~PluginVCCore() override;
+  ~PluginVCCore();
 
   // Allocate a PluginVCCore object, passing the continuation which
   // will receive NET_EVENT_ACCEPT to accept the new session.
@@ -215,17 +215,17 @@ public:
   /// Set the active address.
   void set_active_addr(in_addr_t ip, ///< IPv4 address in host order.
                        int port      ///< IP Port in host order.
-  );
+                       );
   /// Set the active address and port.
   void set_active_addr(sockaddr const *ip ///< Address and port used.
-  );
+                       );
   /// Set the passive address.
   void set_passive_addr(in_addr_t ip, ///< IPv4 address in host order.
                         int port      ///< IP port in host order.
-  );
+                        );
   /// Set the passive address.
   void set_passive_addr(sockaddr const *ip ///< Address and port.
-  );
+                        );
 
   void set_active_data(void *data);
   void set_passive_data(void *data);
@@ -262,21 +262,21 @@ private:
   void *passive_data;
   void *active_data;
 
-  static int32_t nextid;
+  static vint32 nextid;
   unsigned id;
 };
 
 inline PluginVCCore::PluginVCCore()
   : active_vc(this),
     passive_vc(this),
-    connect_to(nullptr),
+    connect_to(NULL),
     connected(false),
-    p_to_a_buffer(nullptr),
-    p_to_a_reader(nullptr),
-    a_to_p_buffer(nullptr),
-    a_to_p_reader(nullptr),
-    passive_data(nullptr),
-    active_data(nullptr),
+    p_to_a_buffer(NULL),
+    p_to_a_reader(NULL),
+    a_to_p_buffer(NULL),
+    a_to_p_reader(NULL),
+    passive_data(NULL),
+    active_data(NULL),
     id(0)
 {
   memset(&active_addr_struct, 0, sizeof active_addr_struct);

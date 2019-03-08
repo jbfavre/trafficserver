@@ -27,7 +27,7 @@
  This file implements the LogField object, which is the central
  representation of a logging field.
  ***************************************************************************/
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 
 #include "LogUtils.h"
 #include "LogField.h"
@@ -168,7 +168,7 @@ struct cmp_str {
     return ptr_len_casecmp(a._ptr, a._size, b._ptr, b._size) < 0;
   }
 };
-} // namespace
+}
 
 typedef std::map<ts::ConstBuffer, TSMilestonesType, cmp_str> milestone_map;
 static milestone_map m_milestone_map;
@@ -201,8 +201,6 @@ static const milestone milestones[] = {
   {"TS_MILESTONE_SM_FINISH", TS_MILESTONE_SM_FINISH},
   {"TS_MILESTONE_PLUGIN_ACTIVE", TS_MILESTONE_PLUGIN_ACTIVE},
   {"TS_MILESTONE_PLUGIN_TOTAL", TS_MILESTONE_PLUGIN_TOTAL},
-  {"TS_MILESTONE_TLS_HANDSHAKE_START", TS_MILESTONE_TLS_HANDSHAKE_START},
-  {"TS_MILESTONE_TLS_HANDSHAKE_END", TS_MILESTONE_TLS_HANDSHAKE_END},
 };
 
 void
@@ -647,9 +645,8 @@ LogField::update_aggregate(int64_t val)
     return;
   }
 
-  Debug("log-agg",
-        "Aggregate field %s updated with val %" PRId64 ", "
-        "new val = %" PRId64 ", cnt = %" PRId64 "",
+  Debug("log-agg", "Aggregate field %s updated with val %" PRId64 ", "
+                   "new val = %" PRId64 ", cnt = %" PRId64 "",
         m_symbol, val, m_agg_val, m_agg_cnt);
 }
 
@@ -678,9 +675,9 @@ LogField::valid_aggregate_name(char *name)
 }
 
 bool
-LogField::fieldlist_contains_aggregates(const char *fieldlist)
+LogField::fieldlist_contains_aggregates(char *fieldlist)
 {
-  const char *match;
+  char *match;
 
   for (unsigned i = 1; i < countof(aggregate_names); i++) {
     if ((match = strstr(fieldlist, aggregate_names[i])) != nullptr) {
@@ -701,7 +698,9 @@ LogField::fieldlist_contains_aggregates(const char *fieldlist)
   heap with "new" and that each element is on at most ONE list.  To enforce
   this, items are copied by default, using the copy ctor.
   -------------------------------------------------------------------------*/
-LogFieldList::LogFieldList() : m_marshal_len(0) {}
+LogFieldList::LogFieldList() : m_marshal_len(0)
+{
+}
 
 LogFieldList::~LogFieldList()
 {
@@ -773,9 +772,7 @@ LogFieldList::marshal_len(LogAccess *lad)
   int bytes = 0;
   for (LogField *f = first(); f; f = next(f)) {
     if (f->type() != LogField::sINT) {
-      const int len = f->marshal_len(lad);
-      ink_release_assert(len >= INK_MIN_ALIGN);
-      bytes += len;
+      bytes += f->marshal_len(lad);
     }
   }
   return m_marshal_len + bytes;

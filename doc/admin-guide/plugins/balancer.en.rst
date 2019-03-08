@@ -10,9 +10,9 @@ Balancer Plugin
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
-
+ 
    http://www.apache.org/licenses/LICENSE-2.0
-
+ 
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,10 +20,6 @@ Balancer Plugin
   specific language governing permissions and limitations
   under the License.
 
-.. note::
-
-  All of the the features in this plugin (and more) are found in
-  :file:`parent.config`. As a result, this plugin is likely to be deprecated.
 
 The ``balancer`` balances requests across multiple origin servers.
 To use this plugin, configure it in a :file:`remap.config` rule, specifying

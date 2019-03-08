@@ -20,15 +20,15 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#pragma once
+#ifndef NEW_FETCHER_H
+#define NEW_FETCHER_H
 
 #include <arpa/inet.h>
 #include <iostream>
 #include <limits>
 #include <netinet/in.h>
 
-#include <cinttypes>
+#include <inttypes.h>
 
 #include "chunk-decoder.h"
 #include "ts.h"
@@ -112,12 +112,12 @@ template <class T> struct HttpTransaction {
     : parsingHeaders_(false),
       abort_(false),
       timeout_(false),
-      in_(nullptr),
+      in_(NULL),
       out_(i),
       vconnection_(v),
       continuation_(c),
       t_(t),
-      chunkDecoder_(nullptr)
+      chunkDecoder_(NULL)
   {
     assert(vconnection_ != NULL);
     assert(continuation_ != NULL);
@@ -157,14 +157,14 @@ template <class T> struct HttpTransaction {
   static bool
   isChunkEncoding(const TSMBuffer b, const TSMLoc l)
   {
-    assert(b != nullptr);
-    assert(l != nullptr);
+    assert(b != NULL);
+    assert(l != NULL);
     bool result        = false;
     const TSMLoc field = TSMimeHdrFieldFind(b, l, TS_MIME_FIELD_TRANSFER_ENCODING, TS_MIME_LEN_TRANSFER_ENCODING);
-    if (field != nullptr) {
+    if (field != NULL) {
       int length;
       const char *const value = TSMimeHdrFieldValueStringGet(b, l, field, -1, &length);
-      if (value != nullptr && length == TS_HTTP_LEN_CHUNKED) {
+      if (value != NULL && length == TS_HTTP_LEN_CHUNKED) {
         result = strncasecmp(value, TS_HTTP_VALUE_CHUNKED, TS_HTTP_LEN_CHUNKED) == 0;
       }
       TSHandleMLocRelease(b, l, field);
@@ -183,7 +183,7 @@ template <class T> struct HttpTransaction {
       self->t_.error();
       self->abort();
       close(self);
-      TSContDataSet(c, nullptr);
+      TSContDataSet(c, NULL);
       break;
     case TS_EVENT_VCONN_EOS:
       TSDebug(PLUGIN_TAG, "HttpTransaction: EOS");
@@ -215,14 +215,11 @@ template <class T> struct HttpTransaction {
         if (!self->parsingHeaders_) {
           if (self->chunkDecoder_ != NULL) {
             available = self->chunkDecoder_->decode(self->in_->reader);
-            if (available == 0) {
-              self->t_.data(self->in_->reader, available);
-            }
-            while (available > 0) {
+            do {
               self->t_.data(self->in_->reader, available);
               TSIOBufferReaderConsume(self->in_->reader, available);
               available = self->chunkDecoder_->decode(self->in_->reader);
-            }
+            } while (available > 0);
           } else {
             self->t_.data(self->in_->reader, available);
             TSIOBufferReaderConsume(self->in_->reader, available);
@@ -232,14 +229,14 @@ template <class T> struct HttpTransaction {
       if (e == TS_EVENT_VCONN_READ_COMPLETE || e == TS_EVENT_VCONN_EOS) {
         self->t_.done();
         close(self);
-        TSContDataSet(c, nullptr);
+        TSContDataSet(c, NULL);
       } else if (self->chunkDecoder_ != NULL && self->chunkDecoder_->isEnd()) {
         assert(self->parsingHeaders_ == false);
         assert(isChunkEncoding(self->parser_.buffer_, self->parser_.location_));
         self->abort();
         self->t_.done();
         close(self);
-        TSContDataSet(c, nullptr);
+        TSContDataSet(c, NULL);
       } else {
         TSVIOReenable(self->in_->vio);
       }
@@ -268,7 +265,7 @@ template <class T> struct HttpTransaction {
       self->t_.timeout();
       self->abort();
       close(self);
-      TSContDataSet(c, nullptr);
+      TSContDataSet(c, NULL);
       break;
 
     default:
@@ -291,9 +288,9 @@ get(const std::string &a, io::IO *const i, const int64_t l, const T &t, const in
     return false;
   }
   TSVConn vconn = TSHttpConnect(reinterpret_cast<sockaddr *>(&socket));
-  assert(vconn != nullptr);
-  TSCont contp = TSContCreate(Transaction::handle, TSMutexCreate());
-  assert(contp != nullptr);
+  assert(vconn != NULL);
+  TSCont contp = TSContCreate(Transaction::handle, NULL);
+  assert(contp != NULL);
   Transaction *transaction = new Transaction(vconn, contp, i, l, t);
   TSContDataSet(contp, transaction);
   if (ti > 0) {
@@ -309,4 +306,6 @@ get(io::IO *const i, const int64_t l, const T &t, const int64_t ti = 0)
 {
   return get("127.0.0.1", i, l, t, ti);
 }
-} // namespace ats
+} // end of ats namespace
+
+#endif // NEW_FETCHER_H

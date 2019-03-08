@@ -27,9 +27,9 @@
 
  ***************************************************************************/
 
-#include "tscore/ink_platform.h"
-#include "tscore/SimpleTokenizer.h"
-#include "tscore/ink_file.h"
+#include "ts/ink_platform.h"
+#include "ts/SimpleTokenizer.h"
+#include "ts/ink_file.h"
 
 #include <cerrno>
 #include <sys/types.h>
@@ -40,7 +40,7 @@
 #include "I_Machine.h"
 #include "LogSock.h"
 
-#include "tscore/BaseLogFile.h"
+#include "ts/BaseLogFile.h"
 #include "LogField.h"
 #include "LogFilter.h"
 #include "LogFormat.h"
@@ -193,6 +193,14 @@ LogFile::open_file()
     }
   }
 
+  int e = do_filesystem_checks();
+  if (e != 0) {
+    m_fd = -1; // reset to error condition
+    delete m_log;
+    m_log = nullptr;
+    return LOG_FILE_FILESYSTEM_CHECKS_FAILED;
+  }
+
   //
   // If we've opened the file and it didn't already exist, then this is a
   // "new" file and we need to make some initializations.  This is the
@@ -247,7 +255,20 @@ int
 LogFile::roll(long interval_start, long interval_end)
 {
   if (m_log) {
-    return m_log->roll(interval_start, interval_end);
+    // Due to commit 346b419 the BaseLogFile::close_file() is no longer called within BaseLogFile::roll().
+    // For diagnostic log files, the rolling is implemented by renaming and destroying the BaseLogFile object
+    // and then creating a new BaseLogFile object with the original filename. Due to possible race conditions
+    // the old/new object swap happens within lock/unlock calls within Diags.cc.
+    // For logging log files, the rolling is implemented by renaming the original file and closing it.
+    // Afterwards, the LogFile object will re-open a new file with the original file name using the original object.
+    // There is no need to protect against contention since the open/close/writes are all executed under a
+    // single log flush thread.
+    // Since these two methods of using BaseLogFile are not compatible, we perform the logging log file specific
+    // close file operation here within the containing LogFile object.
+    if (m_log->roll(interval_start, interval_end)) {
+      m_log->close_file();
+      return 1;
+    }
   }
 
   return 0;
@@ -408,9 +429,8 @@ LogFile::write_ascii_logbuffer(LogBufferHeader *buffer_header, int fd, const cha
 int
 LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_format)
 {
-  Debug("log-file",
-        "entering LogFile::write_ascii_logbuffer3 for %s "
-        "(this=%p)",
+  Debug("log-file", "entering LogFile::write_ascii_logbuffer3 for %s "
+                    "(this=%p)",
         m_name, this);
   ink_assert(buffer_header != nullptr);
 

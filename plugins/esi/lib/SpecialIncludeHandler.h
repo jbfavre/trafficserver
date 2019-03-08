@@ -57,7 +57,7 @@ public:
   virtual void
   getFooter(const char *&footer, int &footer_len)
   {
-    footer     = nullptr;
+    footer     = NULL;
     footer_len = 0;
   }
 
@@ -68,6 +68,6 @@ protected:
   Expression &_esi_expr;
   HttpDataFetcher &_http_fetcher;
 };
-}; // namespace EsiLib
+};
 
 #endif

@@ -22,13 +22,13 @@
 */
 #pragma once
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #undef std // FIXME: remove dependancy on the STL
 #include <map>
 
 #include "URL.h"
 #include "UrlMapping.h"
-#include "tscore/Trie.h"
+#include "ts/Trie.h"
 
 class UrlMappingPathIndex
 {
@@ -92,6 +92,6 @@ private:
     if (group_iter != m_tries.end()) {
       return group_iter->second;
     }
-    return nullptr;
+    return 0;
   }
 };

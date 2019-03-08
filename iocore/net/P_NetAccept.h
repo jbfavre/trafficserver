@@ -38,8 +38,7 @@
  ****************************************************************************/
 #pragma once
 
-#include <vector>
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "P_Connection.h"
 
 struct NetAccept;
@@ -61,7 +60,7 @@ struct NetAcceptAction : public Action, public RefCountObj {
   Server *server;
 
   void
-  cancel(Continuation *cont = nullptr) override
+  cancel(Continuation *cont = nullptr)
   {
     Action::cancel(cont);
     server->close();
@@ -73,7 +72,7 @@ struct NetAcceptAction : public Action, public RefCountObj {
     return Action::operator=(acont);
   }
 
-  ~NetAcceptAction() override { Debug("net_accept", "NetAcceptAction dying"); }
+  ~NetAcceptAction() { Debug("net_accept", "NetAcceptAction dying"); }
 };
 
 //
@@ -98,7 +97,6 @@ struct NetAccept : public Continuation {
   void init_accept_loop(const char *);
   virtual void init_accept(EThread *t = nullptr);
   virtual void init_accept_per_thread();
-  virtual void stop_accept();
   virtual NetAccept *clone() const;
 
   // 0 == success
@@ -111,8 +109,5 @@ struct NetAccept : public Continuation {
   void cancel();
 
   explicit NetAccept(const NetProcessor::AcceptOptions &);
-  ~NetAccept() override { action_ = nullptr; }
+  virtual ~NetAccept() { action_ = nullptr; }
 };
-
-extern Ptr<ProxyMutex> naVecMutex;
-extern std::vector<NetAccept *> naVec;

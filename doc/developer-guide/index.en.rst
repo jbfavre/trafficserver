@@ -43,15 +43,11 @@ duplicate bugs is encouraged, but not required.
    contributing/index.en
    testing-with-vagrant/index.en
    debugging/index.en
-   threads-and-events.en
-   cache-architecture/index.en
-   logging-architecture/index.en
-   internal-libraries/index.en
+   architecture/index.en
    plugins/index.en
    config-vars.en
    api/index.en
    continuous-integration/index.en
    documentation/index.en
    host-resolution-proposal.en
-   client-session-architecture.en
-   core-architecture/index.en
+

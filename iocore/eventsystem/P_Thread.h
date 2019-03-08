@@ -35,6 +35,10 @@
 ///////////////////////////////////////////////
 // Common Interface impl                     //
 ///////////////////////////////////////////////
+TS_INLINE
+Thread::~Thread()
+{
+}
 
 TS_INLINE void
 Thread::set_specific()

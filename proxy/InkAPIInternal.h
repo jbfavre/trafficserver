@@ -26,21 +26,26 @@
 #include "P_EventSystem.h"
 #include "URL.h"
 #include "P_Net.h"
+#include "ts.h"
+#include "experimental.h"
+#include "InkAPIPrivateIOCore.h"
 #include "HTTP.h"
-#include "tscore/List.h"
+#include "ts/List.h"
 #include "ProxyConfig.h"
 #include "P_Cache.h"
 #include "I_Tasks.h"
 
-#include "ts/InkAPIPrivateIOCore.h"
-#include "ts/experimental.h"
-
-#include <typeinfo>
-
 /* Some defines that might be candidates for configurable settings later.
  */
-#define TS_HTTP_MAX_USER_ARG 16 /* max number of user arguments for Transactions and Sessions */
+#define HTTP_SSN_TXN_MAX_USER_ARG 16 /* max number of user arguments for Transactions and Sessions */
 
+typedef enum {
+  OVERRIDABLE_TYPE_NULL = 0,
+  OVERRIDABLE_TYPE_INT,
+  OVERRIDABLE_TYPE_FLOAT,
+  OVERRIDABLE_TYPE_STRING,
+  OVERRIDABLE_TYPE_BYTE
+} OverridableDataType;
 typedef int8_t TSMgmtByte; // Not for external use
 
 /* ****** Cache Structure ********* */
@@ -52,7 +57,7 @@ enum CacheInfoMagic {
 };
 
 struct CacheInfo {
-  CryptoHash cache_key;
+  INK_MD5 cache_key;
   CacheFragType frag_type;
   char *hostname;
   int len;
@@ -62,7 +67,7 @@ struct CacheInfo {
   CacheInfo()
   {
     frag_type    = CACHE_FRAG_TYPE_NONE;
-    hostname     = nullptr;
+    hostname     = NULL;
     len          = 0;
     pin_in_cache = 0;
     magic        = CACHE_INFO_MAGIC_ALIVE;
@@ -83,24 +88,24 @@ public:
 
   int fopen(const char *filename, const char *mode);
   void fclose();
-  ssize_t fread(void *buf, size_t length);
-  ssize_t fwrite(const void *buf, size_t length);
-  ssize_t fflush();
-  char *fgets(char *buf, size_t length);
+  int fread(void *buf, int length);
+  int fwrite(const void *buf, int length);
+  int fflush();
+  char *fgets(char *buf, int length);
 
 public:
   int m_fd;
   int m_mode;
   char *m_buf;
-  size_t m_bufsize;
-  size_t m_bufpos;
+  int m_bufsize;
+  int m_bufpos;
 };
 
 struct INKConfigImpl : public ConfigInfo {
   void *mdata;
   TSConfigDestroyFunc m_destroy_func;
 
-  ~INKConfigImpl() override { m_destroy_func(mdata); }
+  virtual ~INKConfigImpl() { m_destroy_func(mdata); }
 };
 
 struct HttpAltInfo {
@@ -144,13 +149,13 @@ private:
 inline bool
 APIHooks::is_empty() const
 {
-  return nullptr == m_hooks.head;
+  return NULL == m_hooks.head;
 }
 
 inline void
 APIHooks::invoke(int event, void *data)
 {
-  for (APIHook *hook = m_hooks.head; nullptr != hook; hook = hook->next())
+  for (APIHook *hook = m_hooks.head; NULL != hook; hook = hook->next())
     hook->invoke(event, data);
 }
 
@@ -202,7 +207,9 @@ private:
   APIHooks m_hooks[N];
 };
 
-template <typename ID, ID N> FeatureAPIHooks<ID, N>::FeatureAPIHooks() : hooks_p(false) {}
+template <typename ID, ID N> FeatureAPIHooks<ID, N>::FeatureAPIHooks() : hooks_p(false)
+{
+}
 
 template <typename ID, ID N> FeatureAPIHooks<ID, N>::~FeatureAPIHooks()
 {
@@ -243,7 +250,7 @@ template <typename ID, ID N>
 APIHook *
 FeatureAPIHooks<ID, N>::get(ID id) const
 {
-  return likely(is_valid(id)) ? m_hooks[id].get() : nullptr;
+  return likely(is_valid(id)) ? m_hooks[id].get() : NULL;
 }
 
 template <typename ID, ID N>
@@ -275,13 +282,9 @@ class HttpAPIHooks : public FeatureAPIHooks<TSHttpHookID, TS_HTTP_LAST_HOOK>
 
 typedef enum {
   TS_SSL_INTERNAL_FIRST_HOOK,
-  TS_VCONN_START_INTERNAL_HOOK = TS_SSL_INTERNAL_FIRST_HOOK,
-  TS_VCONN_CLOSE_INTERNAL_HOOK,
+  TS_VCONN_PRE_ACCEPT_INTERNAL_HOOK = TS_SSL_INTERNAL_FIRST_HOOK,
   TS_SSL_CERT_INTERNAL_HOOK,
   TS_SSL_SERVERNAME_INTERNAL_HOOK,
-  TS_SSL_SERVER_VERIFY_INTERNAL_HOOK,
-  TS_SSL_VERIFY_CLIENT_INTERNAL_HOOK,
-  TS_SSL_SESSION_INTERNAL_HOOK,
   TS_SSL_INTERNAL_LAST_HOOK
 } TSSslHookInternalID;
 
@@ -309,11 +312,11 @@ public:
       if (!trylock.is_locked()) {
         eventProcessor.schedule_in(this, HRTIME_MSECONDS(10), ET_TASK);
       } else {
-        m_cont->handleEvent(TS_EVENT_MGMT_UPDATE, nullptr);
+        m_cont->handleEvent(TS_EVENT_MGMT_UPDATE, NULL);
         delete this;
       }
     } else {
-      m_cont->handleEvent(TS_EVENT_MGMT_UPDATE, nullptr);
+      m_cont->handleEvent(TS_EVENT_MGMT_UPDATE, NULL);
       delete this;
     }
 

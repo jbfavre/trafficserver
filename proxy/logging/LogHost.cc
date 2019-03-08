@@ -26,7 +26,7 @@
 
 
  ***************************************************************************/
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 
 #include "LogUtils.h"
 #include "LogSock.h"
@@ -158,9 +158,9 @@ bool
 LogHost::set_name_or_ipstr(const char *name_or_ip)
 {
   if (name_or_ip && name_or_ip[0] != '\0') {
-    std::string_view addr, port;
-    if (ats_ip_parse(std::string_view(name_or_ip), &addr, &port) == 0) {
-      uint16_t p = port.empty() ? Log::config->collation_port : atoi(port.data());
+    ts::ConstBuffer addr, port;
+    if (ats_ip_parse(ts::ConstBuffer(name_or_ip, strlen(name_or_ip)), &addr, &port) == 0) {
+      uint16_t p = port ? atoi(port.data()) : Log::config->collation_port;
       char *n    = const_cast<char *>(addr.data());
       // Force termination. We know we can do this because the address
       // string is followed by either a nul or a colon.
@@ -248,7 +248,7 @@ LogHost::disconnect()
 // and try to delete it when its reference become zero.
 //
 bool
-LogHost::preproc_and_try_delete(LogBuffer *&lb)
+LogHost::preproc_and_try_delete(LogBuffer *lb)
 {
   if (lb == nullptr) {
     Note("Cannot write LogBuffer to LogHost %s; LogBuffer is NULL", name());
@@ -272,7 +272,7 @@ LogHost::preproc_and_try_delete(LogBuffer *&lb)
     ink_assert(m_log_collation_client_sm != nullptr);
   }
 
-  // send log_buffer
+  // send log_buffer;
   if (m_log_collation_client_sm->send(lb) <= 0) {
     goto done;
   }
@@ -289,7 +289,7 @@ done:
 // try to delete it when its reference become zero.
 //
 void
-LogHost::orphan_write_and_try_delete(LogBuffer *&lb)
+LogHost::orphan_write_and_try_delete(LogBuffer *lb)
 {
   RecIncrRawStat(log_rsb, this_thread()->mutex->thread_holding, log_stat_num_lost_before_sent_to_network_stat,
                  lb->header()->entry_count);
@@ -363,7 +363,9 @@ LogHost::authenticated()
   LogHostList
   -------------------------------------------------------------------------*/
 
-LogHostList::LogHostList() {}
+LogHostList::LogHostList()
+{
+}
 
 LogHostList::~LogHostList()
 {
@@ -426,14 +428,12 @@ LogHostList::preproc_and_try_delete(LogBuffer *lb)
     nr--;
   }
 
-  if (lb != nullptr && need_orphan && available_host) {
+  if (need_orphan && available_host) {
     ink_atomic_increment(&lb->m_references, 1);
     available_host->orphan_write_and_try_delete(lb);
   }
 
-  if (lb != nullptr) {
-    LogBuffer::destroy(lb);
-  }
+  LogBuffer::destroy(lb);
   return 0;
 }
 
@@ -463,4 +463,15 @@ LogHostList::operator==(LogHostList &rhs)
     }
   }
   return true;
+}
+
+int
+LogHostList::do_filesystem_checks()
+{
+  for (LogHost *host = first(); host; host = next(host)) {
+    if (host->do_filesystem_checks() < 0) {
+      return -1;
+    }
+  }
+  return 0;
 }

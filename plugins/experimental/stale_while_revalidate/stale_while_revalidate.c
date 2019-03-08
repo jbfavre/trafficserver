@@ -31,7 +31,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "tscore/ink_defs.h"
+#include "ts/ink_defs.h"
 #include "ts/ts.h"
 #include "ts/experimental.h"
 
@@ -125,7 +125,7 @@ free_response_info(ResponseInfo *resp_info)
 static RequestInfo *
 create_request_info(TSHttpTxn txn)
 {
-  RequestInfo *req_info = NULL;
+  RequestInfo *req_info;
   char *url;
   int url_len;
   TSMBuffer buf;
@@ -133,29 +133,28 @@ create_request_info(TSHttpTxn txn)
 
   const struct sockaddr *sa;
 
-  if (TSHttpTxnClientReqGet(txn, &buf, &loc) == TS_SUCCESS) {
-    req_info = (RequestInfo *)TSmalloc(sizeof(RequestInfo));
-    memset(req_info, 0, sizeof(RequestInfo));
+  req_info = (RequestInfo *)TSmalloc(sizeof(RequestInfo));
+  memset(req_info, 0, sizeof(RequestInfo));
 
-    url                     = TSHttpTxnEffectiveUrlStringGet(txn, &url_len);
-    req_info->effective_url = TSstrndup(url, url_len);
-    TSfree(url);
+  url                     = TSHttpTxnEffectiveUrlStringGet(txn, &url_len);
+  req_info->effective_url = TSstrndup(url, url_len);
+  TSfree(url);
 
-    req_info->buf = TSMBufferCreate();
-    TSHttpHdrClone(req_info->buf, buf, loc, &(req_info->http_hdr_loc));
-    TSHandleMLocRelease(buf, TS_NULL_MLOC, loc);
+  TSHttpTxnClientReqGet(txn, &buf, &loc);
+  req_info->buf = TSMBufferCreate();
+  TSHttpHdrClone(req_info->buf, buf, loc, &(req_info->http_hdr_loc));
+  TSHandleMLocRelease(buf, TS_NULL_MLOC, loc);
 
-    sa = TSHttpTxnClientAddrGet(txn);
-    switch (sa->sa_family) {
-    case AF_INET:
-      memcpy(&req_info->client_addr.sin, sa, sizeof(struct sockaddr_in));
-      break;
-    case AF_INET6:
-      memcpy(&req_info->client_addr.sin6, sa, sizeof(struct sockaddr_in6));
-      break;
-    default:
-      break;
-    }
+  sa = TSHttpTxnClientAddrGet(txn);
+  switch (sa->sa_family) {
+  case AF_INET:
+    memcpy(&req_info->client_addr.sin, sa, sizeof(struct sockaddr_in));
+    break;
+  case AF_INET6:
+    memcpy(&req_info->client_addr.sin6, sa, sizeof(struct sockaddr_in6));
+    break;
+  default:
+    break;
   }
 
   return req_info;
@@ -377,13 +376,9 @@ consume_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
         TSHttpTxnCacheLookupStatusSet(state->txn, TS_CACHE_LOOKUP_HIT_FRESH);
       } else {
         TSDebug(PLUGIN_NAME, "Attempting new cache lookup");
-        if (TSHttpHdrUrlGet(state->req_info->buf, state->req_info->http_hdr_loc, &url_loc) == TS_SUCCESS) {
-          // ToDo: This is now completely broken, and we need a different logic here than the second cache lookup
-          // TSHttpTxnNewCacheLookupDo(state->txn, state->req_info->buf, url_loc);
-          TSHandleMLocRelease(state->req_info->buf, state->req_info->http_hdr_loc, url_loc);
-        } else {
-          TSError("[%s] Error getting the URL from the transaction", PLUGIN_NAME);
-        }
+        TSHttpHdrUrlGet(state->req_info->buf, state->req_info->http_hdr_loc, &url_loc);
+        TSHttpTxnNewCacheLookupDo(state->txn, state->req_info->buf, url_loc);
+        TSHandleMLocRelease(state->req_info->buf, state->req_info->http_hdr_loc, url_loc);
         // TODO add txn translation hook and pass result along, maybe inside continuation?
         // TSHttpTxnHookAdd(state->txn, TS_HTTP_RESPONSE_TRANSFORM_HOOK, TSTransformCreate(replace_transform, state->txn));
       }
@@ -400,7 +395,7 @@ consume_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
     TSContDestroy(cont);
     break;
   default:
-    TSError("[%s] Unknown event %d", PLUGIN_NAME, event);
+    TSError("[stale_while_revalidate] Unknown event %d.", event);
     break;
   }
 
@@ -532,16 +527,12 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
 
       state->plugin_config = (config_t *)TSContDataGet(cont);
       state->req_info      = create_request_info(txn);
-      if (state->req_info != NULL) {
-        time(&state->txn_start);
+      time(&state->txn_start);
 
-        TSHttpTxnArgSet(txn, state->plugin_config->txn_slot, (void *)state);
-        TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, cont);
+      TSHttpTxnArgSet(txn, state->plugin_config->txn_slot, (void *)state);
+      TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, cont);
 
-        TSDebug(PLUGIN_NAME, "tracking state %p from txn %p for %s", state, txn, state->req_info->effective_url);
-      } else {
-        free_request_state(state);
-      }
+      TSDebug(PLUGIN_NAME, "tracking state %p from txn %p for %s", state, txn, state->req_info->effective_url);
     }
 
     TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
@@ -669,15 +660,12 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
 
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
     TSDebug(PLUGIN_NAME, "set warning header");
-    if (TSHttpTxnClientRespGet(txn, &buf, &loc) == TS_SUCCESS) {
-      TSMimeHdrFieldCreateNamed(buf, loc, TS_MIME_FIELD_WARNING, TS_MIME_LEN_WARNING, &warn_loc);
-      TSMimeHdrFieldValueStringInsert(buf, loc, warn_loc, -1, HTTP_VALUE_STALE_WARNING, strlen(HTTP_VALUE_STALE_WARNING));
-      TSMimeHdrFieldAppend(buf, loc, warn_loc);
-      TSHandleMLocRelease(buf, loc, warn_loc);
-      TSHandleMLocRelease(buf, TS_NULL_MLOC, loc);
-    } else {
-      TSError("[%s] Error while getting response from txn", PLUGIN_NAME);
-    }
+    TSHttpTxnClientRespGet(txn, &buf, &loc);
+    TSMimeHdrFieldCreateNamed(buf, loc, TS_MIME_FIELD_WARNING, TS_MIME_LEN_WARNING, &warn_loc);
+    TSMimeHdrFieldValueStringInsert(buf, loc, warn_loc, -1, HTTP_VALUE_STALE_WARNING, strlen(HTTP_VALUE_STALE_WARNING));
+    TSMimeHdrFieldAppend(buf, loc, warn_loc);
+    TSHandleMLocRelease(buf, loc, warn_loc);
+    TSHandleMLocRelease(buf, TS_NULL_MLOC, loc);
     TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
     break;
   default:
@@ -704,21 +692,21 @@ TSPluginInit(int argc, const char *argv[])
 
     return;
   } else {
-    TSDebug(PLUGIN_NAME, "Plugin registration succeeded");
+    TSDebug(PLUGIN_NAME, "Plugin registration succeeded.");
   }
 
+  plugin_config = TSmalloc(sizeof(config_t));
+
+  plugin_config->troot                           = NULL;
+  plugin_config->troot_mutex                     = TSMutexCreate();
+  plugin_config->stale_if_error_override         = 0;
+  plugin_config->log_info.object                 = NULL;
+  plugin_config->log_info.all                    = false;
+  plugin_config->log_info.stale_if_error         = false;
+  plugin_config->log_info.stale_while_revalidate = false;
+  plugin_config->log_info.filename               = PLUGIN_NAME;
+
   if (argc > 1) {
-    plugin_config = TSmalloc(sizeof(config_t));
-
-    plugin_config->troot                           = NULL;
-    plugin_config->troot_mutex                     = TSMutexCreate();
-    plugin_config->stale_if_error_override         = 0;
-    plugin_config->log_info.object                 = NULL;
-    plugin_config->log_info.all                    = false;
-    plugin_config->log_info.stale_if_error         = false;
-    plugin_config->log_info.stale_while_revalidate = false;
-    plugin_config->log_info.filename               = PLUGIN_NAME;
-
     int c;
     static const struct option longopts[] = {{"log-all", no_argument, NULL, 'a'},
                                              {"log-stale-while-revalidate", no_argument, NULL, 'r'},
@@ -750,20 +738,15 @@ TSPluginInit(int argc, const char *argv[])
     }
 
     if (plugin_config->log_info.all || plugin_config->log_info.stale_while_revalidate || plugin_config->log_info.stale_if_error) {
-      if (TSTextLogObjectCreate(plugin_config->log_info.filename, TS_LOG_MODE_ADD_TIMESTAMP, &(plugin_config->log_info.object)) !=
-          TS_SUCCESS) {
-        TSError("[%s] Error getting the URL from the transaction", PLUGIN_NAME);
-        TSfree(plugin_config);
-        return;
-      }
+      TSTextLogObjectCreate(plugin_config->log_info.filename, TS_LOG_MODE_ADD_TIMESTAMP, &(plugin_config->log_info.object));
     }
-
-    // proxy.config.http.insert_age_in_response
-    TSHttpTxnArgIndexReserve(PLUGIN_NAME, "txn state info", &(plugin_config->txn_slot));
-    main_cont = TSContCreate(main_plugin, NULL);
-    TSContDataSet(main_cont, (void *)plugin_config);
-    TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, main_cont);
-
-    TSDebug(PLUGIN_NAME, "Plugin Init Complete");
   }
+
+  // proxy.config.http.insert_age_in_response
+  TSHttpArgIndexReserve(PLUGIN_NAME, "txn state info", &(plugin_config->txn_slot));
+  main_cont = TSContCreate(main_plugin, NULL);
+  TSContDataSet(main_cont, (void *)plugin_config);
+  TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, main_cont);
+
+  TSDebug(PLUGIN_NAME, "Plugin Init Complete.");
 }

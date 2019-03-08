@@ -22,28 +22,31 @@
 Hierarchical Cache
 ******************
 
-.. ts:stat:: global proxy.process.http.parent_proxy_total_request_bytes integer
+.. ts:stat:: global proxy.node.http.current_parent_proxy_connections integer
    :type: counter
-   :units: bytes
+
+.. ts:stat:: global proxy.node.http.parent_proxy_total_request_bytes integer
+   :type: counter
+   :unit: bytes
 
 .. ts:stat:: global proxy.node.http.parent_proxy_total_response_bytes integer
    :type: counter
-   :units: bytes
+   :unit: bytes
 
 .. ts:stat:: global proxy.process.http.current_parent_proxy_connections integer
    :type: counter
 
 .. ts:stat:: global proxy.process.http.parent_proxy_request_total_bytes integer
    :type: counter
-   :units: bytes
+   :unit: bytes
 
 .. ts:stat:: global proxy.process.http.parent_proxy_response_total_bytes integer
    :type: counter
-   :units: bytes
+   :unit: bytes
 
 .. ts:stat:: global proxy.process.http.parent_proxy_transaction_time integer
    :type: counter
-   :units: seconds
+   :unit: seconds
 
 .. ts:stat:: global proxy.process.http.total_parent_proxy_connections integer
    :type: counter

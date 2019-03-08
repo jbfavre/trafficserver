@@ -117,6 +117,12 @@ struct RecRecord {
   int rsb_id;
 };
 
+// Used for cluster. TODO: Do we still need this?
+struct RecRecords {
+  int num_recs;
+  RecRecord *recs;
+};
+
 //-------------------------------------------------------------------------
 // Message Items
 //-------------------------------------------------------------------------

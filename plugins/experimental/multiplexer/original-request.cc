@@ -34,6 +34,7 @@ get(const TSMBuffer &b, const TSMLoc &l, const T &t)
 
   assert(buffer != nullptr);
   assert(length > 0);
+  assert(strlen(buffer) >= static_cast<unsigned int>(length));
 
   return std::string(buffer, length);
 }
@@ -46,6 +47,7 @@ get(const TSMBuffer &b, const TSMLoc &l, const TSMLoc &f, const int i = 0)
 
   assert(buffer != nullptr);
   assert(length > 0);
+  assert(strlen(buffer) >= static_cast<unsigned int>(length));
 
   return std::string(buffer, length);
 }

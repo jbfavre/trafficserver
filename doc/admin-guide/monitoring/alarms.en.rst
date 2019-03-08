@@ -55,9 +55,10 @@ You can use :program:`traffic_ctl` to view statistics
 about Traffic Server performance and web traffic. In addition to viewing
 statistics, you can also configure, stop, and restart the Traffic Server
 system. For additional information, refer to :ref:`configure-using-traffic-ctl`
-and :program:`traffic_ctl`. You can view specific information about a
-Traffic Server node by specifying the variable that corresponds to the
-statistic you want to see.
+and :program:`traffic_ctl`. You can view
+specific information about a Traffic Server node or cluster by
+specifying the variable that corresponds to the statistic you want to
+see.
 
 To view a statistic, enter the following command:::
 
@@ -66,8 +67,8 @@ To view a statistic, enter the following command:::
 where ``variable`` is the variable representing the information you
 want to view. For a list of variables you can specify, refer to :ref:`traffic_ctl metrics <traffic-ctl-metric>`.
 
-For example, the following command displays the total number of completed
-HTTP requests:::
+For example, the following command displays the document hit rate for
+the Traffic Server node:::
 
-     traffic_ctl metric get proxy.process.http.completed_requests
+     traffic_ctl metric get proxy.node.cache_hit_ratio
 

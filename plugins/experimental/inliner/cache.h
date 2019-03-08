@@ -20,10 +20,10 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+#ifndef CACHE_H
+#define CACHE_H
 
-#pragma once
-
-#include <cassert>
+#include <assert.h>
 #include <string>
 
 #include "ts.h"
@@ -36,17 +36,17 @@ namespace cache
   struct Key {
     ~Key()
     {
-      assert(key_ != nullptr);
+      assert(key_ != NULL);
       TSCacheKeyDestroy(key_);
     }
 
-    Key(void) : key_(TSCacheKeyCreate()) { assert(key_ != nullptr); }
+    Key(void) : key_(TSCacheKeyCreate()) { assert(key_ != NULL); }
     Key(const Key &) = delete;
     Key &operator=(const Key &) = delete;
 
     explicit Key(const std::string &s) : key_(TSCacheKeyCreate())
     {
-      assert(key_ != nullptr);
+      assert(key_ != NULL);
       CHECK(TSCacheKeyDigestSet(key_, s.c_str(), s.size()));
     }
 
@@ -69,10 +69,10 @@ namespace cache
     handle(TSCont c, TSEvent e, void *d)
     {
       Self *const self = static_cast<Self *const>(TSContDataGet(c));
-      assert(self != nullptr);
+      assert(self != NULL);
       switch (e) {
       case TS_EVENT_CACHE_OPEN_READ:
-        assert(d != nullptr);
+        assert(d != NULL);
         self->t_.hit(static_cast<TSVConn>(d));
         break;
       case TS_EVENT_CACHE_OPEN_READ_FAILED:
@@ -83,7 +83,7 @@ namespace cache
         break;
       }
       delete self;
-      TSContDataSet(c, nullptr);
+      TSContDataSet(c, NULL);
       TSContDestroy(c);
       return TS_SUCCESS;
     }
@@ -95,7 +95,7 @@ namespace cache
   {
     const Key key(k);
     const TSCont continuation = TSContCreate(Read<T>::handle, TSMutexCreate());
-    assert(continuation != nullptr);
+    assert(continuation != NULL);
     TSContDataSet(continuation, new Read<T>(std::forward<A>(a)...));
     TSCacheRead(continuation, key.key());
   }
@@ -107,16 +107,17 @@ namespace cache
 
     ~Write()
     {
-      if (out_ != nullptr) {
+      if (out_ != NULL) {
         delete out_;
       }
     }
 
-    Write(std::string &&s) : content_(std::move(s)), out_(nullptr), vconnection_(nullptr) {}
+    Write(std::string &&s) : content_(std::move(s)), out_(NULL), vconnection_(NULL) {}
     static int handle(TSCont, TSEvent, void *);
   };
 
   void write(const std::string &, std::string &&);
 
-} // namespace cache
-} // namespace ats
+} // end of cache namespace
+} // end of ats namespace
+#endif // CACHE_H

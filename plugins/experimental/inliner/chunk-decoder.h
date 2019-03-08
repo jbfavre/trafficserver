@@ -40,11 +40,11 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#pragma once
+#ifndef CHUNK_DECODER_H
+#define CHUNK_DECODER_H
 
 #include <ts/ts.h>
-#include <cinttypes>
+#include <inttypes.h>
 
 class ChunkDecoder
 {
@@ -82,3 +82,5 @@ public:
     return state_ == State::kEnd;
   }
 };
+
+#endif // CHUNK_DECODER_H

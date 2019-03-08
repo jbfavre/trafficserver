@@ -21,10 +21,12 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _ESI_EXPRESSION_H
+
+#define _ESI_EXPRESSION_H
 
 #include <string>
-#include <cstdlib>
+#include <stdlib.h>
 
 #include "ComponentBase.h"
 #include "Variables.h"
@@ -56,7 +58,7 @@ public:
     return evaluate(expr.data(), expr.size());
   }
 
-  ~Expression() override{};
+  virtual ~Expression(){};
 
 private:
   static const std::string EMPTY_STRING;
@@ -82,7 +84,7 @@ private:
   struct OperatorString {
     const char *str;
     int str_len;
-    OperatorString(const char *s = nullptr, int s_len = -1) : str(s), str_len(s_len){};
+    OperatorString(const char *s = 0, int s_len = -1) : str(s), str_len(s_len){};
   };
 
   static const OperatorString OPERATOR_STRINGS[N_OPERATORS];
@@ -116,4 +118,6 @@ private:
 
   inline bool _evalSimpleExpr(const char *expr, int expr_len);
 };
-}; // namespace EsiLib
+};
+
+#endif // _ESI_EXPRESSION_H

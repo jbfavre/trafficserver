@@ -27,7 +27,7 @@ exhaustive of all possibilities (|TS| logging is quite flexible), these entries
 should hopefully get most administrators headed onto the right path.
 
 Unless otherwise noted, the example configurations here are to be applied in
-:file:`logging.yaml`.
+:file:`logging.config`.
 
 Online Event Log Builder
 ========================
@@ -65,14 +65,14 @@ No. Field  Description
 7   pscl   The length of the |TS| response to the client in bytes.
 === ====== ====================================================================
 
-To recreate this as a log format in :file:`logging.yaml` you would define the
+To recreate this as a log format in :file:`logging.config` you would define the
 following format object:
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: common
-     format: '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl>'
+   common = format {
+     Format = '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl>'
+   }
 
 .. _admin-logging-examples-extended:
 
@@ -112,14 +112,14 @@ No. Field Description
           of the response back to the client.
 === ===== =====================================================================
 
-To recreate this as a log format in :file:`logging.yaml` you would define the
+To recreate this as a log format in :file:`logging.config` you would define the
 following format object:
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: extended
-     format: '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl> %<sssc> %<sscl> %<cqcl> %<pqcl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts>'
+   extended = format {
+     Format = '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl> %<sssc> %<sscl> %<cqcl> %<pqcl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts>'
+   }
 
 .. _admin-logging-examples-extended2:
 
@@ -151,14 +151,14 @@ No.  Field Description
            listed in :ref:`admin-logging-crc`.
 === ====== ===============================================================
 
-To recreate this as a log format in :file:`logging.yaml` you would define the
+To recreate this as a log format in :file:`logging.config` you would define the
 following format object:
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: extended2
-     format: '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl> %<sssc> %<sscl> %<cqcl> %<pqcl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts> %<phr> %<cfsc> %<pfsc> %<crc>'
+   extended2 = format {
+     Format = '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl> %<sssc> %<sscl> %<cqcl> %<pqcl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts> %<phr> %<cfsc> %<pfsc> %<crc>'
+   }
 
 .. _admin-logging-examples-squid:
 
@@ -199,20 +199,47 @@ No. Field    Description
              hex.
 8   caun     The username of the authenticated client. A hyphen (``-``)
              means that no authentication was required.
-9   phr/shn  The proxy hierarchy route. The route |TS| used to retrieve the
+9   phr/pqsn The proxy hierarchy route. The route |TS| used to retrieve the
              object.
 10  psct     The proxy response content type. The object content type taken
              from the |TS| response header.
 === ======== ==================================================================
 
-To recreate this as a log format in :file:`logging.yaml` you would define the
+To recreate this as a log format in :file:`logging.config` you would define the
 following format object:
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: squid
-     format: '%<cqtq> %<ttms> %<chi> %<crc>/%<pssc> %<psql> %<cqhm> %<cquc> %<caun> %<phr>/%<shn> %<psct>'
+   squid = format {
+     Format = '%<cqtq> %<ttms> %<chi> %<crc>/%<pssc> %<psql> %<cqhm> %<cquc> %<caun> %<phr>/%<pqsn> %<psct>'
+   }
+
+Separating Logs by Origin
+=========================
+
+The default :file:`log_hosts.config` file is located in the |TS| ``config``
+directory. To record HTTP transactions for different origin servers in separate
+log files, you must specify the hostname of each origin server on a separate
+line in :file:`log_hosts.config`. For example, if you specify the keyword
+``sports``, then |TS| records all HTTP transactions from ``sports.yahoo.com``
+and ``www.foxsports.com`` in a log file called ``squid-sports.log`` (if the
+Squid format is enabled).
+
+.. important::
+
+   If |TS| is clustered and you enable log file collation, then you should use
+   the same :file:`log_hosts.config` file on every |TS| node in the cluster.
+
+To edit the log hosts list:
+
+#. Enter the hostname of each origin server on a separate line in
+   :file:`log_hosts.config`. ::
+
+       webserver1
+       webserver2
+       webserver3
+
+#. Run the command :option:`traffic_ctl config reload` to apply the changes.
 
 Hourly Rotated Squid Proxy Logs
 ===============================
@@ -221,19 +248,19 @@ The following example demonstrates the creation of a Squid-compatible log
 format, which is then applied to a log object containing an hourly rotation
 policy.
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: squid
-     format: '%<cqtq> %<ttms> %<chi> %<crc>/%<pssc> %<psql> %<cqhm> %<cquc> %<caun> %<phr>/%<shn> %<psct>'
+   squid = format {
+     Format = '%<cqtq> %<ttms> %<chi> %<crc>/%<pssc> %<psql> %<cqhm> %<cquc> %<caun> %<phr>/%<pqsn> %<psct>'
+   }
 
-   logs:
-   - mode: ascii
-     format: squid
-     filename: squid
-     rolling_enabled: time
-     rolling_interval_sec: 3600
-     rolling_offset_hr: 0
+   log.ascii {
+     Format = squid,
+     Filename = 'squid',
+     RollingEnabled = 1,
+     RollingIntervalSec = 3600,
+     RollingOffsetHr = 0
+   }
 
 Summarizing Number of Requests and Total Bytes Sent Every 10 Seconds
 ====================================================================
@@ -243,12 +270,12 @@ contains the timestamp of the last entry of the interval, a count of the number
 of entries seen within that 10-second interval, and the sum of all bytes sent
 to clients:
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: mysummary
-     format: '%<LAST(cqts)> : %<COUNT(*)> : %<SUM(psql)>'
-     interval: 10
+   mysummary = format {
+      Format = "%<LAST(cqts)> : %<COUNT(*)> : %<SUM(psql)>",
+      Interval = "10"
+   }
 
 Dual Output to Compact Binary Logs and ASCII Pipes
 ==================================================
@@ -258,7 +285,7 @@ a hypothetical scenario where we may wish to keep a compact form of our logs
 available for archival purposes, while performing live log analysis on a stream
 of the event data.
 
-.. code:: yaml
+.. code:: lua
 
    ourformat = format {
      Format = '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl>'
@@ -282,22 +309,19 @@ off all sorts of alarms. To accomplish this, we demonstrate the use of a filter
 object that matches events against these particular canaries and emits log data
 for them to a UNIX pipe that the alerting software can constantly read from.
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: canaryformat
-     format: '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl>'
+   canaryformat = format {
+     Format = '%<chi> - %<caun> [%<cqtn>] "%<cqtx>" %<pssc> %<pscl>'
+   }
 
-   filters:
-   - name: canaryfilter
-     accept: cqup MATCH "/nightmare/scenario/dont/touch"
+   canaryfilter = filter.accept('cqup MATCH "/nightmare/scenario/dont/touch"')
 
-   logs:
-   - mode: pipe
-     format: canaryformat
-     filters:
-     - canaryfilter
-     filename: alerting_canaries
+   log.pipe {
+     Format = canaryformat,
+     Filters = [ canaryfilter ],
+     Filename = 'alerting_canaries'
+   }
 
 Summarizing Origin Responses by Hour
 ====================================
@@ -308,20 +332,18 @@ servers (where we assume that any cache result code without the string ``HIT``
 in it signals origin access), as well as the average time it took to fulfill
 the request to clients during that hour.
 
-.. code:: yaml
+.. code:: lua
 
-   formats:
-   - name: originrepformat
-     format: '%<FIRST(cqtq)> %<COUNT(*)> %<AVERAGE(ttms)>'
-     interval: 3600
+   originrepformat = format {
+     Format = '%<FIRST(cqtq)> %<COUNT(*)> %<AVERAGE(ttms)>',
+     Interval = 3600
+   }
 
-   filters:
-   - name: originfilter
-     reject: crc CONTAINS "HIT"
+   originfilter = filter.reject('crc CONTAINS "HIT"')
 
-   logs:
-   - mode: ascii
-     format: originrepformat
-     filters:
-     - originfilter
-     filename: origin_access_summary
+   log.ascii {
+     Format = originrepformat,
+     Filters = [ originfilter ],
+     Filename = 'origin_access_summary'
+   }
+

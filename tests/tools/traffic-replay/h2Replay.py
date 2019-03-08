@@ -17,6 +17,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import gevent
 import os
 from threading import Thread
 import sys
@@ -230,7 +231,7 @@ def txn_replay(session_filename, txn, proxy, result_queue, h2conn, request_IDs):
         if method == 'GET':
             responseID = h2conn.request('GET', url=extractHeader.extract_GET_path(
                 txn_req_headers), headers=txn_req_headers_dict, body=mbody)
-            # print("get response", responseID)
+            #print("get response", responseID)
             return responseID
             # request_IDs.append(responseID)
             #response = h2conn.get_response(id)
@@ -250,6 +251,18 @@ def txn_replay(session_filename, txn, proxy, result_queue, h2conn, request_IDs):
             print("get response", responseID)
             return responseID
 
+        # print(response.headers)
+        #print("logged respose")
+        expected = extractHeader.responseHeader_to_dict(resp.getHeaders())
+        # print(expected)
+        if mainProcess.verbose:
+            expected_output_split = resp.getHeaders().split('\r\n')[0].split(' ', 2)
+            expected_output = (int(expected_output_split[1]), str(expected_output_split[2]))
+            r = result.Result(session_filename, expected_output[0], response.status_code)
+            print(r.getResultString(response.headers, expected, colorize=True))
+
+        # return responseID
+
     except UnicodeEncodeError as e:
         # these unicode errors are due to the interaction between Requests and our wiretrace data.
         # TODO fix
@@ -262,8 +275,8 @@ def txn_replay(session_filename, txn, proxy, result_queue, h2conn, request_IDs):
 
 def session_replay(input, proxy, result_queue):
     global bSTOP
-    ''' Replay all transactions in session
-
+    ''' Replay all transactions in session 
+    
     This entire session will be replayed in one requests.Session (so one socket / TCP connection)'''
     # if timing_control:
     #    time.sleep(float(session._timestamp))  # allow other threads to run
@@ -303,19 +316,13 @@ def session_replay(input, proxy, result_queue):
 
                         expected_output_split = expectedH.getHeaders().split('\r\n')[0].split(' ', 2)
                         expected_output = (int(expected_output_split[1]), str(expected_output_split[2]))
-                        r = result.Result("", expected_output[0], response.status, response.read())
+                        r = result.Result("", expected_output[0], response.status)
                         expected_Dict = extractHeader.responseHeader_to_dict(expectedH.getHeaders())
-                        b_res, res = r.getResult(response_dict, expected_Dict, colorize=Config.colorize)
-                        print(res)
-
-                        if not b_res:
-                            print("Received response")
-                            print(response_dict)
-                            print("Expected response")
-                            print(expected_Dict)
+                        print(r.getResultString(response_dict, expected_Dict, colorize=True))
+                        # r.Compare(response_dict,expected_Dict)
 
         bSTOP = True
-        #print("Queue is empty")
+        print("Queue is empty")
         input.put('STOP')
         break
 

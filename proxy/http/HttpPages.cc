@@ -59,7 +59,9 @@ HttpPagesHandler::HttpPagesHandler(Continuation *cont, HTTPHdr *header)
   }
 }
 
-HttpPagesHandler::~HttpPagesHandler() {}
+HttpPagesHandler::~HttpPagesHandler()
+{
+}
 
 int64_t
 HttpPagesHandler::extract_id(const char *query)
@@ -209,14 +211,21 @@ HttpPagesHandler::dump_history(HttpSM *sm)
   resp_add("<h4> History</h4>");
   resp_begin_table(1, 3, 60);
 
+  int size;
+
   // Figure out how big the history is and look
   //  for wrap around
-  for (unsigned int i = 0; i < sm->history.size(); i++) {
-    char buf[256];
+  if (sm->history_pos > HISTORY_SIZE) {
+    size = HISTORY_SIZE;
+  } else {
+    size = sm->history_pos;
+  }
+
+  for (int i = 0; i < size; i++) {
     resp_begin_row();
 
     resp_begin_column();
-    resp_add("%s", sm->history[i].location.str(buf, sizeof(buf)));
+    resp_add("%s", sm->history[i].fileline);
     resp_end_column();
 
     resp_begin_column();

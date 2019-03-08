@@ -21,13 +21,13 @@
   limitations under the License.
  */
 
-#include "tscore/ink_platform.h"
-#include "tscore/ink_memory.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_memory.h"
 
-#include "tscore/TextBuffer.h"
-#include "tscore/Tokenizer.h"
-#include "tscore/ink_defs.h"
-#include "tscore/ink_string.h"
+#include "ts/TextBuffer.h"
+#include "ts/Tokenizer.h"
+#include "ts/ink_defs.h"
+#include "ts/ink_string.h"
 
 #include "P_RecFile.h"
 #include "P_RecUtils.h"
@@ -261,20 +261,21 @@ recv_message_cb(RecMessage *msg, RecMessageT msg_type, void * /* cookie */)
 //-------------------------------------------------------------------------
 // RecRegisterStatXXX
 //-------------------------------------------------------------------------
-#define REC_REGISTER_STAT_XXX(A, B)                                                                                           \
-  ink_assert((rec_type == RECT_NODE) || (rec_type == RECT_PROCESS) || (rec_type == RECT_LOCAL) || (rec_type == RECT_PLUGIN)); \
-  RecRecord *r;                                                                                                               \
-  RecData my_data_default;                                                                                                    \
-  my_data_default.A = data_default;                                                                                           \
-  if ((r = RecRegisterStat(rec_type, name, B, my_data_default, persist_type)) != nullptr) {                                   \
-    if (i_am_the_record_owner(r->rec_type)) {                                                                                 \
-      r->sync_required = r->sync_required | REC_PEER_SYNC_REQUIRED;                                                           \
-    } else {                                                                                                                  \
-      send_register_message(r);                                                                                               \
-    }                                                                                                                         \
-    return REC_ERR_OKAY;                                                                                                      \
-  } else {                                                                                                                    \
-    return REC_ERR_FAIL;                                                                                                      \
+#define REC_REGISTER_STAT_XXX(A, B)                                                                                             \
+  ink_assert((rec_type == RECT_NODE) || (rec_type == RECT_CLUSTER) || (rec_type == RECT_PROCESS) || (rec_type == RECT_LOCAL) || \
+             (rec_type == RECT_PLUGIN));                                                                                        \
+  RecRecord *r;                                                                                                                 \
+  RecData my_data_default;                                                                                                      \
+  my_data_default.A = data_default;                                                                                             \
+  if ((r = RecRegisterStat(rec_type, name, B, my_data_default, persist_type)) != nullptr) {                                     \
+    if (i_am_the_record_owner(r->rec_type)) {                                                                                   \
+      r->sync_required = r->sync_required | REC_PEER_SYNC_REQUIRED;                                                             \
+    } else {                                                                                                                    \
+      send_register_message(r);                                                                                                 \
+    }                                                                                                                           \
+    return REC_ERR_OKAY;                                                                                                        \
+  } else {                                                                                                                      \
+    return REC_ERR_FAIL;                                                                                                        \
   }
 
 RecErrT
@@ -629,7 +630,7 @@ RecReadConfigFile(bool inc_version)
 // RecSyncConfigFile
 //-------------------------------------------------------------------------
 RecErrT
-RecSyncConfigToTB(TextBuffer *tb, bool *inc_version)
+RecSyncConfigToTB(textBuffer *tb, bool *inc_version)
 {
   RecErrT err = REC_ERR_FAIL;
 
@@ -681,7 +682,7 @@ RecSyncConfigToTB(TextBuffer *tb, bool *inc_version)
     if (sync_to_disk) {
       char b[1024];
 
-      // okay, we're going to write into our TextBuffer
+      // okay, we're going to write into our textBuffer
       err = REC_ERR_OKAY;
       tb->reUse();
 
@@ -706,6 +707,9 @@ RecSyncConfigToTB(TextBuffer *tb, bool *inc_version)
               break;
             case RECT_NODE:
               tb->copyFrom("NODE ", 5);
+              break;
+            case RECT_CLUSTER:
+              tb->copyFrom("CLUSTER ", 8);
               break;
             case RECT_LOCAL:
               tb->copyFrom("LOCAL ", 6);
@@ -930,7 +934,7 @@ RecSetSyncRequired(char *name, bool lock)
 }
 
 RecErrT
-RecWriteConfigFile(TextBuffer *tb)
+RecWriteConfigFile(textBuffer *tb)
 {
 #define TMP_FILENAME_EXT_STR ".tmp"
 #define TMP_FILENAME_EXT_LEN (sizeof(TMP_FILENAME_EXT_STR) - 1)

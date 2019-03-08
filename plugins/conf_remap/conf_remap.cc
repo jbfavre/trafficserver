@@ -18,7 +18,7 @@
 
 #include "ts/ts.h"
 #include "ts/remap.h"
-#include "tscore/ink_defs.h"
+#include "ts/ink_defs.h"
 
 #include <cstdio>
 #include <cstring>
@@ -79,7 +79,7 @@ RemapConfigs::parse_inline(const char *arg)
   TSOverridableConfigKey name;
   TSRecordDataType type;
 
-  // Each token should be a configuration variable then a value, separated by '='.
+  // Each token should be a status code then a URL, separated by '='.
   sep = strchr(arg, '=');
   if (sep == nullptr) {
     return false;
@@ -90,7 +90,7 @@ RemapConfigs::parse_inline(const char *arg)
 
   if (TSHttpTxnConfigFind(key.c_str(), -1 /* len */, &name, &type) != TS_SUCCESS) {
     TSError("[%s] Invalid configuration variable '%s'", PLUGIN_NAME, key.c_str());
-    return true;
+    return false;
   }
 
   switch (type) {
@@ -173,8 +173,7 @@ RemapConfigs::parse_file(const char *filename)
     // Find the configuration name
     tok = strtok_r(nullptr, " \t", &ln);
     if (TSHttpTxnConfigFind(tok, -1, &name, &expected_type) != TS_SUCCESS) {
-      TSError("[%s] File %s, line %d: %s is not a configuration variable or cannot be overridden", PLUGIN_NAME, path.c_str(),
-              line_num, tok);
+      TSError("[%s] File %s, line %d: no records.config name given", PLUGIN_NAME, path.c_str(), line_num);
       continue;
     }
 

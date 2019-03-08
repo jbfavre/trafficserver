@@ -23,9 +23,9 @@
 
 #pragma once
 
-#include "tscore/ink_platform.h"
-#include "tscore/IpMap.h"
-#include "tscore/Ptr.h"
+#include "ts/ink_platform.h"
+#include "ts/IpMap.h"
+#include "ts/Ptr.h"
 #include "LogAccess.h"
 #include "LogField.h"
 #include "LogFormat.h"
@@ -72,7 +72,7 @@ public:
   static const char *OPERATOR_NAME[];
 
   LogFilter(const char *name, LogField *field, Action action, Operator oper);
-  ~LogFilter() override;
+  virtual ~LogFilter();
 
   char *
   name() const
@@ -94,7 +94,7 @@ public:
 
   virtual bool toss_this_entry(LogAccess *lad) = 0;
   virtual bool wipe_this_entry(LogAccess *lad) = 0;
-  virtual void display(FILE *fd = stdout)      = 0;
+  virtual void display(FILE *fd = stdout) = 0;
 
   static LogFilter *parse(const char *name, Action action, const char *condition);
 
@@ -109,13 +109,11 @@ protected:
 public:
   LINK(LogFilter, link); // so we can create a LogFilterList
 
-  // noncopyable
-  LogFilter(const LogFilter &rhs) = delete;
-  LogFilter &operator=(LogFilter &rhs) = delete;
-
 private:
   // -- member functions that are not allowed --
   LogFilter();
+  LogFilter(const LogFilter &rhs);
+  LogFilter &operator=(LogFilter &rhs);
 };
 
 /*-------------------------------------------------------------------------
@@ -129,23 +127,20 @@ public:
   LogFilterString(const char *name, LogField *field, Action a, Operator o, char *value);
   LogFilterString(const char *name, LogField *field, Action a, Operator o, size_t num_values, char **value);
   LogFilterString(const LogFilterString &rhs);
-  ~LogFilterString() override;
+  ~LogFilterString();
   bool operator==(LogFilterString &rhs);
 
-  bool toss_this_entry(LogAccess *lad) override;
-  bool wipe_this_entry(LogAccess *lad) override;
-  void display(FILE *fd = stdout) override;
-
-  // noncopyable
-  LogFilterString &operator=(LogFilterString &rhs) = delete;
+  bool toss_this_entry(LogAccess *lad);
+  bool wipe_this_entry(LogAccess *lad);
+  void display(FILE *fd = stdout);
 
 private:
-  char **m_value = nullptr; // the array of values
+  char **m_value; // the array of values
 
   // these are used to speed up case insensitive operations
   //
-  char **m_value_uppercase = nullptr; // m_value in all uppercase
-  size_t *m_length         = nullptr; // length of m_value string
+  char **m_value_uppercase; // m_value in all uppercase
+  size_t *m_length;         // length of m_value string
 
   void _setValues(size_t n, char **value);
 
@@ -159,7 +154,7 @@ private:
     // return 0 if s1 is substring of s0 and 1 otherwise
     // this reverse behavior is to conform to the behavior of strcmp
     // which returns 0 if strings match
-    return (strstr(s0, s1) == nullptr ? 1 : 0);
+    return (strstr(s0, s1) == NULL ? 1 : 0);
   }
 
   enum LengthCondition {
@@ -175,6 +170,7 @@ private:
 
   // -- member functions that are not allowed --
   LogFilterString();
+  LogFilterString &operator=(LogFilterString &rhs);
 };
 
 /*-------------------------------------------------------------------------
@@ -189,24 +185,22 @@ public:
   LogFilterInt(const char *name, LogField *field, Action a, Operator o, size_t num_values, int64_t *value);
   LogFilterInt(const char *name, LogField *field, Action a, Operator o, char *values);
   LogFilterInt(const LogFilterInt &rhs);
-  ~LogFilterInt() override;
+  ~LogFilterInt();
   bool operator==(LogFilterInt &rhs);
 
-  bool toss_this_entry(LogAccess *lad) override;
-  bool wipe_this_entry(LogAccess *lad) override;
-  void display(FILE *fd = stdout) override;
-
-  // noncopyable
-  LogFilterInt &operator=(LogFilterInt &rhs) = delete;
+  bool toss_this_entry(LogAccess *lad);
+  bool wipe_this_entry(LogAccess *lad);
+  void display(FILE *fd = stdout);
 
 private:
-  int64_t *m_value = nullptr; // the array of values
+  int64_t *m_value; // the array of values
 
   void _setValues(size_t n, int64_t *value);
   int _convertStringToInt(char *val, int64_t *ival, LogFieldAliasMap *map);
 
   // -- member functions that are not allowed --
   LogFilterInt();
+  LogFilterInt &operator=(LogFilterInt &rhs);
 };
 
 /*-------------------------------------------------------------------------
@@ -221,16 +215,13 @@ public:
   LogFilterIP(const char *name, LogField *field, Action a, Operator o, size_t num_values, IpAddr *value);
   LogFilterIP(const char *name, LogField *field, Action a, Operator o, char *values);
   LogFilterIP(const LogFilterIP &rhs);
-  ~LogFilterIP() override;
+  ~LogFilterIP();
 
   bool operator==(LogFilterIP &rhs);
 
-  bool toss_this_entry(LogAccess *lad) override;
-  bool wipe_this_entry(LogAccess *lad) override;
-  void display(FILE *fd = stdout) override;
-
-  // noncopyable
-  LogFilterIP &operator=(LogFilterIP &rhs) = delete;
+  virtual bool toss_this_entry(LogAccess *lad);
+  virtual bool wipe_this_entry(LogAccess *lad);
+  void display(FILE *fd = stdout);
 
 private:
   IpMap m_map;
@@ -246,6 +237,7 @@ private:
 
   // -- member functions that are not allowed --
   LogFilterIP();
+  LogFilterIP &operator=(LogFilterIP &rhs);
 };
 
 bool filters_are_equal(LogFilter *filt1, LogFilter *filt2);
@@ -263,7 +255,7 @@ public:
   void add(LogFilter *filter, bool copy = true);
   bool toss_this_entry(LogAccess *lad);
   bool wipe_this_entry(LogAccess *lad);
-  LogFilter *find_by_name(const char *name);
+  LogFilter *find_by_name(char *name);
   void clear();
 
   LogFilter *
@@ -293,11 +285,6 @@ public:
     m_does_conjunction = c;
   }
 
-  // noncopyable
-  // -- member functions that are not allowed --
-  LogFilterList(const LogFilterList &rhs) = delete;
-  LogFilterList &operator=(const LogFilterList &rhs) = delete;
-
 private:
   Queue<LogFilter> m_filter_list;
 
@@ -308,6 +295,10 @@ private:
   // If m_does_conjunction = false,
   // toss this entry returns true if
   // ALL filters toss away entry
+
+  // -- member functions that are not allowed --
+  LogFilterList(const LogFilterList &rhs);
+  LogFilterList &operator=(const LogFilterList &rhs);
 };
 
 /*-------------------------------------------------------------------------
@@ -395,9 +386,8 @@ wipeField(char **dest, char *field)
   if (buf_dest) {
     char *query_param = strstr(buf_dest, "?");
 
-    if (!query_param) {
+    if (!query_param)
       return;
-    }
 
     char *p1 = strstr(query_param, field);
 
@@ -413,15 +403,13 @@ wipeField(char **dest, char *field)
         temp_text += (p2 - p1);
         char *p3 = strstr(p2, "&");
         if (p3) {
-          for (int i = 0; i < (p3 - p2); i++) {
+          for (int i     = 0; i < (p3 - p2); i++)
             temp_text[i] = 'X';
-          }
           temp_text += (p3 - p2);
           memcpy(temp_text, p3, ((buf_dest + strlen(buf_dest)) - p3));
         } else {
-          for (int i = 0; i < ((buf_dest + strlen(buf_dest)) - p2); i++) {
+          for (int i     = 0; i < ((buf_dest + strlen(buf_dest)) - p2); i++)
             temp_text[i] = 'X';
-          }
         }
       } else {
         return;
@@ -458,9 +446,8 @@ LogFilterString::_checkConditionAndWipe(OperatorFunction f, char **field_value, 
 {
   bool retVal = false;
 
-  if (m_action != WIPE_FIELD_VALUE) {
+  if (m_action != WIPE_FIELD_VALUE)
     return false;
-  }
 
   // make single value case a little bit faster by taking it out of loop
   //

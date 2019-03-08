@@ -20,10 +20,9 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#pragma once
-
-#include <cassert>
+#ifndef TS_H
+#define TS_H
+#include <assert.h>
 #include <cstring>
 #include <limits>
 #include <list>
@@ -42,8 +41,8 @@ namespace io
 
     ~IO()
     {
-      assert(buffer != nullptr);
-      assert(reader != nullptr);
+      assert(buffer != NULL);
+      assert(reader != NULL);
       const int64_t available = TSIOBufferReaderAvail(reader);
       if (available > 0) {
         TSIOBufferReaderConsume(reader, available);
@@ -52,8 +51,8 @@ namespace io
       TSIOBufferDestroy(buffer);
     }
 
-    IO(void) : buffer(TSIOBufferCreate()), reader(TSIOBufferReaderAlloc(buffer)), vio(nullptr) {}
-    IO(const TSIOBuffer &b) : buffer(b), reader(TSIOBufferReaderAlloc(buffer)), vio(nullptr) { assert(buffer != nullptr); }
+    IO(void) : buffer(TSIOBufferCreate()), reader(TSIOBufferReaderAlloc(buffer)), vio(NULL) {}
+    IO(const TSIOBuffer &b) : buffer(b), reader(TSIOBufferReaderAlloc(buffer)), vio(NULL) { assert(buffer != NULL); }
     static IO *read(TSVConn, TSCont, const int64_t);
 
     static IO *
@@ -63,5 +62,6 @@ namespace io
     }
   };
 
-} // namespace io
-} // namespace ats
+} // end of io namespace
+} // end of ats namespace
+#endif // TS_H

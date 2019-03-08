@@ -44,11 +44,10 @@ class UDPPacket;
 class UDPConnection : public Continuation
 {
 public:
-  ~UDPConnection() override{};
+  virtual ~UDPConnection(){};
 
   SOCKET getFd();
   void setBinding(struct sockaddr const *);
-  void setBinding(const IpAddr &, in_port_t);
   inkcoreapi int getBinding(struct sockaddr *);
 
   void destroy();

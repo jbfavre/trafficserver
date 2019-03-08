@@ -29,7 +29,6 @@
 
 import sys
 import os
-from datetime import date
 from sphinx import version_info
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -43,6 +42,9 @@ from manpages import man_pages
 
 # -- General configuration -----------------------------------------------------
 
+# If your documentation needs a minimal Sphinx version, state it here.
+#needs_sphinx = '1.0'
+
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
@@ -52,12 +54,8 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
-    'sphinxcontrib.plantuml',
     'traffic-server',
 ]
-
-# Contains values that are dependent on configure.ac.
-execfile('ext/local-config.py')
 
 if version_info >= (1, 4):
     extensions.append('sphinx.ext.imgmath')
@@ -84,7 +82,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Apache Traffic Server'
-copyright = u'{}, dev@trafficserver.apache.org'.format(date.today().year)
+copyright = u'2016, dev@trafficserver.apache.org'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -161,20 +159,12 @@ exclude_patterns = []
 #show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = 'default'
 
 # A list of ignored prefixes for module index sorting.
 #modindex_common_prefix = []
 
-nitpicky = True
-nitpick_ignore = [ ('c:type', 'int64_t')
-                 , ('c:type', 'bool')
-                 , ('c:type', 'sockaddr')
-                 , ('cpp:typeOrConcept', 'T') # template arg
-                 , ('cpp:typeOrConcept', 'F') # template arg
-                 , ('cpp:typeOrConcept', 'Args') # variadic template arg
-                 , ('cpp:typeOrConcept', 'Rest') # variadic template arg
-                 ]
+nitpicky = 1
 
 # Autolink issue references.
 # See Customizing the Parser in the docutils.parsers.rst module.
@@ -344,11 +334,6 @@ latex_elements = {
     #'preamble': '',
 }
 
-if tags.has('latex_a4'):
-    latex_elements['papersize'] = 'a4paper'
-elif tags.has('latex_paper'):
-    latex_elements['papersiize'] = 'letterpaper'
-
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
@@ -501,8 +486,3 @@ epub_copyright = u'2013, dev@trafficserver.apache.org'
 # Allow duplicate toc entries.
 #epub_tocdup = True
 mathjax_path = 'https://docs.trafficserver.apache.org/__RTD/MathJax.js'
-
-# Enabling marking bit fields as 'bitfield_N`.
-# Currently parameterized fields don't work. When they do, we should change to
-# 'bitfield(N)'.
-cpp_id_attributes = [ 'bitfield_1', 'bitfield_3', 'bitfield_24' ]

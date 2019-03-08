@@ -31,8 +31,8 @@
 #ifndef _Proxy_Config_h
 #define _Proxy_Config_h
 
-#include "tscore/ink_platform.h"
-#include "tscore/ink_memory.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_memory.h"
 #include "ProcessManager.h"
 #include "I_EventSystem.h"
 #include "I_Tasks.h"
@@ -79,10 +79,9 @@ public:
   template <typename ClassType, typename ConfigType> struct scoped_config {
     scoped_config() : ptr(ClassType::acquire()) {}
     ~scoped_config() { ClassType::release(ptr); }
-    operator bool() const { return ptr != nullptr; }
+    operator bool() const { return ptr != 0; }
     operator const ConfigType *() const { return ptr; }
     const ConfigType *operator->() const { return ptr; }
-
   private:
     ConfigType *ptr;
   };

@@ -597,7 +597,9 @@ EsiParser::clear()
   _parse_start_pos = -1;
 }
 
-EsiParser::~EsiParser() {}
+EsiParser::~EsiParser()
+{
+}
 
 inline void
 EsiParser::_adjustPointers(DocNodeList::iterator node_iter, DocNodeList::iterator end, const char *ext_data_ptr,

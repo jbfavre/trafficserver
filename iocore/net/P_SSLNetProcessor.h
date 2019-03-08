@@ -35,14 +35,14 @@
   I think I will stop here for now.
 
  ****************************************************************************/
+#ifndef __P_SSLNETPROCESSOR_H
+#define __P_SSLNETPROCESSOR_H
 
-#pragma once
-
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "P_Net.h"
 #include "P_SSLConfig.h"
 #include <openssl/ssl.h>
-#include "tscore/Map.h"
+#include "ts/Map.h"
 
 class UnixNetVConnection;
 struct NetAccept;
@@ -54,23 +54,25 @@ struct NetAccept;
 //////////////////////////////////////////////////////////////////
 struct SSLNetProcessor : public UnixNetProcessor {
 public:
-  int start(int, size_t stacksize) override;
+  virtual int start(int, size_t stacksize);
 
   void cleanup(void);
 
   SSLNetProcessor();
-  ~SSLNetProcessor() override;
+  virtual ~SSLNetProcessor();
 
   //
   // Private
   //
 
-  NetAccept *createNetAccept(const NetProcessor::AcceptOptions &opt) override;
-  NetVConnection *allocate_vc(EThread *t) override;
+  virtual NetAccept *createNetAccept(const NetProcessor::AcceptOptions &opt);
+  virtual NetVConnection *allocate_vc(EThread *t);
 
-  // noncopyable
-  SSLNetProcessor(const SSLNetProcessor &) = delete;
-  SSLNetProcessor &operator=(const SSLNetProcessor &) = delete;
+private:
+  SSLNetProcessor(const SSLNetProcessor &);
+  SSLNetProcessor &operator=(const SSLNetProcessor &);
 };
 
 extern SSLNetProcessor ssl_NetProcessor;
+
+#endif

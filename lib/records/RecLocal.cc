@@ -21,9 +21,9 @@
   limitations under the License.
  */
 
-#include "tscore/ink_platform.h"
+#include "ts/ink_platform.h"
 #include "Rollback.h"
-#include "tscore/ParseRules.h"
+#include "ts/ParseRules.h"
 #include "P_RecCore.h"
 #include "P_RecLocal.h"
 #include "P_RecMessage.h"
@@ -44,6 +44,7 @@ i_am_the_record_owner(RecT rec_type)
   switch (rec_type) {
   case RECT_CONFIG:
   case RECT_NODE:
+  case RECT_CLUSTER:
   case RECT_LOCAL:
     return true;
   case RECT_PROCESS:
@@ -61,7 +62,7 @@ i_am_the_record_owner(RecT rec_type)
 static void *
 sync_thr(void *data)
 {
-  TextBuffer *tb           = new TextBuffer(65536);
+  textBuffer *tb           = new textBuffer(65536);
   FileManager *configFiles = (FileManager *)data;
 
   while (true) {
@@ -128,6 +129,11 @@ config_update_thr(void * /* data */)
       RecSetRecordInt("proxy.node.config.restart_required.proxy", 1, REC_SOURCE_DEFAULT);
       RecSetRecordInt("proxy.node.config.restart_required.manager", 1, REC_SOURCE_DEFAULT);
       break;
+    case RECU_RESTART_TC:
+      RecSetRecordInt("proxy.node.config.restart_required.proxy", 1, REC_SOURCE_DEFAULT);
+      RecSetRecordInt("proxy.node.config.restart_required.manager", 1, REC_SOURCE_DEFAULT);
+      RecSetRecordInt("proxy.node.config.restart_required.cop", 1, REC_SOURCE_DEFAULT);
+      break;
     case RECU_NULL:
     case RECU_DYNAMIC:
       break;
@@ -168,6 +174,15 @@ RecLocalInit(Diags *_diags)
     return REC_ERR_FAIL;
   }
 
+  /* -- defer RecMessageInit() until LocalManager is initialized
+     if (RecMessageInit(RECM_SERVER) == REC_ERR_FAIL) {
+     return REC_ERR_FAIL;
+     }
+
+     if (RecMessageRegisterRecvCb(recv_message_cb, nullptr)) {
+     return REC_ERR_FAIL;
+     }
+   */
   initialized_p = true;
 
   return REC_ERR_OKAY;
@@ -201,8 +216,8 @@ RecLocalInitMessage()
 int
 RecLocalStart(FileManager *configFiles)
 {
-  ink_thread_create(nullptr, sync_thr, configFiles, 0, 0, nullptr);
-  ink_thread_create(nullptr, config_update_thr, nullptr, 0, 0, nullptr);
+  ink_thread_create(sync_thr, configFiles, 0, 0, nullptr);
+  ink_thread_create(config_update_thr, nullptr, 0, 0, nullptr);
   return REC_ERR_OKAY;
 }
 

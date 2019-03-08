@@ -133,12 +133,10 @@ handle_hook(TSCont *contp, TSEvent event, void *edata)
     }
 
     /* Clean up */
-    if (url) {
+    if (url)
       TSfree(url);
-    }
-    if (host) {
+    if (host)
       TSfree(host);
-    }
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     break;
 
@@ -168,7 +166,7 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[%s] plugin registration failed, check version", PLUGIN_NAME);
+    TSError("[%s] plugin registration failed.  check version.", PLUGIN_NAME);
     return;
   }
 

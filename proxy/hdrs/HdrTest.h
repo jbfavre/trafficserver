@@ -34,14 +34,14 @@
 
 #pragma once
 
-#include "tscore/Regression.h"
+#include "ts/Regression.h"
 
 class HdrTest
 {
 public:
   RegressionTest *rtest;
 
-  HdrTest() : rtest(nullptr){};
+  HdrTest() : rtest(NULL){};
   ~HdrTest(){};
 
   int go(RegressionTest *t, int atype);
