@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libcap-dev [linux-any],
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config, libgeoip-dev,
   libluajit-5.1-dev, libboost-dev, libhwloc-dev, default-libmysqlclient-dev,
-  python3-sphinx [!kfreebsd-any], python-sphinx [kfreebsd-any],
+  python3-sphinx [!kfreebsd-any] (>= 1.7.9~), python-sphinx [kfreebsd-any],
   libxml2-dev, libmagick++-dev, libncurses-dev, libcurl4-openssl-dev,
   libkyotocabinet-dev, libmemcached-dev, libbrotli-dev,
   libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips]
