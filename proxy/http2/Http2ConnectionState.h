@@ -146,11 +146,7 @@ public:
   {
     local_hpack_handle  = new HpackHandle(HTTP2_HEADER_TABLE_SIZE);
     remote_hpack_handle = new HpackHandle(HTTP2_HEADER_TABLE_SIZE);
-
-    continued_buffer.iov_base = NULL;
-    continued_buffer.iov_len  = 0;
-
-    dependency_tree = new DependencyTree(Http2::max_concurrent_streams_in);
+    dependency_tree     = new DependencyTree(Http2::max_concurrent_streams_in);
   }
 
   void
@@ -158,18 +154,18 @@ public:
   {
     cleanup_streams();
 
-    mutex = NULL; // magic happens - assigning to NULL frees the ProxyMutex
     delete local_hpack_handle;
+    local_hpack_handle = nullptr;
     delete remote_hpack_handle;
-
-    ats_free(continued_buffer.iov_base);
-
+    remote_hpack_handle = nullptr;
     delete dependency_tree;
+    dependency_tree  = nullptr;
     this->ua_session = nullptr;
 
     if (fini_event) {
       fini_event->cancel();
     }
+    mutex = NULL; // magic happens - assigning to NULL frees the ProxyMutex
   }
 
   // Event handlers
@@ -305,7 +301,6 @@ private:
   //     "If the END_HEADERS bit is not set, this frame MUST be followed by
   //     another CONTINUATION frame."
   Http2StreamId continued_stream_id;
-  IOVec continued_buffer;
   bool _scheduled;
   bool fini_received;
   int recursion;

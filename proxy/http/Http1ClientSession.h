@@ -75,6 +75,13 @@ public:
   virtual void do_io_shutdown(ShutdownHowTo_t howto);
   virtual void reenable(VIO *vio);
 
+  bool
+  allow_half_open()
+  {
+    // Only allow half open connections if the not over TLS
+    return (client_vc && dynamic_cast<SSLNetVConnection *>(client_vc) == nullptr);
+  }
+
   void
   set_half_close_flag(bool flag)
   {
@@ -91,19 +98,6 @@ public:
   get_netvc() const
   {
     return client_vc;
-  }
-
-  virtual void
-  release_netvc()
-  {
-    // Make sure the vio's are also released to avoid
-    // later surprises in inactivity timeout
-    if (client_vc) {
-      client_vc->do_io_read(NULL, 0, NULL);
-      client_vc->do_io_write(NULL, 0, NULL);
-      client_vc->set_action(NULL);
-      client_vc = NULL;
-    }
   }
 
   int

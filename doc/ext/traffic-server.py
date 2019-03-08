@@ -47,7 +47,6 @@ except NameError:
     def is_string_type(s):
         return isinstance(s, str)
 
-
 class TSConfVar(std.Target):
     """
     Description of a traffic server configuration variable.
@@ -328,11 +327,11 @@ class TrafficServerDomain(Domain):
 
     def clear_doc(self, docname):
         cv_list = self.data['cv']
-        for var, doc in cv_list.items():
+        for var, doc in list(cv_list.items()):
             if doc == docname:
                 del cv_list[var]
         stat_list = self.data['stat']
-        for var, doc in stat_list.items():
+        for var, doc in list(stat_list.items()):
             if doc == docname:
                 del stat_list[var]
 
@@ -441,6 +440,14 @@ def setup(app):
     app.add_crossref_type('configfile', 'file',
                           objname='Configuration file',
                           indextemplate='pair: %s; Configuration files')
+    
+    # Very ugly, but as of Sphinx 1.8 it must be done. There is an `override` option to add_crossref_type
+    # but it only applies to the directive, not the role (`file` in this case). If this isn't cleared
+    # explicitly the build will fail out due to the conflict. In this case, since the role action is the
+    # same in all cases, the output is correct. This does assume the config file names and log files
+    # names are disjoint sets.
+    del app.registry.domain_roles['std']['file']
+
     app.add_crossref_type('logfile', 'file',
                           objname='Log file',
                           indextemplate='pair: %s; Log files')

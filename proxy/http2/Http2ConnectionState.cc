@@ -26,6 +26,7 @@
 #include "Http2ClientSession.h"
 #include "Http2Stream.h"
 #include "Http2DebugNames.h"
+#include <sstream>
 
 #define DebugHttp2Con(ua_session, fmt, ...) \
   DebugSsn(ua_session, "http2_con", "[%" PRId64 "] " fmt, ua_session->connection_id(), ##__VA_ARGS__);
@@ -405,6 +406,11 @@ rcv_priority_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     // [RFC 7540] 5.3.3 Reprioritization
     Http2StreamDebug(cstate.ua_session, stream_id, "Reprioritize");
     cstate.dependency_tree->reprioritize(node, priority.stream_dependency, priority.exclusive_flag);
+    if (is_debug_tag_set("http2_priority")) {
+      std::stringstream output;
+      cstate.dependency_tree->dump_tree(output);
+      Debug("http2_priority", "[%" PRId64 "] reprioritize %s", cstate.ua_session->connection_id(), output.str().c_str());
+    }
   } else {
     // PRIORITY frame is received before HEADERS frame.
 
@@ -1131,6 +1137,11 @@ Http2ConnectionState::delete_stream(Http2Stream *stream)
       if (node->active) {
         dependency_tree->deactivate(node, 0);
       }
+      if (is_debug_tag_set("http2_priority")) {
+        std::stringstream output;
+        dependency_tree->dump_tree(output);
+        Debug("http2_priority", "[%" PRId64 "] %s", ua_session->connection_id(), output.str().c_str());
+      }
       dependency_tree->remove(node);
       // ink_release_assert(dependency_tree->find(stream->get_id()) == nullptr);
     }
@@ -1168,6 +1179,10 @@ Http2ConnectionState::release_stream(Http2Stream *stream)
 
   if (ua_session) {
     SCOPED_MUTEX_LOCK(lock, this->ua_session->mutex, this_ethread());
+    if (!ua_session) {
+      // Workaround fix for GitHub #4504. The `ua_session` could be freed while waiting for acquiring the above lock.
+      return;
+    }
 
     // If the number of clients is 0 and ua_session is active, then mark the connection as inactive
     if (total_client_streams_count == 0 && ua_session->is_active()) {
