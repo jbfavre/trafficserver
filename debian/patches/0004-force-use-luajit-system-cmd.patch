@@ -4,8 +4,10 @@ Subject: Use system luajit or liblua
 Last-Update: 2018-01-22
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/cmd/traffic_manager/Makefile.am
-+++ b/cmd/traffic_manager/Makefile.am
+Index: trafficserver/cmd/traffic_manager/Makefile.am
+===================================================================
+--- trafficserver.orig/cmd/traffic_manager/Makefile.am
++++ trafficserver/cmd/traffic_manager/Makefile.am
 @@ -21,7 +21,7 @@ check_PROGRAMS = test_metrics
  TESTS = $(check_PROGRAMS)
  
@@ -56,8 +58,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
    @LIBTCL@ @LIBPCRE@
  
  # Must do it this way or the dependencies aren't detected.
---- a/cmd/traffic_manager/Makefile.in
-+++ b/cmd/traffic_manager/Makefile.in
+Index: trafficserver/cmd/traffic_manager/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_manager/Makefile.in
++++ trafficserver/cmd/traffic_manager/Makefile.in
 @@ -172,7 +172,6 @@ test_metrics_OBJECTS = $(am_test_metrics
  test_metrics_DEPENDENCIES = $(top_builddir)/mgmt/libmgmt_lm.la \
  	$(top_builddir)/lib/records/librecords_lm.a \
@@ -74,7 +78,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_1)
  AM_V_P = $(am__v_P_@AM_V@)
  am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
-@@ -490,17 +488,16 @@ pkglibexecdir = @pkglibexecdir@
+@@ -494,17 +492,16 @@ pkglibexecdir = @pkglibexecdir@
  ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
@@ -95,7 +99,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  AR = @AR@
  ASCPP = @ASCPP@
  AUTOCONF = @AUTOCONF@
-@@ -581,9 +578,9 @@ LIPO = @LIPO@
+@@ -585,9 +582,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -108,7 +112,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -859,18 +856,16 @@ traffic_manager_LDADD = $(top_builddir)/
+@@ -863,18 +860,16 @@ traffic_manager_LDADD = $(top_builddir)/
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
@@ -131,8 +135,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  Clang_Tidy_Options = -fix -fix-errors
  
  # Sort the filenames to remove duplicates, then filter to retain
---- a/cmd/Makefile.in
-+++ b/cmd/Makefile.in
+Index: trafficserver/cmd/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/Makefile.in
++++ trafficserver/cmd/Makefile.in
 @@ -508,9 +508,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -146,8 +152,61 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_cop/Makefile.in
-+++ b/cmd/traffic_cop/Makefile.in
+Index: trafficserver/cmd/traffic_cop/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_cop/Makefile.in
++++ trafficserver/cmd/traffic_cop/Makefile.in
+@@ -320,9 +320,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/cmd/traffic_crashlog/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_crashlog/Makefile.in
++++ trafficserver/cmd/traffic_crashlog/Makefile.in
+@@ -341,9 +341,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/cmd/traffic_ctl/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_ctl/Makefile.in
++++ trafficserver/cmd/traffic_ctl/Makefile.in
+@@ -326,9 +326,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/cmd/traffic_layout/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_layout/Makefile.in
++++ trafficserver/cmd/traffic_layout/Makefile.in
 @@ -319,9 +319,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -161,9 +220,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_crashlog/Makefile.in
-+++ b/cmd/traffic_crashlog/Makefile.in
-@@ -339,9 +339,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_top/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_top/Makefile.in
++++ trafficserver/cmd/traffic_top/Makefile.in
+@@ -334,9 +334,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -176,9 +237,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_ctl/Makefile.in
-+++ b/cmd/traffic_ctl/Makefile.in
-@@ -322,9 +322,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_via/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_via/Makefile.in
++++ trafficserver/cmd/traffic_via/Makefile.in
+@@ -521,9 +521,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -191,54 +254,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_layout/Makefile.in
-+++ b/cmd/traffic_layout/Makefile.in
-@@ -318,9 +318,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_top/Makefile.in
-+++ b/cmd/traffic_top/Makefile.in
-@@ -333,9 +333,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_via/Makefile.in
-+++ b/cmd/traffic_via/Makefile.in
-@@ -520,9 +520,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_wccp/Makefile.in
-+++ b/cmd/traffic_wccp/Makefile.in
-@@ -318,9 +318,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_wccp/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_wccp/Makefile.in
++++ trafficserver/cmd/traffic_wccp/Makefile.in
+@@ -319,9 +319,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

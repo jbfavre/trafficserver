@@ -4,9 +4,11 @@ Subject: Make documentation build works outside of git repository
 Last-Update: 2018-04-23
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/doc/ext/traffic-server.py
-+++ b/doc/ext/traffic-server.py
-@@ -412,7 +412,7 @@ with open('../configure.ac', 'r') as f:
+Index: trafficserver/doc/ext/traffic-server.py
+===================================================================
+--- trafficserver.orig/doc/ext/traffic-server.py
++++ trafficserver/doc/ext/traffic-server.py
+@@ -411,7 +411,7 @@ with open('../configure.ac', 'r') as f:
      autoconf_version = '.'.join(match.group(1).split('.', 2)[:2] + ['x'])
  
  # get the current branch the local repository is on

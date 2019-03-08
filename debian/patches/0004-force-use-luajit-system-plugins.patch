@@ -4,9 +4,11 @@ Subject: Use system luajit or liblua
 Last-Update: 2018-01-22
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/plugins/Makefile.in
-+++ b/plugins/Makefile.in
-@@ -2176,9 +2176,9 @@ LIPO = @LIPO@
+Index: trafficserver/plugins/Makefile.in
+===================================================================
+--- trafficserver.orig/plugins/Makefile.in
++++ trafficserver/plugins/Makefile.in
+@@ -2324,9 +2324,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

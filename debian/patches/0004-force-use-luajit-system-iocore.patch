@@ -4,8 +4,10 @@ Subject: Use system luajit or liblua
 Last-Update: 2018-01-22
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/iocore/Makefile.in
-+++ b/iocore/Makefile.in
+Index: trafficserver/iocore/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/Makefile.in
++++ trafficserver/iocore/Makefile.in
 @@ -320,9 +320,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -19,9 +21,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/aio/Makefile.in
-+++ b/iocore/aio/Makefile.in
-@@ -553,9 +553,9 @@ LIPO = @LIPO@
+Index: trafficserver/iocore/aio/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/aio/Makefile.in
++++ trafficserver/iocore/aio/Makefile.in
+@@ -555,9 +555,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -34,9 +38,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/cache/Makefile.in
-+++ b/iocore/cache/Makefile.in
-@@ -357,9 +357,9 @@ LIPO = @LIPO@
+Index: trafficserver/iocore/cache/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/cache/Makefile.in
++++ trafficserver/iocore/cache/Makefile.in
+@@ -365,9 +365,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -49,9 +55,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/cluster/Makefile.in
-+++ b/iocore/cluster/Makefile.in
-@@ -344,9 +344,9 @@ LIPO = @LIPO@
+Index: trafficserver/iocore/cluster/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/cluster/Makefile.in
++++ trafficserver/iocore/cluster/Makefile.in
+@@ -352,9 +352,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -64,69 +72,79 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/dns/Makefile.in
-+++ b/iocore/dns/Makefile.in
+Index: trafficserver/iocore/dns/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/dns/Makefile.in
++++ trafficserver/iocore/dns/Makefile.in
+@@ -341,9 +341,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/iocore/eventsystem/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/eventsystem/Makefile.in
++++ trafficserver/iocore/eventsystem/Makefile.in
+@@ -577,9 +577,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/iocore/hostdb/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/hostdb/Makefile.in
++++ trafficserver/iocore/hostdb/Makefile.in
+@@ -562,9 +562,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/iocore/net/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/net/Makefile.in
++++ trafficserver/iocore/net/Makefile.in
+@@ -623,9 +623,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+Index: trafficserver/iocore/utils/Makefile.in
+===================================================================
+--- trafficserver.orig/iocore/utils/Makefile.in
++++ trafficserver/iocore/utils/Makefile.in
 @@ -339,9 +339,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/eventsystem/Makefile.in
-+++ b/iocore/eventsystem/Makefile.in
-@@ -567,9 +567,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/hostdb/Makefile.in
-+++ b/iocore/hostdb/Makefile.in
-@@ -559,9 +559,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/net/Makefile.in
-+++ b/iocore/net/Makefile.in
-@@ -604,9 +604,9 @@ LIPO = @LIPO@
- LN_S = @LN_S@
- LTLIBOBJS = @LTLIBOBJS@
- LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
--LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
--LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
--LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-+LUA_CFLAGS = @LUA_CFLAGS@
-+LUA_CPPFLAGS = @LUA_CPPFLAGS@
-+LUA_LDFLAGS = @LUA_LDFLAGS@
- MAINT = @MAINT@
- MAKEINFO = @MAKEINFO@
- MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/iocore/utils/Makefile.in
-+++ b/iocore/utils/Makefile.in
-@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

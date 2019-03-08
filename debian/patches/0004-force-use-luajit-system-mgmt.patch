@@ -4,9 +4,11 @@ Subject: Use system luajit or liblua
 Last-Update: 2018-01-22
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/mgmt/Makefile.in
-+++ b/mgmt/Makefile.in
-@@ -391,9 +391,9 @@ LIPO = @LIPO@
+Index: trafficserver/mgmt/Makefile.in
+===================================================================
+--- trafficserver.orig/mgmt/Makefile.in
++++ trafficserver/mgmt/Makefile.in
+@@ -398,9 +398,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -19,9 +21,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/mgmt/api/Makefile.in
-+++ b/mgmt/api/Makefile.in
-@@ -431,9 +431,9 @@ LIPO = @LIPO@
+Index: trafficserver/mgmt/api/Makefile.in
+===================================================================
+--- trafficserver.orig/mgmt/api/Makefile.in
++++ trafficserver/mgmt/api/Makefile.in
+@@ -442,9 +442,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -34,8 +38,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/mgmt/api/include/Makefile.in
-+++ b/mgmt/api/include/Makefile.in
+Index: trafficserver/mgmt/api/include/Makefile.in
+===================================================================
+--- trafficserver.orig/mgmt/api/include/Makefile.in
++++ trafficserver/mgmt/api/include/Makefile.in
 @@ -293,9 +293,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -49,9 +55,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/mgmt/cluster/Makefile.in
-+++ b/mgmt/cluster/Makefile.in
-@@ -331,9 +331,9 @@ LIPO = @LIPO@
+Index: trafficserver/mgmt/cluster/Makefile.in
+===================================================================
+--- trafficserver.orig/mgmt/cluster/Makefile.in
++++ trafficserver/mgmt/cluster/Makefile.in
+@@ -332,9 +332,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -64,9 +72,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/mgmt/utils/Makefile.in
-+++ b/mgmt/utils/Makefile.in
-@@ -556,9 +556,9 @@ LIPO = @LIPO@
+Index: trafficserver/mgmt/utils/Makefile.in
+===================================================================
+--- trafficserver.orig/mgmt/utils/Makefile.in
++++ trafficserver/mgmt/utils/Makefile.in
+@@ -560,9 +560,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

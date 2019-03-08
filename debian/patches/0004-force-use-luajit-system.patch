@@ -4,8 +4,10 @@ Subject: Use system luajit or liblua
 Last-Update: 2018-01-22
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/configure.ac
-+++ b/configure.ac
+Index: trafficserver/configure.ac
+===================================================================
+--- trafficserver.orig/configure.ac
++++ trafficserver/configure.ac
 @@ -647,7 +647,7 @@ case $host_os in
        *amd64*)
          TS_ADDTO(AM_CFLAGS, [-m64])
@@ -103,8 +105,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 +    LUA_CPPFLAGS:       $LUA_CPPFLAGS
 +    LUA_LDFLAGS:        $LUA_LDFLAGS
  ])
---- a/configure
-+++ b/configure
+Index: trafficserver/configure
+===================================================================
+--- trafficserver.orig/configure
++++ trafficserver/configure
 @@ -646,7 +646,7 @@ AM_LDFLAGS
  AM_CXXFLAGS
  AM_CFLAGS
@@ -178,7 +182,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  fi
  
-@@ -27408,19 +27405,6 @@ done
+@@ -27409,19 +27406,6 @@ done
    fi
  
  
@@ -198,7 +202,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  # We should be able to build http_load if epoll(2) is available.
   if test x"$ac_cv_func_epoll_ctl" = x"yes"; then
    BUILD_HTTP_LOAD_TRUE=
-@@ -28585,22 +28569,22 @@ iocore_include_dirs="\
+@@ -28586,22 +28570,22 @@ iocore_include_dirs="\
  # can strip the coverage flags from Lua while keeping them by
  # default everywhere else.
  
@@ -227,7 +231,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        fi
      done
    fi
-@@ -28608,13 +28592,13 @@ iocore_include_dirs="\
+@@ -28609,13 +28593,13 @@ iocore_include_dirs="\
  
  
  
@@ -245,7 +249,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        if test "x$i" != "x"-fsanitize=address""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28622,19 +28606,19 @@ iocore_include_dirs="\
+@@ -28623,19 +28607,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -271,7 +275,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        if test "x$i" != "x"-fsanitize=thread""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28642,19 +28626,19 @@ iocore_include_dirs="\
+@@ -28643,19 +28627,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -297,7 +301,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        if test "x$i" != "x"-fsanitize=memory""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28662,19 +28646,19 @@ iocore_include_dirs="\
+@@ -28663,19 +28647,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -323,7 +327,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        if test "x$i" != "x"-fprofile-instr-generate""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28682,19 +28666,19 @@ iocore_include_dirs="\
+@@ -28683,19 +28667,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -349,7 +353,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        if test "x$i" != "x"-fcoverage-mapping""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28702,19 +28686,19 @@ iocore_include_dirs="\
+@@ -28703,19 +28687,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -375,7 +379,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        if test "x$i" != "x"--coverage""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28722,8 +28706,8 @@ iocore_include_dirs="\
+@@ -28723,8 +28707,8 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -386,7 +390,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
      fi
    fi
  
-@@ -31487,9 +31471,9 @@ fi
+@@ -31489,9 +31473,9 @@ fi
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -399,7 +403,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  " >&5
  $as_echo "$as_me: Build option summary:
      CC:                 $CC
-@@ -31506,7 +31490,7 @@ $as_echo "$as_me: Build option summary:
+@@ -31508,7 +31492,7 @@ $as_echo "$as_me: Build option summary:
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -410,8 +414,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 +    LUA_CPPFLAGS:       $LUA_CPPFLAGS
 +    LUA_LDFLAGS:        $LUA_LDFLAGS
  " >&6;}
+Index: trafficserver/build/luajit.m4
+===================================================================
 --- /dev/null
-+++ b/build/luajit.m4
++++ trafficserver/build/luajit.m4
 @@ -0,0 +1,48 @@
 +dnl -------------------------------------------------------- -*- autoconf -*-
 +dnl Licensed to the Apache Software Foundation (ASF) under one or more
@@ -461,8 +467,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 +    ]
 +  )
 +])
---- a/Makefile.in
-+++ b/Makefile.in
+Index: trafficserver/Makefile.in
+===================================================================
+--- trafficserver.orig/Makefile.in
++++ trafficserver/Makefile.in
 @@ -338,9 +338,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -476,8 +484,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/rc/Makefile.in
-+++ b/rc/Makefile.in
+Index: trafficserver/rc/Makefile.in
+===================================================================
+--- trafficserver.orig/rc/Makefile.in
++++ trafficserver/rc/Makefile.in
 @@ -282,9 +282,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -491,8 +501,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/doc/Makefile.in
-+++ b/doc/Makefile.in
+Index: trafficserver/doc/Makefile.in
+===================================================================
+--- trafficserver.orig/doc/Makefile.in
++++ trafficserver/doc/Makefile.in
 @@ -275,9 +275,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -506,9 +518,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/example/Makefile.in
-+++ b/example/Makefile.in
-@@ -811,9 +811,9 @@ LIPO = @LIPO@
+Index: trafficserver/example/Makefile.in
+===================================================================
+--- trafficserver.orig/example/Makefile.in
++++ trafficserver/example/Makefile.in
+@@ -867,9 +867,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -521,9 +535,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/tools/Makefile.in
-+++ b/tools/Makefile.in
-@@ -364,9 +364,9 @@ LIPO = @LIPO@
+Index: trafficserver/tools/Makefile.in
+===================================================================
+--- trafficserver.orig/tools/Makefile.in
++++ trafficserver/tools/Makefile.in
+@@ -366,9 +366,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
