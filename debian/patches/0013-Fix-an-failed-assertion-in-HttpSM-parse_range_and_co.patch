@@ -1,0 +1,51 @@
+From 6428722801cdb7132f514bd27313c938bbcc54d2 Mon Sep 17 00:00:00 2001
+From: fengshuaitao <fengshuaitao@bytedance.com>
+Date: Wed, 17 Jan 2018 15:08:29 +0800
+Subject: [PATCH 17/18] Fix an failed assertion in
+ HttpSM::parse_range_and_compare
+
+Signed-off-by: fengshuaitao <fengshuaitao@bytedance.com>
+(cherry picked from commit 8046477d6c871be61a9d2ec6b41f2524a3fde699)
+---
+ proxy/http/HttpSM.cc | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+Index: trafficserver/proxy/http/HttpSM.cc
+===================================================================
+--- trafficserver.orig/proxy/http/HttpSM.cc
++++ trafficserver/proxy/http/HttpSM.cc
+@@ -4255,6 +4255,8 @@ HttpSM::parse_range_and_compare(MIMEFiel
+   const char *s, *e, *tmp;
+   RangeRecord *ranges = nullptr;
+   int64_t start, end;
++  int64_t cutoff = INT64_MAX / 10;
++  int64_t cutlim = INT64_MAX % 10;
+ 
+   ink_assert(field != nullptr && t_state.range_setup == HttpTransact::RANGE_NONE && t_state.ranges == nullptr);
+ 
+@@ -4311,6 +4313,12 @@ HttpSM::parse_range_and_compare(MIMEFiel
+       start = -1;
+     } else {
+       for (start = 0; s < e && *s >= '0' && *s <= '9'; ++s) {
++        // check the int64 overflow in case of high gcc with O3 option
++        // thinking the start is always positive
++        if (start >= cutoff && (start > cutoff || *s - '0' > cutlim)) {
++          t_state.range_setup = HttpTransact::RANGE_NONE;
++          goto Lfaild;
++        }
+         start = start * 10 + (*s - '0');
+       }
+       // skip last white spaces
+@@ -4343,6 +4351,12 @@ HttpSM::parse_range_and_compare(MIMEFiel
+       end = content_length - 1;
+     } else {
+       for (end = 0; s < e && *s >= '0' && *s <= '9'; ++s) {
++        // check the int64 overflow in case of high gcc with O3 option
++        // thinking the start is always positive
++        if (end >= cutoff && (end > cutoff || *s - '0' > cutlim)) {
++          t_state.range_setup = HttpTransact::RANGE_NONE;
++          goto Lfaild;
++        }
+         end = end * 10 + (*s - '0');
+       }
+       // skip last white spaces

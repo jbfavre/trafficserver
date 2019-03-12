@@ -1,0 +1,177 @@
+From 14963f60987c80e024b5618ebd400ad9aa8a4fad Mon Sep 17 00:00:00 2001
+From: Evan Zelkowitz <19699200+ezelkow1@users.noreply.github.com>
+Date: Wed, 30 Jan 2019 14:07:20 -0700
+Subject: [PATCH 08/18] Manually brought in changes from #4797
+
+commit 58b154bb6f253ac8660bd778dd2bf43cb7b60687
+
+Updated to use ts::string_view
+---
+ iocore/net/I_Net.h                |  4 ++++
+ iocore/net/Net.cc                 | 18 ++++++++++++++++++
+ iocore/net/P_UnixNetVConnection.h | 35 -----------------------------------
+ iocore/net/UnixNetVConnection.cc  | 30 ++++++++++++++++++++++++++++++
+ mgmt/RecordsConfig.cc             |  4 ++--
+ 5 files changed, 54 insertions(+), 37 deletions(-)
+
+diff --git a/iocore/net/I_Net.h b/iocore/net/I_Net.h
+index ef122b860..3848f1de5 100644
+--- a/iocore/net/I_Net.h
++++ b/iocore/net/I_Net.h
+@@ -43,6 +43,7 @@
+ #include "ts/I_Version.h"
+ #include "I_EventSystem.h"
+ #include <netinet/in.h>
++#include "ts/string_view.h"
+ 
+ #ifndef UIO_MAXIOV
+ #define NET_MAX_IOV 16 // UIO_MAXIOV shall be at least 16 1003.1g (5.4.1.1)
+@@ -64,6 +65,9 @@ extern int net_accept_period;
+ extern int net_retry_delay;
+ extern int net_throttle_delay;
+ 
++extern ts::string_view net_ccp_in;
++extern ts::string_view net_ccp_out;
++
+ #define NET_EVENT_OPEN (NET_EVENT_EVENTS_START)
+ #define NET_EVENT_OPEN_FAILED (NET_EVENT_EVENTS_START + 1)
+ #define NET_EVENT_ACCEPT (NET_EVENT_EVENTS_START + 2)
+diff --git a/iocore/net/Net.cc b/iocore/net/Net.cc
+index 0984df370..c647107ad 100644
+--- a/iocore/net/Net.cc
++++ b/iocore/net/Net.cc
+@@ -40,6 +40,10 @@ int net_accept_period       = 10;
+ int net_retry_delay         = 10;
+ int net_throttle_delay      = 50; /* milliseconds */
+ 
++// For the in/out congestion control: ToDo: this probably would be better as ports: specifications
++ts::string_view net_ccp_in;
++ts::string_view net_ccp_out;
++
+ static inline void
+ configure_net()
+ {
+@@ -52,6 +56,20 @@ configure_net()
+   // These are not reloadable
+   REC_ReadConfigInteger(net_event_period, "proxy.config.net.event_period");
+   REC_ReadConfigInteger(net_accept_period, "proxy.config.net.accept_period");
++
++  // This is kinda fugly, but better than it was before (on every connection in and out)
++  // Note that these would need to be ats_free()'d if we ever want to clean that up, but
++  // we have no good way of dealing with that on such globals I think?
++  RecString ccp;
++
++  REC_ReadConfigStringAlloc(ccp, "proxy.config.net.tcp_congestion_control_in");
++  if (ccp && *ccp != '\0') {
++    net_ccp_in = {ccp};
++  }
++  REC_ReadConfigStringAlloc(ccp, "proxy.config.net.tcp_congestion_control_out");
++  if (ccp && *ccp != '\0') {
++    net_ccp_out = {ccp};
++  }
+ }
+ 
+ static inline void
+diff --git a/iocore/net/P_UnixNetVConnection.h b/iocore/net/P_UnixNetVConnection.h
+index 0f557fe07..d9fa73288 100644
+--- a/iocore/net/P_UnixNetVConnection.h
++++ b/iocore/net/P_UnixNetVConnection.h
+@@ -454,41 +454,6 @@ UnixNetVConnection::set_tcp_init_cwnd(int init_cwnd)
+ #endif
+ }
+ 
+-TS_INLINE int
+-UnixNetVConnection::set_tcp_congestion_control(int side)
+-{
+-#ifdef TCP_CONGESTION
+-  RecString congestion_control;
+-  int ret;
+-
+-  if (side == CLIENT_SIDE) {
+-    ret = REC_ReadConfigStringAlloc(congestion_control, "proxy.config.net.tcp_congestion_control_in");
+-  } else {
+-    ret = REC_ReadConfigStringAlloc(congestion_control, "proxy.config.net.tcp_congestion_control_out");
+-  }
+-
+-  if (ret == REC_ERR_OKAY) {
+-    int len = strlen(congestion_control);
+-    if (len > 0) {
+-      int rv = 0;
+-      rv     = setsockopt(con.fd, IPPROTO_TCP, TCP_CONGESTION, reinterpret_cast<void *>(congestion_control), len);
+-      if (rv < 0) {
+-        Error("Unable to set TCP congestion control on socket %d to \"%.*s\", errno=%d (%s)", con.fd, len, congestion_control,
+-              errno, strerror(errno));
+-      } else {
+-        Debug("socket", "Setting TCP congestion control on socket [%d] to \"%.*s\" -> %d", con.fd, len, congestion_control, rv);
+-      }
+-    }
+-    ats_free(congestion_control);
+-    return 0;
+-  }
+-  return -1;
+-#else
+-  Debug("socket", "Setting TCP congestion control is not supported on this platform.");
+-  return -1;
+-#endif
+-}
+-
+ TS_INLINE UnixNetVConnection::~UnixNetVConnection()
+ {
+ }
+diff --git a/iocore/net/UnixNetVConnection.cc b/iocore/net/UnixNetVConnection.cc
+index c8953af30..7b581657a 100644
+--- a/iocore/net/UnixNetVConnection.cc
++++ b/iocore/net/UnixNetVConnection.cc
+@@ -1586,3 +1586,33 @@ UnixNetVConnection::remove_from_active_queue()
+     ink_release_assert(!"BUG: It must have acquired the NetHandler's lock before doing anything on active_queue.");
+   }
+ }
++
++int
++UnixNetVConnection::set_tcp_congestion_control(int side)
++{
++#ifdef TCP_CONGESTION
++  ts::string_view ccp;
++
++  if (side == CLIENT_SIDE) {
++    ccp = net_ccp_in;
++  } else {
++    ccp = net_ccp_out;
++  }
++
++  if (!ccp.empty()) {
++    int rv = setsockopt(con.fd, IPPROTO_TCP, TCP_CONGESTION, reinterpret_cast<const void *>(ccp.data()), ccp.length());
++
++    if (rv < 0) {
++      Error("Unable to set TCP congestion control on socket %d to \"%s\", errno=%d (%s)", con.fd, ccp.data(), errno,
++            strerror(errno));
++    } else {
++      Debug("socket", "Setting TCP congestion control on socket [%d] to \"%s\" -> %d", con.fd, ccp.data(), rv);
++    }
++    return 0;
++  }
++  return -1;
++#else
++  Debug("socket", "Setting TCP congestion control is not supported on this platform.");
++  return -1;
++#endif
++}
+diff --git a/mgmt/RecordsConfig.cc b/mgmt/RecordsConfig.cc
+index 4d0f27bb9..7ee5fcc64 100644
+--- a/mgmt/RecordsConfig.cc
++++ b/mgmt/RecordsConfig.cc
+@@ -861,9 +861,9 @@ static const RecordElement RecordsConfig[] =
+   ,
+   {RECT_CONFIG, "proxy.config.net.sock_option_tfo_queue_size_in", RECD_INT, "10000", RECU_NULL, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
+   ,
+-  {RECT_CONFIG, "proxy.config.net.tcp_congestion_control_in", RECD_STRING, "", RECU_DYNAMIC, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
++  {RECT_CONFIG, "proxy.config.net.tcp_congestion_control_in", RECD_STRING, "", RECU_RESTART_TS, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
+   ,
+-  {RECT_CONFIG, "proxy.config.net.tcp_congestion_control_out", RECD_STRING, "", RECU_DYNAMIC, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
++  {RECT_CONFIG, "proxy.config.net.tcp_congestion_control_out", RECD_STRING, "", RECU_RESTART_TS, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
+   ,
+ 
+   //##############################################################################
+-- 
+2.11.0
+

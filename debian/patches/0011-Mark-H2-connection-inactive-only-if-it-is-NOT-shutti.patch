@@ -1,0 +1,84 @@
+From 6c315e9df8a8039fc7f984273c21b6a46a212896 Mon Sep 17 00:00:00 2001
+From: Masaori Koshiba <masaori@apache.org>
+Date: Wed, 6 Feb 2019 15:45:53 +0900
+Subject: [PATCH 07/18] Mark H2 connection inactive only if it is NOT shutting
+ down
+
+Prior this change, HTTP/2 connection is marked as inactive regardless it is shutting down or not.
+
+(cherry picked from commit a4227747277759c27c63ba948d96fbd6204dc8db)
+
+Conflicts:
+	proxy/http2/Http2ConnectionState.cc
+---
+ proxy/http2/Http2ClientSession.cc   |  2 ++
+ proxy/http2/Http2ConnectionState.cc | 38 +++++++++++++++++++------------------
+ 2 files changed, 22 insertions(+), 18 deletions(-)
+
+diff --git a/proxy/http2/Http2ClientSession.cc b/proxy/http2/Http2ClientSession.cc
+index 3de5670fc..f61cf70a9 100644
+--- a/proxy/http2/Http2ClientSession.cc
++++ b/proxy/http2/Http2ClientSession.cc
+@@ -282,6 +282,8 @@ Http2ClientSession::do_io_close(int alerrno)
+     SCOPED_MUTEX_LOCK(lock, this->connection_state.mutex, this_ethread());
+     this->connection_state.release_stream(nullptr);
+   }
++
++  this->clear_session_active();
+ }
+ 
+ void
+diff --git a/proxy/http2/Http2ConnectionState.cc b/proxy/http2/Http2ConnectionState.cc
+index e1e4c53a9..a62d3864a 100644
+--- a/proxy/http2/Http2ConnectionState.cc
++++ b/proxy/http2/Http2ConnectionState.cc
+@@ -1184,26 +1184,28 @@ Http2ConnectionState::release_stream(Http2Stream *stream)
+       return;
+     }
+ 
+-    // If the number of clients is 0 and ua_session is active, then mark the connection as inactive
+-    if (total_client_streams_count == 0 && ua_session->is_active()) {
+-      ua_session->clear_session_active();
+-      UnixNetVConnection *vc = static_cast<UnixNetVConnection *>(ua_session->get_netvc());
+-      if (vc) {
+-        vc->cancel_active_timeout();
+-        vc->add_to_keep_alive_queue();
++    if (total_client_streams_count == 0) {
++      if (fini_received) {
++        // We were shutting down, go ahead and terminate the session
++        // this is a member of Http2ConnectionState and will be freed
++        // when ua_session is destroyed
++        ua_session->destroy();
++
++        // Can't do this because we just destroyed right here ^,
++        // or we can use a local variable to do it.
++        // ua_session = nullptr;
++      } else if (ua_session->is_active()) {
++        // If the number of clients is 0, HTTP2_SESSION_EVENT_FINI is not received or sent, and ua_session is active,
++        // then mark the connection as inactive
++        ua_session->clear_session_active();
++        UnixNetVConnection *vc = static_cast<UnixNetVConnection *>(ua_session->get_netvc());
++        if (vc) {
++          vc->cancel_active_timeout();
++          // With heavy traffic, ua_session could be destroyed. Do not touch ua_session after this.
++          vc->add_to_keep_alive_queue();
++        }
+       }
+     }
+-
+-    if (fini_received && total_client_streams_count == 0) {
+-      // We were shutting down, go ahead and terminate the session
+-      // this is a member of Http2ConnectionState and will be freed
+-      // when ua_session is destroyed
+-      ua_session->destroy();
+-
+-      // Can't do this because we just destroyed right here ^,
+-      // or we can use a local variable to do it.
+-      // ua_session = nullptr;
+-    }
+   }
+ }
+ 
+-- 
+2.11.0
+

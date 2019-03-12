@@ -15,3 +15,6 @@
 #0009-fix-doc-python3.patch
 0009-fix-doc-git.patch
 0010-Remove-custom-memory-barriers-from-header_rewrite-an.patch
+0011-Mark-H2-connection-inactive-only-if-it-is-NOT-shutti.patch
+0012-Manually-brought-in-changes-from-4797.patch
+0013-Fix-an-failed-assertion-in-HttpSM-parse_range_and_co.patch
