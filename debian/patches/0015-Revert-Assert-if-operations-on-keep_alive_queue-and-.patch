@@ -1,0 +1,113 @@
+From e25bb7192ca61e961594802f43b3c49bea9310c9 Mon Sep 17 00:00:00 2001
+From: Leif Hedstrom <leif@ogre.com>
+Date: Thu, 14 Mar 2019 14:30:41 -0600
+Subject: [PATCH 2/3] Revert "Assert if operations on keep_alive_queue and
+ active_queue are not thread-safe"
+
+This reverts commit 3599e5ebe31ec2bac0783b2068be91a13feb967e.
+
+Seems this causes new, unpredcitable crashes. For now, lets revert this, and we can
+keep working on this for 8.x / 9.x. Reference #4379 and #4921 and #5120.
+---
+ iocore/net/UnixNet.cc            |  6 ------
+ iocore/net/UnixNetVConnection.cc | 31 ++++---------------------------
+ 2 files changed, 4 insertions(+), 33 deletions(-)
+
+diff --git a/iocore/net/UnixNet.cc b/iocore/net/UnixNet.cc
+index a0cdc50f2..06da41467 100644
+--- a/iocore/net/UnixNet.cc
++++ b/iocore/net/UnixNet.cc
+@@ -689,7 +689,6 @@ void
+ NetHandler::add_to_keep_alive_queue(UnixNetVConnection *vc)
+ {
+   Debug("net_queue", "NetVC: %p", vc);
+-  ink_assert(mutex->thread_holding == this_ethread());
+ 
+   if (keep_alive_queue.in(vc)) {
+     // already in the keep-alive queue, move the head
+@@ -709,8 +708,6 @@ void
+ NetHandler::remove_from_keep_alive_queue(UnixNetVConnection *vc)
+ {
+   Debug("net_queue", "NetVC: %p", vc);
+-  ink_assert(mutex->thread_holding == this_ethread());
+-
+   if (keep_alive_queue.in(vc)) {
+     keep_alive_queue.remove(vc);
+     --keep_alive_queue_size;
+@@ -723,7 +720,6 @@ NetHandler::add_to_active_queue(UnixNetVConnection *vc)
+   Debug("net_queue", "NetVC: %p", vc);
+   Debug("net_queue", "max_connections_per_thread_in: %d active_queue_size: %d keep_alive_queue_size: %d",
+         max_connections_per_thread_in, active_queue_size, keep_alive_queue_size);
+-  ink_assert(mutex->thread_holding == this_ethread());
+ 
+   // if active queue is over size then close inactive connections
+   if (manage_active_queue() == false) {
+@@ -748,8 +744,6 @@ void
+ NetHandler::remove_from_active_queue(UnixNetVConnection *vc)
+ {
+   Debug("net_queue", "NetVC: %p", vc);
+-  ink_assert(mutex->thread_holding == this_ethread());
+-
+   if (active_queue.in(vc)) {
+     active_queue.remove(vc);
+     --active_queue_size;
+diff --git a/iocore/net/UnixNetVConnection.cc b/iocore/net/UnixNetVConnection.cc
+index 7b581657a..2981ab1f6 100644
+--- a/iocore/net/UnixNetVConnection.cc
++++ b/iocore/net/UnixNetVConnection.cc
+@@ -1543,48 +1543,25 @@ UnixNetVConnection::migrateToCurrentThread(Continuation *cont, EThread *t)
+ void
+ UnixNetVConnection::add_to_keep_alive_queue()
+ {
+-  MUTEX_TRY_LOCK(lock, nh->mutex, this_ethread());
+-  if (lock.is_locked()) {
+-    nh->add_to_keep_alive_queue(this);
+-  } else {
+-    ink_release_assert(!"BUG: It must have acquired the NetHandler's lock before doing anything on keep_alive_queue.");
+-  }
++  nh->add_to_keep_alive_queue(this);
+ }
+ 
+ void
+ UnixNetVConnection::remove_from_keep_alive_queue()
+ {
+-  MUTEX_TRY_LOCK(lock, nh->mutex, this_ethread());
+-  if (lock.is_locked()) {
+-    nh->remove_from_keep_alive_queue(this);
+-  } else {
+-    ink_release_assert(!"BUG: It must have acquired the NetHandler's lock before doing anything on keep_alive_queue.");
+-  }
++  nh->remove_from_keep_alive_queue(this);
+ }
+ 
+ bool
+ UnixNetVConnection::add_to_active_queue()
+ {
+-  bool result = false;
+-
+-  MUTEX_TRY_LOCK(lock, nh->mutex, this_ethread());
+-  if (lock.is_locked()) {
+-    result = nh->add_to_active_queue(this);
+-  } else {
+-    ink_release_assert(!"BUG: It must have acquired the NetHandler's lock before doing anything on active_queue.");
+-  }
+-  return result;
++  return nh->add_to_active_queue(this);
+ }
+ 
+ void
+ UnixNetVConnection::remove_from_active_queue()
+ {
+-  MUTEX_TRY_LOCK(lock, nh->mutex, this_ethread());
+-  if (lock.is_locked()) {
+-    nh->remove_from_active_queue(this);
+-  } else {
+-    ink_release_assert(!"BUG: It must have acquired the NetHandler's lock before doing anything on active_queue.");
+-  }
++  nh->remove_from_active_queue(this);
+ }
+ 
+ int
+-- 
+2.11.0
+

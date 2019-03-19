@@ -18,3 +18,5 @@
 0011-Mark-H2-connection-inactive-only-if-it-is-NOT-shutti.patch
 0012-Manually-brought-in-changes-from-4797.patch
 0013-Fix-an-failed-assertion-in-HttpSM-parse_range_and_co.patch
+0014-This-improves-on-3008-making-the-code-clearer.patch
+0015-Revert-Assert-if-operations-on-keep_alive_queue-and-.patch
