@@ -1,10 +1,13 @@
-trafficserver (8.0.2+ds-2) UNRELEASED; urgency=medium
+trafficserver (8.0.3+ds-1) unstable; urgency=medium
 
   * Use secure URI in Homepage field.
   * Re-export upstream signing key without extra signatures.
   * Drop unnecessary dependency on dh-autoconf.
+  * New upstream version 8.0.3+ds
+  * Patches update for 8.0.3
+  * Add as-needed patch from Ubuntu
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 04 Feb 2019 12:32:59 +0100
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 25 Mar 2019 10:29:35 +0100
 
 trafficserver (8.0.2+ds-1) unstable; urgency=medium
 
