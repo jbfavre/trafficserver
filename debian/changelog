@@ -1,5 +1,6 @@
 trafficserver (8.0.3+ds-3) UNRELEASED; urgency=medium
 
+  * Run testsuite with autopkgtest.
   * Set debhelper compatibility level to 12.
   * Add myself to the Uploaders field.
   * Set Standards-Version to 4.4.0.
