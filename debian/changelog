@@ -1,4 +1,4 @@
-trafficserver (8.0.3+ds-3) UNRELEASED; urgency=medium
+trafficserver (8.0.3+ds-3) unstable; urgency=medium
 
   * Run upstream testsuite with autopkgtest.
   * Enable CI tests on salsa (see debian/salsa-ci.yml).
@@ -6,7 +6,7 @@ trafficserver (8.0.3+ds-3) UNRELEASED; urgency=medium
   * Add myself to the Uploaders field.
   * Set Standards-Version to 4.4.0.
 
- -- Emanuele Rocca <ema@debian.org>  Mon, 29 Jul 2019 23:17:55 +0200
+ -- Emanuele Rocca <ema@debian.org>  Wed, 31 Jul 2019 11:11:59 +0200
 
 trafficserver (8.0.3+ds-2) unstable; urgency=medium
 
