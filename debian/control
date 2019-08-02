@@ -22,6 +22,7 @@ Package: trafficserver
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser,
   ${perl:Depends}
+Pre-Depends: ${misc:Pre-Depends}
 Provides: trafficserver-plugin-conf-remap
 Replaces: trafficserver-plugin-conf-remap (<< 3.2~),
  trafficserver-experimental-plugins (<< 8.0.0~)
