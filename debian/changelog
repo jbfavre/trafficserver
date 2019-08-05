@@ -1,3 +1,10 @@
+trafficserver (8.0.3+ds-4) UNRELEASED; urgency=medium
+
+  * Fix lintian warning 'skip-systemd-native-flag-missing-pre-depends'
+  * Use debhelper-compat instead of debian/compat
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 02 Aug 2019 09:07:31 +0200
+
 trafficserver (8.0.3+ds-3) unstable; urgency=medium
 
   * Run upstream testsuite with autopkgtest.
