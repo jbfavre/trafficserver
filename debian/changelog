@@ -1,3 +1,12 @@
+trafficserver (8.0.2+ds-1+deb10u2) buster; urgency=medium
+
+  * Add fix from upstream for CVE-2019-17559
+  * Add fix from upstream for CVE-2019-17565
+  * Add fix from upstream for CVE-2020-1944
+  * Add fix from upstream for CVE-2020-9481
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 16 Apr 2020 21:36:40 +0200
+
 trafficserver (8.0.2+ds-1+deb10u1) buster-security; urgency=high
 
   * Add patch for security backport from 8.0.4 for CVE-2019-9512,
