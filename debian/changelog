@@ -1,4 +1,4 @@
-trafficserver (8.0.2+ds-1+deb10u2) buster; urgency=medium
+trafficserver (8.0.2+ds-1+deb10u2) buster-security; urgency=medium
 
   * Add fix from upstream for CVE-2019-17559
   * Add fix from upstream for CVE-2019-17565
