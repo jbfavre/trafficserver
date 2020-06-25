@@ -1,3 +1,11 @@
+trafficserver (8.0.8+ds-1) unstable; urgency=medium
+
+  * New upstream version 8.0.8+ds
+  * Includes fix for CVE-2020-9494 (Closes: #963629)
+  * Update debhelper-compat version in d/control
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 25 Jun 2020 10:01:51 +0200
+
 trafficserver (8.0.7+ds-1) unstable; urgency=medium
 
   * New upstream version 8.0.7+ds
