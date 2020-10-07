@@ -1,3 +1,14 @@
+trafficserver (8.1.0+ds-1) unstable; urgency=medium
+
+  * Remove lintian-overrides for trafficserver-experimental-plugins
+  * Fix Salsa CI
+  * Update d/upstream/signing-key.asc
+  * New upstream version 8.1.0+ds
+  * d/patches refresh for 8.1.0
+  * Update experimental plugins list
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 01 Sep 2020 19:55:21 +0200
+
 trafficserver (8.0.8+ds-3) UNRELEASED; urgency=low
 
   * Fix day-of-week for changelog entry 2.1.5-unstable-1.
