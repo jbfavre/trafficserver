@@ -1,5 +1,7 @@
 trafficserver (8.1.0+ds-1) unstable; urgency=medium
 
+  * Remove lintian-overrides for trafficserver-experimental-plugins
+  * Fix Salsa CI
   * Update d/upstream/signing-key.asc
   * New upstream version 8.1.0+ds
   * d/patches refresh for 8.1.0
