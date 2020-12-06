@@ -1,3 +1,22 @@
+trafficserver (8.1.1+ds-1) unstable; urgency=medium
+
+  * New upstream version 8.1.0+ds
+  * Update d/watch
+  * Update d/upstream/signing-key.asc
+  * New upstream version 8.1.1+ds
+  * Update Debian Standards-Version
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sun, 06 Dec 2020 16:26:39 +0100
+
+trafficserver (8.1.1+ds-1) unstable; urgency=medium
+
+  * New upstream version 8.1.0+ds
+  * Update d/watch
+  * Update d/upstream/signing-key.asc
+  * New upstream version 8.1.1+ds
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sun, 06 Dec 2020 15:43:35 +0100
+
 trafficserver (8.1.0+ds-2) unstable; urgency=medium
 
   * Remove autopkgtest (Closes: #974683)
