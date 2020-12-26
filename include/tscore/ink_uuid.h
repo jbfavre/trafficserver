@@ -33,10 +33,8 @@ class ATSUuid
 {
 public:
   // Constructors
-  ATSUuid() : _version(TS_UUID_UNDEFINED) {}
-  ATSUuid &operator=(const ATSUuid other);
-
-  ATSUuid(ATSUuid const &that) = default;
+  ATSUuid() {}
+  ATSUuid &operator=(const ATSUuid &other);
 
   // Initialize the UUID from a string
   bool parseString(const char *str);
@@ -124,7 +122,7 @@ private:
   } _uuid;
 
   // This is the typically used visible portion of the UUID
-  TSUuidVersion _version;
+  TSUuidVersion _version = TS_UUID_UNDEFINED;
   char _string[TS_UUID_STRING_LEN + 1];
 
   bool

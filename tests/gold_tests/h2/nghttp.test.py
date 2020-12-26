@@ -20,7 +20,7 @@ import os
 Test.Summary = '''
 Test with nghttp
 '''
-# need Curl
+
 Test.SkipUnless(
     Condition.HasProgram("nghttp", "Nghttp need to be installed on system for this test to work"),
 )
@@ -40,14 +40,16 @@ post_body_file.close()
 # For Test Case 0
 microserver.addResponse("sessionlog.json",
                         {"headers": "POST /post HTTP/1.1\r\nHost: www.example.com\r\nTrailer: foo\r\n\r\n",
-                            "timestamp": "1469733493.993", "body": post_body},
-                        {"headers": "HTTP/1.1 200 OK\r\nServer: microserver\r\nConnection: close\r\n\r\n", "timestamp": "1469733493.993", "body": ""})
+                         "timestamp": "1469733493.993",
+                         "body": post_body},
+                        {"headers": "HTTP/1.1 200 OK\r\nServer: microserver\r\nConnection: close\r\n\r\n",
+                            "timestamp": "1469733493.993",
+                            "body": ""})
 
 # ----
 # Setup ATS
 # ----
-ts = Test.MakeATSProcess("ts", select_ports=False)
-ts.Variables.ssl_port = 4443
+ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
 
 # add ssl materials like key, certificates for the server
 ts.addSSLfile("ssl/server.pem")
@@ -66,7 +68,6 @@ ts.Disk.records_config.update({
     'proxy.config.diags.debug.tags': 'http',
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.http.server_ports': '{0} {1}:ssl'.format(ts.Variables.port, ts.Variables.ssl_port),
     'proxy.config.http.cache.http': 0,
     'proxy.config.http2.active_timeout_in': 3,
 })
@@ -80,7 +81,7 @@ tr = Test.AddTestRun()
 tr.Processes.Default.Command = "nghttp -v --no-dep 'https://127.0.0.1:{0}/post' --trailer 'foo: bar' -d 'post_body'".format(
     ts.Variables.ssl_port)
 tr.Processes.Default.ReturnCode = 0
-tr.Processes.Default.StartBefore(microserver, ready=When.PortOpen(microserver.Variables.Port))
-tr.Processes.Default.StartBefore(Test.Processes.ts, ready=When.PortOpen(ts.Variables.ssl_port))
+tr.Processes.Default.StartBefore(microserver)
+tr.Processes.Default.StartBefore(Test.Processes.ts)
 tr.Processes.Default.Streams.stdout = "gold/nghttp_0_stdout.gold"
 tr.StillRunningAfter = microserver

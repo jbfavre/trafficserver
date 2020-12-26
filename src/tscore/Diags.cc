@@ -34,6 +34,8 @@
 
  ****************************************************************************/
 
+#include "tscore/BufferWriter.h"
+#include "tscore/bwf_std_format.h"
 #include "tscore/ink_platform.h"
 #include "tscore/ink_memory.h"
 #include "tscore/ink_defs.h"
@@ -86,15 +88,17 @@ location(const SourceLocation *loc, DiagsShowLocation show, DiagsLevel level)
 //
 //////////////////////////////////////////////////////////////////////////////
 
-Diags::Diags(const char *prefix_string, const char *bdt, const char *bat, BaseLogFile *_diags_log, int dl_perm, int ol_perm)
+Diags::Diags(std::string_view prefix_string, const char *bdt, const char *bat, BaseLogFile *_diags_log, int dl_perm, int ol_perm)
   : diags_log(nullptr),
     stdout_log(nullptr),
     stderr_log(nullptr),
     magic(DIAGS_MAGIC),
     show_location(SHOW_LOCATION_NONE),
     base_debug_tags(nullptr),
-    base_action_tags(nullptr)
+    base_action_tags(nullptr),
+    prefix_str(prefix_string)
 {
+  ink_release_assert(!prefix_str.empty());
   int i;
 
   cleanup_func = nullptr;
@@ -114,11 +118,8 @@ Diags::Diags(const char *prefix_string, const char *bdt, const char *bat, BaseLo
   config.enabled[DiagsTagType_Debug]  = (base_debug_tags != nullptr);
   config.enabled[DiagsTagType_Action] = (base_action_tags != nullptr);
   diags_on_for_plugins                = config.enabled[DiagsTagType_Debug];
-  prefix_str                          = prefix_string;
 
   // The caller must always provide a non-empty prefix.
-  ink_release_assert(prefix_str);
-  ink_release_assert(*prefix_str);
 
   for (i = 0; i < DiagsLevel_Count; i++) {
     config.outputs[i].to_stdout   = false;
@@ -202,7 +203,7 @@ Diags::~Diags()
 //
 //      This routine outputs to all of the output targets enabled for this
 //      debugging level in config.outputs[diags_level].  Many higher level
-//      diagnosting printing routines are built upon print_va, including:
+//      diagnostics printing routines are built upon print_va, including:
 //
 //              void print(...)
 //              void log_va(...)
@@ -215,75 +216,29 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
                 va_list ap) const
 {
   ink_release_assert(diags_level < DiagsLevel_Count);
-
-  using ts::LocalBufferWriter;
-  LocalBufferWriter<1024> format_writer;
+  ts::LocalBufferWriter<1024> format_writer;
 
   // Save room for optional newline and terminating NUL bytes.
   format_writer.clip(2);
 
-  //////////////////////
-  // append timestamp //
-  //////////////////////
-  {
-    struct timeval tp = ink_gettimeofday();
-    time_t cur_clock  = (time_t)tp.tv_sec;
-    char timestamp_buf[48];
-    char *buffer = ink_ctime_r(&cur_clock, timestamp_buf);
+  format_writer.print("[{timestamp}] ");
+  auto timestamp_offset = format_writer.size();
 
-    int num_bytes_written = snprintf(&(timestamp_buf[19]), (sizeof(timestamp_buf) - 20), ".%03d", (int)(tp.tv_usec / 1000));
-
-    if (num_bytes_written > 0) {
-      format_writer.write('[');
-      format_writer.write(buffer + 4, strlen(buffer + 4));
-      format_writer.write("] ", 2);
-    }
-  }
-
-  size_t timestamp_end_offset = format_writer.size();
-
-  ///////////////////////
-  // add the thread name //
-  ///////////////////////
-  format_writer.print("{thread-name} ");
-
-  //////////////////////////////////
-  // append the diag level prefix //
-  //////////////////////////////////
-
-  format_writer.write(level_name(diags_level), strlen(level_name(diags_level)));
-  format_writer.write(": ", 2);
-
-  /////////////////////////////
-  // append location, if any //
-  /////////////////////////////
+  format_writer.print("{thread-name}");
+  format_writer.print(" {}: ", level_name(diags_level));
 
   if (location(loc, show_location, diags_level)) {
-    char *lp, buf[256];
-    lp = loc->str(buf, sizeof(buf));
-    if (lp) {
-      format_writer.write('<');
-      format_writer.write(lp, std::min(strlen(lp), sizeof(buf)));
-      format_writer.write("> ", 2);
-    }
+    format_writer.print("<{}> ", *loc);
   }
-  //////////////////////////
-  // append debugging tag //
-  //////////////////////////
 
-  if (debug_tag != nullptr) {
-    format_writer.write('(');
-    format_writer.write(debug_tag, strlen(debug_tag));
-    format_writer.write(") ", 2);
+  if (debug_tag) {
+    format_writer.print("({}) ", debug_tag);
   }
-  //////////////////////////////////////////////////////
-  // append original format string, ensure there is a //
-  // newline, and NUL terminate                       //
-  //////////////////////////////////////////////////////
 
-  format_writer.write(format_string, strlen(format_string));
-  format_writer.extend(2);
-  if (format_writer.data()[format_writer.size() - 1] != '\n') {
+  format_writer.print("{}", format_string);
+
+  format_writer.extend(2);                   // restore the space for required termination.
+  if (format_writer.view().back() != '\n') { // safe because always some chars in the buffer.
     format_writer.write('\n');
   }
   format_writer.write('\0');
@@ -359,7 +314,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
       priority = LOG_NOTICE;
       break;
     }
-    vsnprintf(syslog_buffer, sizeof(syslog_buffer), format_writer.data() + timestamp_end_offset, ap);
+    vsnprintf(syslog_buffer, sizeof(syslog_buffer), format_writer.data() + timestamp_offset, ap);
     syslog(priority, "%s", syslog_buffer);
   }
 
@@ -497,23 +452,20 @@ Diags::dump(FILE *fp) const
   fprintf(fp, "  action default tags: '%s'\n", (base_action_tags ? base_action_tags : "NULL"));
   fprintf(fp, "  outputs:\n");
   for (i = 0; i < DiagsLevel_Count; i++) {
-    fprintf(fp, "    %10s [stdout=%d, stderr=%d, syslog=%d, diagslog=%d]\n", level_name((DiagsLevel)i), config.outputs[i].to_stdout,
-            config.outputs[i].to_stderr, config.outputs[i].to_syslog, config.outputs[i].to_diagslog);
+    fprintf(fp, "    %10s [stdout=%d, stderr=%d, syslog=%d, diagslog=%d]\n", level_name(static_cast<DiagsLevel>(i)),
+            config.outputs[i].to_stdout, config.outputs[i].to_stderr, config.outputs[i].to_syslog, config.outputs[i].to_diagslog);
   }
 }
 
 void
 Diags::error_va(DiagsLevel level, const SourceLocation *loc, const char *format_string, va_list ap) const
 {
-  va_list ap2;
-
-  if (DiagsLevel_IsTerminal(level)) {
-    va_copy(ap2, ap);
-  }
-
   print_va(nullptr, level, loc, format_string, ap);
 
   if (DiagsLevel_IsTerminal(level)) {
+    va_list ap2;
+
+    va_copy(ap2, ap);
     if (cleanup_func) {
       cleanup_func();
     }
@@ -524,9 +476,8 @@ Diags::error_va(DiagsLevel level, const SourceLocation *loc, const char *format_
     } else {
       ink_fatal_va(format_string, ap2);
     }
+    va_end(ap2);
   }
-
-  va_end(ap2);
 }
 
 /*

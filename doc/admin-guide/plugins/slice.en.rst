@@ -88,6 +88,17 @@ The slice plugin supports the following options::
         Disable writing block stitch errors to the error log.
         -d for short
 
+    --exclude-regex=<regex> (optional)
+        If provided, only slice what matches.
+        If not provided will always slice
+        Cannot be used with --include-regex
+        -e for short
+
+    --include-regex=<regex> (optional)
+        If provided, only slice what matches.
+        If not provided will always slice
+        Cannot be used with --exclude-regex
+        -i for short
 
 Examples::
 
@@ -121,6 +132,16 @@ following options are provided to help with log overrun::
 After modifying :file:`remap.config`, restart or reload traffic server
 (sudo traffic_ctl config reload) or (sudo traffic_ctl server restart)
 to activate the new configuration values.
+
+Don't slice txt files::
+
+  slice.so --exclude-regex=\\.txt
+  slice.so -e \\.txt
+
+Slice only mp4 files::
+
+  slice.so --include-regex=\\.mp4
+  slice.so -i \\.mp4
 
 Debug Options
 -------------
@@ -185,7 +206,7 @@ block header and sends its bytes to the client until the client
 request is satisfied.
 
 Any extra bytes at the end of the last block are consumed by
-the the Slice plugin to allow cache_range_requests to finish
+the Slice plugin to allow cache_range_requests to finish
 the block fetch to ensure the block is cached.
 
 Important Notes

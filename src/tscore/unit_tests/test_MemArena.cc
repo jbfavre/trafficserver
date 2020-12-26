@@ -23,78 +23,113 @@
 
 #include <catch.hpp>
 
+#include <string_view>
 #include "tscore/MemArena.h"
 using ts::MemSpan;
 using ts::MemArena;
+using namespace std::literals;
 
 TEST_CASE("MemArena generic", "[libts][MemArena]")
 {
   ts::MemArena arena{64};
   REQUIRE(arena.size() == 0);
-  REQUIRE(arena.extent() >= 64);
+  REQUIRE(arena.reserved_size() == 0);
+  arena.alloc(0);
+  REQUIRE(arena.size() == 0);
+  REQUIRE(arena.reserved_size() >= 64);
 
-  ts::MemSpan span1 = arena.alloc(32);
+  auto span1 = arena.alloc(32);
   REQUIRE(span1.size() == 32);
 
-  ts::MemSpan span2 = arena.alloc(32);
+  auto span2 = arena.alloc(32);
   REQUIRE(span2.size() == 32);
 
   REQUIRE(span1.data() != span2.data());
   REQUIRE(arena.size() == 64);
 
-  auto extent{arena.extent()};
+  auto extent{arena.reserved_size()};
   span1 = arena.alloc(128);
-  REQUIRE(extent < arena.extent());
+  REQUIRE(extent < arena.reserved_size());
 }
 
 TEST_CASE("MemArena freeze and thaw", "[libts][MemArena]")
 {
   MemArena arena;
-  MemSpan span1{arena.alloc(1024)};
+  auto span1{arena.alloc(1024)};
   REQUIRE(span1.size() == 1024);
   REQUIRE(arena.size() == 1024);
+  REQUIRE(arena.reserved_size() >= 1024);
 
   arena.freeze();
 
   REQUIRE(arena.size() == 0);
   REQUIRE(arena.allocated_size() == 1024);
-  REQUIRE(arena.extent() >= 1024);
+  REQUIRE(arena.reserved_size() >= 1024);
 
   arena.thaw();
   REQUIRE(arena.size() == 0);
-  REQUIRE(arena.extent() == 0);
+  REQUIRE(arena.allocated_size() == 0);
+  REQUIRE(arena.reserved_size() == 0);
 
-  arena.reserve(2000);
-  arena.alloc(512);
-  arena.alloc(1024);
-  REQUIRE(arena.extent() >= 1536);
-  REQUIRE(arena.extent() < 3000);
-  auto extent = arena.extent();
-
+  span1 = arena.alloc(1024);
   arena.freeze();
+  auto extent{arena.reserved_size()};
   arena.alloc(512);
-  REQUIRE(arena.extent() > extent); // new extent should be bigger.
+  REQUIRE(arena.reserved_size() > extent); // new extent should be bigger.
   arena.thaw();
   REQUIRE(arena.size() == 512);
-  REQUIRE(arena.extent() > 1536);
+  REQUIRE(arena.reserved_size() >= 1024);
 
   arena.clear();
   REQUIRE(arena.size() == 0);
-  REQUIRE(arena.extent() == 0);
+  REQUIRE(arena.reserved_size() == 0);
+
+  span1 = arena.alloc(262144);
+  arena.freeze();
+  extent = arena.reserved_size();
+  arena.alloc(512);
+  REQUIRE(arena.reserved_size() > extent); // new extent should be bigger.
+  arena.thaw();
+  REQUIRE(arena.size() == 512);
+  REQUIRE(arena.reserved_size() >= 262144);
+
+  arena.clear();
+
+  span1  = arena.alloc(262144);
+  extent = arena.reserved_size();
+  arena.freeze();
+  for (int i = 0; i < 262144 / 512; ++i)
+    arena.alloc(512);
+  REQUIRE(arena.reserved_size() > extent); // Bigger while frozen memory is still around.
+  arena.thaw();
+  REQUIRE(arena.size() == 262144);
+  REQUIRE(arena.reserved_size() == extent); // should be identical to before freeze.
 
   arena.alloc(512);
   arena.alloc(768);
   arena.freeze(32000);
   arena.thaw();
-  arena.alloc(1);
-  REQUIRE(arena.extent() >= 32000);
+  arena.alloc(0);
+  REQUIRE(arena.reserved_size() >= 32000);
+  REQUIRE(arena.reserved_size() < 2 * 32000);
 }
 
 TEST_CASE("MemArena helper", "[libts][MemArena]")
 {
+  struct Thing {
+    int ten{10};
+    std::string name{"name"};
+
+    Thing() {}
+    Thing(int x) : ten(x) {}
+    Thing(std::string const &s) : name(s) {}
+    Thing(int x, std::string_view s) : ten(x), name(s) {}
+    Thing(std::string const &s, int x) : ten(x), name(s) {}
+  };
+
   ts::MemArena arena{256};
   REQUIRE(arena.size() == 0);
-  ts::MemSpan s = arena.alloc(56);
+  ts::MemSpan<char> s = arena.alloc(56).rebind<char>();
   REQUIRE(arena.size() == 56);
   void *ptr = s.begin();
 
@@ -106,8 +141,8 @@ TEST_CASE("MemArena helper", "[libts][MemArena]")
   arena.freeze(128);
   REQUIRE(arena.contains((char *)ptr));
   REQUIRE(arena.contains((char *)ptr + 100));
-  ts::MemSpan s2 = arena.alloc(10);
-  void *ptr2     = s2.begin();
+  ts::MemSpan<char> s2 = arena.alloc(10).rebind<char>();
+  void *ptr2           = s2.begin();
   REQUIRE(arena.contains((char *)ptr));
   REQUIRE(arena.contains((char *)ptr2));
   REQUIRE(arena.allocated_size() == 56 + 10);
@@ -115,6 +150,31 @@ TEST_CASE("MemArena helper", "[libts][MemArena]")
   arena.thaw();
   REQUIRE(!arena.contains((char *)ptr));
   REQUIRE(arena.contains((char *)ptr2));
+
+  Thing *thing_one{arena.make<Thing>()};
+
+  REQUIRE(thing_one->ten == 10);
+  REQUIRE(thing_one->name == "name");
+
+  thing_one = arena.make<Thing>(17, "bob"sv);
+
+  REQUIRE(thing_one->name == "bob");
+  REQUIRE(thing_one->ten == 17);
+
+  thing_one = arena.make<Thing>("Dave", 137);
+
+  REQUIRE(thing_one->name == "Dave");
+  REQUIRE(thing_one->ten == 137);
+
+  thing_one = arena.make<Thing>(9999);
+
+  REQUIRE(thing_one->ten == 9999);
+  REQUIRE(thing_one->name == "name");
+
+  thing_one = arena.make<Thing>("Persia");
+
+  REQUIRE(thing_one->ten == 10);
+  REQUIRE(thing_one->name == "Persia");
 }
 
 TEST_CASE("MemArena large alloc", "[libts][MemArena]")
@@ -123,7 +183,7 @@ TEST_CASE("MemArena large alloc", "[libts][MemArena]")
   ts::MemSpan s = arena.alloc(4000);
   REQUIRE(s.size() == 4000);
 
-  ts::MemSpan s_a[10];
+  ts::MemSpan<void> s_a[10];
   s_a[0] = arena.alloc(100);
   s_a[1] = arena.alloc(200);
   s_a[2] = arena.alloc(300);
@@ -147,9 +207,9 @@ TEST_CASE("MemArena large alloc", "[libts][MemArena]")
 TEST_CASE("MemArena block allocation", "[libts][MemArena]")
 {
   ts::MemArena arena{64};
-  ts::MemSpan s  = arena.alloc(32);
-  ts::MemSpan s2 = arena.alloc(16);
-  ts::MemSpan s3 = arena.alloc(16);
+  ts::MemSpan<char> s  = arena.alloc(32).rebind<char>();
+  ts::MemSpan<char> s2 = arena.alloc(16).rebind<char>();
+  ts::MemSpan<char> s3 = arena.alloc(16).rebind<char>();
 
   REQUIRE(s.size() == 32);
   REQUIRE(arena.allocated_size() == 64);
@@ -170,17 +230,16 @@ TEST_CASE("MemArena block allocation", "[libts][MemArena]")
 TEST_CASE("MemArena full blocks", "[libts][MemArena]")
 {
   // couple of large allocations - should be exactly sized in the generation.
-  ts::MemArena arena;
   size_t init_size = 32000;
+  ts::MemArena arena(init_size);
 
-  arena.reserve(init_size);
-  MemSpan m1{arena.alloc(init_size - 64)};
-  MemSpan m2{arena.alloc(32000)};
-  MemSpan m3{arena.alloc(64000)};
+  MemSpan<char> m1{arena.alloc(init_size - 64).rebind<char>()};
+  MemSpan<char> m2{arena.alloc(32000).rebind<char>()};
+  MemSpan<char> m3{arena.alloc(64000).rebind<char>()};
 
   REQUIRE(arena.remaining() >= 64);
-  REQUIRE(arena.extent() > 32000 + 64000 + init_size);
-  REQUIRE(arena.extent() < 2 * (32000 + 64000 + init_size));
+  REQUIRE(arena.reserved_size() > 32000 + 64000 + init_size);
+  REQUIRE(arena.reserved_size() < 2 * (32000 + 64000 + init_size));
 
   // Let's see if that memory is really there.
   memset(m1.data(), 0xa5, m1.size());

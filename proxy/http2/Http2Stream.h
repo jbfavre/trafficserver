@@ -24,7 +24,7 @@
 #pragma once
 
 #include "HTTP2.h"
-#include "ProxyClientTransaction.h"
+#include "ProxyTransaction.h"
 #include "Http2DebugNames.h"
 #include "Http2DependencyTree.h"
 #include "tscore/History.h"
@@ -46,11 +46,11 @@ enum class Http2StreamMilestone {
   LAST_ENTRY,
 };
 
-class Http2Stream : public ProxyClientTransaction
+class Http2Stream : public ProxyTransaction
 {
 public:
   const int retry_delay = HRTIME_MSECONDS(10);
-  using super           = ProxyClientTransaction; ///< Parent type.
+  using super           = ProxyTransaction; ///< Parent type.
 
   Http2Stream(Http2StreamId sid = 0, ssize_t initial_rwnd = Http2::initial_window_size);
 
@@ -80,7 +80,7 @@ public:
   void signal_write_event(bool call_update);
 
   void restart_sending();
-  void push_promise(URL &url, const MIMEField *accept_encoding);
+  bool push_promise(URL &url, const MIMEField *accept_encoding);
 
   // Stream level window size
   ssize_t client_rwnd() const;
@@ -98,6 +98,8 @@ public:
 
   bool allow_half_open() const override;
   bool is_first_transaction() const override;
+  void increment_client_transactions_stat() override;
+  void decrement_client_transactions_stat() override;
   int get_transaction_id() const override;
   int get_transaction_priority_weight() const override;
   int get_transaction_priority_dependence() const override;
@@ -129,10 +131,8 @@ public:
   //////////////////
   // Variables
   uint8_t *header_blocks        = nullptr;
-  uint32_t header_blocks_length = 0;  // total length of header blocks (not include
-                                      // Padding or other fields)
-  uint32_t request_header_length = 0; // total length of payload (include Padding
-                                      // and other fields)
+  uint32_t header_blocks_length = 0; // total length of header blocks (not include Padding or other fields)
+
   bool recv_end_stream = false;
   bool send_end_stream = false;
 
@@ -174,13 +174,13 @@ private:
 
   bool trailing_header = false;
 
-  // A brief disucssion of similar flags and state variables:  _state, closed, terminate_stream
+  // A brief discussion of similar flags and state variables:  _state, closed, terminate_stream
   //
   // _state tracks the HTTP2 state of the stream.  This field completely coincides with the H2 spec.
   //
   // closed is a flag that gets set when the framework indicates that the stream should be shutdown.  This flag
   // is set from either do_io_close, which indicates that the HttpSM is starting the close, or initiating_close,
-  // which indicates that the HTTP2 infrastructure is starting the close (e.g. due to the HTTP2 session shuttig down
+  // which indicates that the HTTP2 infrastructure is starting the close (e.g. due to the HTTP2 session shutting down
   // or a end of stream frame being received.  The closed flag does not indicate that it is safe to delete the stream
   // immediately. Perhaps the closed flag could be folded into the _state field.
   //
@@ -283,9 +283,9 @@ Http2Stream::set_request_headers(HTTPHdr &h2_headers)
   _req_header.copy(&h2_headers);
 }
 
-inline // Check entire DATA payload length if content-length: header is exist
-  void
-  Http2Stream::increment_data_length(uint64_t length)
+// Check entire DATA payload length if content-length: header is exist
+inline void
+Http2Stream::increment_data_length(uint64_t length)
 {
   data_length += length;
 }

@@ -21,30 +21,30 @@ import os
 Test.Summary = '''
 Test log fields.
 '''
-# need Curl
-Test.SkipUnless(
-    Condition.HasProgram(
-        "curl", "Curl need to be installed on system for this test to work"),
-    Condition.IsPlatform("linux")
-)
 
-# Define default ATS
 ts = Test.MakeATSProcess("ts")
-# Microserver
 server = Test.MakeOriginServer("server")
 
 request_header = {'timestamp': 100, "headers": "GET /test-1 HTTP/1.1\r\nHost: test-1\r\n\r\n", "body": ""}
-response_header = {'timestamp': 100,
-                   "headers": "HTTP/1.1 200 OK\r\nTest: 1\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n", "body": "Test 1"}
+response_header = {
+    'timestamp': 100,
+    "headers": "HTTP/1.1 200 OK\r\nTest: 1\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n",
+    "body": "Test 1"}
 server.addResponse("sessionlog.json", request_header, response_header)
 server.addResponse("sessionlog.json",
-                   {'timestamp': 101, "headers": "GET /test-2 HTTP/1.1\r\nHost: test-2\r\n\r\n", "body": ""},
-                   {'timestamp': 101, "headers": "HTTP/1.1 200 OK\r\nTest: 2\r\nContent-Type: application/jason\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n", "body": "Test 2"}
-                   )
+                   {'timestamp': 101,
+                    "headers": "GET /test-2 HTTP/1.1\r\nHost: test-2\r\n\r\n",
+                    "body": ""},
+                   {'timestamp': 101,
+                       "headers": "HTTP/1.1 200 OK\r\nTest: 2\r\nContent-Type: application/jason\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n",
+                       "body": "Test 2"})
 server.addResponse("sessionlog.json",
-                   {'timestamp': 102, "headers": "GET /test-3 HTTP/1.1\r\nHost: test-3\r\n\r\n", "body": ""},
-                   {'timestamp': 102, "headers": "HTTP/1.1 200 OK\r\nTest: 3\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n", "body": "Test 3"}
-                   )
+                   {'timestamp': 102,
+                    "headers": "GET /test-3 HTTP/1.1\r\nHost: test-3\r\n\r\n",
+                    "body": ""},
+                   {'timestamp': 102,
+                       "headers": "HTTP/1.1 200 OK\r\nTest: 3\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n",
+                       "body": "Test 3"})
 
 ts.Disk.records_config.update({
     'proxy.config.net.connections_throttle': 100,
@@ -57,13 +57,13 @@ ts.Disk.remap_config.AddLine(
 
 ts.Disk.logging_yaml.AddLines(
     '''
-formats:
-  - name: custom
-    format: '%<{Content-Type}essh>'
-
-logs:
-  - filename: field-test
-    format: custom
+logging:
+  formats:
+    - name: custom
+      format: '%<{Content-Type}essh>'
+  logs:
+    - filename: field-test
+      format: custom
 '''.split("\n")
 )
 

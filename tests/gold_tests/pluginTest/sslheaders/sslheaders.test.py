@@ -22,7 +22,6 @@ Test sslheaders plugin.
 '''
 
 Test.SkipUnless(
-    Condition.HasATSFeature('TS_USE_TLS_ALPN'),
     Condition.HasCurlFeature('http2'),
 )
 
@@ -35,13 +34,11 @@ request_header = {
 response_header = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
 server.addResponse("sessionlog.json", request_header, response_header)
 
-ts = Test.MakeATSProcess("ts", select_ports=False)
+ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
 
 ts.addSSLfile("ssl/server.pem")
 ts.addSSLfile("ssl/server.key")
 # ts.addSSLfile("ssl/signer.pem")
-
-ts.Variables.ssl_port = 4443
 
 ts.Disk.records_config.update({
     'proxy.config.diags.debug.enabled': 0,
@@ -53,12 +50,12 @@ ts.Disk.records_config.update({
     'proxy.config.http.server_ports': (
         'ipv4:{0} ipv4:{1}:proto=http2;http:ssl ipv6:{0} ipv6:{1}:proto=http2;http:ssl'
         .format(ts.Variables.port, ts.Variables.ssl_port)),
-#    'proxy.config.ssl.client.verify.server':  0,
-#    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
-#    'proxy.config.url_remap.pristine_host_hdr' : 1,
-#    'proxy.config.ssl.client.certification_level': 2,
-#    'proxy.config.ssl.CA.cert.filename': '{0}/signer.pem'.format(ts.Variables.SSLDir),
-#    'proxy.config.ssl.TLSv1_3': 0
+    #    'proxy.config.ssl.client.verify.server':  0,
+    #    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
+    #    'proxy.config.url_remap.pristine_host_hdr' : 1,
+    #    'proxy.config.ssl.client.certification_level': 2,
+    #    'proxy.config.ssl.CA.cert.filename': '{0}/signer.pem'.format(ts.Variables.SSLDir),
+    #    'proxy.config.ssl.TLSv1_3': 0
 })
 
 ts.Disk.ssl_multicert_config.AddLine(
@@ -72,18 +69,13 @@ ts.Disk.remap_config.AddLine(
     'map https://bar.com http://127.0.0.1:{0}'.format(server.Variables.Port)
 )
 
-ts.Disk.ssl_server_name_yaml.AddLines([
-    '- fqdn: "*bar.com"',
-    '  verify_client: STRICT',
-])
-
 ts.Disk.plugin_config.AddLine(
     'sslheaders.so SSL-Client-ID=client.subject'
 )
 
 tr = Test.AddTestRun()
 tr.Processes.Default.StartBefore(server)
-tr.Processes.Default.StartBefore(Test.Processes.ts, ready=When.PortOpen(ts.Variables.ssl_port))
+tr.Processes.Default.StartBefore(Test.Processes.ts)
 tr.Processes.Default.Command = (
     'curl -H "SSL-Client-ID: My Fake Client ID" --verbose --ipv4 --insecure --header "Host: bar.com"' +
     ' https://localhost:{}'.format(ts.Variables.ssl_port)

@@ -32,7 +32,6 @@
 #include "tscore/ink_sys_control.h"
 #include "tscore/signals.h"
 #include "DiagsConfig.h"
-#include "Main.h"
 
 #include "P_EventSystem.h"
 #include "records/P_RecProcess.h"
@@ -99,7 +98,7 @@ initialize_process_manager()
 {
   mgmt_use_syslog();
 
-  // Temporary Hack to Enable Communuication with LocalManager
+  // Temporary Hack to Enable Communication with LocalManager
   if (getenv("PROXY_REMOTE_MGMT")) {
     remote_management_flag = true;
   }

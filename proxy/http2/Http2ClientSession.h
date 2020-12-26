@@ -25,7 +25,7 @@
 
 #include "HTTP2.h"
 #include "Plugin.h"
-#include "ProxyClientSession.h"
+#include "ProxySession.h"
 #include "Http2ConnectionState.h"
 #include "Http2Frame.h"
 #include <string_view>
@@ -62,7 +62,7 @@ size_t const HTTP2_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ_BUFFE
 
 // To support Upgrade: h2c
 struct Http2UpgradeContext {
-  Http2UpgradeContext() : req_header(nullptr) {}
+  Http2UpgradeContext() {}
   ~Http2UpgradeContext()
   {
     if (req_header) {
@@ -72,16 +72,16 @@ struct Http2UpgradeContext {
   }
 
   // Modified request header
-  HTTPHdr *req_header;
+  HTTPHdr *req_header = nullptr;
 
   // Decoded HTTP2-Settings Header Field
   Http2ConnectionSettings client_settings;
 };
 
-class Http2ClientSession : public ProxyClientSession
+class Http2ClientSession : public ProxySession
 {
 public:
-  using super          = ProxyClientSession; ///< Parent type.
+  using super          = ProxySession; ///< Parent type.
   using SessionHandler = int (Http2ClientSession::*)(int, void *);
 
   Http2ClientSession();
@@ -89,28 +89,23 @@ public:
   /////////////////////
   // Methods
 
-  // Implement VConnection interface.
-  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = nullptr) override;
-  VIO *do_io_write(Continuation *c = nullptr, int64_t nbytes = INT64_MAX, IOBufferReader *buf = nullptr,
-                   bool owner = false) override;
+  // Implement VConnection interface
   void do_io_close(int lerrno = -1) override;
-  void do_io_shutdown(ShutdownHowTo_t howto) override;
-  void reenable(VIO *vio) override;
 
-  // Implement ProxyClientSession interface.
-  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
+  // Implement ProxySession interface
+  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader) override;
   void start() override;
   void destroy() override;
-  void release(ProxyClientTransaction *trans) override;
+  void release(ProxyTransaction *trans) override;
   void free() override;
 
   // more methods
   void write_reenable();
-  int64_t xmit(const Http2TxFrame &frame);
+  int64_t xmit(const Http2TxFrame &frame, bool flush = true);
+  void flush();
 
   ////////////////////
   // Accessors
-  NetVConnection *get_netvc() const override;
   sockaddr const *get_client_addr() override;
   sockaddr const *get_local_addr() override;
   int get_transact_count() const override;
@@ -130,6 +125,7 @@ public:
   bool get_half_close_local_flag() const;
   bool is_url_pushed(const char *url, int url_len);
   void add_url_to_pushed_table(const char *url, int url_len);
+  int64_t write_buffer_size();
 
   // Record history from Http2ConnectionState
   void remember(const SourceLocation &location, int event, int reentrant = NO_REENTRANT);
@@ -159,14 +155,16 @@ private:
 
   bool _should_do_something_else();
 
-  int64_t total_write_len        = 0;
-  SessionHandler session_handler = nullptr;
-  NetVConnection *client_vc      = nullptr;
-  MIOBuffer *read_buffer         = nullptr;
-  IOBufferReader *sm_reader      = nullptr;
-  MIOBuffer *write_buffer        = nullptr;
-  IOBufferReader *sm_writer      = nullptr;
-  Http2FrameHeader current_hdr   = {0, 0, 0, 0};
+  int64_t total_write_len             = 0;
+  SessionHandler session_handler      = nullptr;
+  MIOBuffer *read_buffer              = nullptr;
+  IOBufferReader *_reader             = nullptr;
+  MIOBuffer *write_buffer             = nullptr;
+  IOBufferReader *sm_writer           = nullptr;
+  Http2FrameHeader current_hdr        = {0, 0, 0, 0};
+  uint32_t _write_size_threshold      = 0;
+  uint32_t _write_time_threshold      = 100;
+  ink_hrtime _write_buffer_last_flush = 0;
 
   IpEndpoint cached_client_addr;
   IpEndpoint cached_local_addr;
@@ -184,11 +182,15 @@ private:
   bool half_close_local          = false;
   int recursion                  = 0;
 
-  InkHashTable *h2_pushed_urls = nullptr;
-  uint32_t h2_pushed_urls_size = 0;
+  std::unordered_set<std::string> *_h2_pushed_urls = nullptr;
 
   Event *_reenable_event = nullptr;
   int _n_frame_read      = 0;
+
+  uint32_t _pending_sending_data_size = 0;
+
+  int64_t read_from_early_data   = 0;
+  bool cur_frame_from_early_data = false;
 };
 
 extern ClassAllocator<Http2ClientSession> http2ClientSessionAllocator;
@@ -235,8 +237,15 @@ Http2ClientSession::get_half_close_local_flag() const
 inline bool
 Http2ClientSession::is_url_pushed(const char *url, int url_len)
 {
-  char *dup_url            = ats_strndup(url, url_len);
-  InkHashTableEntry *entry = ink_hash_table_lookup_entry(h2_pushed_urls, dup_url);
-  ats_free(dup_url);
-  return entry != nullptr;
+  if (_h2_pushed_urls == nullptr) {
+    return false;
+  }
+
+  return _h2_pushed_urls->find(url) != _h2_pushed_urls->end();
+}
+
+inline int64_t
+Http2ClientSession::write_buffer_size()
+{
+  return write_buffer->max_read_avail();
 }

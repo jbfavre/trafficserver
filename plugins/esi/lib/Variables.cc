@@ -371,8 +371,8 @@ Variables::_parseCookieString(const char *str, int str_len)
     }
 
     bool found = false;
-    for (auto &_whitelistCookie : _whitelistCookies) {
-      if ((_whitelistCookie == "*") || (_whitelistCookie == cookie)) {
+    for (auto &_allowlistCookie : _allowlistCookies) {
+      if ((_allowlistCookie == "*") || (_allowlistCookie == cookie)) {
         found = true;
       }
     }
@@ -437,18 +437,18 @@ Variables::_parseDictVariable(const std::string &variable, const char *&header, 
   for (int i = 0; i < (var_size - 1); ++i) {
     if (variable[i] == '{') {
       if (paranth_index != -1) {
-        _debugLog(_debug_tag, "[%s] Cannot have multiple paranthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
+        _debugLog(_debug_tag, "[%s] Cannot have multiple parenthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
         return false;
       }
       paranth_index = i;
     }
     if (variable[i] == '}') {
-      _debugLog(_debug_tag, "[%s] Cannot have multiple paranthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
+      _debugLog(_debug_tag, "[%s] Cannot have multiple parenthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
       return false;
     }
   }
   if (paranth_index == -1) {
-    _debugLog(_debug_tag, "[%s] Could not find opening paranthesis in variable [%.*s]", __FUNCTION__, var_size, var_ptr);
+    _debugLog(_debug_tag, "[%s] Could not find opening parenthesis in variable [%.*s]", __FUNCTION__, var_size, var_ptr);
     return false;
   }
   if (paranth_index == 0) {

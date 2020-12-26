@@ -30,13 +30,11 @@
 
 #pragma once
 
-#include <time.h>
+#include <ctime>
 #include <string>
 #include <sstream>
 #include "tscore/ink_rwlock.h"
 #include "records/P_RecProcess.h"
-#include "tscore/ink_hash_table.h"
-#include "tscore/ink_rwlock.h"
 
 #include <unordered_map>
 
@@ -193,7 +191,7 @@ struct HostStatus {
   void createHostStat(const char *name, const char *data = nullptr);
   void loadHostStatusFromStats();
   void loadRecord(std::string &name, HostStatRec &h);
-  int getHostStat(std::string &stat_name, char *buf, unsigned int buf_len);
+  RecErrT getHostStat(std::string &stat_name, char *buf, unsigned int buf_len);
 
 private:
   HostStatus();

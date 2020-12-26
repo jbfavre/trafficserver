@@ -65,10 +65,10 @@ public:
         @return @c true if the request is matched, @c false if not.
     */
     virtual bool check(HttpRequestData *req ///< Request to check.
-                       ) const = 0;
+    ) const = 0;
     /// Print the mod information.
     virtual void print(FILE *f ///< Output stream.
-                       ) const = 0;
+    ) const = 0;
   };
 
   ControlBase();
@@ -77,7 +77,7 @@ public:
   bool CheckModifiers(HttpRequestData *request_data);
   bool CheckForMatch(HttpRequestData *request_data, int last_number);
   void Print();
-  int line_num;
+  int line_num = 0;
   Modifier *findModOfType(Modifier::Type t) const;
 
 protected:
@@ -97,7 +97,7 @@ private:
   void clear();
 };
 
-inline ControlBase::ControlBase() : line_num(0) {}
+inline ControlBase::ControlBase() {}
 
 inline bool
 ControlBase::CheckForMatch(HttpRequestData *request_data, int last_number)

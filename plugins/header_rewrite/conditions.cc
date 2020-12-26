@@ -30,7 +30,6 @@
 #include "ts/ts.h"
 
 #include "conditions.h"
-#include "expander.h"
 #include "lulu.h"
 
 // ConditionStatus
@@ -96,14 +95,13 @@ ConditionMethod::append_value(std::string &s, const Resources &res)
 {
   TSMBuffer bufp;
   TSMLoc hdr_loc;
-  const char *value;
   int len;
 
   bufp    = res.client_bufp;
   hdr_loc = res.client_hdr_loc;
 
   if (bufp && hdr_loc) {
-    value = TSHttpHdrMethodGet(bufp, hdr_loc, &len);
+    const char *value = TSHttpHdrMethodGet(bufp, hdr_loc, &len);
     TSDebug(PLUGIN_NAME, "Appending METHOD(%s) to evaluation value -> %.*s", _qualifier.c_str(), len, value);
     s.append(value, len);
   }
@@ -207,7 +205,6 @@ ConditionHeader::append_value(std::string &s, const Resources &res)
 {
   TSMBuffer bufp;
   TSMLoc hdr_loc;
-  const char *value;
   int len;
 
   if (_client) {
@@ -219,14 +216,15 @@ ConditionHeader::append_value(std::string &s, const Resources &res)
   }
 
   if (bufp && hdr_loc) {
-    TSMLoc field_loc, next_field_loc;
+    TSMLoc field_loc;
 
     field_loc = TSMimeHdrFieldFind(bufp, hdr_loc, _qualifier.c_str(), _qualifier.size());
     TSDebug(PLUGIN_NAME, "Getting Header: %s, field_loc: %p", _qualifier.c_str(), field_loc);
 
     while (field_loc) {
-      value          = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, -1, &len);
-      next_field_loc = TSMimeHdrFieldNextDup(bufp, hdr_loc, field_loc);
+      const char *value     = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, -1, &len);
+      TSMLoc next_field_loc = TSMimeHdrFieldNextDup(bufp, hdr_loc, field_loc);
+
       TSDebug(PLUGIN_NAME, "Appending HEADER(%s) to evaluation value -> %.*s", _qualifier.c_str(), len, value);
       s.append(value, len);
       // multiple headers with the same name must be semantically the same as one value which is comma separated
@@ -248,83 +246,6 @@ ConditionHeader::eval(const Resources &res)
   TSDebug(PLUGIN_NAME, "Evaluating HEADER()");
 
   return static_cast<const MatcherType *>(_matcher)->test(s);
-}
-
-// ConditionPath
-void
-ConditionPath::initialize(Parser &p)
-{
-  Condition::initialize(p);
-  MatcherType *match = new MatcherType(_cond_op);
-
-  match->set(p.get_arg());
-  _matcher = match;
-}
-
-void
-ConditionPath::append_value(std::string &s, const Resources &res)
-{
-  TSMBuffer bufp;
-  TSMLoc url_loc;
-
-  if (TSHttpTxnPristineUrlGet(res.txnp, &bufp, &url_loc) == TS_SUCCESS) {
-    int path_length;
-    const char *path = TSUrlPathGet(bufp, url_loc, &path_length);
-
-    if (path && path_length) {
-      s.append(path, path_length);
-    }
-
-    TSHandleMLocRelease(bufp, TS_NULL_MLOC, url_loc);
-  }
-}
-
-bool
-ConditionPath::eval(const Resources &res)
-{
-  std::string s;
-
-  append_value(s, res);
-  TSDebug(PLUGIN_NAME, "Evaluating PATH()");
-
-  return static_cast<MatcherType *>(_matcher)->test(s);
-}
-
-// ConditionQuery
-void
-ConditionQuery::initialize(Parser &p)
-{
-  Condition::initialize(p);
-  MatcherType *match = new MatcherType(_cond_op);
-
-  match->set(p.get_arg());
-  _matcher = match;
-}
-
-void
-ConditionQuery::append_value(std::string &s, const Resources &res)
-{
-  int query_len     = 0;
-  const char *query = TSUrlHttpQueryGet(res._rri->requestBufp, res._rri->requestUrl, &query_len);
-
-  TSDebug(PLUGIN_NAME, "Appending QUERY to evaluation value: %.*s", query_len, query);
-  s.append(query, query_len);
-}
-
-bool
-ConditionQuery::eval(const Resources &res)
-{
-  if (nullptr != res._rri) {
-    std::string s;
-
-    append_value(s, res);
-    TSDebug(PLUGIN_NAME, "Evaluating QUERY()");
-
-    return static_cast<const MatcherType *>(_matcher)->test(s);
-  }
-
-  TSDebug(PLUGIN_NAME, "\tQUERY requires remap initialization! Evaluating to false!");
-  return false;
 }
 
 // ConditionUrl: request or response header. TODO: This is not finished, at all!!!
@@ -353,11 +274,17 @@ ConditionUrl::append_value(std::string &s, const Resources &res)
   TSMLoc url     = nullptr;
   TSMBuffer bufp = nullptr;
 
-  if (res._rri != nullptr) {
+  if (_type == CLIENT) {
+    // CLIENT always uses the pristine URL
+    TSDebug(PLUGIN_NAME, "   Using the pristine url");
+    if (TSHttpTxnPristineUrlGet(res.txnp, &bufp, &url) != TS_SUCCESS) {
+      TSError("[header_rewrite] Error getting the pristine URL");
+      return;
+    }
+  } else if (res._rri != nullptr) {
     // called at the remap hook
     bufp = res._rri->requestBufp;
-    if (_type == URL || _type == CLIENT) {
-      // res._rri->requestBufp and res.client_bufp are the same if it is at the remap hook
+    if (_type == URL) {
       TSDebug(PLUGIN_NAME, "   Using the request url");
       url = res._rri->requestUrl;
     } else if (_type == FROM) {
@@ -371,19 +298,15 @@ ConditionUrl::append_value(std::string &s, const Resources &res)
       return;
     }
   } else {
-    TSMLoc hdr_loc = nullptr;
-    if (_type == CLIENT) {
-      bufp    = res.client_bufp;
-      hdr_loc = res.client_hdr_loc;
-    } else if (_type == URL) {
-      bufp    = res.bufp;
-      hdr_loc = res.hdr_loc;
+    if (_type == URL) {
+      bufp           = res.bufp;
+      TSMLoc hdr_loc = res.hdr_loc;
+      if (TSHttpHdrUrlGet(bufp, hdr_loc, &url) != TS_SUCCESS) {
+        TSError("[header_rewrite] Error getting the URL");
+        return;
+      }
     } else {
       TSError("[header_rewrite] Rule not supported at this hook");
-      return;
-    }
-    if (TSHttpHdrUrlGet(bufp, hdr_loc, &url) != TS_SUCCESS) {
-      TSError("[header_rewrite] Error getting the URL");
       return;
     }
   }
@@ -657,37 +580,6 @@ ConditionIp::append_value(std::string &s, const Resources &res)
   }
 }
 
-void
-ConditionIncomingPort::initialize(Parser &p)
-{
-  Condition::initialize(p);
-
-  MatcherType *match = new MatcherType(_cond_op);
-
-  match->set(static_cast<uint16_t>(strtoul(p.get_arg().c_str(), nullptr, 10)));
-  _matcher = match;
-}
-
-bool
-ConditionIncomingPort::eval(const Resources &res)
-{
-  uint16_t port = getPort(TSHttpTxnIncomingAddrGet(res.txnp));
-
-  TSDebug(PLUGIN_NAME, "Evaluating INCOMING-PORT()");
-  return static_cast<MatcherType *>(_matcher)->test(port);
-}
-
-void
-ConditionIncomingPort::append_value(std::string &s, const Resources &res)
-{
-  std::ostringstream oss;
-  uint16_t port = getPort(TSHttpTxnIncomingAddrGet(res.txnp));
-
-  oss << port;
-  s += oss.str();
-  TSDebug(PLUGIN_NAME, "Appending %d to evaluation value -> %s", port, s.c_str());
-}
-
 // ConditionTransactCount
 void
 ConditionTransactCount::initialize(Parser &p)
@@ -914,7 +806,7 @@ ConditionGeo::get_geo_int(const sockaddr *addr) const
   }
 
   switch (_geo_qual) {
-  // Country Databse
+  // Country Database
   case GEO_QUAL_COUNTRY_ISO:
     switch (addr->sa_family) {
     case AF_INET:
@@ -979,7 +871,7 @@ ConditionGeo::get_geo_int(const sockaddr *addr) const
 
 #else
 
-// No Geo library avaiable, these are just stubs.
+// No Geo library available, these are just stubs.
 
 const char *
 ConditionGeo::get_geo_string(const sockaddr *addr) const
@@ -1226,17 +1118,17 @@ ConditionCidr::append_value(std::string &s, const Resources &res)
   if (addr) {
     switch (addr->sa_family) {
     case AF_INET: {
-      char res[INET_ADDRSTRLEN];
+      char resource[INET_ADDRSTRLEN];
       struct in_addr ipv4 = reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr;
 
       ipv4.s_addr &= _v4_mask.s_addr;
-      inet_ntop(AF_INET, &ipv4, res, INET_ADDRSTRLEN);
-      if (res[0]) {
-        s += res;
+      inet_ntop(AF_INET, &ipv4, resource, INET_ADDRSTRLEN);
+      if (resource[0]) {
+        s += resource;
       }
     } break;
     case AF_INET6: {
-      char res[INET6_ADDRSTRLEN];
+      char resource[INET6_ADDRSTRLEN];
       struct in6_addr ipv6 = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr;
 
       if (_v6_zero_bytes > 0) {
@@ -1245,9 +1137,9 @@ ConditionCidr::append_value(std::string &s, const Resources &res)
       if (_v6_mask != 0xff) {
         ipv6.s6_addr[16 - _v6_zero_bytes] &= _v6_mask;
       }
-      inet_ntop(AF_INET6, &ipv6, res, INET6_ADDRSTRLEN);
-      if (res[0]) {
-        s += res;
+      inet_ntop(AF_INET6, &ipv6, resource, INET6_ADDRSTRLEN);
+      if (resource[0]) {
+        s += resource;
       }
     } break;
     }
@@ -1407,28 +1299,4 @@ ConditionStringLiteral::eval(const Resources &res)
   TSDebug(PLUGIN_NAME, "Evaluating StringLiteral");
 
   return static_cast<const MatcherType *>(_matcher)->test(_literal);
-}
-
-ConditionExpandableString::ConditionExpandableString(const std::string &v)
-{
-  TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionExpandableString");
-  _value = v;
-}
-
-bool
-ConditionExpandableString::eval(const Resources &res)
-{
-  std::string s;
-
-  append_value(s, res);
-
-  return static_cast<const MatcherType *>(_matcher)->test(s);
-}
-
-void
-ConditionExpandableString::append_value(std::string &s, const Resources &res)
-{
-  VariableExpander ve(_value);
-  s += ve.expand(res);
-  TSDebug(PLUGIN_NAME, "Appending to evaluation value -> %s", s.c_str());
 }

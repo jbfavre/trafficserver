@@ -121,8 +121,9 @@ chash_lookup(ATSConsistentHash *fhash, uint64_t path_hash, ATSConsistentHashIter
   // Do not set wrap_around to true until we try all the parents atleast once.
   bool wrapped = *wrap_around;
   *wrap_around = (*mapWrapped && *wrap_around) ? true : false;
-  if (!*mapWrapped && wrapped)
+  if (!*mapWrapped && wrapped) {
     *mapWrapped = true;
+  }
   return prtmp;
 }
 
@@ -192,8 +193,8 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   path_hash = getPathHash(request_info, (ATSHash64 *)&hash);
   fhash     = chash[last_lookup];
   do { // search until we've selected a different parent if !firstCall
-    prtmp = (pRecord *)chash_lookup(fhash, path_hash, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash,
-                                    &result->chash_init[last_lookup], &result->mapWrapped[last_lookup]);
+    prtmp = chash_lookup(fhash, path_hash, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash,
+                         &result->chash_init[last_lookup], &result->mapWrapped[last_lookup]);
     lookups++;
     if (prtmp) {
       pRec = (parents[last_lookup] + prtmp->idx);
@@ -276,8 +277,8 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
           }
         }
         fhash = chash[last_lookup];
-        prtmp = (pRecord *)chash_lookup(fhash, path_hash, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash,
-                                        &result->chash_init[last_lookup], &result->mapWrapped[last_lookup]);
+        prtmp = chash_lookup(fhash, path_hash, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash,
+                             &result->chash_init[last_lookup], &result->mapWrapped[last_lookup]);
         lookups++;
         if (prtmp) {
           pRec = (parents[last_lookup] + prtmp->idx);
@@ -387,7 +388,7 @@ ParentConsistentHash::markParentUp(ParentResult *result)
   ink_atomic_swap(&pRec->available, true);
   Debug("parent_select", "%s:%s(): marked %s:%d available.", __FILE__, __func__, pRec->hostname, pRec->port);
 
-  ink_atomic_swap(&pRec->failedAt, (time_t)0);
+  ink_atomic_swap(&pRec->failedAt, static_cast<time_t>(0));
   int old_count = ink_atomic_swap(&pRec->failCount, 0);
 
   if (old_count > 0) {

@@ -1,4 +1,5 @@
 /** @file
+ *
 
   A brief file description
 
@@ -22,6 +23,7 @@
  */
 
 #include "tscore/ink_config.h"
+#include "tscore/Filenames.h"
 #include <cctype>
 #include <cstring>
 #include "HttpConfig.h"
@@ -74,11 +76,12 @@ template <typename T> struct ConfigEnumPair {
 /// If found @a value is set to the corresponding value in @a list.
 template <typename T, unsigned N>
 static bool
-http_config_enum_search(const char *key, const ConfigEnumPair<T> (&list)[N], MgmtByte &value)
+http_config_enum_search(std::string_view key, const ConfigEnumPair<T> (&list)[N], MgmtByte &value)
 {
+  Debug("http_config", "enum element %.*s", static_cast<int>(key.size()), key.data());
   // We don't expect any of these lists to be more than 10 long, so a linear search is the best choice.
   for (unsigned i = 0; i < N; ++i) {
-    if (0 == strcasecmp(list[i]._key, key)) {
+    if (key.compare(list[i]._key) == 0) {
       value = list[i]._value;
       return true;
     }
@@ -108,10 +111,56 @@ http_config_enum_read(const char *name, const ConfigEnumPair<T> (&list)[N], Mgmt
 ////////////////////////////////////////////////////////////////
 /// Session sharing match types.
 static const ConfigEnumPair<TSServerSessionSharingMatchType> SessionSharingMatchStrings[] = {
-  {TS_SERVER_SESSION_SHARING_MATCH_NONE, "none"},
-  {TS_SERVER_SESSION_SHARING_MATCH_IP, "ip"},
-  {TS_SERVER_SESSION_SHARING_MATCH_HOST, "host"},
-  {TS_SERVER_SESSION_SHARING_MATCH_BOTH, "both"}};
+  {TS_SERVER_SESSION_SHARING_MATCH_NONE, "none"}, {TS_SERVER_SESSION_SHARING_MATCH_IP, "ip"},
+  {TS_SERVER_SESSION_SHARING_MATCH_HOST, "host"}, {TS_SERVER_SESSION_SHARING_MATCH_HOST, "hostsni"},
+  {TS_SERVER_SESSION_SHARING_MATCH_BOTH, "both"}, {TS_SERVER_SESSION_SHARING_MATCH_HOSTONLY, "hostonly"},
+  {TS_SERVER_SESSION_SHARING_MATCH_SNI, "sni"},   {TS_SERVER_SESSION_SHARING_MATCH_CERT, "cert"}};
+
+bool
+HttpConfig::load_server_session_sharing_match(const char *key, MgmtByte &mask)
+{
+  MgmtByte value;
+  mask = 0;
+  // Parse through and build up mask
+  std::string_view key_list(key);
+  size_t start  = 0;
+  size_t offset = 0;
+  Debug("http_config", "enum mask value %s", key);
+  do {
+    offset = key_list.find(',', start);
+    if (offset == std::string_view::npos) {
+      std::string_view one_key = key_list.substr(start);
+      if (!http_config_enum_search(one_key, SessionSharingMatchStrings, value)) {
+        return false;
+      }
+    } else {
+      std::string_view one_key = key_list.substr(start, offset - start);
+      if (!http_config_enum_search(one_key, SessionSharingMatchStrings, value)) {
+        return false;
+      }
+      start = offset + 1;
+    }
+    if (value < TS_SERVER_SESSION_SHARING_MATCH_NONE) {
+      mask |= (1 << value);
+    } else if (value == TS_SERVER_SESSION_SHARING_MATCH_BOTH) {
+      mask |= TS_SERVER_SESSION_SHARING_MATCH_MASK_IP | TS_SERVER_SESSION_SHARING_MATCH_MASK_HOSTONLY |
+              TS_SERVER_SESSION_SHARING_MATCH_MASK_HOSTSNISYNC;
+    } else if (value == TS_SERVER_SESSION_SHARING_MATCH_HOST) {
+      mask |= TS_SERVER_SESSION_SHARING_MATCH_MASK_HOSTONLY | TS_SERVER_SESSION_SHARING_MATCH_MASK_HOSTSNISYNC;
+    }
+  } while (offset != std::string_view::npos);
+  return true;
+}
+
+static bool
+http_config_enum_mask_read(const char *name, MgmtByte &value)
+{
+  char key[512]; // it's just one key - painful UI if keys are longer than this
+  if (REC_ERR_OKAY == RecGetRecordString(name, key, sizeof(key))) {
+    return HttpConfig::load_server_session_sharing_match(key, value);
+  }
+  return false;
+}
 
 static const ConfigEnumPair<TSServerSessionSharingPoolType> SessionSharingPoolStrings[] = {
   {TS_SERVER_SESSION_SHARING_POOL_GLOBAL, "global"},
@@ -131,22 +180,58 @@ HttpConfigCont::HttpConfigCont() : Continuation(new_ProxyMutex())
 int
 HttpConfigCont::handle_event(int /* event ATS_UNUSED */, void * /* edata ATS_UNUSED */)
 {
-  if (ink_atomic_increment((int *)&http_config_changes, -1) == 1) {
+  if (ink_atomic_increment(&http_config_changes, -1) == 1) {
     HttpConfig::reconfigure();
   }
   return 0;
 }
 
-static int
+int
 http_config_cb(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */, RecData /* data ATS_UNUSED */,
                void * /* cookie ATS_UNUSED */)
 {
-  ink_atomic_increment((int *)&http_config_changes, 1);
+  ink_atomic_increment(&http_config_changes, 1);
 
   INK_MEMORY_BARRIER;
 
   eventProcessor.schedule_in(http_config_cont, HRTIME_SECONDS(1), ET_CALL);
   return 0;
+}
+
+void
+Enable_Config_Var(std::string_view const &name, bool (*cb)(const char *, RecDataT, RecData, void *), void *cookie)
+{
+  // Must use this indirection because the API requires a pure function, therefore no values can
+  // be bound in the lambda. Instead this is needed to pass in the data for both the lambda and
+  // the actual callback.
+  using Context = std::tuple<decltype(cb), void *>;
+
+  // To deal with process termination cleanup, store the context instances in a deque where
+  // tail insertion doesn't invalidate pointers. These persist until process shutdown.
+  static std::deque<Context> storage;
+
+  Context &ctx = storage.emplace_back(cb, cookie);
+  // Register the call back - this handles external updates.
+  RecRegisterConfigUpdateCb(
+    name.data(),
+    [](const char *name, RecDataT dtype, RecData data, void *ctx) -> int {
+      auto &&[cb, cookie] = *static_cast<Context *>(ctx);
+      if ((*cb)(name, dtype, data, cookie)) {
+        http_config_cb(name, dtype, data, cookie); // signal runtime config update.
+      }
+      return REC_ERR_OKAY;
+    },
+    &ctx);
+
+  // Use the record to do the initial data load.
+  // Look it up and call the updater @a cb on that data.
+  RecLookupRecord(
+    name.data(),
+    [](RecRecord const *r, void *ctx) -> void {
+      auto &&[cb, cookie] = *static_cast<Context *>(ctx);
+      (*cb)(r->name, r->data_type, r->data, cookie);
+    },
+    &ctx);
 }
 
 // [amc] Not sure which is uglier, this switch or having a micro-function for each var.
@@ -162,7 +247,7 @@ http_server_session_sharing_cb(const char *name, RecDataT dtype, RecData data, v
     MgmtByte &match = c->oride.server_session_sharing_match;
     if (RECD_INT == dtype) {
       match = static_cast<TSServerSessionSharingMatchType>(data.rec_int);
-    } else if (RECD_STRING == dtype && http_config_enum_search(data.rec_string, SessionSharingMatchStrings, match)) {
+    } else if (RECD_STRING == dtype && HttpConfig::load_server_session_sharing_match(data.rec_string, match)) {
       // empty
     } else {
       valid_p = false;
@@ -265,6 +350,44 @@ register_stat_callbacks()
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.total_parent_marked_down_count", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_total_parent_marked_down_count, RecRawStatSyncCount);
 
+  // Stats to track causes of ATS initiated origin shutdowns
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.pool_lock_contention", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_pool_lock_contention, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.migration_failure", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_migration_failure, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_server", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_tunnel_server, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_server_no_keep_alive", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_tunnel_server_no_keep_alive, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_server_eos", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_tunnel_server_eos, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_server_plugin_tunnel", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_tunnel_server_plugin_tunnel, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_server_detach", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_tunnel_server_detach, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_client", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_tunnel_client, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_transform_read", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_tunnel_transform_read, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_no_sharing", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_release_no_sharing, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_no_server", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_release_no_server, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_no_keep_alive", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_release_no_keep_alive, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_invalid_response", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_release_invalid_response, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_invalid_request", RECD_INT,
+                     RECP_NON_PERSISTENT, (int)http_origin_shutdown_release_invalid_request, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_modified", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_release_modified, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.release_misc", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_release_misc, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.cleanup_entry", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_cleanup_entry, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.tunnel_abort", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_origin_shutdown_tunnel_abort, RecRawStatSyncCount);
+
   // Upstream current connections stats
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.current_parent_proxy_connections", RECD_INT, RECP_NON_PERSISTENT,
                      (int)http_current_parent_proxy_connections_stat, RecRawStatSyncSum);
@@ -355,9 +478,6 @@ register_stat_callbacks()
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.tunnels", RECD_COUNTER, RECP_PERSISTENT, (int)http_tunnels_stat,
                      RecRawStatSyncCount);
-
-  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.throttled_proxy_only", RECD_COUNTER, RECP_PERSISTENT,
-                     (int)http_throttled_proxy_only_stat, RecRawStatSyncCount);
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.parent_proxy_transaction_time", RECD_INT, RECP_PERSISTENT,
                      (int)http_parent_proxy_transaction_time_stat, RecRawStatSyncSum);
@@ -860,6 +980,12 @@ register_stat_callbacks()
                      (int)http_origin_connections_throttled_stat, RecRawStatSyncCount);
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.post_body_too_large", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_post_body_too_large, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin.connect.adjust_thread", RECD_COUNTER, RECP_NON_PERSISTENT,
+                     (int)http_origin_connect_adjust_thread_stat, RecRawStatSyncCount);
+  HTTP_CLEAR_DYN_STAT(http_origin_connect_adjust_thread_stat);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.cache.open_write.adjust_thread", RECD_COUNTER, RECP_NON_PERSISTENT,
+                     (int)http_cache_open_write_adjust_thread_stat, RecRawStatSyncCount);
+  HTTP_CLEAR_DYN_STAT(http_cache_open_write_adjust_thread_stat);
   // milestones
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.milestone.ua_begin", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_ua_begin_time_stat, RecRawStatSyncSum);
@@ -921,7 +1047,7 @@ set_negative_caching_list(const char *name, RecDataT dtype, RecData data, HttpCo
       } else if (n <= 0 || n >= HTTP_STATUS_NUMBER) {
         Error("Invalid status code '%.*s' for negative caching: out of range", static_cast<int>(token.size()), token.data());
       } else {
-        set[n] = 1;
+        set[n] = true;
       }
     }
   }
@@ -962,7 +1088,7 @@ void
 HttpConfig::startup()
 {
   extern void SSLConfigInit(IpMap * map);
-  http_rsb = RecAllocateRawStatBlock((int)http_stat_count);
+  http_rsb = RecAllocateRawStatBlock(static_cast<int>(http_stat_count));
   register_stat_callbacks();
 
   HttpConfigParams &c = m_master;
@@ -973,22 +1099,21 @@ HttpConfig::startup()
   c.proxy_hostname_len = -1;
 
   if (c.proxy_hostname == nullptr) {
-    c.proxy_hostname    = (char *)ats_malloc(sizeof(char));
+    c.proxy_hostname    = static_cast<char *>(ats_malloc(sizeof(char)));
     c.proxy_hostname[0] = '\0';
   }
 
   RecHttpLoadIp("proxy.local.incoming_ip_to_bind", c.inbound_ip4, c.inbound_ip6);
   RecHttpLoadIp("proxy.local.outgoing_ip_to_bind", c.outbound_ip4, c.outbound_ip6);
-  RecHttpLoadIpMap("proxy.config.http.proxy_protocol_whitelist", c.config_proxy_protocol_ipmap);
+  RecHttpLoadIpMap("proxy.config.http.proxy_protocol_allowlist", c.config_proxy_protocol_ipmap);
   SSLConfigInit(&c.config_proxy_protocol_ipmap);
 
   HttpEstablishStaticConfigLongLong(c.server_max_connections, "proxy.config.http.server_max_connections");
   HttpEstablishStaticConfigLongLong(c.max_websocket_connections, "proxy.config.http.websocket.max_number_of_connections");
-  HttpEstablishStaticConfigLongLong(c.oride.server_tcp_init_cwnd, "proxy.config.http.server_tcp_init_cwnd");
-  HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections, "proxy.config.http.origin_max_connections");
-  HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections_queue, "proxy.config.http.origin_max_connections_queue");
-  HttpEstablishStaticConfigLongLong(c.origin_min_keep_alive_connections, "proxy.config.http.origin_min_keep_alive_connections");
   HttpEstablishStaticConfigByte(c.oride.attach_server_session_to_client, "proxy.config.http.attach_server_session_to_client");
+
+  HttpEstablishStaticConfigLongLong(c.http_request_line_max_size, "proxy.config.http.request_line_max_size");
+  HttpEstablishStaticConfigLongLong(c.http_hdr_field_max_size, "proxy.config.http.header_field_max_size");
 
   HttpEstablishStaticConfigByte(c.disable_ssl_parenting, "proxy.local.http.parent_proxy.disable_connect_tunneling");
   HttpEstablishStaticConfigByte(c.oride.forward_connect_method, "proxy.config.http.forward_connect_method");
@@ -1006,8 +1131,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.insert_response_via_string, "proxy.config.http.insert_response_via_str");
   HttpEstablishStaticConfigLongLong(c.oride.proxy_response_hsts_max_age, "proxy.config.ssl.hsts_max_age");
   HttpEstablishStaticConfigByte(c.oride.proxy_response_hsts_include_subdomains, "proxy.config.ssl.hsts_include_subdomains");
-  HttpEstablishStaticConfigStringAlloc(c.oride.client_cert_filename, "proxy.config.ssl.client.cert.filename");
-  HttpEstablishStaticConfigStringAlloc(c.oride.client_cert_filepath, "proxy.config.ssl.client.cert.path");
 
   HttpEstablishStaticConfigStringAlloc(c.proxy_request_via_string, "proxy.config.http.request_via_str");
   c.proxy_request_via_string_len = -1;
@@ -1027,8 +1150,8 @@ HttpConfig::startup()
 
   // [amc] This is a bit of a mess, need to figure out to make this cleaner.
   RecRegisterConfigUpdateCb("proxy.config.http.server_session_sharing.match", &http_server_session_sharing_cb, &c);
-  http_config_enum_read("proxy.config.http.server_session_sharing.match", SessionSharingMatchStrings,
-                        c.oride.server_session_sharing_match);
+  http_config_enum_mask_read("proxy.config.http.server_session_sharing.match", c.oride.server_session_sharing_match);
+  HttpEstablishStaticConfigStringAlloc(c.oride.server_session_sharing_match_str, "proxy.config.http.server_session_sharing.match");
   http_config_enum_read("proxy.config.http.server_session_sharing.pool", SessionSharingPoolStrings, c.server_session_sharing_pool);
 
   RecRegisterConfigUpdateCb("proxy.config.http.insert_forwarded", &http_insert_forwarded_cb, &c);
@@ -1125,10 +1248,6 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigByte(c.oride.allow_half_open, "proxy.config.http.allow_half_open");
 
-  HttpEstablishStaticConfigStringAlloc(c.oride.cache_vary_default_text, "proxy.config.http.cache.vary_default_text");
-  HttpEstablishStaticConfigStringAlloc(c.oride.cache_vary_default_images, "proxy.config.http.cache.vary_default_images");
-  HttpEstablishStaticConfigStringAlloc(c.oride.cache_vary_default_other, "proxy.config.http.cache.vary_default_other");
-
   // open read failure retries
   HttpEstablishStaticConfigLongLong(c.oride.max_cache_open_read_retries, "proxy.config.http.cache.max_open_read_retries");
   HttpEstablishStaticConfigLongLong(c.oride.cache_open_read_retry_time, "proxy.config.http.cache.open_read_retry_time");
@@ -1146,7 +1265,6 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_auth, "proxy.config.http.cache.ignore_authentication");
   HttpEstablishStaticConfigByte(c.oride.cache_urls_that_look_dynamic, "proxy.config.http.cache.cache_urls_that_look_dynamic");
-  HttpEstablishStaticConfigByte(c.oride.cache_enable_default_vary_headers, "proxy.config.http.cache.enable_default_vary_headers");
   HttpEstablishStaticConfigByte(c.cache_post_method, "proxy.config.http.cache.post_method");
 
   HttpEstablishStaticConfigByte(c.oride.ignore_accept_mismatch, "proxy.config.http.cache.ignore_accept_mismatch");
@@ -1156,7 +1274,6 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigByte(c.send_100_continue_response, "proxy.config.http.send_100_continue_response");
   HttpEstablishStaticConfigByte(c.disallow_post_100_continue, "proxy.config.http.disallow_post_100_continue");
-  HttpEstablishStaticConfigByte(c.parser_allow_non_http, "proxy.config.http.parse.allow_non_http");
 
   HttpEstablishStaticConfigByte(c.keepalive_internal_vc, "proxy.config.http.keepalive_internal_vc");
 
@@ -1212,6 +1329,8 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.enable_http_info, "proxy.config.http.enable_http_info");
 
   HttpEstablishStaticConfigLongLong(c.max_post_size, "proxy.config.http.max_post_size");
+  HttpEstablishStaticConfigLongLong(c.max_payload_iobuf_index, "proxy.config.payload.io.max_buffer_index");
+  HttpEstablishStaticConfigLongLong(c.max_msg_iobuf_index, "proxy.config.msg.io.max_buffer_index");
 
   //##############################################################################
   //#
@@ -1224,7 +1343,17 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.redirection_host_no_port, "proxy.config.http.redirect_host_no_port");
   HttpEstablishStaticConfigLongLong(c.oride.number_of_redirections, "proxy.config.http.number_of_redirections");
   HttpEstablishStaticConfigLongLong(c.post_copy_size, "proxy.config.http.post_copy_size");
+  HttpEstablishStaticConfigStringAlloc(c.redirect_actions_string, "proxy.config.http.redirect.actions");
+  HttpEstablishStaticConfigByte(c.http_host_sni_policy, "proxy.config.http.host_sni_policy");
 
+  HttpEstablishStaticConfigStringAlloc(c.oride.ssl_client_sni_policy, "proxy.config.ssl.client.sni_policy");
+
+  OutboundConnTrack::config_init(&c.outbound_conntrack, &c.oride.outbound_conntrack);
+
+  MUTEX_TRY_LOCK(lock, http_config_cont->mutex, this_ethread());
+  if (!lock.is_locked()) {
+    ink_release_assert(0);
+  }
   http_config_cont->handleEvent(EVENT_NONE, nullptr);
 
   return;
@@ -1238,7 +1367,7 @@ HttpConfig::startup()
 void
 HttpConfig::reconfigure()
 {
-#define INT_TO_BOOL(i) ((i) ? 1 : 0);
+  auto INT_TO_BOOL = [](RecInt i) -> bool { return i != 0; };
 
   HttpConfigParams *params;
 
@@ -1262,23 +1391,26 @@ HttpConfig::reconfigure()
   params->disable_ssl_parenting        = INT_TO_BOOL(m_master.disable_ssl_parenting);
   params->oride.forward_connect_method = INT_TO_BOOL(m_master.oride.forward_connect_method);
 
-  params->server_max_connections             = m_master.server_max_connections;
-  params->max_websocket_connections          = m_master.max_websocket_connections;
-  params->oride.server_tcp_init_cwnd         = m_master.oride.server_tcp_init_cwnd;
-  params->oride.origin_max_connections       = m_master.oride.origin_max_connections;
-  params->oride.origin_max_connections_queue = m_master.oride.origin_max_connections_queue;
-  // if origin_max_connections_queue is set without max_connections, it is meaningless, so we'll warn
-  if (params->oride.origin_max_connections_queue > 0 &&
-      !(params->oride.origin_max_connections || params->origin_min_keep_alive_connections)) {
-    Warning("origin_max_connections_queue is set, but neither origin_max_connections nor origin_min_keep_alive_connections are "
-            "set, please correct your records.config");
+  params->server_max_connections    = m_master.server_max_connections;
+  params->max_websocket_connections = m_master.max_websocket_connections;
+  params->oride.outbound_conntrack  = m_master.oride.outbound_conntrack;
+  // If queuing for outbound connection tracking is enabled without enabling max connections, it is meaningless, so we'll warn
+  if (params->outbound_conntrack.queue_size > 0 &&
+      !(params->oride.outbound_conntrack.max > 0 || params->oride.outbound_conntrack.min > 0)) {
+    Warning("'%s' is set, but neither '%s' nor '%s' are "
+            "set, please correct your %s",
+            OutboundConnTrack::CONFIG_VAR_QUEUE_SIZE.data(), OutboundConnTrack::CONFIG_VAR_MAX.data(),
+            OutboundConnTrack::CONFIG_VAR_MIN.data(), ts::filename::RECORDS);
   }
-  params->origin_min_keep_alive_connections     = m_master.origin_min_keep_alive_connections;
   params->oride.attach_server_session_to_client = m_master.oride.attach_server_session_to_client;
 
-  if (params->oride.origin_max_connections && params->oride.origin_max_connections < params->origin_min_keep_alive_connections) {
-    Warning("origin_max_connections < origin_min_keep_alive_connections, setting min=max , please correct your records.config");
-    params->origin_min_keep_alive_connections = params->oride.origin_max_connections;
+  params->http_request_line_max_size = m_master.http_request_line_max_size;
+  params->http_hdr_field_max_size    = m_master.http_hdr_field_max_size;
+
+  if (params->oride.outbound_conntrack.max > 0 && params->oride.outbound_conntrack.max < params->oride.outbound_conntrack.min) {
+    Warning("'%s' < per_server.min_keep_alive_connections, setting min=max , please correct your %s",
+            OutboundConnTrack::CONFIG_VAR_MAX.data(), ts::filename::RECORDS);
+    params->oride.outbound_conntrack.min = params->oride.outbound_conntrack.max;
   }
 
   params->oride.insert_request_via_string   = m_master.oride.insert_request_via_string;
@@ -1318,9 +1450,11 @@ HttpConfig::reconfigure()
     params->oride.flow_high_water_mark = params->oride.flow_low_water_mark = 0;
   }
 
-  params->oride.server_session_sharing_match = m_master.oride.server_session_sharing_match;
-  params->server_session_sharing_pool        = m_master.server_session_sharing_pool;
-  params->oride.keep_alive_post_out          = m_master.oride.keep_alive_post_out;
+  params->oride.server_session_sharing_match     = m_master.oride.server_session_sharing_match;
+  params->oride.server_session_sharing_match_str = ats_strdup(m_master.oride.server_session_sharing_match_str);
+  params->oride.server_min_keep_alive_conns      = m_master.oride.server_min_keep_alive_conns;
+  params->server_session_sharing_pool            = m_master.server_session_sharing_pool;
+  params->oride.keep_alive_post_out              = m_master.oride.keep_alive_post_out;
 
   params->oride.keep_alive_no_activity_timeout_in   = m_master.oride.keep_alive_no_activity_timeout_in;
   params->oride.keep_alive_no_activity_timeout_out  = m_master.oride.keep_alive_no_activity_timeout_out;
@@ -1398,10 +1532,6 @@ HttpConfig::reconfigure()
 
   params->oride.cache_max_stale_age = m_master.oride.cache_max_stale_age;
 
-  params->oride.cache_vary_default_text   = ats_strdup(m_master.oride.cache_vary_default_text);
-  params->oride.cache_vary_default_images = ats_strdup(m_master.oride.cache_vary_default_images);
-  params->oride.cache_vary_default_other  = ats_strdup(m_master.oride.cache_vary_default_other);
-
   params->oride.srv_enabled = m_master.oride.srv_enabled;
 
   params->oride.allow_half_open = m_master.oride.allow_half_open;
@@ -1414,16 +1544,15 @@ HttpConfig::reconfigure()
   // open write failure retries
   params->oride.max_cache_open_write_retries = m_master.oride.max_cache_open_write_retries;
 
-  params->oride.cache_http                        = INT_TO_BOOL(m_master.oride.cache_http);
-  params->oride.cache_ignore_client_no_cache      = INT_TO_BOOL(m_master.oride.cache_ignore_client_no_cache);
-  params->oride.cache_ignore_client_cc_max_age    = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
-  params->oride.cache_ims_on_client_no_cache      = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
-  params->oride.cache_ignore_server_no_cache      = INT_TO_BOOL(m_master.oride.cache_ignore_server_no_cache);
-  params->oride.cache_responses_to_cookies        = m_master.oride.cache_responses_to_cookies;
-  params->oride.cache_ignore_auth                 = INT_TO_BOOL(m_master.oride.cache_ignore_auth);
-  params->oride.cache_urls_that_look_dynamic      = INT_TO_BOOL(m_master.oride.cache_urls_that_look_dynamic);
-  params->oride.cache_enable_default_vary_headers = INT_TO_BOOL(m_master.oride.cache_enable_default_vary_headers);
-  params->cache_post_method                       = INT_TO_BOOL(m_master.cache_post_method);
+  params->oride.cache_http                     = INT_TO_BOOL(m_master.oride.cache_http);
+  params->oride.cache_ignore_client_no_cache   = INT_TO_BOOL(m_master.oride.cache_ignore_client_no_cache);
+  params->oride.cache_ignore_client_cc_max_age = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
+  params->oride.cache_ims_on_client_no_cache   = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
+  params->oride.cache_ignore_server_no_cache   = INT_TO_BOOL(m_master.oride.cache_ignore_server_no_cache);
+  params->oride.cache_responses_to_cookies     = m_master.oride.cache_responses_to_cookies;
+  params->oride.cache_ignore_auth              = INT_TO_BOOL(m_master.oride.cache_ignore_auth);
+  params->oride.cache_urls_that_look_dynamic   = INT_TO_BOOL(m_master.oride.cache_urls_that_look_dynamic);
+  params->cache_post_method                    = INT_TO_BOOL(m_master.cache_post_method);
 
   params->oride.ignore_accept_mismatch          = m_master.oride.ignore_accept_mismatch;
   params->oride.ignore_accept_language_mismatch = m_master.oride.ignore_accept_language_mismatch;
@@ -1432,13 +1561,22 @@ HttpConfig::reconfigure()
 
   params->send_100_continue_response = INT_TO_BOOL(m_master.send_100_continue_response);
   params->disallow_post_100_continue = INT_TO_BOOL(m_master.disallow_post_100_continue);
-  params->parser_allow_non_http      = INT_TO_BOOL(m_master.parser_allow_non_http);
   params->keepalive_internal_vc      = INT_TO_BOOL(m_master.keepalive_internal_vc);
 
   params->oride.cache_open_write_fail_action = m_master.oride.cache_open_write_fail_action;
+  if (params->oride.cache_open_write_fail_action == CACHE_WL_FAIL_ACTION_READ_RETRY) {
+    if (params->oride.max_cache_open_read_retries <= 0 || params->oride.max_cache_open_write_retries <= 0) {
+      Warning("Invalid config, cache_open_write_fail_action (%d), max_cache_open_read_retries (%" PRIu64 "), "
+              "max_cache_open_write_retries (%" PRIu64 ")",
+              params->oride.cache_open_write_fail_action, params->oride.max_cache_open_read_retries,
+              params->oride.max_cache_open_write_retries);
+    }
+  }
 
   params->oride.cache_when_to_revalidate = m_master.oride.cache_when_to_revalidate;
   params->max_post_size                  = m_master.max_post_size;
+  params->max_payload_iobuf_index        = m_master.max_payload_iobuf_index;
+  params->max_msg_iobuf_index            = m_master.max_msg_iobuf_index;
 
   params->oride.cache_required_headers = m_master.oride.cache_required_headers;
   params->oride.cache_range_lookup     = INT_TO_BOOL(m_master.oride.cache_range_lookup);
@@ -1487,14 +1625,18 @@ HttpConfig::reconfigure()
   params->redirection_host_no_port          = INT_TO_BOOL(m_master.redirection_host_no_port);
   params->oride.number_of_redirections      = m_master.oride.number_of_redirections;
   params->post_copy_size                    = m_master.post_copy_size;
-  params->oride.client_cert_filename        = ats_strdup(m_master.oride.client_cert_filename);
-  params->oride.client_cert_filepath        = ats_strdup(m_master.oride.client_cert_filepath);
+  params->redirect_actions_string           = ats_strdup(m_master.redirect_actions_string);
+  params->redirect_actions_map = parse_redirect_actions(params->redirect_actions_string, params->redirect_actions_self_action);
+  params->http_host_sni_policy = m_master.http_host_sni_policy;
+
+  params->oride.ssl_client_sni_policy = ats_strdup(m_master.oride.ssl_client_sni_policy);
 
   params->negative_caching_list = m_master.negative_caching_list;
 
-  m_id = configProcessor.set(m_id, params);
+  params->oride.host_res_data            = m_master.oride.host_res_data;
+  params->oride.host_res_data.conf_value = ats_strdup(m_master.oride.host_res_data.conf_value);
 
-#undef INT_TO_BOOL
+  m_id = configProcessor.set(m_id, params);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1606,4 +1748,138 @@ HttpConfig::parse_ports_list(char *ports_string)
     }
   }
   return (ports_list);
+}
+
+////////////////////////////////////////////////////////////////
+//
+//  HttpConfig::parse_redirect_actions()
+//
+////////////////////////////////////////////////////////////////
+IpMap *
+HttpConfig::parse_redirect_actions(char *input_string, RedirectEnabled::Action &self_action)
+{
+  using RedirectEnabled::Action;
+  using RedirectEnabled::AddressClass;
+  using RedirectEnabled::action_map;
+  using RedirectEnabled::address_class_map;
+
+  if (nullptr == input_string) {
+    Error("parse_redirect_actions: The configuration value is empty.");
+    return nullptr;
+  }
+  Tokenizer configTokens(", ");
+  int n_rules = configTokens.Initialize(input_string);
+  std::map<AddressClass, Action> configMapping;
+  for (int i = 0; i < n_rules; i++) {
+    const char *rule = configTokens[i];
+    Tokenizer ruleTokens(":");
+    int n_mapping = ruleTokens.Initialize(rule);
+    if (2 != n_mapping) {
+      Error("parse_redirect_actions: Individual rules must be an address class and an action separated by a colon (:)");
+      return nullptr;
+    }
+    std::string c_input(ruleTokens[0]), a_input(ruleTokens[1]);
+    AddressClass c =
+      address_class_map.find(ruleTokens[0]) != address_class_map.end() ? address_class_map[ruleTokens[0]] : AddressClass::INVALID;
+    Action a = action_map.find(ruleTokens[1]) != action_map.end() ? action_map[ruleTokens[1]] : Action::INVALID;
+
+    if (AddressClass::INVALID == c) {
+      Error("parse_redirect_actions: '%.*s' is not a valid address class", static_cast<int>(c_input.size()), c_input.data());
+      return nullptr;
+    } else if (Action::INVALID == a) {
+      Error("parse_redirect_actions: '%.*s' is not a valid action", static_cast<int>(a_input.size()), a_input.data());
+      return nullptr;
+    }
+    configMapping[c] = a;
+  }
+
+  // Ensure the default.
+  if (configMapping.end() == configMapping.find(AddressClass::DEFAULT)) {
+    configMapping[AddressClass::DEFAULT] = Action::RETURN;
+  }
+
+  IpMap *ret = new IpMap();
+  IpAddr min, max;
+  Action action = Action::INVALID;
+
+  // Order Matters. IpAddr::mark uses Painter's Algorithm. Last one wins.
+
+  // PRIVATE
+  action = configMapping.find(AddressClass::PRIVATE) != configMapping.end() ? configMapping[AddressClass::PRIVATE] :
+                                                                              configMapping[AddressClass::DEFAULT];
+  // 10.0.0.0/8
+  min.load("10.0.0.0");
+  max.load("10.255.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  // 100.64.0.0/10
+  min.load("100.64.0.0");
+  max.load("100.127.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  // 172.16.0.0/12
+  min.load("172.16.0.0");
+  max.load("172.31.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  // 192.168.0.0/16
+  min.load("192.168.0.0");
+  max.load("192.168.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  // fc00::/7
+  min.load("fc00::");
+  max.load("feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+
+  // LOOPBACK
+  action = configMapping.find(AddressClass::LOOPBACK) != configMapping.end() ? configMapping[AddressClass::LOOPBACK] :
+                                                                               configMapping[AddressClass::DEFAULT];
+  min.load("127.0.0.0");
+  max.load("127.255.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  min.load("::1");
+  max.load("::1");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+
+  // MULTICAST
+  action = configMapping.find(AddressClass::MULTICAST) != configMapping.end() ? configMapping[AddressClass::MULTICAST] :
+                                                                                configMapping[AddressClass::DEFAULT];
+  // 224.0.0.0/4
+  min.load("224.0.0.0");
+  max.load("239.255.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  // ff00::/8
+  min.load("ff00::");
+  max.load("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+
+  // LINKLOCAL
+  action = configMapping.find(AddressClass::LINKLOCAL) != configMapping.end() ? configMapping[AddressClass::LINKLOCAL] :
+                                                                                configMapping[AddressClass::DEFAULT];
+  // 169.254.0.0/16
+  min.load("169.254.0.0");
+  max.load("169.254.255.255");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+  // fe80::/10
+  min.load("fe80::");
+  max.load("febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
+  ret->mark(min, max, reinterpret_cast<void *>(action));
+
+  // SELF
+  // We must store the self address class separately instead of adding the addresses to our map.
+  // The addresses Trafficserver will use depend on configurations that are loaded here, so they are not available yet.
+  action = configMapping.find(AddressClass::SELF) != configMapping.end() ? configMapping[AddressClass::SELF] :
+                                                                           configMapping[AddressClass::DEFAULT];
+  self_action = action;
+
+  // IpMap::fill only marks things that are not already marked.
+
+  // ROUTABLE
+  action = configMapping.find(AddressClass::ROUTABLE) != configMapping.end() ? configMapping[AddressClass::ROUTABLE] :
+                                                                               configMapping[AddressClass::DEFAULT];
+  min.load("0.0.0.0");
+  max.load("255.255.255.255");
+  ret->fill(min, max, reinterpret_cast<void *>(action));
+  min.load("::");
+  max.load("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
+  ret->fill(min, max, reinterpret_cast<void *>(action));
+
+  return ret;
 }

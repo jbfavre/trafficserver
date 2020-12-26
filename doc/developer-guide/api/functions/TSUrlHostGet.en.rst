@@ -27,7 +27,9 @@ Traffic Server URL component retrieval API.
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 .. function:: const char * TSUrlHostGet(TSMBuffer bufp, TSMLoc offset, int * length)
 .. function:: const char * TSUrlSchemeGet(TSMBuffer bufp, TSMLoc offset, int * length)
@@ -49,7 +51,7 @@ and retrieve or modify parts of URLs, such as their host, port or scheme
 information.
 
 :func:`TSUrlSchemeGet`, :func:`TSUrlUserGet`, :func:`TSUrlPasswordGet`,
-:func:`TSUrlHostGet`, :func:`TSUrlHttpParamsGet`, :func:`TSUrlHttpQueryGet`
+:func:`TSUrlHostGet`, :func:`TSUrlPathGet`, :func:`TSUrlHttpParamsGet`, :func:`TSUrlHttpQueryGet`
 and :func:`TSUrlHttpFragmentGet` each retrieve an internal pointer to the
 specified portion of the URL from the marshall buffer :arg:`bufp`. The length
 of the returned string is placed in :arg:`length` and a pointer to the URL
@@ -77,6 +79,7 @@ See Also
 
 :manpage:`TSAPI(3ts)`,
 :manpage:`TSUrlCreate(3ts)`,
+:manpage:`TSHttpHdrUrlGet(3ts)`,
 :manpage:`TSUrlHostSet(3ts)`,
 :manpage:`TSUrlStringGet(3ts)`,
 :manpage:`TSUrlPercentEncode(3ts)`

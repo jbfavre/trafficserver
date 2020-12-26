@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include "tscore/ink_assert.h"
 #include "tscore/ink_platform.h"
 #include "P_HostDB.h"
 #include "P_Net.h"
@@ -39,7 +40,8 @@
 #include "RemapPluginInfo.h"
 #include "UrlMapping.h"
 #include "records/I_RecHttp.h"
-#include "ProxyClientSession.h"
+#include "ProxySession.h"
+#include "MgmtDefs.h"
 
 #define HTTP_RELEASE_ASSERT(X) ink_release_assert(X)
 
@@ -71,6 +73,8 @@ struct HttpConfigParams;
 class HttpSM;
 
 #include "tscore/InkErrno.h"
+#include "HttpConnectionCount.h"
+
 #define UNKNOWN_INTERNAL_ERROR (INK_START_ERRNO - 1)
 
 enum ViaStringIndex_t {
@@ -147,6 +151,7 @@ enum ViaString_t {
   VIA_ERROR_TIMEOUT           = 'T',
   VIA_ERROR_CACHE_READ        = 'R',
   VIA_ERROR_MOVED_TEMPORARILY = 'M',
+  VIA_ERROR_LOOP_DETECTED     = 'L',
   //
   // Now the detailed stuff
   //
@@ -162,7 +167,6 @@ enum ViaString_t {
   // cache type
   VIA_DETAIL_CACHE_DESCRIPTOR_STRING = 'c',
   VIA_DETAIL_CACHE                   = 'C',
-  VIA_DETAIL_CLUSTER                 = 'L',
   VIA_DETAIL_PARENT                  = 'P',
   VIA_DETAIL_SERVER                  = 'S',
   // result of cache lookup
@@ -241,16 +245,6 @@ public:
     CACHE_PREPARE_TO_UPDATE,
     CACHE_PREPARE_TO_WRITE,
     TOTAL_CACHE_ACTION_TYPES
-  };
-
-  enum CacheOpenWriteFailAction_t {
-    CACHE_WL_FAIL_ACTION_DEFAULT                           = 0x00,
-    CACHE_WL_FAIL_ACTION_ERROR_ON_MISS                     = 0x01,
-    CACHE_WL_FAIL_ACTION_STALE_ON_REVALIDATE               = 0x02,
-    CACHE_WL_FAIL_ACTION_ERROR_ON_MISS_STALE_ON_REVALIDATE = 0x03,
-    CACHE_WL_FAIL_ACTION_ERROR_ON_MISS_OR_REVALIDATE       = 0x04,
-    CACHE_WL_FAIL_ACTION_READ_RETRY                        = 0x05,
-    TOTAL_CACHE_WL_FAIL_ACTION_TYPES
   };
 
   enum CacheWriteLock_t {
@@ -529,7 +523,6 @@ public:
   typedef struct _RedirectInfo {
     bool redirect_in_process = false;
     URL original_url;
-    URL redirect_url;
 
     _RedirectInfo() {}
   } RedirectInfo;
@@ -638,6 +631,7 @@ public:
     bool srv_lookup_success     = false;
     short srv_port              = 0;
     HostDBApplicationInfo srv_app;
+
     /*** Set to true by default.  If use_client_target_address is set
      * to 1, this value will be set to false if the client address is
      * not in the DNS pool */
@@ -645,6 +639,9 @@ public:
 
     _DNSLookupInfo() {}
   } DNSLookupInfo;
+
+  // Conversion handling for DNS host resolution type.
+  static const MgmtConverter HOST_RES_CONV;
 
   typedef struct _HeaderInfo {
     HTTPHdr client_request;
@@ -685,11 +682,11 @@ public:
     CacheLookupInfo cache_info;
     DNSLookupInfo dns_info;
     RedirectInfo redirect_info;
+    OutboundConnTrack::TxnState outbound_conn_track_state;
     unsigned int updated_server_version   = HostDBApplicationInfo::HTTP_VERSION_UNDEFINED;
     bool force_dns                        = false;
     MgmtByte cache_open_write_fail_action = 0;
     bool is_revalidation_necessary        = false; // Added to check if revalidation is necessary - YTS Team, yamsat
-    bool request_will_not_selfloop        = false; // To determine if process done - YTS Team, yamsat
     ConnectionAttributes client_info;
     ConnectionAttributes parent_info;
     ConnectionAttributes server_info;
@@ -712,9 +709,9 @@ public:
     bool cdn_remap_complete                           = false;
     bool first_dns_lookup                             = true;
 
-    bool backdoor_request = false; // internal
     HttpRequestData request_data;
-    ParentConfigParams *parent_params = nullptr;
+    ParentConfigParams *parent_params                           = nullptr;
+    std::shared_ptr<NextHopSelectionStrategy> next_hop_strategy = nullptr;
     ParentResult parent_result;
     CacheControlResult cache_control;
     CacheLookupResult_t cache_lookup_result = CACHE_LOOKUP_NONE;
@@ -731,9 +728,6 @@ public:
     // Some WebSocket state
     bool is_websocket        = false;
     bool did_upgrade_succeed = false;
-
-    // Some queue info
-    bool origin_request_queued = false;
 
     char *internal_msg_buffer                       = nullptr; // out
     char *internal_msg_buffer_type                  = nullptr; // out
@@ -783,11 +777,8 @@ public:
     // for authenticated content caching
     CacheAuth_t www_auth_content = CACHE_AUTH_NONE;
 
-    // INK API/Remap API plugin interface
-    void *remap_plugin_instance = nullptr;
-    void *user_args[TS_HTTP_MAX_USER_ARG];
-    remap_plugin_info::_tsremap_os_response *fp_tsremap_os_response = nullptr;
-    HTTPStatus http_return_code                                     = HTTP_STATUS_NONE;
+    RemapPluginInst *os_response_plugin_inst = nullptr;
+    HTTPStatus http_return_code              = HTTP_STATUS_NONE;
 
     int api_txn_active_timeout_value      = -1;
     int api_txn_connect_timeout_value     = -1;
@@ -835,8 +826,16 @@ public:
     int64_t range_output_cl  = 0;
     RangeRecord *ranges      = nullptr;
 
-    OverridableHttpConfigParams *txn_conf = nullptr;
-    OverridableHttpConfigParams my_txn_conf; // Storage for plugins, to avoid malloc
+    OverridableHttpConfigParams const *txn_conf = nullptr;
+    OverridableHttpConfigParams &
+    my_txn_conf() // Storage for plugins, to avoid malloc
+    {
+      auto p = reinterpret_cast<OverridableHttpConfigParams *>(_my_txn_conf);
+
+      ink_assert(p == txn_conf);
+
+      return *p;
+    }
 
     bool transparent_passthrough = false;
     bool range_in_cache          = false;
@@ -872,7 +871,6 @@ public:
       via_string[VIA_DETAIL_SERVER_DESCRIPTOR] = VIA_DETAIL_SERVER_DESCRIPTOR_STRING;
       via_string[MAX_VIA_INDICES]              = '\0';
 
-      memset(user_args, 0, sizeof(user_args));
       memset((void *)&host_db_info, 0, sizeof(host_db_info));
     }
 
@@ -899,12 +897,12 @@ public:
       cache_info.object_store.destroy();
       cache_info.transform_store.destroy();
       redirect_info.original_url.destroy();
-      redirect_info.redirect_url.destroy();
 
       url_map.clear();
       arena.reset();
       unmapped_url.clear();
       hostdb_entry.clear();
+      outbound_conn_track_state.clear();
 
       delete[] ranges;
       ranges      = nullptr;
@@ -916,10 +914,9 @@ public:
     void
     setup_per_txn_configs()
     {
-      if (txn_conf != &my_txn_conf) {
-        // Make sure we copy it first.
-        memcpy(&my_txn_conf, &http_config_param->oride, sizeof(my_txn_conf));
-        txn_conf = &my_txn_conf;
+      if (txn_conf != reinterpret_cast<OverridableHttpConfigParams *>(_my_txn_conf)) {
+        txn_conf = reinterpret_cast<OverridableHttpConfigParams *>(_my_txn_conf);
+        memcpy(_my_txn_conf, &http_config_param->oride, sizeof(_my_txn_conf));
       }
     }
 
@@ -939,6 +936,10 @@ public:
 
     NetVConnection::ProxyProtocol pp_info;
 
+  private:
+    // Make this a raw byte array, so it will be accessed through the my_txn_conf() member function.
+    alignas(OverridableHttpConfigParams) char _my_txn_conf[sizeof(OverridableHttpConfigParams)];
+
   }; // End of State struct.
 
   static void HandleBlindTunnel(State *s);
@@ -956,9 +957,11 @@ public:
   static void HandleRequestAuthorized(State *s);
   static void BadRequest(State *s);
   static void Forbidden(State *s);
+  static void SelfLoop(State *s);
+  static void TooEarly(State *s);
+  static void OriginDead(State *s);
   static void PostActiveTimeoutResponse(State *s);
   static void PostInactiveTimeoutResponse(State *s);
-  static void HandleFiltering(State *s);
   static void DecideCacheLookup(State *s);
   static void LookupSkipOpenServer(State *s);
 
@@ -1015,7 +1018,6 @@ public:
   static bool get_ka_info_from_config(State *s, ConnectionAttributes *server_info);
   static void get_ka_info_from_host_db(State *s, ConnectionAttributes *server_info, ConnectionAttributes *client_info,
                                        HostDBInfo *host_db_info);
-  static bool service_transaction_in_proxy_only_mode(State *s);
   static void setup_plugin_request_intercept(State *s);
   static void add_client_ip_to_outgoing_request(State *s, HTTPHdr *request);
   static RequestError_t check_request_validity(State *s, HTTPHdr *incoming_hdr);
@@ -1029,7 +1031,6 @@ public:
   static bool handle_internal_request(State *s, HTTPHdr *incoming_hdr);
   static bool handle_trace_and_options_requests(State *s, HTTPHdr *incoming_hdr);
   static void bootstrap_state_variables_from_request(State *s, HTTPHdr *incoming_request);
-  static void initialize_state_variables_for_origin_server(State *s, HTTPHdr *incoming_request, bool second_time);
   static void initialize_state_variables_from_request(State *s, HTTPHdr *obsolete_incoming_request);
   static void initialize_state_variables_from_response(State *s, HTTPHdr *incoming_response);
   static bool is_server_negative_cached(State *s);
@@ -1052,6 +1053,8 @@ public:
   static bool setup_auth_lookup(State *s);
   static bool will_this_request_self_loop(State *s);
   static bool is_request_likely_cacheable(State *s, HTTPHdr *request);
+  static bool is_cache_hit(CacheLookupResult_t r);
+  static bool is_fresh_cache_hit(CacheLookupResult_t r);
 
   static void build_request(State *s, HTTPHdr *base_request, HTTPHdr *outgoing_request, HTTPVersion outgoing_version);
   static void build_response(State *s, HTTPHdr *base_response, HTTPHdr *outgoing_response, HTTPVersion outgoing_version,
@@ -1066,6 +1069,7 @@ public:
 
   static void handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
   static void handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
+  static int get_max_age(HTTPHdr *response);
   static int calculate_document_freshness_limit(State *s, HTTPHdr *response, time_t response_date, bool *heuristic);
   static int calculate_freshness_fuzz(State *s, int fresh_limit);
   static Freshness_t what_is_document_freshness(State *s, HTTPHdr *client_request, HTTPHdr *cached_obj_response);
@@ -1076,7 +1080,6 @@ public:
   static void build_error_response(State *s, HTTPStatus status_code, const char *reason_phrase_or_null,
                                    const char *error_body_type);
   static void build_redirect_response(State *s);
-  static void build_upgrade_response(State *s);
   static const char *get_error_string(int erno);
 
   // the stat functions
@@ -1098,15 +1101,17 @@ public:
 
 typedef void (*TransactEntryFunc_t)(HttpTransact::State *s);
 
-////////////////////////////////////////////////////////
-// the spec says about message body the following:    //
-// All responses to the HEAD request method MUST NOT  //
-// include a message-body, even though the presence   //
-// of entity-header fields might lead one to believe  //
-// they do. All 1xx (informational), 204 (no content),//
-// and 304 (not modified) responses MUST NOT include  //
-// a message-body.                                    //
-////////////////////////////////////////////////////////
+/* The spec says about message body the following:
+ *
+ * All responses to the HEAD and CONNECT request method
+ * MUST NOT include a message-body, even though the presence
+ * of entity-header fields might lead one to believe they do.
+ *
+ * All 1xx (informational), 204 (no content), and 304 (not modified)
+ * responses MUST NOT include a message-body.
+ *
+ * Refer : [https://tools.ietf.org/html/rfc7231#section-4.3.6]
+ */
 inline bool
 is_response_body_precluded(HTTPStatus status_code)
 {
@@ -1122,11 +1127,11 @@ is_response_body_precluded(HTTPStatus status_code)
 inline bool
 is_response_body_precluded(HTTPStatus status_code, int method)
 {
-  if ((method == HTTP_WKSIDX_HEAD) || is_response_body_precluded(status_code)) {
+  if ((method == HTTP_WKSIDX_HEAD) || (method == HTTP_WKSIDX_CONNECT) || is_response_body_precluded(status_code)) {
     return true;
   } else {
     return false;
   }
 }
 
-inkcoreapi extern ink_time_t ink_local_time(void);
+inkcoreapi extern ink_time_t ink_local_time();

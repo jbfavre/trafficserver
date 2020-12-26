@@ -28,10 +28,8 @@
 /// Apache Traffic Server commons.
 
 #if TS_ENABLE_FIPS == 1
-// #include "tscore/SHA256.h"
 #define CRYPTO_HASH_SIZE (256 / 8)
 #else
-// #include "tscore/ink_code.h"
 #define CRYPTO_HASH_SIZE (128 / 8)
 #endif
 #define CRYPTO_HEX_SIZE ((CRYPTO_HASH_SIZE * 2) + 1)
@@ -86,7 +84,11 @@ union CryptoHash {
   }
 
   /// Access 64 bit slice.
-  uint64_t operator[](int i) const { return u64[i]; }
+  uint64_t
+  operator[](int i) const
+  {
+    return u64[i];
+  }
   /// Access 64 bit slice.
   /// @note Identical to @ operator[] but included for symmetry.
   uint64_t
@@ -128,7 +130,7 @@ public:
 
   /// Convenience - compute final @a hash for @a data.
   /// @note This is just as fast as the previous style, as a new context must be initialized
-  /// everytime this is done.
+  /// every time this is done.
   bool hash_immediate(CryptoHash &hash, void const *data, int length);
 };
 
@@ -182,19 +184,9 @@ CryptoContext::finalize(CryptoHash &hash)
   return reinterpret_cast<CryptoContextBase *>(_obj)->finalize(hash);
 }
 
-} // namespace ats
+ts::BufferWriter &bwformat(ts::BufferWriter &w, ts::BWFSpec const &spec, ats::CryptoHash const &hash);
 
-namespace ts
-{
-inline BufferWriter &
-bwformat(BufferWriter &w, BWFSpec const &spec, ats::CryptoHash const &hash)
-{
-  BWFSpec local_spec{spec};
-  if ('X' != local_spec._type)
-    local_spec._type = 'x';
-  return bwformat(w, local_spec, std::string_view(reinterpret_cast<const char *>(hash.u8), CRYPTO_HASH_SIZE));
-}
-} // namespace ts
+} // namespace ats
 
 using ats::CryptoHash;
 using ats::CryptoContext;

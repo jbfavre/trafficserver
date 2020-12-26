@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <getopt.h>
+#include <inttypes.h>
 
 #include "ts_lua_util.h"
 
@@ -128,7 +129,7 @@ create_lua_vms()
       ts_lua_max_state_count = TS_LUA_MAX_STATE_COUNT;
     } else {
       ts_lua_max_state_count = (int)mgmt_state;
-      TSDebug(TS_LUA_DEBUG_TAG, "[%s] found %s: [%d]", __FUNCTION__, ts_lua_mgmt_state_str, (int)ts_lua_max_state_count);
+      TSDebug(TS_LUA_DEBUG_TAG, "[%s] found %s: [%d]", __FUNCTION__, ts_lua_mgmt_state_str, ts_lua_max_state_count);
     }
 
     if (ts_lua_max_state_count < 1) {
@@ -206,7 +207,7 @@ statsHandler(TSCont contp, TSEvent event, void *edata)
   collectStats(plugin_stats);
   publishStats(plugin_stats);
 
-  TSContSchedule(contp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
+  TSContScheduleOnPool(contp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
 
   return TS_EVENT_NONE;
 }
@@ -317,7 +318,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
         TSDebug(TS_LUA_DEBUG_TAG, "Starting up stats management continuation");
         TSCont const scontp = TSContCreate(statsHandler, TSMutexCreate());
         TSContDataSet(scontp, plugin_stats);
-        TSContSchedule(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
+        TSContScheduleOnPool(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
       }
     } else {
       return TS_ERROR;
@@ -738,7 +739,7 @@ TSPluginInit(int argc, const char *argv[])
       if (NULL != plugin_stats) {
         TSCont const scontp = TSContCreate(statsHandler, TSMutexCreate());
         TSContDataSet(scontp, plugin_stats);
-        TSContSchedule(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
+        TSContScheduleOnPool(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
       }
     } else {
       return;

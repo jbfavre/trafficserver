@@ -127,7 +127,8 @@ check_PROGRAMS = test_libhttp2$(EXEEXT) \
 	test_Http2FrequencyCounter$(EXEEXT) test_HPACK$(EXEEXT)
 subdir = proxy/http2
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
@@ -138,16 +139,15 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
-	$(top_srcdir)/build/jansson.m4 $(top_srcdir)/build/jemalloc.m4 \
-	$(top_srcdir)/build/libtool.m4 \
+	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
+	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -208,6 +208,7 @@ test_Http2FrequencyCounter_DEPENDENCIES =  \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la
 am_test_libhttp2_OBJECTS =  \
+	unit_tests/test_libhttp2-test_HTTP2.$(OBJEXT) \
 	unit_tests/test_libhttp2-test_Http2Frame.$(OBJEXT) \
 	unit_tests/test_libhttp2-main.$(OBJEXT)
 test_libhttp2_OBJECTS = $(am_test_libhttp2_OBJECTS)
@@ -245,6 +246,7 @@ am__depfiles_remade = ./$(DEPDIR)/HPACK.Po ./$(DEPDIR)/HTTP2.Po \
 	unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po \
 	unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po \
 	unit_tests/$(DEPDIR)/test_libhttp2-main.Po \
+	unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Po \
 	unit_tests/$(DEPDIR)/test_libhttp2-test_Http2Frame.Po
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -541,6 +543,7 @@ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AM_LDFLAGS = @AM_LDFLAGS@
 AR = @AR@
 ASCPP = @ASCPP@
+ATOMIC_LIBS = @ATOMIC_LIBS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -554,6 +557,7 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
@@ -573,6 +577,7 @@ DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DOXYGEN = @DOXYGEN@
 DSYMUTIL = @DSYMUTIL@
+DTRACE = @DTRACE@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -606,19 +611,17 @@ LIBJANSSON = @LIBJANSSON@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
-LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
-LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
-LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_HIREDIS = @LIB_HIREDIS@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -633,6 +636,7 @@ LUAJIT_LIBS = @LUAJIT_LIBS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
+MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -670,16 +674,6 @@ SHELL = @SHELL@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
-TCL_BIN_DIR = @TCL_BIN_DIR@
-TCL_LIB_FILE = @TCL_LIB_FILE@
-TCL_LIB_FLAG = @TCL_LIB_FLAG@
-TCL_LIB_SPEC = @TCL_LIB_SPEC@
-TCL_PATCH_LEVEL = @TCL_PATCH_LEVEL@
-TCL_SRC_DIR = @TCL_SRC_DIR@
-TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
-TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
-TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
-TCL_VERSION = @TCL_VERSION@
 TS_INCLUDES = @TS_INCLUDES@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
@@ -749,16 +743,19 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_expensive_tests = @has_expensive_tests@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
+has_maxmind = @has_maxmind@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
+has_tls_early_data = @has_tls_early_data@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -779,7 +776,6 @@ localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
 mandir = @mandir@
-max_api_stats = @max_api_stats@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
@@ -829,43 +825,41 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cert_cb = @use_cert_cb@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
+use_hkdf = @use_hkdf@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
+use_quic = @use_quic@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
-use_sslv3_client = @use_sslv3_client@
-use_tls_alpn = @use_tls_alpn@
+use_tls13 = @use_tls13@
 use_tls_async = @use_tls_async@
-use_tls_eckey = @use_tls_eckey@
-use_tls_npn = @use_tls_npn@
 use_tls_ocsp = @use_tls_ocsp@
 use_tls_set_ciphersuites = @use_tls_set_ciphersuites@
 use_tproxy = @use_tproxy@
-Clang_Tidy_Options = -fix -fix-errors -header-filter=.*
+Clang_Tidy_Options = -fix -fix-errors
 
 # Sort the filenames to remove duplicates, then filter to retain
 # just the C and C++ sources so we don't pick up lex and yacc files
 # for example.
-Clang_Tidy_CC_Files = $(filter %.c, $(sort $(1)))
-Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $^))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
 
-#clang-tidy rules. We expect these to be actions with something like
-#$(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
-#is not an automake API, it is an implementation detail, but it ought
-#to be stable enough.
+# clang-tidy rules. We expect these to be actions with something like
+# $(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+# is not an automake API, it is an implementation detail, but it ought
+# to be stable enough.
 #
-#All this clearly requires GNU make.
-CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
-CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
+# All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
 noinst_LIBRARIES = libhttp2.a
 libhttp2_a_SOURCES = HPACK.cc HPACK.h HTTP2.cc HTTP2.h Http2Frame.cc \
 	Http2Frame.h Http2ClientSession.cc Http2ClientSession.h \
@@ -887,13 +881,13 @@ test_libhttp2_LDADD = \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	@LIBTCL@ \
 	@HWLOC_LIBS@
 
 test_libhttp2_CPPFLAGS = $(AM_CPPFLAGS)\
 	-I$(abs_top_srcdir)/tests/include
 
 test_libhttp2_SOURCES = \
+	unit_tests/test_HTTP2.cc \
 	unit_tests/test_Http2Frame.cc \
 	unit_tests/main.cc
 
@@ -929,7 +923,6 @@ test_HPACK_LDADD = \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	@LIBTCL@ \
 	@HWLOC_LIBS@
 
 test_HPACK_SOURCES = \
@@ -1012,6 +1005,9 @@ unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.$(OBJEXT):  \
 test_Http2FrequencyCounter$(EXEEXT): $(test_Http2FrequencyCounter_OBJECTS) $(test_Http2FrequencyCounter_DEPENDENCIES) $(EXTRA_test_Http2FrequencyCounter_DEPENDENCIES) 
 	@rm -f test_Http2FrequencyCounter$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_Http2FrequencyCounter_OBJECTS) $(test_Http2FrequencyCounter_LDADD) $(LIBS)
+unit_tests/test_libhttp2-test_HTTP2.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_libhttp2-test_Http2Frame.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
@@ -1044,6 +1040,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_libhttp2-main.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_libhttp2-test_Http2Frame.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -1117,6 +1114,20 @@ test_Http2FrequencyCounter-Http2FrequencyCounter.obj: Http2FrequencyCounter.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='Http2FrequencyCounter.cc' object='test_Http2FrequencyCounter-Http2FrequencyCounter.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Http2FrequencyCounter-Http2FrequencyCounter.obj `if test -f 'Http2FrequencyCounter.cc'; then $(CYGPATH_W) 'Http2FrequencyCounter.cc'; else $(CYGPATH_W) '$(srcdir)/Http2FrequencyCounter.cc'; fi`
+
+unit_tests/test_libhttp2-test_HTTP2.o: unit_tests/test_HTTP2.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_libhttp2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_libhttp2-test_HTTP2.o -MD -MP -MF unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Tpo -c -o unit_tests/test_libhttp2-test_HTTP2.o `test -f 'unit_tests/test_HTTP2.cc' || echo '$(srcdir)/'`unit_tests/test_HTTP2.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Tpo unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_HTTP2.cc' object='unit_tests/test_libhttp2-test_HTTP2.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_libhttp2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_libhttp2-test_HTTP2.o `test -f 'unit_tests/test_HTTP2.cc' || echo '$(srcdir)/'`unit_tests/test_HTTP2.cc
+
+unit_tests/test_libhttp2-test_HTTP2.obj: unit_tests/test_HTTP2.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_libhttp2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_libhttp2-test_HTTP2.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Tpo -c -o unit_tests/test_libhttp2-test_HTTP2.obj `if test -f 'unit_tests/test_HTTP2.cc'; then $(CYGPATH_W) 'unit_tests/test_HTTP2.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_HTTP2.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Tpo unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_HTTP2.cc' object='unit_tests/test_libhttp2-test_HTTP2.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_libhttp2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_libhttp2-test_HTTP2.obj `if test -f 'unit_tests/test_HTTP2.cc'; then $(CYGPATH_W) 'unit_tests/test_HTTP2.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_HTTP2.cc'; fi`
 
 unit_tests/test_libhttp2-test_Http2Frame.o: unit_tests/test_Http2Frame.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_libhttp2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_libhttp2-test_Http2Frame.o -MD -MP -MF unit_tests/$(DEPDIR)/test_libhttp2-test_Http2Frame.Tpo -c -o unit_tests/test_libhttp2-test_Http2Frame.o `test -f 'unit_tests/test_Http2Frame.cc' || echo '$(srcdir)/'`unit_tests/test_Http2Frame.cc
@@ -1488,6 +1499,7 @@ distclean: distclean-am
 	-rm -f unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po
 	-rm -f unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
 	-rm -f unit_tests/$(DEPDIR)/test_libhttp2-main.Po
+	-rm -f unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Po
 	-rm -f unit_tests/$(DEPDIR)/test_libhttp2-test_Http2Frame.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -1549,6 +1561,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po
 	-rm -f unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
 	-rm -f unit_tests/$(DEPDIR)/test_libhttp2-main.Po
+	-rm -f unit_tests/$(DEPDIR)/test_libhttp2-test_HTTP2.Po
 	-rm -f unit_tests/$(DEPDIR)/test_libhttp2-test_Http2Frame.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

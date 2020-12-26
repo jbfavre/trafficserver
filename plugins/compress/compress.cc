@@ -42,7 +42,7 @@ using namespace std;
 using namespace Gzip;
 
 // FIXME: custom dictionaries would be nice. configurable/content-type?
-// a gprs device might benefit from a higher compression ratio, whereas a desktop w. high bandwith
+// a GPRS device might benefit from a higher compression ratio, whereas a desktop w. high bandwith
 // might be served better with little or no compression at all
 // FIXME: look into compressing from the task thread pool
 // FIXME: make normalizing accept encoding configurable
@@ -76,7 +76,7 @@ data_alloc(int compression_type, int compression_algorithms)
   Data *data;
   int err;
 
-  data                         = (Data *)TSmalloc(sizeof(Data));
+  data                         = static_cast<Data *>(TSmalloc(sizeof(Data)));
   data->downstream_vio         = nullptr;
   data->downstream_buffer      = nullptr;
   data->downstream_reader      = nullptr;
@@ -107,7 +107,7 @@ data_alloc(int compression_type, int compression_algorithms)
   }
 
   if (dictionary) {
-    err = deflateSetDictionary(&data->zstrm, (const Bytef *)dictionary, strlen(dictionary));
+    err = deflateSetDictionary(&data->zstrm, reinterpret_cast<const Bytef *>(dictionary), strlen(dictionary));
     if (err != Z_OK) {
       fatal("gzip-transform: ERROR: deflateSetDictionary (%d)!", err);
     }
@@ -116,7 +116,7 @@ data_alloc(int compression_type, int compression_algorithms)
   data->bstrm.br = nullptr;
   if (compression_type & COMPRESSION_TYPE_BROTLI) {
     debug("brotli compression. Create Brotli Encoder Instance.");
-    data->bstrm.br = BrotliEncoderCreateInstance(0, 0, 0);
+    data->bstrm.br = BrotliEncoderCreateInstance(nullptr, nullptr, nullptr);
     if (!data->bstrm.br) {
       fatal("Brotli Encoder Instance Failed");
     }
@@ -138,7 +138,7 @@ data_destroy(Data *data)
 {
   TSReleaseAssert(data);
 
-  // deflateEnd returnvalue ignore is intentional
+  // deflateEnd return value ignore is intentional
   // it would spew log on every client abort
   deflateEnd(&data->zstrm);
 
@@ -203,11 +203,10 @@ vary_header(TSMBuffer bufp, TSMLoc hdr_loc)
   ce_loc = TSMimeHdrFieldFind(bufp, hdr_loc, TS_MIME_FIELD_VARY, TS_MIME_LEN_VARY);
   if (ce_loc) {
     int idx, count, len;
-    const char *value;
 
     count = TSMimeHdrFieldValuesCount(bufp, hdr_loc, ce_loc);
     for (idx = 0; idx < count; idx++) {
-      value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, ce_loc, idx, &len);
+      const char *value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, ce_loc, idx, &len);
       if (len && strncasecmp("Accept-Encoding", value, len) == 0) {
         // Bail, Vary: Accept-Encoding already sent from origin
         TSHandleMLocRelease(bufp, hdr_loc, ce_loc);
@@ -246,13 +245,13 @@ etag_header(TSMBuffer bufp, TSMLoc hdr_loc)
   ce_loc = TSMimeHdrFieldFind(bufp, hdr_loc, TS_MIME_FIELD_ETAG, TS_MIME_LEN_ETAG);
 
   if (ce_loc) {
-    int changetag = 1;
     int strl;
     const char *strv = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, ce_loc, -1, &strl);
 
     // do not alter weak etags.
     // FIXME: consider just making the etag weak for compressed content
     if (strl >= 2) {
+      int changetag = 1;
       if ((strv[0] == 'w' || strv[0] == 'W') && strv[1] == '/') {
         changetag = 0;
       }
@@ -303,17 +302,16 @@ static void
 gzip_transform_one(Data *data, const char *upstream_buffer, int64_t upstream_length)
 {
   TSIOBufferBlock downstream_blkp;
-  char *downstream_buffer;
   int64_t downstream_length;
   int err;
   data->zstrm.next_in  = (unsigned char *)upstream_buffer;
   data->zstrm.avail_in = upstream_length;
 
   while (data->zstrm.avail_in > 0) {
-    downstream_blkp   = TSIOBufferStart(data->downstream_buffer);
-    downstream_buffer = TSIOBufferBlockWriteStart(downstream_blkp, &downstream_length);
+    downstream_blkp         = TSIOBufferStart(data->downstream_buffer);
+    char *downstream_buffer = TSIOBufferBlockWriteStart(downstream_blkp, &downstream_length);
 
-    data->zstrm.next_out  = (unsigned char *)downstream_buffer;
+    data->zstrm.next_out  = reinterpret_cast<unsigned char *>(downstream_buffer);
     data->zstrm.avail_out = downstream_length;
 
     if (!data->hc->flush()) {
@@ -344,7 +342,6 @@ static bool
 brotli_compress_operation(Data *data, const char *upstream_buffer, int64_t upstream_length, BrotliEncoderOperation op)
 {
   TSIOBufferBlock downstream_blkp;
-  char *downstream_buffer;
   int64_t downstream_length;
 
   data->bstrm.next_in  = (uint8_t *)upstream_buffer;
@@ -352,10 +349,10 @@ brotli_compress_operation(Data *data, const char *upstream_buffer, int64_t upstr
 
   bool ok = true;
   while (ok) {
-    downstream_blkp   = TSIOBufferStart(data->downstream_buffer);
-    downstream_buffer = TSIOBufferBlockWriteStart(downstream_blkp, &downstream_length);
+    downstream_blkp         = TSIOBufferStart(data->downstream_buffer);
+    char *downstream_buffer = TSIOBufferBlockWriteStart(downstream_blkp, &downstream_length);
 
-    data->bstrm.next_out  = (unsigned char *)downstream_buffer;
+    data->bstrm.next_out  = reinterpret_cast<unsigned char *>(downstream_buffer);
     data->bstrm.avail_out = downstream_length;
     data->bstrm.total_out = 0;
 
@@ -365,7 +362,7 @@ brotli_compress_operation(Data *data, const char *upstream_buffer, int64_t upstr
 
     if (!ok) {
       error("BrotliEncoderCompressStream(%d) call failed", op);
-      return ok;
+      return false;
     }
 
     TSIOBufferProduce(data->downstream_buffer, downstream_length - data->bstrm.avail_out);
@@ -407,7 +404,6 @@ static void
 compress_transform_one(Data *data, TSIOBufferReader upstream_reader, int amount)
 {
   TSIOBufferBlock downstream_blkp;
-  const char *upstream_buffer;
   int64_t upstream_length;
   while (amount > 0) {
     downstream_blkp = TSIOBufferReaderStart(upstream_reader);
@@ -416,7 +412,7 @@ compress_transform_one(Data *data, TSIOBufferReader upstream_reader, int amount)
       return;
     }
 
-    upstream_buffer = TSIOBufferBlockReadStart(downstream_blkp, upstream_reader, &upstream_length);
+    const char *upstream_buffer = TSIOBufferBlockReadStart(downstream_blkp, upstream_reader, &upstream_length);
     if (!upstream_buffer) {
       error("couldn't get from TSIOBufferBlockReadStart");
       return;
@@ -435,7 +431,7 @@ compress_transform_one(Data *data, TSIOBufferReader upstream_reader, int amount)
           (data->compression_algorithms & (ALGORITHM_GZIP | ALGORITHM_DEFLATE))) {
       gzip_transform_one(data, upstream_buffer, upstream_length);
     } else {
-      warning("No compression supported. Shoudn't come here.");
+      warning("No compression supported. Shouldn't come here.");
     }
 
     TSIOBufferReaderConsume(upstream_reader, upstream_length);
@@ -448,22 +444,20 @@ gzip_transform_finish(Data *data)
 {
   if (data->state == transform_state_output) {
     TSIOBufferBlock downstream_blkp;
-    char *downstream_buffer;
     int64_t downstream_length;
-    int err;
 
     data->state = transform_state_finished;
 
     for (;;) {
       downstream_blkp = TSIOBufferStart(data->downstream_buffer);
 
-      downstream_buffer     = TSIOBufferBlockWriteStart(downstream_blkp, &downstream_length);
-      data->zstrm.next_out  = (unsigned char *)downstream_buffer;
-      data->zstrm.avail_out = downstream_length;
+      char *downstream_buffer = TSIOBufferBlockWriteStart(downstream_blkp, &downstream_length);
+      data->zstrm.next_out    = reinterpret_cast<unsigned char *>(downstream_buffer);
+      data->zstrm.avail_out   = downstream_length;
 
-      err = deflate(&data->zstrm, Z_FINISH);
+      int err = deflate(&data->zstrm, Z_FINISH);
 
-      if (downstream_length > (int64_t)data->zstrm.avail_out) {
+      if (downstream_length > static_cast<int64_t>(data->zstrm.avail_out)) {
         TSIOBufferProduce(data->downstream_buffer, downstream_length - data->zstrm.avail_out);
         data->downstream_length += (downstream_length - data->zstrm.avail_out);
       }
@@ -478,7 +472,7 @@ gzip_transform_finish(Data *data)
       break;
     }
 
-    if (data->downstream_length != (int64_t)(data->zstrm.total_out)) {
+    if (data->downstream_length != static_cast<int64_t>(data->zstrm.total_out)) {
       error("gzip-transform: output lengths don't match (%d, %ld)", data->downstream_length, data->zstrm.total_out);
     }
 
@@ -503,7 +497,7 @@ brotli_transform_finish(Data *data)
     return;
   }
 
-  if (data->downstream_length != (int64_t)(data->bstrm.total_out)) {
+  if (data->downstream_length != static_cast<int64_t>(data->bstrm.total_out)) {
     error("brotli-transform: output lengths don't match (%d, %ld)", data->downstream_length, data->bstrm.total_out);
   }
 
@@ -536,10 +530,9 @@ compress_transform_do(TSCont contp)
   TSVIO upstream_vio;
   Data *data;
   int64_t upstream_todo;
-  int64_t upstream_avail;
   int64_t downstream_bytes_written;
 
-  data = (Data *)TSContDataGet(contp);
+  data = static_cast<Data *>(TSContDataGet(contp));
   if (data->state == transform_state_initialized) {
     compress_transform_init(contp, data);
   }
@@ -561,7 +554,7 @@ compress_transform_do(TSCont contp)
   upstream_todo = TSVIONTodoGet(upstream_vio);
 
   if (upstream_todo > 0) {
-    upstream_avail = TSIOBufferReaderAvail(TSVIOReaderGet(upstream_vio));
+    int64_t upstream_avail = TSIOBufferReaderAvail(TSVIOReaderGet(upstream_vio));
 
     if (upstream_todo > upstream_avail) {
       upstream_todo = upstream_avail;
@@ -596,7 +589,7 @@ static int
 compress_transform(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
 {
   if (TSVConnClosedGet(contp)) {
-    data_destroy((Data *)TSContDataGet(contp));
+    data_destroy(static_cast<Data *>(TSContDataGet(contp)));
     TSContDestroy(contp);
     return 0;
   } else {
@@ -639,8 +632,7 @@ transformable(TSHttpTxn txnp, bool server, HostConfiguration *host_configuration
   TSMLoc cfield;
 
   const char *value;
-  int nvalues;
-  int i, compression_acceptable, len;
+  int len;
   TSHttpStatus resp_status;
 
   if (server) {
@@ -682,9 +674,9 @@ transformable(TSHttpTxn txnp, bool server, HostConfiguration *host_configuration
   *algorithms = host_configuration->compression_algorithms();
   cfield      = TSMimeHdrFieldFind(cbuf, chdr, TS_MIME_FIELD_ACCEPT_ENCODING, TS_MIME_LEN_ACCEPT_ENCODING);
   if (cfield != TS_NULL_MLOC) {
-    compression_acceptable = 0;
-    nvalues                = TSMimeHdrFieldValuesCount(cbuf, chdr, cfield);
-    for (i = 0; i < nvalues; i++) {
+    int compression_acceptable = 0;
+    int nvalues                = TSMimeHdrFieldValuesCount(cbuf, chdr, cfield);
+    for (int i = 0; i < nvalues; i++) {
       value = TSMimeHdrFieldValueStringGet(cbuf, chdr, cfield, i, &len);
       if (!value) {
         continue;
@@ -736,14 +728,14 @@ transformable(TSHttpTxn txnp, bool server, HostConfiguration *host_configuration
 
   field_loc = TSMimeHdrFieldFind(bufp, hdr_loc, TS_MIME_FIELD_CONTENT_LENGTH, TS_MIME_LEN_CONTENT_LENGTH);
   if (field_loc != TS_NULL_MLOC) {
-    unsigned int value = TSMimeHdrFieldValueUintGet(bufp, hdr_loc, field_loc, -1);
+    unsigned int hdr_value = TSMimeHdrFieldValueUintGet(bufp, hdr_loc, field_loc, -1);
     TSHandleMLocRelease(bufp, hdr_loc, field_loc);
-    if (value == 0) {
+    if (hdr_value == 0) {
       info("response is 0-length, not compressible");
       return 0;
     }
 
-    if (value < host_configuration->minimum_content_length()) {
+    if (hdr_value < host_configuration->minimum_content_length()) {
       info("response is is smaller than minimum content length, not compressing");
       return 0;
     }
@@ -821,10 +813,10 @@ find_host_configuration(TSHttpTxn /* txnp ATS_UNUSED */, TSMBuffer bufp, TSMLoc 
 static int
 transform_plugin(TSCont contp, TSEvent event, void *edata)
 {
-  TSHttpTxn txnp        = (TSHttpTxn)edata;
+  TSHttpTxn txnp        = static_cast<TSHttpTxn>(edata);
   int compress_type     = COMPRESSION_TYPE_DEFAULT;
   int algorithms        = ALGORITHM_DEFAULT;
-  HostConfiguration *hc = (HostConfiguration *)TSContDataGet(contp);
+  HostConfiguration *hc = static_cast<HostConfiguration *>(TSContDataGet(contp));
 
   switch (event) {
   case TS_EVENT_HTTP_READ_RESPONSE_HDR:
@@ -883,7 +875,6 @@ transform_plugin(TSCont contp, TSEvent event, void *edata)
 
   case TS_EVENT_HTTP_TXN_CLOSE:
     // Release the ocnif lease, and destroy this continuation
-    hc->release();
     TSContDestroy(contp);
     break;
 
@@ -914,9 +905,9 @@ handle_request(TSHttpTxn txnp, Configuration *config)
 
   if (TSHttpTxnClientReqGet(txnp, &req_buf, &req_loc) == TS_SUCCESS) {
     if (config == nullptr) {
-      hc = find_host_configuration(txnp, req_buf, req_loc, nullptr); // Get a lease on the global config
+      hc = find_host_configuration(txnp, req_buf, req_loc, nullptr);
     } else {
-      hc = find_host_configuration(txnp, req_buf, req_loc, config); // Get a lease on the local config passed through doRemap
+      hc = find_host_configuration(txnp, req_buf, req_loc, config);
     }
     bool allowed = false;
 
@@ -939,8 +930,6 @@ handle_request(TSHttpTxn txnp, Configuration *config)
       normalize_accept_encoding(txnp, req_buf, req_loc);
       TSHttpTxnHookAdd(txnp, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, transform_contp);
       TSHttpTxnHookAdd(txnp, TS_HTTP_TXN_CLOSE_HOOK, transform_contp); // To release the config
-    } else {
-      hc->release(); // No longer need this configuration, release it.
     }
     TSHandleMLocRelease(req_buf, TS_NULL_MLOC, req_loc);
   }
@@ -949,7 +938,7 @@ handle_request(TSHttpTxn txnp, Configuration *config)
 static int
 transform_global_plugin(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edata)
 {
-  TSHttpTxn txnp = (TSHttpTxn)edata;
+  TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
 
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
@@ -969,17 +958,13 @@ transform_global_plugin(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edat
 static void
 load_global_configuration(TSCont contp)
 {
-  const char *path         = (const char *)TSContDataGet(contp);
+  const char *path         = static_cast<const char *>(TSContDataGet(contp));
   Configuration *newconfig = Configuration::Parse(path);
   Configuration *oldconfig = __sync_lock_test_and_set(&cur_config, newconfig);
 
   debug("config swapped, old config %p", oldconfig);
 
-  // First, if there was a previous configuration, clean that one out. This avoids the
-  // small race condition tht exist between doing a find() and calling hold() on a
-  // HostConfig object.
   if (prev_config) {
-    prev_config->release_all();
     debug("deleting previous configuration container, %p", prev_config);
     delete prev_config;
   }
@@ -1082,7 +1067,6 @@ TSRemapDeleteInstance(void *instance)
 {
   debug("Cleanup configs read from remap");
   auto c = static_cast<Configuration *>(instance);
-  c->release_all();
   delete c;
 }
 
@@ -1093,7 +1077,7 @@ TSRemapDoRemap(void *instance, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     info("No Rules configured, falling back to default");
   } else {
     info("Remap Rules configured for compress");
-    Configuration *config = (Configuration *)instance;
+    Configuration *config = static_cast<Configuration *>(instance);
     // Handle compress request and use the configs populated from remap instance
     handle_request(txnp, config);
   }

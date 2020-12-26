@@ -15,14 +15,15 @@
 #  limitations under the License.
 
 Test.Summary = '''
-Test xdebug plugin X-Remap header
+Test xdebug plugin X-Remap, Probe and fwd headers
 '''
 
-server = Test.MakeOriginServer("server")
+server = Test.MakeOriginServer("server", options={'--load': (Test.TestDirectory + '/x_remap-observer.py')})
 
 request_header = {
-    "headers": "GET /argh HTTP/1.1\r\nHost: doesnotmatter\r\n\r\n", "timestamp": "1469733493.993", "body": "" }
-response_header = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", "timestamp": "1469733493.993", "body": "" }
+    "headers": "GET /argh HTTP/1.1\r\nHost: doesnotmatter\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
+response_header = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
+                   "timestamp": "1469733493.993", "body": ""}
 server.addResponse("sessionlog.json", request_header, response_header)
 
 ts = Test.MakeATSProcess("ts")
@@ -30,7 +31,8 @@ ts = Test.MakeATSProcess("ts")
 ts.Disk.records_config.update({
     'proxy.config.url_remap.remap_required': 0,
     'proxy.config.diags.debug.enabled': 0,
-    'proxy.config.diags.debug.tags': 'http'
+    # 'proxy.config.diags.debug.tags': 'http|xdebug'
+    # 'proxy.config.diags.debug.tags': 'xdebug'
 })
 
 ts.Disk.plugin_config.AddLine('xdebug.so')
@@ -52,24 +54,38 @@ tr.Processes.Default.Command = "cp {}/tcp_client.py {}/tcp_client.py".format(
     Test.Variables.AtsTestToolsDir, Test.RunDirectory)
 tr.Processes.Default.ReturnCode = 0
 
+
 def sendMsg(msgFile):
 
     tr = Test.AddTestRun()
     tr.Processes.Default.Command = (
-        "( python {}/tcp_client.py 127.0.0.1 {} {}/{}.in".format(
+        "( python3 {}/tcp_client.py 127.0.0.1 {} {}/{}.in".format(
             Test.RunDirectory, ts.Variables.port, Test.TestDirectory, msgFile) +
         " ; echo '======' ) | sed 's/:{}/:SERVER_PORT/' >>  {}/out.log 2>&1 ".format(
             server.Variables.Port, Test.RunDirectory)
     )
     tr.Processes.Default.ReturnCode = 0
 
+
 sendMsg('none')
 sendMsg('one')
 sendMsg('two')
 sendMsg('three')
+sendMsg('four')
+sendMsg('fwd1')
+sendMsg('fwd2')
+sendMsg('fwd3')
+sendMsg('fwd4')
+sendMsg('fwd5')
 
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = "echo test gold"
+tr.Processes.Default.Command = "echo test out.gold"
 tr.Processes.Default.ReturnCode = 0
 f = tr.Disk.File("out.log")
 f.Content = "out.gold"
+
+tr = Test.AddTestRun()
+tr.Processes.Default.Command = "echo test x_remap.gold"
+tr.Processes.Default.ReturnCode = 0
+f = tr.Disk.File("x_remap.log")
+f.Content = "x_remap.gold"

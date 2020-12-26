@@ -33,7 +33,7 @@
 
 #ifdef HAVE_EVENTFD
 #include <sys/eventfd.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/epoll.h>
 #endif
 
@@ -66,7 +66,7 @@ EventNotify::signal()
 #ifdef HAVE_EVENTFD
   uint64_t value = 1;
   //
-  // If the addition would cause the counter’s value of eventfd
+  // If the addition would cause the counter's value of eventfd
   // to exceed the maximum, write() will fail with the errno EAGAIN,
   // which is acceptable as the receiver will be notified eventually.
   //
@@ -104,7 +104,8 @@ EventNotify::wait()
 #endif
 }
 
-int EventNotify::timedwait(int timeout) // milliseconds
+int
+EventNotify::timedwait(int timeout) // milliseconds
 {
 #ifdef HAVE_EVENTFD
   ssize_t nr, nr_fd = 0;

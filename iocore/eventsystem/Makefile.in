@@ -123,7 +123,8 @@ check_PROGRAMS = test_IOBuffer$(EXEEXT) test_EventSystem$(EXEEXT) \
 	test_MIOBufferWriter$(EXEEXT)
 subdir = iocore/eventsystem
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
@@ -134,16 +135,15 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
-	$(top_srcdir)/build/jansson.m4 $(top_srcdir)/build/jemalloc.m4 \
-	$(top_srcdir)/build/libtool.m4 \
+	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
+	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -162,8 +162,8 @@ am__v_AR_1 =
 libinkevent_a_AR = $(AR) $(ARFLAGS)
 libinkevent_a_LIBADD =
 am_libinkevent_a_OBJECTS = EventSystem.$(OBJEXT) IOBuffer.$(OBJEXT) \
-	Inline.$(OBJEXT) Lock.$(OBJEXT) PQ-List.$(OBJEXT) \
-	Processor.$(OBJEXT) ProtectedQueue.$(OBJEXT) \
+	Inline.$(OBJEXT) Lock.$(OBJEXT) MIOBufferWriter.$(OBJEXT) \
+	PQ-List.$(OBJEXT) Processor.$(OBJEXT) ProtectedQueue.$(OBJEXT) \
 	ProxyAllocator.$(OBJEXT) SocketManager.$(OBJEXT) \
 	Tasks.$(OBJEXT) Thread.$(OBJEXT) UnixEThread.$(OBJEXT) \
 	UnixEvent.$(OBJEXT) UnixEventProcessor.$(OBJEXT)
@@ -198,7 +198,7 @@ test_IOBuffer_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	-o $@
 am_test_MIOBufferWriter_OBJECTS = unit_tests/test_MIOBufferWriter-test_MIOBufferWriter.$(OBJEXT)
 test_MIOBufferWriter_OBJECTS = $(am_test_MIOBufferWriter_OBJECTS)
-test_MIOBufferWriter_DEPENDENCIES = $(am__DEPENDENCIES_1)
+test_MIOBufferWriter_LDADD = $(LDADD)
 test_MIOBufferWriter_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_MIOBufferWriter_LDFLAGS) \
@@ -220,12 +220,12 @@ depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/EventSystem.Po \
 	./$(DEPDIR)/IOBuffer.Po ./$(DEPDIR)/Inline.Po \
-	./$(DEPDIR)/Lock.Po ./$(DEPDIR)/PQ-List.Po \
-	./$(DEPDIR)/Processor.Po ./$(DEPDIR)/ProtectedQueue.Po \
-	./$(DEPDIR)/ProxyAllocator.Po ./$(DEPDIR)/SocketManager.Po \
-	./$(DEPDIR)/Tasks.Po ./$(DEPDIR)/Thread.Po \
-	./$(DEPDIR)/UnixEThread.Po ./$(DEPDIR)/UnixEvent.Po \
-	./$(DEPDIR)/UnixEventProcessor.Po \
+	./$(DEPDIR)/Lock.Po ./$(DEPDIR)/MIOBufferWriter.Po \
+	./$(DEPDIR)/PQ-List.Po ./$(DEPDIR)/Processor.Po \
+	./$(DEPDIR)/ProtectedQueue.Po ./$(DEPDIR)/ProxyAllocator.Po \
+	./$(DEPDIR)/SocketManager.Po ./$(DEPDIR)/Tasks.Po \
+	./$(DEPDIR)/Thread.Po ./$(DEPDIR)/UnixEThread.Po \
+	./$(DEPDIR)/UnixEvent.Po ./$(DEPDIR)/UnixEventProcessor.Po \
 	unit_tests/$(DEPDIR)/test_EventSystem-test_EventSystem.Po \
 	unit_tests/$(DEPDIR)/test_IOBuffer-test_IOBuffer.Po \
 	unit_tests/$(DEPDIR)/test_MIOBufferWriter-test_MIOBufferWriter.Po
@@ -517,6 +517,7 @@ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AM_LDFLAGS = @AM_LDFLAGS@
 AR = @AR@
 ASCPP = @ASCPP@
+ATOMIC_LIBS = @ATOMIC_LIBS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -530,6 +531,7 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
@@ -549,6 +551,7 @@ DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DOXYGEN = @DOXYGEN@
 DSYMUTIL = @DSYMUTIL@
+DTRACE = @DTRACE@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -582,19 +585,17 @@ LIBJANSSON = @LIBJANSSON@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
-LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
-LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
-LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_HIREDIS = @LIB_HIREDIS@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -609,6 +610,7 @@ LUAJIT_LIBS = @LUAJIT_LIBS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
+MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -646,16 +648,6 @@ SHELL = @SHELL@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
-TCL_BIN_DIR = @TCL_BIN_DIR@
-TCL_LIB_FILE = @TCL_LIB_FILE@
-TCL_LIB_FLAG = @TCL_LIB_FLAG@
-TCL_LIB_SPEC = @TCL_LIB_SPEC@
-TCL_PATCH_LEVEL = @TCL_PATCH_LEVEL@
-TCL_SRC_DIR = @TCL_SRC_DIR@
-TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
-TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
-TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
-TCL_VERSION = @TCL_VERSION@
 TS_INCLUDES = @TS_INCLUDES@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
@@ -725,16 +717,19 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_expensive_tests = @has_expensive_tests@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
+has_maxmind = @has_maxmind@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
+has_tls_early_data = @has_tls_early_data@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -755,7 +750,6 @@ localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
 mandir = @mandir@
-max_api_stats = @max_api_stats@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
@@ -805,24 +799,22 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cert_cb = @use_cert_cb@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
+use_hkdf = @use_hkdf@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
+use_quic = @use_quic@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
-use_sslv3_client = @use_sslv3_client@
-use_tls_alpn = @use_tls_alpn@
+use_tls13 = @use_tls13@
 use_tls_async = @use_tls_async@
-use_tls_eckey = @use_tls_eckey@
-use_tls_npn = @use_tls_npn@
 use_tls_ocsp = @use_tls_ocsp@
 use_tls_set_ciphersuites = @use_tls_set_ciphersuites@
 use_tproxy = @use_tproxy@
@@ -850,6 +842,7 @@ libinkevent_a_SOURCES = \
 	I_VIO.h \
 	Inline.cc \
 	Lock.cc \
+	MIOBufferWriter.cc \
 	PQ-List.cc \
 	P_EventSystem.h \
 	P_Freer.h \
@@ -896,7 +889,7 @@ test_LD_ADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	@LIBTCL@ @HWLOC_LIBS@
+	@HWLOC_LIBS@
 
 test_EventSystem_SOURCES = unit_tests/test_EventSystem.cc
 test_EventSystem_CPPFLAGS = $(test_CPP_FLAGS)
@@ -909,23 +902,22 @@ test_IOBuffer_LDADD = $(test_LD_ADD)
 test_MIOBufferWriter_SOURCES = unit_tests/test_MIOBufferWriter.cc
 test_MIOBufferWriter_CPPFLAGS = $(test_CPP_FLAGS)
 test_MIOBufferWriter_LDFLAGS = $(test_LD_FLAGS)
-test_MIOBufferWriter_LDADD = $(test_LD_ADD)
-Clang_Tidy_Options = -fix -fix-errors -header-filter=.*
+Clang_Tidy_Options = -fix -fix-errors
 
 # Sort the filenames to remove duplicates, then filter to retain
 # just the C and C++ sources so we don't pick up lex and yacc files
 # for example.
-Clang_Tidy_CC_Files = $(filter %.c, $(sort $(1)))
-Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $^))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
 
-#clang-tidy rules. We expect these to be actions with something like
-#$(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
-#is not an automake API, it is an implementation detail, but it ought
-#to be stable enough.
+# clang-tidy rules. We expect these to be actions with something like
+# $(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+# is not an automake API, it is an implementation detail, but it ought
+# to be stable enough.
 #
-#All this clearly requires GNU make.
-CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
-CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
+# All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
 all: all-am
 
 .SUFFIXES:
@@ -1016,6 +1008,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IOBuffer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Inline.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Lock.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MIOBufferWriter.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PQ-List.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Processor.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ProtectedQueue.Po@am__quote@ # am--include-marker
@@ -1426,6 +1419,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/IOBuffer.Po
 	-rm -f ./$(DEPDIR)/Inline.Po
 	-rm -f ./$(DEPDIR)/Lock.Po
+	-rm -f ./$(DEPDIR)/MIOBufferWriter.Po
 	-rm -f ./$(DEPDIR)/PQ-List.Po
 	-rm -f ./$(DEPDIR)/Processor.Po
 	-rm -f ./$(DEPDIR)/ProtectedQueue.Po
@@ -1488,6 +1482,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/IOBuffer.Po
 	-rm -f ./$(DEPDIR)/Inline.Po
 	-rm -f ./$(DEPDIR)/Lock.Po
+	-rm -f ./$(DEPDIR)/MIOBufferWriter.Po
 	-rm -f ./$(DEPDIR)/PQ-List.Po
 	-rm -f ./$(DEPDIR)/Processor.Po
 	-rm -f ./$(DEPDIR)/ProtectedQueue.Po

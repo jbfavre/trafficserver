@@ -26,7 +26,6 @@
 
 **************************************************************************/
 #include "tscore/ink_defs.h"
-#include "I_MIOBufferWriter.h"
 #include "P_EventSystem.h"
 
 //
@@ -46,17 +45,15 @@ int64_t max_iobuffer_size           = DEFAULT_BUFFER_SIZES - 1;
 void
 init_buffer_allocators(int iobuffer_advice)
 {
-  char *name;
-
   for (int i = 0; i < DEFAULT_BUFFER_SIZES; i++) {
-    int64_t s = DEFAULT_BUFFER_BASE_SIZE * (((int64_t)1) << i);
+    int64_t s = DEFAULT_BUFFER_BASE_SIZE * ((static_cast<int64_t>(1)) << i);
     int64_t a = DEFAULT_BUFFER_ALIGNMENT;
     int n     = i <= default_large_iobuffer_size ? DEFAULT_BUFFER_NUMBER : DEFAULT_HUGE_BUFFER_NUMBER;
     if (s < a) {
       a = s;
     }
 
-    name = new char[64];
+    auto name = new char[64];
     snprintf(name, 64, "ioBufAllocator[%d]", i);
     ioBufAllocator[i].re_init(name, s, n, a, iobuffer_advice);
   }
@@ -66,29 +63,9 @@ init_buffer_allocators(int iobuffer_advice)
 // MIOBuffer
 //
 int64_t
-MIOBuffer::remove_append(IOBufferReader *r)
-{
-  int64_t l = 0;
-  while (r->block) {
-    Ptr<IOBufferBlock> b = r->block;
-    r->block             = r->block->next;
-    b->_start += r->start_offset;
-    if (b->start() >= b->end()) {
-      r->start_offset = -r->start_offset;
-      continue;
-    }
-    r->start_offset = 0;
-    l += b->read_avail();
-    append_block(b.get());
-  }
-  r->mbuf->_writer = nullptr;
-  return l;
-}
-
-int64_t
 MIOBuffer::write(const void *abuf, int64_t alen)
 {
-  const char *buf = (const char *)abuf;
+  const char *buf = static_cast<const char *>(abuf);
   int64_t len     = alen;
   while (len) {
     if (!_writer) {
@@ -113,37 +90,22 @@ MIOBuffer::write(const void *abuf, int64_t alen)
   return alen;
 }
 
-#ifdef WRITE_AND_TRANSFER
-/*
- * Same functionality as write but for the one small difference.
- * The space available in the last block is taken from the original
- * and this space becomes available to the copy.
- *
- */
 int64_t
-MIOBuffer::write_and_transfer_left_over_space(IOBufferReader *r, int64_t alen, int64_t offset)
+MIOBuffer::write(IOBufferReader *r, int64_t len, int64_t offset)
 {
-  int64_t rval = write(r, alen, offset);
-  // reset the end markers of the original so that it cannot
-  // make use of the space in the current block
-  if (r->mbuf->_writer)
-    r->mbuf->_writer->_buf_end = r->mbuf->_writer->_end;
-  // reset the end marker of the clone so that it can make
-  // use of the space in the current block
-  if (_writer) {
-    _writer->_buf_end = _writer->data->data() + _writer->block_size();
-  }
-  return rval;
+  return this->write(r->block.get(), len, offset + r->start_offset);
 }
 
-#endif
+int64_t
+MIOBuffer::write(IOBufferChain const *chain, int64_t len, int64_t offset)
+{
+  return this->write(chain->head(), std::min(len, chain->length()), offset);
+}
 
 int64_t
-MIOBuffer::write(IOBufferReader *r, int64_t alen, int64_t offset)
+MIOBuffer::write(IOBufferBlock const *b, int64_t alen, int64_t offset)
 {
-  int64_t len      = alen;
-  IOBufferBlock *b = r->block.get();
-  offset += r->start_offset;
+  int64_t len = alen;
 
   while (b && len > 0) {
     int64_t max_bytes = b->read_avail();
@@ -154,7 +116,7 @@ MIOBuffer::write(IOBufferReader *r, int64_t alen, int64_t offset)
       continue;
     }
     int64_t bytes;
-    if (len < 0 || len >= max_bytes) {
+    if (len >= max_bytes) {
       bytes = max_bytes;
     } else {
       bytes = len;
@@ -169,28 +131,6 @@ MIOBuffer::write(IOBufferReader *r, int64_t alen, int64_t offset)
   }
 
   return alen - len;
-}
-
-int64_t
-MIOBuffer::puts(char *s, int64_t len)
-{
-  char *pc = end();
-  char *pb = s;
-  while (pc < buf_end()) {
-    if (len-- <= 0) {
-      return -1;
-    }
-    if (!*pb || *pb == '\n') {
-      int64_t n = (int64_t)(pb - s);
-      memcpy(end(), s, n + 1); // Upto and including '\n'
-      end()[n + 1] = 0;
-      fill(n + 1);
-      return n + 1;
-    }
-    pc++;
-    pb++;
-  }
-  return 0;
 }
 
 bool
@@ -219,7 +159,7 @@ MIOBuffer::is_max_read_avail_more_than(int64_t size)
 int64_t
 IOBufferReader::read(void *ab, int64_t len)
 {
-  char *b       = (char *)ab;
+  char *b       = static_cast<char *>(ab);
   int64_t n     = len;
   int64_t l     = block_read_avail();
   int64_t bytes = 0;
@@ -261,9 +201,9 @@ IOBufferReader::memchr(char c, int64_t len, int64_t offset)
       bytes = len;
     }
     char *s = b->start() + offset;
-    char *p = (char *)::memchr(s, c, bytes);
+    char *p = static_cast<char *>(::memchr(s, c, bytes));
     if (p) {
-      return (int64_t)(o - start_offset + p - s);
+      return static_cast<int64_t>(o - start_offset + p - s);
     }
     o += bytes;
     len -= bytes;
@@ -275,9 +215,9 @@ IOBufferReader::memchr(char c, int64_t len, int64_t offset)
 }
 
 char *
-IOBufferReader::memcpy(const void *ap, int64_t len, int64_t offset)
+IOBufferReader::memcpy(void *ap, int64_t len, int64_t offset)
 {
-  char *p          = (char *)ap;
+  char *p          = static_cast<char *>(ap);
   IOBufferBlock *b = block.get();
   offset += start_offset;
 
@@ -306,76 +246,91 @@ IOBufferReader::memcpy(const void *ap, int64_t len, int64_t offset)
 }
 
 //
-// MIOBufferWriter
+// IOBufferChain
 //
-MIOBufferWriter &
-MIOBufferWriter::write(const void *data_, size_t length)
+int64_t
+IOBufferChain::write(IOBufferBlock *blocks, int64_t length, int64_t offset)
 {
-  const char *data = static_cast<const char *>(data_);
+  int64_t n = length;
 
-  while (length) {
-    IOBufferBlock *iobbPtr = _miob->first_write_block();
-
-    if (!iobbPtr) {
-      addBlock();
-
-      iobbPtr = _miob->first_write_block();
-
-      ink_assert(iobbPtr);
-    }
-
-    size_t writeSize = iobbPtr->write_avail();
-
-    if (length < writeSize) {
-      writeSize = length;
-    }
-
-    std::memcpy(iobbPtr->end(), data, writeSize);
-    iobbPtr->fill(writeSize);
-
-    data += writeSize;
-    length -= writeSize;
-
-    _numWritten += writeSize;
-  }
-
-  return *this;
-}
-
-std::ostream &
-MIOBufferWriter::operator>>(std::ostream &stream) const
-{
-  IOBufferReader *r = _miob->alloc_reader();
-  if (r) {
-    IOBufferBlock *b;
-    while (nullptr != (b = r->get_current_block())) {
-      auto n = b->read_avail();
-      stream.write(b->start(), n);
-      r->consume(n);
-    }
-    _miob->dealloc_reader(r);
-  }
-  return stream;
-}
-
-ssize_t
-MIOBufferWriter::operator>>(int fd) const
-{
-  ssize_t zret           = 0;
-  IOBufferReader *reader = _miob->alloc_reader();
-  if (reader) {
-    IOBufferBlock *b;
-    while (nullptr != (b = reader->get_current_block())) {
-      auto n = b->read_avail();
-      auto r = ::write(fd, b->start(), n);
-      if (r <= 0) {
-        break;
-      } else {
-        reader->consume(r);
-        zret += r;
+  while (blocks && n > 0) {
+    int64_t block_bytes = blocks->read_avail();
+    if (block_bytes <= offset) { // skip the entire block
+      offset -= block_bytes;
+    } else {
+      int64_t bytes     = std::min(n, block_bytes - offset);
+      IOBufferBlock *bb = blocks->clone();
+      if (offset) {
+        bb->consume(offset);
+        block_bytes -= offset; // bytes really available to use.
+        offset = 0;
       }
+      if (block_bytes > n) {
+        bb->_end -= (block_bytes - n);
+      }
+      // Attach the cloned block since its data will be kept.
+      this->append(bb);
+      n -= bytes;
     }
-    _miob->dealloc_reader(reader);
+    blocks = blocks->next.get();
+  }
+
+  length -= n; // actual bytes written to chain.
+  _len += length;
+  return length;
+}
+
+int64_t
+IOBufferChain::write(IOBufferData *data, int64_t length, int64_t offset)
+{
+  int64_t zret     = 0;
+  IOBufferBlock *b = new_IOBufferBlock();
+
+  if (length < 0) {
+    length = 0;
+  }
+
+  b->set(data, length, offset);
+  this->append(b);
+
+  zret = b->read_avail();
+  _len += zret;
+  return zret;
+}
+
+void
+IOBufferChain::append(IOBufferBlock *block)
+{
+  if (nullptr == _tail) {
+    _head = block;
+    _tail = block;
+  } else {
+    _tail->next = block;
+    _tail       = block;
+  }
+}
+
+int64_t
+IOBufferChain::consume(int64_t size)
+{
+  int64_t zret = 0;
+  int64_t bytes;
+  size = std::min(size, _len);
+
+  while (_head != nullptr && size > 0 && (bytes = _head->read_avail()) > 0) {
+    if (size >= bytes) {
+      _head = _head->next;
+      zret += bytes;
+      size -= bytes;
+    } else {
+      _head->consume(size);
+      zret += size;
+      size = 0;
+    }
+  }
+  _len -= zret;
+  if (_head == nullptr || _len == 0) {
+    _head = nullptr, _tail = nullptr, _len = 0;
   }
   return zret;
 }

@@ -34,9 +34,7 @@
 #include "I_EventSystem.h"
 #include "records/I_RecProcess.h"
 
-#define AIO_MODULE_MAJOR_VERSION 1
-#define AIO_MODULE_MINOR_VERSION 0
-#define AIO_MODULE_VERSION makeModuleVersion(AIO_MODULE_MAJOR_VERSION, AIO_MODULE_MINOR_VERSION, PUBLIC_MODULE_HEADER)
+static constexpr ts::ModuleVersion AIO_MODULE_PUBLIC_VERSION(1, 0, ts::ModuleVersion::PUBLIC);
 
 #define AIO_EVENT_DONE (AIO_EVENT_EVENTS_START + 0)
 
@@ -74,7 +72,6 @@ struct ink_aiocb {
   size_t aio_nbytes = 0;       /* length of transfer */
   off_t aio_offset  = 0;       /* file offset */
 
-  int aio_reqprio    = 0; /* request priority offset */
   int aio_lio_opcode = 0; /* listio operation */
   int aio_state      = 0; /* state flag for List I/O */
   int aio__pad[1];        /* extension padding */
@@ -87,9 +84,6 @@ bool ink_aio_thread_num_set(int thread_num);
 // AIOCallback::thread special values
 #define AIO_CALLBACK_THREAD_ANY ((EThread *)0) // any regular event thread
 #define AIO_CALLBACK_THREAD_AIO ((EThread *)-1)
-
-#define AIO_LOWEST_PRIORITY 0
-#define AIO_DEFAULT_PRIORITY AIO_LOWEST_PRIORITY
 
 struct AIOCallback : public Continuation {
   // set before calling aio_read/aio_write
@@ -141,7 +135,7 @@ struct DiskHandler : public Continuation {
 };
 #endif
 
-void ink_aio_init(ModuleVersion version);
+void ink_aio_init(ts::ModuleVersion version);
 int ink_aio_start();
 void ink_aio_set_callback(Continuation *error_callback);
 
@@ -151,4 +145,4 @@ int ink_aio_write(AIOCallback *op, int fromAPI = 0);
 int ink_aio_readv(AIOCallback *op,
                   int fromAPI = 0); // fromAPI is a boolean to indicate if this is from a API call such as upload proxy feature
 int ink_aio_writev(AIOCallback *op, int fromAPI = 0);
-AIOCallback *new_AIOCallback(void);
+AIOCallback *new_AIOCallback();

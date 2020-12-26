@@ -22,11 +22,11 @@
 */
 
 #include "tscore/IntrusivePtr.h"
-#include "tscore/IntrusiveDList.h"
+#include "tscpp/util/IntrusiveDList.h"
 #include "tscore/TestBox.h"
 
 namespace
-{ // Hide our local defintions
+{ // Hide our local definitions
 
 // Test class for pointers and lists.
 class A : public IntrusivePtrCounter

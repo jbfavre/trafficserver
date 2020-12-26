@@ -42,7 +42,7 @@
   The accept call is a blocking call while connect is non-blocking. They
   returns a new Connection instance which is an handle to the newly created
   connection. The connection `q instance can be used later for read/writes
-  using an intance of IOProcessor class.
+  using an instance of IOProcessor class.
 
 
   **************************************************************************/
@@ -78,11 +78,11 @@ struct NetVCOptions;
 //
 ///////////////////////////////////////////////////////////////////////
 struct Connection {
-  SOCKET fd;         ///< Socket for connection.
-  IpEndpoint addr;   ///< Associated address.
-  bool is_bound;     ///< Flag for already bound to a local address.
-  bool is_connected; ///< Flag for already connected.
-  int sock_type;
+  SOCKET fd;                 ///< Socket for connection.
+  IpEndpoint addr;           ///< Associated address.
+  bool is_bound     = false; ///< Flag for already bound to a local address.
+  bool is_connected = false; ///< Flag for already connected.
+  int sock_type     = 0;
 
   /** Create and initialize the socket for this connection.
 
@@ -165,7 +165,7 @@ struct Server : public Connection {
   IpEndpoint accept_addr;
 
   /// If set, a kernel HTTP accept filter
-  bool http_accept_filter;
+  bool http_accept_filter = false;
 
   int accept(Connection *c);
 
@@ -178,5 +178,5 @@ struct Server : public Connection {
   int listen(bool non_blocking, const NetProcessor::AcceptOptions &opt);
   int setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions &opt);
 
-  Server() : Connection(), http_accept_filter(false) { ink_zero(accept_addr); }
+  Server() : Connection() { ink_zero(accept_addr); }
 };

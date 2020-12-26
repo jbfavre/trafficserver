@@ -86,8 +86,6 @@
 
 #pragma once
 
-#include "tscore/DynArray.h"
-#include "tscore/ink_hash_table.h"
 #include "tscore/IpMap.h"
 #include "tscore/Result.h"
 #include "tscore/MatcherUtils.h"
@@ -97,6 +95,8 @@
 #include "HTTP.h"
 #include "tscore/Regex.h"
 #include "URL.h"
+
+#include <unordered_map>
 
 #ifdef HAVE_CTYPE_H
 #include <cctype>
@@ -138,31 +138,23 @@ public:
   inkcoreapi sockaddr const *get_client_ip() override;
 
   HttpRequestData()
-    : hdr(nullptr),
-      hostname_str(nullptr),
-      api_info(nullptr),
-      xact_start(0),
-      incoming_port(0),
-      tag(nullptr),
-      internal_txn(false),
-      cache_info_lookup_url(nullptr),
-      cache_info_parent_selection_url(nullptr)
+
   {
     ink_zero(src_ip);
     ink_zero(dest_ip);
   }
 
-  HTTPHdr *hdr;
-  char *hostname_str;
-  HttpApiInfo *api_info;
-  time_t xact_start;
+  HTTPHdr *hdr          = nullptr;
+  char *hostname_str    = nullptr;
+  HttpApiInfo *api_info = nullptr;
+  time_t xact_start     = 0;
   IpEndpoint src_ip;
   IpEndpoint dest_ip;
-  uint16_t incoming_port;
-  char *tag;
-  bool internal_txn;
-  URL **cache_info_lookup_url;
-  URL **cache_info_parent_selection_url;
+  uint16_t incoming_port                = 0;
+  char *tag                             = nullptr;
+  bool internal_txn                     = false;
+  URL **cache_info_lookup_url           = nullptr;
+  URL **cache_info_parent_selection_url = nullptr;
 };
 
 // Mixin class for shared info across all templates. This just wraps the
@@ -203,7 +195,7 @@ public:
   using super::array_len;
 
 private:
-  InkHashTable *url_ht;
+  std::unordered_map<std::string, int> url_ht;
   char **url_str = nullptr; // array of url strings
   int *url_value = nullptr; // array of posion of url strings
 };
@@ -335,25 +327,13 @@ public:
     return reMatch;
   }
 
-  UrlMatcher<Data, MatchResult> *
-  getUrlMatcher()
-  {
-    return urlMatch;
-  }
-
   IpMatcher<Data, MatchResult> *
   getIPMatcher()
   {
     return ipMatch;
   }
 
-  HostRegexMatcher<Data, MatchResult> *
-  getHrMatcher()
-  {
-    return hrMatch;
-  }
-
-  // private:
+  // private
   RegexMatcher<Data, MatchResult> *reMatch;
   UrlMatcher<Data, MatchResult> *urlMatch;
   HostMatcher<Data, MatchResult> *hostMatch;

@@ -22,7 +22,6 @@ AM_CPPFLAGS += \
 	-I$(abs_top_srcdir)/mgmt \
 	-I$(abs_top_srcdir)/mgmt/api \
 	-I$(abs_top_srcdir)/mgmt/api/include \
-	-I$(abs_top_srcdir)/include/tsconfig \
 	-I$(abs_top_srcdir)/proxy \
 	-I$(abs_top_srcdir)/include \
 	-I$(abs_top_srcdir)/lib \
@@ -30,7 +29,7 @@ AM_CPPFLAGS += \
 	@OPENSSL_INCLUDES@
 
 # header files used by other libraries
-EXTRA_DIST = MgmtHashTable.h MgmtSocket.h
+EXTRA_DIST = MgmtSocket.h
 
 noinst_LTLIBRARIES = libutils_lm.la libutils_p.la
 check_PROGRAMS = test_marshall

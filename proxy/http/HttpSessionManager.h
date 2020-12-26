@@ -33,10 +33,10 @@
 #pragma once
 
 #include "P_EventSystem.h"
-#include "HttpServerSession.h"
-#include "tscore/Map.h"
+#include "Http1ServerSession.h"
+#include "tscore/IntrusiveHashMap.h"
 
-class ProxyClientTransaction;
+class ProxyTransaction;
 class HttpSM;
 
 void initialize_thread_for_http_sessions(EThread *thread, int thread_index);
@@ -64,65 +64,19 @@ public:
   ServerSessionPool();
   /// Handle events from server sessions.
   int eventHandler(int event, void *data);
+  static bool validate_host_sni(HttpSM *sm, NetVConnection *netvc);
   static bool validate_sni(HttpSM *sm, NetVConnection *netvc);
+  static bool validate_cert(HttpSM *sm, NetVConnection *netvc);
 
 protected:
-  /// Interface class for IP map.
-  struct IPHashing {
-    typedef uint32_t ID;
-    typedef sockaddr const *Key;
-    typedef HttpServerSession Value;
-    typedef DList(HttpServerSession, ip_hash_link) ListHead;
-
-    static ID
-    hash(Key key)
-    {
-      return ats_ip_hash(key);
-    }
-    static Key
-    key(Value const *value)
-    {
-      return &value->get_server_ip().sa;
-    }
-    static bool
-    equal(Key lhs, Key rhs)
-    {
-      return ats_ip_addr_port_eq(lhs, rhs);
-    }
-  };
-
-  /// Interface class for FQDN map.
-  struct HostHashing {
-    typedef uint64_t ID;
-    typedef CryptoHash const &Key;
-    typedef HttpServerSession Value;
-    typedef DList(HttpServerSession, host_hash_link) ListHead;
-
-    static ID
-    hash(Key key)
-    {
-      return key.fold();
-    }
-    static Key
-    key(Value const *value)
-    {
-      return value->hostname_hash;
-    }
-    static bool
-    equal(Key lhs, Key rhs)
-    {
-      return lhs == rhs;
-    }
-  };
-
-  typedef TSHashTable<IPHashing> IPHashTable;     ///< Sessions by IP address.
-  typedef TSHashTable<HostHashing> HostHashTable; ///< Sessions by host name.
+  using IPTable   = IntrusiveHashMap<Http1ServerSession::IPLinkage>;
+  using FQDNTable = IntrusiveHashMap<Http1ServerSession::FQDNLinkage>;
 
 public:
   /** Check if a session matches address and host name.
    */
-  static bool match(HttpServerSession *ss, sockaddr const *addr, CryptoHash const &host_hash,
-                    TSServerSessionSharingMatchType match_style);
+  static bool match(Http1ServerSession *ss, sockaddr const *addr, CryptoHash const &host_hash,
+                    TSServerSessionSharingMatchMask match_style);
 
   /** Get a session from the pool.
 
@@ -131,29 +85,28 @@ public:
 
       @return A pointer to the session or @c NULL if not matching session was found.
   */
-  HSMresult_t acquireSession(sockaddr const *addr, CryptoHash const &host_hash, TSServerSessionSharingMatchType match_style,
-                             HttpSM *sm, HttpServerSession *&server_session);
+  HSMresult_t acquireSession(sockaddr const *addr, CryptoHash const &host_hash, TSServerSessionSharingMatchMask match_style,
+                             HttpSM *sm, Http1ServerSession *&server_session);
   /** Release a session to to pool.
    */
-  void releaseSession(HttpServerSession *ss);
+  void releaseSession(Http1ServerSession *ss);
 
   /// Close all sessions and then clear the table.
   void purge();
 
   // Pools of server sessions.
   // Note that each server session is stored in both pools.
-  IPHashTable m_ip_pool;
-  HostHashTable m_host_pool;
+  IPTable m_ip_pool;
+  FQDNTable m_fqdn_pool;
 };
 
 class HttpSessionManager
 {
 public:
-  HttpSessionManager() : m_g_pool(nullptr) {}
+  HttpSessionManager() {}
   ~HttpSessionManager() {}
-  HSMresult_t acquire_session(Continuation *cont, sockaddr const *addr, const char *hostname, ProxyClientTransaction *ua_txn,
-                              HttpSM *sm);
-  HSMresult_t release_session(HttpServerSession *to_release);
+  HSMresult_t acquire_session(Continuation *cont, sockaddr const *addr, const char *hostname, ProxyTransaction *ua_txn, HttpSM *sm);
+  HSMresult_t release_session(Http1ServerSession *to_release);
   void purge_keepalives();
   void init();
   int main_handler(int event, void *data);
@@ -161,7 +114,7 @@ public:
 private:
   /// Global pool, used if not per thread pools.
   /// @internal We delay creating this because the session manager is created during global statics init.
-  ServerSessionPool *m_g_pool;
+  ServerSessionPool *m_g_pool = nullptr;
 };
 
 extern HttpSessionManager httpSessionManager;
