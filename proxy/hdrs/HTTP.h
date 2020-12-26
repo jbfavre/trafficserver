@@ -154,6 +154,7 @@ enum SquidLogCode {
   SQUID_LOG_ERR_NO_RELAY              = 'C',
   SQUID_LOG_ERR_DISK_IO               = 'D',
   SQUID_LOG_ERR_ZERO_SIZE_OBJECT      = 'E',
+  SQUID_LOG_TCP_CF_HIT                = 'F', // Collapsed forwarding HIT also known as Read while write hit
   SQUID_LOG_ERR_PROXY_DENIED          = 'G',
   SQUID_LOG_ERR_WEBFETCH_DETECTED     = 'H',
   SQUID_LOG_ERR_FUTURE_1              = 'I',
@@ -234,7 +235,8 @@ enum SquidHitMissCode {
   SQUID_HIT_SSD     = SQUID_HIT_LEVEL_2,
   SQUID_HIT_DISK    = SQUID_HIT_LEVEL_3,
   SQUID_HIT_CLUSTER = SQUID_HIT_LEVEL_4,
-  SQUID_HIT_NET     = SQUID_HIT_LEVEL_5
+  SQUID_HIT_NET     = SQUID_HIT_LEVEL_5,
+  SQUID_HIT_RWW     = SQUID_HIT_LEVEL_6
 };
 
 enum HTTPType {
@@ -445,7 +447,7 @@ const char *http_hdr_reason_lookup(unsigned status);
 void http_parser_init(HTTPParser *parser);
 void http_parser_clear(HTTPParser *parser);
 ParseResult http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const char **start, const char *end,
-                                  bool must_copy_strings, bool eof, bool strict_uri_parsing);
+                                  bool must_copy_strings, bool eof, int strict_uri_parsing);
 ParseResult validate_hdr_host(HTTPHdrImpl *hh);
 ParseResult validate_hdr_content_length(HdrHeap *heap, HTTPHdrImpl *hh);
 ParseResult http_parser_parse_resp(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const char **start, const char *end,
@@ -624,10 +626,10 @@ public:
   const char *reason_get(int *length);
   void reason_set(const char *value, int length);
 
-  ParseResult parse_req(HTTPParser *parser, const char **start, const char *end, bool eof, bool strict_uri_parsing = false);
+  ParseResult parse_req(HTTPParser *parser, const char **start, const char *end, bool eof, int strict_uri_parsing = 0);
   ParseResult parse_resp(HTTPParser *parser, const char **start, const char *end, bool eof);
 
-  ParseResult parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool eof, bool strict_uri_parsing = false);
+  ParseResult parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool eof, int strict_uri_parsing = 0);
   ParseResult parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool eof);
 
 public:
@@ -1225,7 +1227,7 @@ HTTPHdr::reason_set(const char *value, int length)
   -------------------------------------------------------------------------*/
 
 inline ParseResult
-HTTPHdr::parse_req(HTTPParser *parser, const char **start, const char *end, bool eof, bool strict_uri_parsing)
+HTTPHdr::parse_req(HTTPParser *parser, const char **start, const char *end, bool eof, int strict_uri_parsing)
 {
   ink_assert(valid());
   ink_assert(m_http->m_polarity == HTTP_TYPE_REQUEST);

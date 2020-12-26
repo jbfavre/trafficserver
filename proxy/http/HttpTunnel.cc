@@ -36,6 +36,7 @@
 #include "HttpSM.h"
 #include "HttpDebugNames.h"
 #include "tscore/ParseRules.h"
+#include "tscore/ink_memory.h"
 
 static const int min_block_transfer_bytes = 256;
 static const char *const CHUNK_HEADER_FMT = "%" PRIx64 "\r\n";
@@ -153,8 +154,16 @@ ChunkedHandler::read_size()
       if (state == CHUNK_READ_SIZE) {
         // The http spec says the chunked size is always in hex
         if (ParseRules::is_hex(*tmp)) {
+          // Make sure we will not overflow running_sum with our shift.
+          if (!can_safely_shift_left(running_sum, 4)) {
+            // We have no more space in our variable for the shift.
+            state = CHUNK_READ_ERROR;
+            done  = true;
+            break;
+          }
           num_digits++;
-          running_sum *= 16;
+          // Shift over one hex value.
+          running_sum <<= 4;
 
           if (ParseRules::is_digit(*tmp)) {
             running_sum += *tmp - '0';
@@ -537,10 +546,11 @@ HttpTunnel::reset()
   }
 #endif
 
+  call_sm       = false;
   num_producers = 0;
   num_consumers = 0;
-  memset(consumers, 0, sizeof(consumers));
-  memset(producers, 0, sizeof(producers));
+  memset(static_cast<void *>(consumers), 0, sizeof(consumers));
+  memset(static_cast<void *>(producers), 0, sizeof(producers));
 }
 
 void
@@ -1056,16 +1066,18 @@ HttpTunnel::producer_handler_dechunked(int event, HttpTunnelProducer *p)
 
   // We only interested in translating certain events
   switch (event) {
-  case VC_EVENT_READ_READY:
   case VC_EVENT_READ_COMPLETE:
   case HTTP_TUNNEL_EVENT_PRECOMPLETE:
   case VC_EVENT_EOS:
+    p->alive = false; // Update the producer state for final_consumer_bytes_to_write
+    /* fallthrough */
+  case VC_EVENT_READ_READY:
     p->last_event = p->chunked_handler.last_server_event = event;
     if (p->chunked_handler.generate_chunked_content()) { // We are done, make sure the consumer is activated
       HttpTunnelConsumer *c;
       for (c = p->consumer_list.head; c; c = c->link.next) {
         if (c->alive) {
-          c->write_vio->nbytes = p->chunked_handler.chunked_size;
+          c->write_vio->nbytes = final_consumer_bytes_to_write(p, c);
           // consumer_handler(VC_EVENT_WRITE_COMPLETE, c);
         }
       }
