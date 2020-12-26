@@ -29,7 +29,7 @@
 using std::string;
 using namespace EsiLib;
 extern pthread_key_t threadKey;
-// this needs to be a fixed address as only the address is used for comparision
+// this needs to be a fixed address as only the address is used for comparison
 const char *EsiProcessor::INCLUDE_DATA_ID_ATTR = reinterpret_cast<const char *>(0xbeadface);
 
 #define FAILURE_INFO_TAG "plugin_esi_failureInfo"
@@ -305,7 +305,7 @@ EsiProcessor::process(const char *&data, int &data_len)
 
     /* FAILURE CACHE */
     FailureData *data = static_cast<FailureData *>(pthread_getspecific(threadKey));
-    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specfic %p", __FUNCTION__, data);
+    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specific %p", __FUNCTION__, data);
 
     for (iter = try_iter->attempt_nodes.begin(); iter != try_iter->attempt_nodes.end(); ++iter) {
       if ((iter->type == DocNode::TYPE_INCLUDE) || iter->type == DocNode::TYPE_SPECIAL_INCLUDE) {
@@ -342,7 +342,7 @@ EsiProcessor::process(const char *&data, int &data_len)
       }
     }
     if (attempt_succeeded) {
-      _debugLog(_debug_tag, "[%s] attempt section succeded; using attempt section", __FUNCTION__);
+      _debugLog(_debug_tag, "[%s] attempt section succeeded; using attempt section", __FUNCTION__);
       _node_list.splice(try_iter->pos, try_iter->attempt_nodes);
     } else {
       _debugLog(_debug_tag, "[%s] attempt section errored; trying except section", __FUNCTION__);
@@ -436,7 +436,7 @@ EsiProcessor::flush(string &data, int &overall_len)
 
     /* FAILURE CACHE */
     FailureData *fdata = static_cast<FailureData *>(pthread_getspecific(threadKey));
-    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specfic %p", __FUNCTION__, fdata);
+    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specific %p", __FUNCTION__, fdata);
 
     for (iter = try_iter->attempt_nodes.begin(); iter != try_iter->attempt_nodes.end(); ++iter) {
       if ((iter->type == DocNode::TYPE_INCLUDE) || iter->type == DocNode::TYPE_SPECIAL_INCLUDE) {
@@ -473,7 +473,7 @@ EsiProcessor::flush(string &data, int &overall_len)
       }
     }
     if (attempt_succeeded) {
-      _debugLog(_debug_tag, "[%s] attempt section succeded; using attempt section", __FUNCTION__);
+      _debugLog(_debug_tag, "[%s] attempt section succeeded; using attempt section", __FUNCTION__);
       _n_prescanned_nodes = _n_prescanned_nodes + try_iter->attempt_nodes.size();
       _node_list.splice(try_iter->pos, try_iter->attempt_nodes);
     } else {
@@ -699,7 +699,7 @@ EsiProcessor::_handleHtmlComment(const DocNodeList::iterator &curr_node)
   _debugLog(_debug_tag, "[%s] parsed %d inner nodes from html comment node", __FUNCTION__, inner_nodes.size());
   DocNodeList::iterator next_node = curr_node;
   ++next_node;
-  _node_list.splice(next_node, inner_nodes); // insert after curr node for preprocessing
+  _node_list.splice(next_node, inner_nodes); // insert after curr node for pre-processing
   return true;
 }
 
@@ -733,9 +733,9 @@ EsiProcessor::_preprocess(DocNodeList &node_list, int &n_prescanned_nodes)
       break;
     case DocNode::TYPE_HTML_COMMENT:
       /**
-       * the html comment <!--esi innertext--> is a container.
+       * the html comment <!--esi inner text--> is a container.
        * the esi processor will remove the starting tag "<!--esi" and the
-       * closure tag "-->", then keep the innertext (the content within it).
+       * closure tag "-->", then keep the inner text (the content within it).
        *
        * we should call _handleHtmlComment when the node list is parsed
        * from the content,

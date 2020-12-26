@@ -36,9 +36,11 @@ Description
 .. option:: --path FILE
 .. option:: --proxyBackDoor PORT
 .. option:: --proxyOff
+.. option:: --listenOff
 .. option:: --proxyPort PORT
 .. option:: --recordsConf FILE
 .. option:: --tsArgs ARGUMENTS
+.. option:: --maxRecords RECORDS
 .. option:: --version
 
 Signals

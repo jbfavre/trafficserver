@@ -41,22 +41,9 @@
 #include "UrlRewrite.h"
 #include "HttpTunnel.h"
 #include "InkAPIInternal.h"
-#include "../ProxyClientTransaction.h"
+#include "../ProxyTransaction.h"
 #include "HdrUtils.h"
 #include "tscore/History.h"
-
-/* Enable LAZY_BUF_ALLOC to delay allocation of buffers until they
- * are actually required.
- * Enabling LAZY_BUF_ALLOC, stop Http code from allocation space
- * for header buffer and tunnel buffer. The allocation is done by
- * the net code in read_from_net when data is actually written into
- * the buffer. By allocating memory only when it is required we can
- * reduce the memory consumed by TS process.
- *
- * IMPORTANT NOTE: enable/disable LAZY_BUF_ALLOC in HttpServerSession.h
- * as well.
- */
-#define LAZY_BUF_ALLOC
 
 #define HTTP_API_CONTINUE (INK_API_EVENT_EVENTS_START + 0)
 #define HTTP_API_ERROR (INK_API_EVENT_EVENTS_START + 1)
@@ -72,7 +59,7 @@ static size_t const HTTP_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ
 //   the larger buffer size
 static size_t const HTTP_SERVER_RESP_HDR_BUFFER_INDEX = BUFFER_SIZE_INDEX_8K;
 
-class HttpServerSession;
+class Http1ServerSession;
 class AuthHttpAdapter;
 
 class HttpSM;
@@ -105,13 +92,14 @@ struct HttpVCTableEntry {
   VIO *write_vio;
   HttpSMHandler vc_handler;
   HttpVC_t vc_type;
+  HttpSM *sm;
   bool eos;
   bool in_tunnel;
 };
 
 struct HttpVCTable {
   static const int vc_table_max_entries = 4;
-  HttpVCTable();
+  explicit HttpVCTable(HttpSM *);
 
   HttpVCTableEntry *new_entry();
   HttpVCTableEntry *find_entry(VConnection *);
@@ -123,6 +111,7 @@ struct HttpVCTable {
 
 private:
   HttpVCTableEntry vc_table[vc_table_max_entries];
+  HttpSM *sm = nullptr;
 };
 
 inline bool
@@ -137,10 +126,10 @@ HttpVCTable::is_table_clear() const
 }
 
 struct HttpTransformInfo {
-  HttpVCTableEntry *entry;
-  VConnection *vc;
+  HttpVCTableEntry *entry = nullptr;
+  VConnection *vc         = nullptr;
 
-  HttpTransformInfo() : entry(nullptr), vc(nullptr) {}
+  HttpTransformInfo() {}
 };
 
 enum {
@@ -166,6 +155,7 @@ enum HttpApiState_t {
   HTTP_API_IN_CALLOUT,
   HTTP_API_DEFERED_CLOSE,
   HTTP_API_DEFERED_SERVER_ERROR,
+  HTTP_API_REWIND_STATE_MACHINE,
 };
 
 enum HttpPluginTunnel_t {
@@ -209,7 +199,7 @@ public:
   ~PostDataBuffers();
 };
 
-class HttpSM : public Continuation
+class HttpSM : public Continuation, public PluginUserArgs<TS_USER_ARGS_TXN>
 {
   friend class HttpPagesHandler;
   friend class CoreUtils;
@@ -220,24 +210,33 @@ public:
   virtual void destroy();
 
   static HttpSM *allocate();
-  HttpCacheSM &get_cache_sm();      // Added to get the object of CacheSM YTS Team, yamsat
-  HttpVCTableEntry *get_ua_entry(); // Added to get the ua_entry pointer  - YTS-TEAM
+  HttpCacheSM &get_cache_sm();          // Added to get the object of CacheSM YTS Team, yamsat
+  HttpVCTableEntry *get_ua_entry();     // Added to get the ua_entry pointer  - YTS-TEAM
+  HttpVCTableEntry *get_server_entry(); // Added to get the server_entry pointer
+  std::string_view get_outbound_sni() const;
+  std::string_view get_outbound_cert() const;
 
-  void init();
+  void init(bool from_early_data = false);
 
-  void attach_client_session(ProxyClientTransaction *client_vc_arg, IOBufferReader *buffer_reader);
+  void attach_client_session(ProxyTransaction *client_vc_arg, IOBufferReader *buffer_reader);
 
   // Called by httpSessionManager so that we can reset
   //  the session timeouts and initiate a read while
   //  holding the lock for the server session
-  void attach_server_session(HttpServerSession *s);
+  void attach_server_session(Http1ServerSession *s);
 
   // Used to read attributes of
   // the current active server session
-  HttpServerSession *
+  Http1ServerSession *
   get_server_session()
   {
     return server_session;
+  }
+
+  ProxyTransaction *
+  get_ua_txn()
+  {
+    return ua_txn;
   }
 
   // Called by transact.  Updates are fire and forget
@@ -270,7 +269,7 @@ public:
   VConnection *do_transform_open();
   VConnection *do_post_transform_open();
 
-  // Called by transact(HttpTransact::is_request_retryable), temperarily.
+  // Called by transact(HttpTransact::is_request_retryable), temporarily.
   // This function should be remove after #1994 fixed.
   bool
   is_post_transform_request()
@@ -295,8 +294,7 @@ public:
   void dump_state_hdr(HTTPHdr *h, const char *s);
 
   // Functions for manipulating api hooks
-  void txn_hook_append(TSHttpHookID id, INKContInternal *cont);
-  void txn_hook_prepend(TSHttpHookID id, INKContInternal *cont);
+  void txn_hook_add(TSHttpHookID id, INKContInternal *cont);
   APIHook *txn_hook_get(TSHttpHookID id);
 
   bool is_private();
@@ -327,7 +325,7 @@ public:
 
   HttpTransact::State t_state;
 
-  // This unfortunately can't go into the t_state, beacuse of circular dependencies. We could perhaps refactor
+  // This unfortunately can't go into the t_state, because of circular dependencies. We could perhaps refactor
   // this, with a lot of work, but this is easier for now.
   UrlRewrite *m_remap = nullptr;
 
@@ -343,6 +341,10 @@ public:
   bool get_postbuf_done();
   bool is_postbuf_valid();
 
+  // See if we should allow the transaction
+  // based on sni and host name header values
+  void check_sni_host();
+
 protected:
   int reentrancy_count = 0;
 
@@ -354,9 +356,8 @@ protected:
   void remove_ua_entry();
 
 public:
-  ProxyClientTransaction *ua_txn   = nullptr;
+  ProxyTransaction *ua_txn         = nullptr;
   BackgroundFill_t background_fill = BACKGROUND_FILL_NONE;
-  // AuthHttpAdapter authAdapter;
   void set_http_schedule(Continuation *);
   int get_http_schedule(int event, void *data);
 
@@ -366,8 +367,8 @@ protected:
   IOBufferReader *ua_buffer_reader     = nullptr;
   IOBufferReader *ua_raw_buffer_reader = nullptr;
 
-  HttpVCTableEntry *server_entry    = nullptr;
-  HttpServerSession *server_session = nullptr;
+  HttpVCTableEntry *server_entry     = nullptr;
+  Http1ServerSession *server_session = nullptr;
 
   /* Because we don't want to take a session from a shared pool if we know that it will be private,
    * but we cannot set it to private until we have an attached server session.
@@ -410,7 +411,6 @@ protected:
   int state_read_client_request_header(int event, void *data);
   int state_watch_for_client_abort(int event, void *data);
   int state_read_push_response_header(int event, void *data);
-  int state_srv_lookup(int event, void *data);
   int state_hostdb_lookup(int event, void *data);
   int state_hostdb_reverse_lookup(int event, void *data);
   int state_mark_os_down(int event, void *data);
@@ -466,11 +466,11 @@ protected:
   void do_cache_prepare_action(HttpCacheSM *c_sm, CacheHTTPInfo *object_read_info, bool retry, bool allow_multiple = false);
   void do_cache_delete_all_alts(Continuation *cont);
   void do_auth_callout();
-  void do_api_callout();
-  void do_api_callout_internal();
+  int do_api_callout();
+  int do_api_callout_internal();
   void do_redirect();
   void redirect_request(const char *redirect_url, const int redirect_len);
-  void do_drain_request_body();
+  void do_drain_request_body(HTTPHdr &response);
 
   void wait_for_full_body();
 
@@ -527,29 +527,31 @@ protected:
 public:
   // TODO:  Now that bodies can be empty, should the body counters be set to -1 ? TS-2213
   // Stats & Logging Info
-  int client_request_hdr_bytes       = 0;
-  int64_t client_request_body_bytes  = 0;
-  int server_request_hdr_bytes       = 0;
-  int64_t server_request_body_bytes  = 0;
-  int server_response_hdr_bytes      = 0;
-  int64_t server_response_body_bytes = 0;
-  int client_response_hdr_bytes      = 0;
-  int64_t client_response_body_bytes = 0;
-  int cache_response_hdr_bytes       = 0;
-  int64_t cache_response_body_bytes  = 0;
-  int pushed_response_hdr_bytes      = 0;
-  int64_t pushed_response_body_bytes = 0;
-  bool client_tcp_reused             = false;
-  bool client_ssl_reused             = false;
-  bool client_connection_is_ssl      = false;
-  bool is_internal                   = false;
-  bool server_connection_is_ssl      = false;
-  bool is_waiting_for_full_body      = false;
-  bool is_using_post_buffer          = false;
+  int client_request_hdr_bytes        = 0;
+  int64_t client_request_body_bytes   = 0;
+  int server_request_hdr_bytes        = 0;
+  int64_t server_request_body_bytes   = 0;
+  int server_response_hdr_bytes       = 0;
+  int64_t server_response_body_bytes  = 0;
+  int client_response_hdr_bytes       = 0;
+  int64_t client_response_body_bytes  = 0;
+  int cache_response_hdr_bytes        = 0;
+  int64_t cache_response_body_bytes   = 0;
+  int pushed_response_hdr_bytes       = 0;
+  int64_t pushed_response_body_bytes  = 0;
+  int server_connection_provided_cert = 0;
+  bool client_tcp_reused              = false;
+  bool client_ssl_reused              = false;
+  bool client_connection_is_ssl       = false;
+  bool is_internal                    = false;
+  bool server_connection_is_ssl       = false;
+  bool is_waiting_for_full_body       = false;
+  bool is_using_post_buffer           = false;
   std::optional<bool> mptcp_state; // Don't initialize, that marks it as "not defined".
   const char *client_protocol     = "-";
   const char *client_sec_protocol = "-";
   const char *client_cipher_suite = "-";
+  const char *client_curve        = "-";
   int server_transact_count       = 0;
 
   TransactionMilestones milestones;
@@ -567,7 +569,8 @@ public:
 
 protected:
   TSHttpHookID cur_hook_id = TS_HTTP_LAST_HOOK;
-  APIHook *cur_hook        = nullptr;
+  APIHook const *cur_hook  = nullptr;
+  HttpHookState hook_state;
 
   //
   // Continuation time keeper
@@ -629,10 +632,16 @@ public:
     return _client_transaction_priority_dependence;
   }
 
+  void set_server_netvc_inactivity_timeout(NetVConnection *netvc);
+  void set_server_netvc_active_timeout(NetVConnection *netvc);
+  void set_server_netvc_connect_timeout(NetVConnection *netvc);
+  void rewind_state_machine();
+
 private:
   PostDataBuffers _postbuf;
   int _client_connection_id = -1, _client_transaction_id = -1;
   int _client_transaction_priority_weight = -1, _client_transaction_priority_dependence = -1;
+  bool _from_early_data = false;
 };
 
 // Function to get the cache_sm object - YTS Team, yamsat
@@ -647,6 +656,12 @@ inline HttpVCTableEntry *
 HttpSM::get_ua_entry()
 {
   return ua_entry;
+}
+
+inline HttpVCTableEntry *
+HttpSM::get_server_entry()
+{
+  return server_entry;
 }
 
 inline HttpSM *
@@ -689,16 +704,9 @@ HttpSM::find_server_buffer_size()
 }
 
 inline void
-HttpSM::txn_hook_append(TSHttpHookID id, INKContInternal *cont)
+HttpSM::txn_hook_add(TSHttpHookID id, INKContInternal *cont)
 {
   api_hooks.append(id, cont);
-  hooks_set = true;
-}
-
-inline void
-HttpSM::txn_hook_prepend(TSHttpHookID id, INKContInternal *cont)
-{
-  api_hooks.prepend(id, cont);
   hooks_set = true;
 }
 
@@ -711,7 +719,7 @@ HttpSM::txn_hook_get(TSHttpHookID id)
 inline bool
 HttpSM::is_transparent_passthrough_allowed()
 {
-  return (t_state.client_info.is_transparent && ua_txn->is_transparent_passthrough_allowed() && ua_txn->get_transact_count() == 1);
+  return (t_state.client_info.is_transparent && ua_txn->is_transparent_passthrough_allowed() && ua_txn->is_first_transaction());
 }
 
 inline int64_t

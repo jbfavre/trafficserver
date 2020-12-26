@@ -26,7 +26,7 @@ This plugin implements the ESI specification.
 Specification
 =============
 
-Supportted ESI tags:
+Supported ESI tags:
 
 ::
 
@@ -98,14 +98,14 @@ And inside handler.conf you can provide the list of cookie name that is allowed.
 
 ::
 
-    whitelistCookie A
-    whitelistCookie LOGIN
+    allowlistCookie A
+    allowlistCookie LOGIN
 
 We can also allow all cookie for HTTP_COOKIE variable by using a wildcard character. e.g.
 
 ::
 
-    whitelistCookie *
+    allowlistCookie *
 
 4. We need a mapping for origin server response that contains the ESI markup. Assume that the ATS server is abc.com. And your origin server is xyz.com and the response containing ESI markup is http://xyz.com/esi.php. We will need
    the following line in /usr/local/etc/trafficserver/remap.config
@@ -152,8 +152,8 @@ Useful Note
 
 1. You can provide proper cache control header and the ESI response and ESI include response can be cached separately.
    It is extremely useful for rendering page with multiple modules. The page layout can be a ESI response with multiple
-   ESI include include, each for different module. The page layour ESI response can be cached and each individual ESI
-   include can also be cached with different duration.
+   ESI includes, each for a different module. The page layout ESI response can be cached and each individual ESI
+   included can also be cached with a different duration.
 
 2. You should run the plugin without using "packed node support" because it is not fully tested.
 

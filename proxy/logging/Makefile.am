@@ -34,7 +34,7 @@ AM_CPPFLAGS += \
 
 EXTRA_DIST = LogStandalone.cc
 
-noinst_LIBRARIES = liblogging.a liblogcollation.a
+noinst_LIBRARIES = liblogging.a
 
 liblogging_a_SOURCES = \
 	Log.cc \
@@ -56,41 +56,68 @@ liblogging_a_SOURCES = \
 	LogFilter.h \
 	LogFormat.cc \
 	LogFormat.h \
-	LogHost.cc \
-	LogHost.h \
 	LogLimits.h \
 	LogObject.cc \
 	LogObject.h \
-	LogSock.cc \
-	LogSock.h \
 	LogUtils.cc \
 	LogUtils.h \
+	RolledLogDeleter.cc \
+	RolledLogDeleter.h \
 	YamlLogConfig.cc \
 	YamlLogConfigDecoders.cc \
 	YamlLogConfig.h
 
-liblogcollation_a_SOURCES = \
-	LogCollationAccept.cc \
-	LogCollationAccept.h \
-	LogCollationBase.h \
-	LogCollationClientSM.cc \
-	LogCollationClientSM.h \
-	LogCollationHostSM.cc \
-	LogCollationHostSM.h
-
 check_PROGRAMS = \
-	test_LogUtils
+	test_LogUtils \
+	test_LogUtils2 \
+	test_RolledLogDeleter
 
 TESTS = \
-	test_LogUtils
+	test_LogUtils \
+	test_LogUtils2 \
+	test_RolledLogDeleter
+
+test_LogUtils_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-DTEST_LOG_UTILS
+
+test_LogUtils_SOURCES = \
+	test_LogUtils.cc
 
 test_LogUtils_LDADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a
 
-test_LogUtils_SOURCES = \
-	test_LogUtils.cc
+test_LogUtils2_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-DTEST_LOG_UTILS \
+	-I$(abs_top_srcdir)/tests/include
 
-clang-tidy-local: $(liblogging_a_SOURCES) $(liblogcollation_a_SOURCES) $(EXTRA_DIST)
+test_LogUtils2_SOURCES = \
+	LogUtils.cc \
+	unit-tests/BufferWriterFormat.cc \
+	unit-tests/test_LogUtils2.cc
+
+test_LogUtils2_LDADD = \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a
+
+test_RolledLogDeleter_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-DTEST_LOG_UTILS \
+	-I$(abs_top_srcdir)/tests/include
+
+test_RolledLogDeleter_SOURCES = \
+	RolledLogDeleter.cc \
+	LogUtils.cc \
+	unit-tests/test_RolledLogDeleter.cc
+
+test_RolledLogDeleter_LDADD = \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a
+
+clang-tidy-local: $(liblogging_a_SOURCES) $(EXTRA_DIST)
 	$(CXX_Clang_Tidy)

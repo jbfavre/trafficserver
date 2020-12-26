@@ -78,13 +78,13 @@ test_libhttp2_LDADD = \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	@LIBTCL@ \
 	@HWLOC_LIBS@
 
 test_libhttp2_CPPFLAGS = $(AM_CPPFLAGS)\
 	-I$(abs_top_srcdir)/tests/include
 
 test_libhttp2_SOURCES = \
+	unit_tests/test_HTTP2.cc \
 	unit_tests/test_Http2Frame.cc \
 	unit_tests/main.cc
 
@@ -120,7 +120,6 @@ test_HPACK_LDADD = \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	@LIBTCL@ \
 	@HWLOC_LIBS@
 
 test_HPACK_SOURCES = \

@@ -22,8 +22,6 @@
 #include "ts/ts.h"
 #include "ts/remap.h"
 
-#include "tscore/ink_atomic.h"
-
 #include "parser.h"
 #include "ruleset.h"
 #include "resources.h"
@@ -43,13 +41,13 @@ initGeoIP()
 {
   GeoIPDBTypes dbs[] = {GEOIP_COUNTRY_EDITION, GEOIP_COUNTRY_EDITION_V6, GEOIP_ASNUM_EDITION, GEOIP_ASNUM_EDITION_V6};
 
-  for (unsigned i = 0; i < sizeof(dbs) / sizeof(dbs[0]); ++i) {
-    if (!gGeoIP[dbs[i]] && GeoIP_db_avail(dbs[i])) {
+  for (auto &db : dbs) {
+    if (!gGeoIP[db] && GeoIP_db_avail(db)) {
       // GEOIP_STANDARD seems to break threaded apps...
-      gGeoIP[dbs[i]] = GeoIP_open_type(dbs[i], GEOIP_MMAP_CACHE);
+      gGeoIP[db] = GeoIP_open_type(db, GEOIP_MMAP_CACHE);
 
-      char *db_info = GeoIP_database_info(gGeoIP[dbs[i]]);
-      TSDebug(PLUGIN_NAME, "initialized GeoIP-DB[%d] %s", dbs[i], db_info);
+      char *db_info = GeoIP_database_info(gGeoIP[db]);
+      TSDebug(PLUGIN_NAME, "initialized GeoIP-DB[%d] %s", db, db_info);
       free(db_info);
     }
   }
@@ -236,7 +234,7 @@ RulesConfig::parse_config(const std::string &fname, TSHttpHookID default_hook)
         }
       }
     } catch (std::runtime_error &e) {
-      TSError("[%s] header_rewrite configuration exception: %s", PLUGIN_NAME, e.what());
+      TSError("[%s] header_rewrite configuration exception: %s in file: %s", PLUGIN_NAME, e.what(), fname.c_str());
       delete rule;
       return false;
     }
@@ -339,7 +337,7 @@ TSPluginInit(int argc, const char *argv[])
     // just appended to the configurations.
     TSDebug(PLUGIN_NAME, "Loading global configuration file %s", argv[i]);
     if (conf->parse_config(argv[i], TS_HTTP_READ_RESPONSE_HDR_HOOK)) {
-      TSDebug(PLUGIN_NAME, "Succesfully loaded global config file %s", argv[i]);
+      TSDebug(PLUGIN_NAME, "Successfully loaded global config file %s", argv[i]);
       got_config = true;
     } else {
       TSError("[header_rewrite] failed to parse configuration file %s", argv[i]);
@@ -352,7 +350,7 @@ TSPluginInit(int argc, const char *argv[])
 
     for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {
       if (conf->rule(i)) {
-        TSDebug(PLUGIN_NAME, "Adding global ruleset to hook=%s", TSHttpHookNameLookup((TSHttpHookID)i));
+        TSDebug(PLUGIN_NAME, "Adding global ruleset to hook=%s", TSHttpHookNameLookup(static_cast<TSHttpHookID>(i)));
         TSHttpHookAdd(static_cast<TSHttpHookID>(i), contp);
       }
     }
@@ -410,7 +408,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
       delete conf;
       return TS_ERROR;
     } else {
-      TSDebug(PLUGIN_NAME, "Succesfully loaded remap config file %s", argv[i]);
+      TSDebug(PLUGIN_NAME, "Successfully loaded remap config file %s", argv[i]);
     }
   }
 
@@ -418,7 +416,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
   if (TSIsDebugTagSet(PLUGIN_NAME)) {
     for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {
       if (conf->rule(i)) {
-        TSDebug(PLUGIN_NAME, "Adding remap ruleset to hook=%s", TSHttpHookNameLookup((TSHttpHookID)i));
+        TSDebug(PLUGIN_NAME, "Adding remap ruleset to hook=%s", TSHttpHookNameLookup(static_cast<TSHttpHookID>(i)));
       }
     }
   }
@@ -453,7 +451,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {
     if (conf->rule(i)) {
       TSHttpTxnHookAdd(rh, static_cast<TSHttpHookID>(i), conf->continuation());
-      TSDebug(PLUGIN_NAME, "Added remapped TXN hook=%s", TSHttpHookNameLookup((TSHttpHookID)i));
+      TSDebug(PLUGIN_NAME, "Added remapped TXN hook=%s", TSHttpHookNameLookup(static_cast<TSHttpHookID>(i)));
     }
   }
 

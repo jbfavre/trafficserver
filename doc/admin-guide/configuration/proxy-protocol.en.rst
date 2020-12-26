@@ -44,13 +44,13 @@ Proxy Protocol on a port.  Once enabled, all incoming requests must be prefaced
 with the PROXY v1 header.  Any request not preface by this header will be
 dropped.
 
-As a security measure, an optional whitelist of trusted IP addresses may be
-configured with :ts:cv:`proxy.config.http.proxy_protocol_whitelist`.
+As a security measure, an optional list of trusted IP addresses may be
+configured with :ts:cv:`proxy.config.http.proxy_protocol_allowlist`.
 
    .. important::
 
-       If the whitelist is configured, requests will only be accepted from these
-       IP addressses and must be prefaced with the PROXY v1 header.
+       If the allowlist is configured, requests will only be accepted from these
+       IP addresses and must be prefaced with the PROXY v1 header.
 
 See :ts:cv:`proxy.config.http.insert_forwarded` for configuration information.
 Detection of the PROXY protocol header is automatic.  If the PROXY header
@@ -81,7 +81,7 @@ Server would see the connection originating from |TS| at ``10.0.0.2``:
 If the Load Balancer has the Proxy Protocol enabled, requests sent through the
 Load Balancer will be preceded with the PROXY header.  |TS| will detect the
 PROXY header and transform that into the Forwarded: HTTP header if configured to
-insert the Forwarded: header with the ``for`` paramter.  In the example above,
+insert the Forwarded: header with the ``for`` parameter.  In the example above,
 if the client initiated a TLS connection, the Web Server can use the Forwarded:
 header to determine the TLS connection originated from the client at ``192.168.1.100``:
 

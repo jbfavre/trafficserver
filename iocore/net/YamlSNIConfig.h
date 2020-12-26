@@ -23,40 +23,67 @@
 
 #include <vector>
 #include <string>
+#include <optional>
+#include <memory>
 
-#include "tsconfig/Errata.h"
+#include "tscore/Errata.h"
 
-constexpr char TS_fqdn[]                  = "fqdn";
-constexpr char TS_disable_H2[]            = "disable_h2";
-constexpr char TS_verify_client[]         = "verify_client";
-constexpr char TS_tunnel_route[]          = "tunnel_route";
-constexpr char TS_verify_origin_server[]  = "verify_origin_server";
-constexpr char TS_client_cert[]           = "client_cert";
-constexpr char TS_ip_allow[]              = "ip_allow";
-constexpr char TS_valid_tls_versions_in[] = "valid_tls_versions_in";
+#define TSDECL(id) constexpr char TS_##id[] = #id
+TSDECL(fqdn);
+TSDECL(disable_h2);
+TSDECL(verify_client);
+TSDECL(verify_client_ca_certs);
+TSDECL(tunnel_route);
+TSDECL(forward_route);
+TSDECL(partial_blind_route);
+TSDECL(verify_server_policy);
+TSDECL(verify_server_properties);
+TSDECL(verify_origin_server);
+TSDECL(client_cert);
+TSDECL(client_key);
+TSDECL(ip_allow);
+TSDECL(valid_tls_versions_in);
+TSDECL(http2);
+TSDECL(host_sni_policy);
+#undef TSDECL
 
 const int start = 0;
 struct YamlSNIConfig {
   enum class Action {
     disable_h2 = start,
     verify_client,
-    tunnel_route,         // blind tunnel action
-    verify_origin_server, // this applies to server side vc only
-    client_cert
-
+    verify_client_ca_certs,
+    tunnel_route,             // blind tunnel action
+    forward_route,            // decrypt data and then blind tunnel action
+    partial_blind_route,      // decrypt data; partial blind routing
+    verify_server_policy,     // this applies to server side vc only
+    verify_server_properties, // this applies to server side vc only
+    client_cert,
+    h2,             // this applies to client side only
+    host_sni_policy // Applies to client side only
   };
   enum class Level { NONE = 0, MODERATE, STRICT };
+  enum class Policy : uint8_t { DISABLED = 0, PERMISSIVE, ENFORCED, UNSET };
+  enum class Property : uint8_t { NONE = 0, SIGNATURE_MASK = 0x1, NAME_MASK = 0x2, ALL_MASK = 0x3, UNSET };
   enum class TLSProtocol : uint8_t { TLSv1 = 0, TLSv1_1, TLSv1_2, TLSv1_3, TLS_MAX = TLSv1_3 };
+  enum class Control : uint8_t { NONE = 0, ENABLE, DISABLE };
 
   YamlSNIConfig() {}
 
   struct Item {
     std::string fqdn;
-    bool disable_h2             = false;
-    uint8_t verify_client_level = 0;
+    std::optional<bool> offer_h2; // Has no value by default, so do not initialize!
+    uint8_t verify_client_level = 255;
+    std::string verify_client_ca_file;
+    std::string verify_client_ca_dir;
+    uint8_t host_sni_policy = 255;
     std::string tunnel_destination;
-    uint8_t verify_origin_server = 0;
+    bool tunnel_decrypt               = false;
+    bool tls_upstream                 = false;
+    Policy verify_server_policy       = Policy::UNSET;
+    Property verify_server_properties = Property::UNSET;
     std::string client_cert;
+    std::string client_key;
     std::string ip_allow;
     bool protocol_unset = true;
     unsigned long protocol_mask;

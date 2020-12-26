@@ -33,7 +33,7 @@
 #include "tscore/ink_config.h"
 #include "tscore/MatcherUtils.h"
 #include "tscore/Tokenizer.h"
-#include "Main.h"
+#include "tscore/ts_file.h"
 #include "ProxyConfig.h"
 #include "ControlMatcher.h"
 #include "CacheControl.h"
@@ -157,7 +157,7 @@ HostMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
   bool r;
 
   // Check to see if there is any work to do before makeing
-  //   the stirng copy
+  //   the string copy
   if (num_el <= 0) {
     return;
   }
@@ -235,7 +235,6 @@ HostMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
 template <class Data, class MatchResult>
 UrlMatcher<Data, MatchResult>::UrlMatcher(const char *name, const char *filename) : BaseMatcher<Data>(name, filename)
 {
-  url_ht = ink_hash_table_create(InkHashTableKeyType_String);
 }
 
 //
@@ -243,7 +242,6 @@ UrlMatcher<Data, MatchResult>::UrlMatcher(const char *name, const char *filename
 //
 template <class Data, class MatchResult> UrlMatcher<Data, MatchResult>::~UrlMatcher()
 {
-  ink_hash_table_destroy(url_ht);
   for (int i = 0; i < num_el; i++) {
     ats_free(url_str[i]);
   }
@@ -294,7 +292,6 @@ UrlMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
 {
   Data *cur_d;
   char *pattern;
-  int *value;
   Result error = Result::ok();
 
   // Make sure space has been allocated
@@ -309,7 +306,7 @@ UrlMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
   ink_assert(line_info->dest_entry < MATCHER_MAX_TOKENS);
   ink_assert(pattern != nullptr);
 
-  if (ink_hash_table_lookup(url_ht, pattern, (void **)&value)) {
+  if (url_ht.find(pattern) != url_ht.end()) {
     return Result::failure("%s url expression error (have exist) at line %d position", matcher_name, line_info->line_num);
   }
 
@@ -323,7 +320,7 @@ UrlMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
   if (error.failed()) {
     url_str[num_el]   = ats_strdup(pattern);
     url_value[num_el] = num_el;
-    ink_hash_table_insert(url_ht, url_str[num_el], (void *)&url_value[num_el]);
+    url_ht.emplace(url_str[num_el], url_value[num_el]);
     num_el++;
   }
 
@@ -341,7 +338,6 @@ void
 UrlMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
 {
   char *url_str;
-  int *value;
 
   // Check to see there is any work to before we copy the
   //   URL
@@ -357,9 +353,9 @@ UrlMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
     url_str = ats_strdup("");
   }
 
-  if (ink_hash_table_lookup(url_ht, url_str, (void **)&value)) {
-    Debug("matcher", "%s Matched %s with url at line %d", matcher_name, url_str, data_array[*value].line_num);
-    data_array[*value].UpdateMatch(result, rdata);
+  if (auto it = url_ht.find(url_str); it != url_ht.end()) {
+    Debug("matcher", "%s Matched %s with url at line %d", matcher_name, url_str, data_array[it->second].line_num);
+    data_array[it->second].UpdateMatch(result, rdata);
   }
 
   ats_free(url_str);
@@ -412,7 +408,7 @@ RegexMatcher<Data, MatchResult>::AllocateSpace(int num_entries)
   // Should not have been allocated before
   ink_assert(array_len == -1);
 
-  re_array = (pcre **)ats_malloc(sizeof(pcre *) * num_entries);
+  re_array = static_cast<pcre **>(ats_malloc(sizeof(pcre *) * num_entries));
   memset(re_array, 0, sizeof(pcre *) * num_entries);
 
   data_array = new Data[num_entries];
@@ -504,10 +500,10 @@ RegexMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
   if (url_str == nullptr) {
     url_str = ats_strdup("");
   }
+
   // INKqa12980
   // The function unescapifyStr() is already called in
   // HttpRequestData::get_string(); therefore, no need to call again here.
-  // unescapifyStr(url_str);
 
   for (int i = 0; i < num_el; i++) {
     r = pcre_exec(re_array[i], nullptr, url_str, strlen(url_str), 0, 0, nullptr, 0);
@@ -667,11 +663,11 @@ template <class Data, class MatchResult>
 void
 IpMatcher<Data, MatchResult>::Print()
 {
-  printf("\tIp Matcher with %d elements, %zu ranges.\n", num_el, ip_map.getCount());
-  for (IpMap::iterator spot(ip_map.begin()), limit(ip_map.end()); spot != limit; ++spot) {
+  printf("\tIp Matcher with %d elements, %zu ranges.\n", num_el, ip_map.count());
+  for (auto &spot : ip_map) {
     char b1[INET6_ADDRSTRLEN], b2[INET6_ADDRSTRLEN];
-    printf("\tRange %s - %s ", ats_ip_ntop(spot->min(), b1, sizeof b1), ats_ip_ntop(spot->max(), b2, sizeof b2));
-    static_cast<Data *>(spot->data())->Print();
+    printf("\tRange %s - %s ", ats_ip_ntop(spot.min(), b1, sizeof b1), ats_ip_ntop(spot.max(), b2, sizeof b2));
+    static_cast<Data *>(spot.data())->Print();
   }
 }
 
@@ -768,7 +764,7 @@ ControlMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result
   }
 }
 
-// int ControlMatcher::BuildTable() {
+// int ControlMatcher::BuildTable()
 //
 //    Reads the cache.config file and build the records array
 //      from it
@@ -800,6 +796,7 @@ ControlMatcher<Data, MatchResult>::BuildTableFromString(char *file_buf)
     // We have an empty file
     return 0;
   }
+
   // First get the number of entries
   tmp = bufTok.iterFirst(&i_state);
   while (tmp != nullptr) {
@@ -813,8 +810,8 @@ ControlMatcher<Data, MatchResult>::BuildTableFromString(char *file_buf)
     if (*tmp != '#' && *tmp != '\0') {
       const char *errptr;
 
-      current = (matcher_line *)ats_malloc(sizeof(matcher_line));
-      errptr  = parseConfigLine((char *)tmp, current, config_tags);
+      current = static_cast<matcher_line *>(ats_malloc(sizeof(matcher_line)));
+      errptr  = parseConfigLine(const_cast<char *>(tmp), current, config_tags);
 
       if (errptr != nullptr) {
         if (config_tags != &socks_server_tags) {
@@ -916,8 +913,7 @@ ControlMatcher<Data, MatchResult>::BuildTableFromString(char *file_buf)
         Result::failure("%s discarding %s entry with unknown type at line %d", matcher_name, config_file_path, current->line_num);
     }
 
-    // Check to see if there was an error in creating
-    //   the NewEntry
+    // Check to see if there was an error in creating the NewEntry
     if (error.failed()) {
       SignalError(error.message(), alarmAlready);
     }
@@ -940,47 +936,24 @@ template <class Data, class MatchResult>
 int
 ControlMatcher<Data, MatchResult>::BuildTable()
 {
-  // File I/O Locals
-  char *file_buf;
-  int ret;
-
-  file_buf = readIntoBuffer(config_file_path, matcher_name, nullptr);
-
-  if (file_buf == nullptr) {
-    return 1;
+  std::error_code ec;
+  std::string content{ts::file::load(ts::file::path{config_file_path}, ec)};
+  if (ec) {
+    switch (ec.value()) {
+    case ENOENT:
+      Warning("ControlMatcher - Cannot open config file: %s - %s", config_file_path, strerror(ec.value()));
+      break;
+    default:
+      Error("ControlMatcher - %s failed to load: %s", config_file_path, strerror(ec.value()));
+      return 1;
+    }
   }
 
-  ret = BuildTableFromString(file_buf);
-  ats_free(file_buf);
-  return ret;
+  return BuildTableFromString(content.data());
 }
 
 /****************************************************************
  *    TEMPLATE INSTANTIATIONS GO HERE
- *
- *  We have to explicitly instantiate the templates so that
- *   everything works on with dec ccx, sun CC, and g++
- *
- *  Details on the different comipilers:
- *
- *  dec ccx: Does not seem to instantiate anything automatically
- *         so it needs all templates manually instantiated
- *
- *  sun CC: Automatic instantiation works but since we make
- *         use of the templates in other files, instantiation
- *         only occurs when those files are compiled, breaking
- *         the dependency system.  Explict instantiation
- *         in this file causes the templates to be reinstantiated
- *         when this file changes.
- *
- *         Also, does not give error messages about template
- *           compliation problems.  Requires the -verbose=template
- *           flage to error messages
- *
- *  g++: Requires instantiation to occur in the same file as the
- *         the implementation.  Instantiating ControlMatcher
- *         automatically instatiatiates the other templates since
- *         ControlMatcher makes use of them
  *
  ****************************************************************/
 

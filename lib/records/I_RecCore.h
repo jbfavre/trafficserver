@@ -23,13 +23,15 @@
 
 #pragma once
 
+#include <functional>
+
 #include "tscore/Diags.h"
 
 #include "I_RecDefs.h"
 #include "I_RecAlarms.h"
 #include "I_RecSignals.h"
 #include "I_RecEvents.h"
-#include <functional>
+#include "tscpp/util/MemSpan.h"
 
 struct RecRecord;
 
@@ -41,25 +43,24 @@ int RecSetDiags(Diags *diags);
 //-------------------------------------------------------------------------
 // Config File Parsing
 //-------------------------------------------------------------------------
-typedef void (*RecConfigEntryCallback)(RecT rec_type, RecDataT data_type, const char *name, const char *value, RecSourceT source,
-                                       bool inc_version);
+typedef void (*RecConfigEntryCallback)(RecT rec_type, RecDataT data_type, const char *name, const char *value, RecSourceT source);
 
-void RecConfigFileInit(void);
-int RecConfigFileParse(const char *path, RecConfigEntryCallback handler, bool inc_version);
+void RecConfigFileInit();
+int RecConfigFileParse(const char *path, RecConfigEntryCallback handler);
 
-// Return a copy of the system's configuration directory, taking proxy.config.config_dir into account. The
+// Return a copy of the system's configuration directory.
 std::string RecConfigReadConfigDir();
 
-// Return a copy of the system's local state directory, taking proxy.config.local_state_dir into account. The
+// Return a copy of the system's local state directory, taking proxy.config.local_state_dir into account.
 std::string RecConfigReadRuntimeDir();
 
-// Return a copy of the system's log directory, taking proxy.config.log.logfile_dir into account. The caller
+// Return a copy of the system's log directory, taking proxy.config.log.logfile_dir into account.
 std::string RecConfigReadLogDir();
 
-// Return a copy of the system's bin directory, taking proxy.config.bin_path into account. The caller MUST
+// Return a copy of the system's bin directory, taking proxy.config.bin_path into account.
 std::string RecConfigReadBinDir();
 
-// Return a copy of the system's plugin directory, taking proxy.config.plugin.plugin_dir into account. The caller MUST
+// Return a copy of the system's plugin directory, taking proxy.config.plugin.plugin_dir into account.
 std::string RecConfigReadPluginDir();
 
 // Return a copy of a configuration file that is relative to sysconfdir. The relative path to the configuration
@@ -132,51 +133,48 @@ RecErrT RecRegisterRawStatUpdateFunc(const char *name, RecRawStatBlock *rsb, int
 //-------------------------------------------------------------------------
 
 // WARNING!  Avoid deadlocks by calling the following set/get calls
-// with the appropiate locking conventions.  If you're calling these
+// with the appropriate locking conventions.  If you're calling these
 // functions from a configuration update callback (RecConfigUpdateCb),
 // be sure to set 'lock' to 'false' as the hash-table rwlock has
 // already been taken out for the callback.
 
 // RecSetRecordConvert -> WebMgmtUtils.cc::varSetFromStr()
-RecErrT RecSetRecordConvert(const char *name, const RecString rec_string, RecSourceT source, bool lock = true,
-                            bool inc_version = true);
-RecErrT RecSetRecordInt(const char *name, RecInt rec_int, RecSourceT source, bool lock = true, bool inc_version = true);
-RecErrT RecSetRecordFloat(const char *name, RecFloat rec_float, RecSourceT source, bool lock = true, bool inc_version = true);
-RecErrT RecSetRecordString(const char *name, const RecString rec_string, RecSourceT source, bool lock = true,
-                           bool inc_version = true);
-RecErrT RecSetRecordCounter(const char *name, RecCounter rec_counter, RecSourceT source, bool lock = true, bool inc_version = true);
+RecErrT RecSetRecordConvert(const char *name, const RecString rec_string, RecSourceT source, bool lock = true);
+RecErrT RecSetRecordInt(const char *name, RecInt rec_int, RecSourceT source, bool lock = true);
+RecErrT RecSetRecordFloat(const char *name, RecFloat rec_float, RecSourceT source, bool lock = true);
+RecErrT RecSetRecordString(const char *name, const RecString rec_string, RecSourceT source, bool lock = true);
+RecErrT RecSetRecordCounter(const char *name, RecCounter rec_counter, RecSourceT source, bool lock = true);
 
-int RecGetRecordInt(const char *name, RecInt *rec_int, bool lock = true);
-int RecGetRecordFloat(const char *name, RecFloat *rec_float, bool lock = true);
-int RecGetRecordString(const char *name, char *buf, int buf_len, bool lock = true);
-int RecGetRecordString_Xmalloc(const char *name, RecString *rec_string, bool lock = true);
-int RecGetRecordCounter(const char *name, RecCounter *rec_counter, bool lock = true);
+RecErrT RecGetRecordInt(const char *name, RecInt *rec_int, bool lock = true);
+RecErrT RecGetRecordFloat(const char *name, RecFloat *rec_float, bool lock = true);
+RecErrT RecGetRecordString(const char *name, char *buf, int buf_len, bool lock = true);
+RecErrT RecGetRecordString_Xmalloc(const char *name, RecString *rec_string, bool lock = true);
+RecErrT RecGetRecordCounter(const char *name, RecCounter *rec_counter, bool lock = true);
 // Convenience to allow us to treat the RecInt as a single byte internally
-int RecGetRecordByte(const char *name, RecByte *rec_byte, bool lock = true);
+RecErrT RecGetRecordByte(const char *name, RecByte *rec_byte, bool lock = true);
 // Convenience to allow us to treat the RecInt as a bool internally
-int RecGetRecordBool(const char *name, RecBool *rec_byte, bool lock = true);
+RecErrT RecGetRecordBool(const char *name, RecBool *rec_byte, bool lock = true);
 
 //------------------------------------------------------------------------
 // Record Attributes Reading
 //------------------------------------------------------------------------
 typedef void (*RecLookupCallback)(const RecRecord *, void *);
 
-int RecLookupRecord(const char *name, RecLookupCallback callback, void *data, bool lock = true);
-int RecLookupMatchingRecords(unsigned rec_type, const char *match, RecLookupCallback callback, void *data, bool lock = true);
+RecErrT RecLookupRecord(const char *name, RecLookupCallback callback, void *data, bool lock = true);
+RecErrT RecLookupMatchingRecords(unsigned rec_type, const char *match, RecLookupCallback callback, void *data, bool lock = true);
 
-int RecGetRecordType(const char *name, RecT *rec_type, bool lock = true);
-int RecGetRecordDataType(const char *name, RecDataT *data_type, bool lock = true);
-int RecGetRecordPersistenceType(const char *name, RecPersistT *persist_type, bool lock = true);
-int RecGetRecordOrderAndId(const char *name, int *order, int *id, bool lock = true);
+RecErrT RecGetRecordType(const char *name, RecT *rec_type, bool lock = true);
+RecErrT RecGetRecordDataType(const char *name, RecDataT *data_type, bool lock = true);
+RecErrT RecGetRecordPersistenceType(const char *name, RecPersistT *persist_type, bool lock = true);
+RecErrT RecGetRecordOrderAndId(const char *name, int *order, int *id, bool lock = true, bool check_sync_cb = false);
+RecErrT RecGetRecordUpdateType(const char *name, RecUpdateT *update_type, bool lock = true);
+RecErrT RecGetRecordCheckType(const char *name, RecCheckT *check_type, bool lock = true);
+RecErrT RecGetRecordCheckExpr(const char *name, char **check_expr, bool lock = true);
+RecErrT RecGetRecordDefaultDataString_Xmalloc(char *name, char **buf, bool lock = true);
+RecErrT RecGetRecordSource(const char *name, RecSourceT *source, bool lock = true);
 
-int RecGetRecordUpdateType(const char *name, RecUpdateT *update_type, bool lock = true);
-int RecGetRecordCheckType(const char *name, RecCheckT *check_type, bool lock = true);
-int RecGetRecordCheckExpr(const char *name, char **check_expr, bool lock = true);
-int RecGetRecordDefaultDataString_Xmalloc(char *name, char **buf, bool lock = true);
-int RecGetRecordSource(const char *name, RecSourceT *source, bool lock = true);
-
-int RecGetRecordAccessType(const char *name, RecAccessT *secure, bool lock = true);
-int RecSetRecordAccessType(const char *name, RecAccessT secure, bool lock = true);
+RecErrT RecGetRecordAccessType(const char *name, RecAccessT *secure, bool lock = true);
+RecErrT RecSetRecordAccessType(const char *name, RecAccessT secure, bool lock = true);
 
 //------------------------------------------------------------------------
 // Signal and Alarms
@@ -306,5 +304,5 @@ RecErrT RecSetSyncRequired(char *name, bool lock = true);
 //------------------------------------------------------------------------
 // Manager Callback
 //------------------------------------------------------------------------
-typedef void *(*RecManagerCb)(void *opaque_cb_data, char *data_raw, int data_len);
-int RecRegisterManagerCb(int _signal, RecManagerCb _fn, void *_data = nullptr);
+using RecManagerCb = std::function<void(ts::MemSpan<void>)>;
+int RecRegisterManagerCb(int _signal, RecManagerCb const &_fn);

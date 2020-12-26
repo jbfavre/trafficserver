@@ -16,8 +16,8 @@
   limitations under the License.
 */
 
-#include "tscore/ink_platform.h"
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include "ts_lua_util.h"
 
 static int ts_lua_get_process_id(lua_State *L);
@@ -211,7 +211,7 @@ ts_lua_schedule(lua_State *L)
   nci->contp = contp;
   nci->mutex = ci->mutex;
 
-  TSContSchedule(contp, sec * 1000, entry);
+  TSContScheduleOnPool(contp, sec * 1000, entry);
 
   return 0;
 }
@@ -287,7 +287,7 @@ ts_lua_sleep(lua_State *L)
   }
 
   contp  = TSContCreate(ts_lua_sleep_handler, ci->mutex);
-  action = TSContSchedule(contp, sec * 1000, TS_THREAD_POOL_DEFAULT);
+  action = TSContScheduleOnPool(contp, sec * 1000, TS_THREAD_POOL_NET);
 
   ai = ts_lua_async_create_item(contp, ts_lua_sleep_cleanup, (void *)action, ci);
   TSContDataSet(contp, ai);

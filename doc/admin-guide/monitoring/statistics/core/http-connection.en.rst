@@ -58,6 +58,8 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.current_client_transactions integer
    :type: gauge
 
+   Represents the current number of HTTP/1.0 and HTTP/1.1 transactions from client to the |TS|.
+
 .. ts:stat:: global proxy.process.http.current_server_connections integer
    :type: gauge
 
@@ -134,7 +136,7 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.origin_connections_throttled_out integer
    :type: counter
 
-This tracks the number of origin connections denied due to being over the :ts:cv:`proxy.config.http.origin_max_connections` limit.
+   This tracks the number of origin connections denied due to being over the :ts:cv:`proxy.config.http.per_server.connection.max` limit.
 
 
 HTTP/2

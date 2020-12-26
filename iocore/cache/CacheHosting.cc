@@ -26,6 +26,8 @@
 #include "tscore/HostLookup.h"
 #include "tscore/Tokenizer.h"
 #include "tscore/Regression.h"
+#include "tscore/Filenames.h"
+#include "tscore/ts_file.h"
 
 extern int gndisks;
 
@@ -66,7 +68,7 @@ CacheHostMatcher::Print()
 void
 CacheHostMatcher::PrintFunc(void *opaque_data)
 {
-  CacheHostRecord *d = (CacheHostRecord *)opaque_data;
+  CacheHostRecord *d = static_cast<CacheHostRecord *>(opaque_data);
   d->Print();
 }
 
@@ -100,8 +102,8 @@ CacheHostMatcher::Match(const char *rdata, int rlen, CacheHostResult *result)
   CacheHostRecord *data_ptr;
   bool r;
 
-  // Check to see if there is any work to do before makeing
-  //   the stirng copy
+  // Check to see if there is any work to do before making
+  //   the string copy
   if (num_el <= 0) {
     return;
   }
@@ -109,7 +111,7 @@ CacheHostMatcher::Match(const char *rdata, int rlen, CacheHostResult *result)
   if (rlen == 0) {
     return;
   }
-  char *data = (char *)ats_malloc(rlen + 1);
+  char *data = static_cast<char *>(ats_malloc(rlen + 1));
   memcpy(data, rdata, rlen);
   *(data + rlen) = '\0';
   HostLookupState s;
@@ -118,7 +120,7 @@ CacheHostMatcher::Match(const char *rdata, int rlen, CacheHostResult *result)
 
   while (r == true) {
     ink_assert(opaque_ptr != nullptr);
-    data_ptr = (CacheHostRecord *)opaque_ptr;
+    data_ptr = static_cast<CacheHostRecord *>(opaque_ptr);
     data_ptr->UpdateMatch(result, data);
 
     r = host_lookup->MatchNext(&s, &opaque_ptr);
@@ -229,7 +231,7 @@ int
 CacheHostTable::config_callback(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
                                 RecData /* data ATS_UNUSED */, void *cookie)
 {
-  CacheHostTable **ppt = (CacheHostTable **)cookie;
+  CacheHostTable **ppt = static_cast<CacheHostTable **>(cookie);
   eventProcessor.schedule_imm(new CacheHostTableConfig(ppt));
   return 0;
 }
@@ -244,6 +246,8 @@ int fstat_wrapper(int fd, struct stat *s);
 int
 CacheHostTable::BuildTableFromString(const char *config_file_path, char *file_buf)
 {
+  Note("%s loading ...", ts::filename::HOSTING);
+
   // Table build locals
   Tokenizer bufTok("\n");
   tok_iter_state i_state;
@@ -279,8 +283,8 @@ CacheHostTable::BuildTableFromString(const char *config_file_path, char *file_bu
     }
 
     if (*tmp != '#' && *tmp != '\0') {
-      current = (matcher_line *)ats_malloc(sizeof(matcher_line));
-      errPtr  = parseConfigLine((char *)tmp, current, &config_tags);
+      current = static_cast<matcher_line *>(ats_malloc(sizeof(matcher_line)));
+      errPtr  = parseConfigLine(const_cast<char *>(tmp), current, &config_tags);
 
       if (errPtr != nullptr) {
         RecSignalWarning(REC_SIGNAL_CONFIG_ERROR, "%s discarding %s entry at line %d : %s", matcher_name, config_file_path,
@@ -323,6 +327,7 @@ CacheHostTable::BuildTableFromString(const char *config_file_path, char *file_bu
     if (gen_host_rec.Init(type)) {
       Warning("Problems encountered while initializing the Generic Volume");
     }
+    Note("%s finished loading", ts::filename::HOSTING);
     return 0;
   }
 
@@ -372,6 +377,8 @@ CacheHostTable::BuildTableFromString(const char *config_file_path, char *file_bu
     ats_free(last);
   }
 
+  Note("%s finished loading", ts::filename::HOSTING);
+
   if (!generic_rec_initd) {
     const char *cache_type = (type == CACHE_HTTP_TYPE) ? "http" : "mixt";
     RecSignalWarning(REC_SIGNAL_CONFIG_ERROR,
@@ -390,20 +397,22 @@ CacheHostTable::BuildTableFromString(const char *config_file_path, char *file_bu
 int
 CacheHostTable::BuildTable(const char *config_file_path)
 {
-  char *file_buf;
-  int ret;
+  std::error_code ec;
+  std::string content{ts::file::load(ts::file::path{config_file_path}, ec)};
 
-  file_buf = readIntoBuffer(config_file_path, matcher_name, nullptr);
-
-  if (file_buf == nullptr) {
-    Warning("Cannot read the config file: %s", config_file_path);
-    gen_host_rec.Init(type);
-    return 0;
+  if (ec) {
+    switch (ec.value()) {
+    case ENOENT:
+      Warning("Cannot open the config file: %s - %s", config_file_path, strerror(ec.value()));
+      break;
+    default:
+      Error("%s failed to load: %s", config_file_path, strerror(ec.value()));
+      gen_host_rec.Init(type);
+      return 0;
+    }
   }
 
-  ret = BuildTableFromString(config_file_path, file_buf);
-  ats_free(file_buf);
-  return ret;
+  return BuildTableFromString(config_file_path, content.data());
 }
 
 int
@@ -415,7 +424,7 @@ CacheHostRecord::Init(CacheType typ)
 
   num_vols = 0;
   type     = typ;
-  cp       = (CacheVol **)ats_malloc(cp_list_len * sizeof(CacheVol *));
+  cp       = static_cast<CacheVol **>(ats_malloc(cp_list_len * sizeof(CacheVol *)));
   memset(cp, 0, cp_list_len * sizeof(CacheVol *));
   num_cachevols    = 0;
   CacheVol *cachep = cp_list.head;
@@ -431,7 +440,7 @@ CacheHostRecord::Init(CacheType typ)
     RecSignalWarning(REC_SIGNAL_CONFIG_ERROR, "error: No volumes found for Cache Type %d", type);
     return -1;
   }
-  vols        = (Vol **)ats_malloc(num_vols * sizeof(Vol *));
+  vols        = static_cast<Vol **>(ats_malloc(num_vols * sizeof(Vol *)));
   int counter = 0;
   for (i = 0; i < num_cachevols; i++) {
     CacheVol *cachep1 = cp[i];
@@ -500,7 +509,7 @@ CacheHostRecord::Init(matcher_line *line_info, CacheType typ)
       }
       s = val;
       num_cachevols++;
-      cp = (CacheVol **)ats_malloc(num_cachevols * sizeof(CacheVol *));
+      cp = static_cast<CacheVol **>(ats_malloc(num_cachevols * sizeof(CacheVol *)));
       memset(cp, 0, num_cachevols * sizeof(CacheVol *));
       num_cachevols = 0;
       while (true) {
@@ -557,7 +566,7 @@ CacheHostRecord::Init(matcher_line *line_info, CacheType typ)
   if (!num_vols) {
     return -1;
   }
-  vols        = (Vol **)ats_malloc(num_vols * sizeof(Vol *));
+  vols        = static_cast<Vol **>(ats_malloc(num_vols * sizeof(Vol *)));
   int counter = 0;
   for (i = 0; i < num_cachevols; i++) {
     CacheVol *cachep = cp[i];
@@ -586,19 +595,29 @@ void
 ConfigVolumes::read_config_file()
 {
   ats_scoped_str config_path;
-  char *file_buf;
 
   config_path = RecConfigReadConfigPath("proxy.config.cache.volume_filename");
   ink_release_assert(config_path);
 
-  file_buf = readIntoBuffer(config_path, "[CacheVolition]", nullptr);
-  if (file_buf == nullptr) {
-    Warning("Cannot read the config file: %s", (const char *)config_path);
-    return;
+  Note("%s loading ...", ts::filename::VOLUME);
+
+  std::error_code ec;
+  std::string content{ts::file::load(ts::file::path{config_path}, ec)};
+
+  if (ec) {
+    switch (ec.value()) {
+    case ENOENT:
+      Warning("Cannot open the config file: %s - %s", (const char *)config_path, strerror(ec.value()));
+      break;
+    default:
+      Error("%s failed to load: %s", (const char *)config_path, strerror(ec.value()));
+      return;
+    }
   }
 
-  BuildListFromString(config_path, file_buf);
-  ats_free(file_buf);
+  BuildListFromString(config_path, content.data());
+  Note("volume.config finished loading");
+
   return;
 }
 
@@ -631,12 +650,13 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
     line_num++;
 
     char *end;
-    char *line_end    = nullptr;
-    const char *err   = nullptr;
-    int volume_number = 0;
-    CacheType scheme  = CACHE_NONE_TYPE;
-    int size          = 0;
-    int in_percent    = 0;
+    char *line_end        = nullptr;
+    const char *err       = nullptr;
+    int volume_number     = 0;
+    CacheType scheme      = CACHE_NONE_TYPE;
+    int size              = 0;
+    int in_percent        = 0;
+    bool ramcache_enabled = true;
 
     while (true) {
       // skip all blank spaces at beginning of line
@@ -651,7 +671,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
         break;
       }
 
-      end = (char *)tmp;
+      end = const_cast<char *>(tmp);
       while (*end && !isspace(*end)) {
         end++;
       }
@@ -664,7 +684,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
       }
       char *eq_sign;
 
-      eq_sign = (char *)strchr(tmp, '=');
+      eq_sign = const_cast<char *>(strchr(tmp, '='));
       if (!eq_sign) {
         err = "Unexpected end of line";
         break;
@@ -715,7 +735,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
           // added by YTS Team, yamsat for bug id 59632
           total += size;
           if (size > 100 || total > 100) {
-            err = "Total volume size added upto more than 100 percent, No volumes created";
+            err = "Total volume size added up to more than 100 percent, No volumes created";
             break;
           }
           // ends here
@@ -723,6 +743,18 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
           tmp++;
         } else {
           in_percent = 0;
+        }
+      } else if (strcasecmp(tmp, "ramcache") == 0) { // match ramcache
+        tmp += 9;
+        if (!strcasecmp(tmp, "false")) {
+          tmp += 5;
+          ramcache_enabled = false;
+        } else if (!strcasecmp(tmp, "true")) {
+          tmp += 4;
+          ramcache_enabled = true;
+        } else {
+          err = "Unexpected end of line";
+          break;
         }
       }
 
@@ -746,9 +778,10 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
       } else {
         configp->in_percent = false;
       }
-      configp->scheme = scheme;
-      configp->size   = size;
-      configp->cachep = nullptr;
+      configp->scheme           = scheme;
+      configp->size             = size;
+      configp->cachep           = nullptr;
+      configp->ramcache_enabled = ramcache_enabled;
       cp_queue.enqueue(configp);
       num_volumes++;
       if (scheme == CACHE_HTTP_TYPE) {
@@ -756,7 +789,8 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
       } else {
         ink_release_assert(!"Unexpected non-HTTP cache volume");
       }
-      Debug("cache_hosting", "added volume=%d, scheme=%d, size=%d percent=%d", volume_number, scheme, size, in_percent);
+      Debug("cache_hosting", "added volume=%d, scheme=%d, size=%d percent=%d, ramcache enabled=%d", volume_number, scheme, size,
+            in_percent, ramcache_enabled);
     }
 
     tmp = bufTok.iterNext(&i_state);
@@ -765,7 +799,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
   return;
 }
 
-/* Test the cache volumeing with different configurations */
+/* Test the cache volume with different configurations */
 #define MEGS_128 (128 * 1024 * 1024)
 #define ROUND_TO_VOL_SIZE(_x) (((_x) + (MEGS_128 - 1)) & ~(MEGS_128 - 1))
 extern CacheDisk **gdisks;
@@ -855,8 +889,8 @@ create_config(RegressionTest *t, int num)
       total_space += vol_blocks;
     }
 
-    // make sure we have atleast 1280 M bytes
-    if (total_space<(10 << 27)>> STORE_BLOCK_SHIFT) {
+    // make sure we have at least 1280 M bytes
+    if (total_space < ((10 << 27) >> STORE_BLOCK_SHIFT)) {
       rprintf(t, "Not enough space for 10 volume\n");
       return 0;
     }
@@ -1022,10 +1056,10 @@ execute_and_verify(RegressionTest *t)
     CacheDisk *d = gdisks[i];
     if (is_debug_tag_set("cache_hosting")) {
       Debug("cache_hosting", "Disk: %d: Vol Blocks: %u: Free space: %" PRIu64, i, d->header->num_diskvol_blks, d->free_space);
-      for (int j = 0; j < (int)d->header->num_volumes; j++) {
+      for (int j = 0; j < static_cast<int>(d->header->num_volumes); j++) {
         Debug("cache_hosting", "\tVol: %d Size: %" PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
       }
-      for (int j = 0; j < (int)d->header->num_diskvol_blks; j++) {
+      for (int j = 0; j < static_cast<int>(d->header->num_diskvol_blks); j++) {
         Debug("cache_hosting", "\tBlock No: %d Size: %" PRIu64 " Free: %u", d->header->vol_info[j].number,
               d->header->vol_info[j].len, d->header->vol_info[j].free);
       }

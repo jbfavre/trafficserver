@@ -23,9 +23,6 @@ Test.Summary = '''
 Tests that HEAD requests return proper responses
 '''
 
-Test.SkipUnless(Condition.HasProgram("grep", "grep needs to be installed on system for this test to work"))
-Test.SkipUnless(Condition.HasProgram("sed", "grep needs to be installed on system for this test to work"))
-
 ts = Test.MakeATSProcess("ts")
 
 HOST = 'www.example.test'
@@ -76,7 +73,7 @@ trhead200.Processes.Default.StartBefore(server, ready=When.PortOpen(server.Varia
 trhead200.StillRunningAfter = ts
 trhead200.StillRunningAfter = server
 
-trhead200.Processes.Default.Command = "python tcp_client.py 127.0.0.1 {0} {1} | grep -v '^Date: '| grep -v '^Server: ATS/'".\
+trhead200.Processes.Default.Command = "python3 tcp_client.py 127.0.0.1 {0} {1} | grep -v '^Date: '| grep -v '^Server: ATS/'".\
     format(ts.Variables.port, 'data/{0}_head_200.txt'.format(HOST))
 trhead200.Processes.Default.TimeOut = 5  # seconds
 trhead200.Processes.Default.ReturnCode = 0
@@ -89,7 +86,7 @@ trget200.StillRunningBefore = server
 trget200.StillRunningAfter = ts
 trget200.StillRunningAfter = server
 
-trget200.Processes.Default.Command = "python tcp_client.py 127.0.0.1 {0} {1} | grep -v '^Date: '| grep -v '^Server: ATS/'".\
+trget200.Processes.Default.Command = "python3 tcp_client.py 127.0.0.1 {0} {1} | grep -v '^Date: '| grep -v '^Server: ATS/'".\
     format(ts.Variables.port, 'data/{0}_get_200.txt'.format(HOST))
 trget200.Processes.Default.TimeOut = 5  # seconds
 trget200.Processes.Default.ReturnCode = 0
@@ -102,7 +99,7 @@ trget304.StillRunningBefore = server
 trget304.StillRunningAfter = ts
 trget304.StillRunningAfter = server
 
-cmd_tpl = "python tcp_client.py 127.0.0.1 {0} {1} | grep -v '^Date: '| grep -v '^Server: ATS/' | sed 's;ApacheTrafficServer\/[^ ]*;VERSION;'"
+cmd_tpl = r"python3 tcp_client.py 127.0.0.1 {0} {1} | grep -v '^Date: '| grep -v '^Server: ATS/' | sed 's;ApacheTrafficServer\/[^ ]*;VERSION;'"
 trget304.Processes.Default.Command = cmd_tpl.format(ts.Variables.port, 'data/{0}_get_304.txt'.format(HOST))
 trget304.Processes.Default.TimeOut = 5  # seconds
 trget304.Processes.Default.ReturnCode = 0

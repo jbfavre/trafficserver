@@ -21,74 +21,13 @@
   limitations under the License.
  */
 
-#include "tscore/ink_platform.h"
 #include "ProxyConfig.h"
 #include "P_EventSystem.h"
+#if TS_HAS_TESTS
 #include "tscore/TestBox.h"
+#endif
 
 ConfigProcessor configProcessor;
-
-void *
-config_int_cb(void *data, void *value)
-{
-  *(int *)data = *(int64_t *)value;
-  return nullptr;
-}
-
-void *
-config_float_cb(void *data, void *value)
-{
-  *(float *)data = *(float *)value;
-  return nullptr;
-}
-
-void *
-config_long_long_cb(void *data, void *value)
-{
-  *(int64_t *)data = *(int64_t *)value;
-  return nullptr;
-}
-
-/////////////////////////////////////////////////////////////
-//
-//  config_string_alloc_cb()
-//
-//  configuration callback function. The function is called
-//  by the manager when a string configuration variable
-//  changed. It allocates new memory for the new data.
-//  the old variable is scheduled to be freed using
-//  ConfigFreerContinuation which will free the memory
-//  used for this variable after long time, assuming that
-//  during all this time all the users of this memory will
-//  disappear.
-/////////////////////////////////////////////////////////////
-void *
-config_string_alloc_cb(void *data, void *value)
-{
-  char *_ss        = (char *)value;
-  char *_new_value = nullptr;
-
-//#define DEBUG_CONFIG_STRING_UPDATE
-#if defined(DEBUG_CONFIG_STRING_UPDATE)
-  printf("config callback [new, old] = [%s : %s]\n", (_ss) ? (_ss) : (""), (*(char **)data) ? (*(char **)data) : (""));
-#endif
-  int len = -1;
-  if (_ss) {
-    len        = strlen(_ss);
-    _new_value = (char *)ats_malloc(len + 1);
-    memcpy(_new_value, _ss, len + 1);
-  }
-
-  char *_temp2   = *(char **)data;
-  *(char **)data = _new_value;
-
-  // free old data
-  if (_temp2 != nullptr) {
-    new_Freer(_temp2, HRTIME_DAY);
-  }
-
-  return nullptr;
-}
 
 class ConfigInfoReleaser : public Continuation
 {
@@ -111,15 +50,6 @@ public:
   ConfigInfo *m_info;
 };
 
-ConfigProcessor::ConfigProcessor() : ninfos(0)
-{
-  int i;
-
-  for (i = 0; i < MAX_CONFIGS; i++) {
-    infos[i] = nullptr;
-  }
-}
-
 unsigned int
 ConfigProcessor::set(unsigned int id, ConfigInfo *info, unsigned timeout_secs)
 {
@@ -127,7 +57,7 @@ ConfigProcessor::set(unsigned int id, ConfigInfo *info, unsigned timeout_secs)
   int idx;
 
   if (id == 0) {
-    id = ink_atomic_increment((int *)&ninfos, 1) + 1;
+    id = ++ninfos;
     ink_assert(id != 0);
     ink_assert(id <= MAX_CONFIGS);
   }
@@ -147,14 +77,14 @@ ConfigProcessor::set(unsigned int id, ConfigInfo *info, unsigned timeout_secs)
   }
 
   idx      = id - 1;
-  old_info = ink_atomic_swap(&infos[idx], info);
+  old_info = infos[idx].exchange(info);
 
   Debug("config", "Set for slot %d 0x%" PRId64 " was 0x%" PRId64 " with ref count %d", id, (int64_t)info, (int64_t)old_info,
         (old_info) ? old_info->refcount() : 0);
 
   if (old_info) {
     // The ConfigInfoReleaser now takes our refcount, but
-    // someother thread might also have one ...
+    // some other thread might also have one ...
     ink_assert(old_info->refcount() > 0);
     eventProcessor.schedule_in(new ConfigInfoReleaser(id, old_info), HRTIME_SECONDS(timeout_secs));
   }
@@ -171,7 +101,7 @@ ConfigProcessor::get(unsigned int id)
   ink_assert(id <= MAX_CONFIGS);
 
   if (id == 0 || id > MAX_CONFIGS) {
-    // return NULL, because we of an invalid index
+    // because of an invalid index
     return nullptr;
   }
 

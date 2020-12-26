@@ -23,10 +23,15 @@
 
 #pragma once
 
+#include <string_view>
+#include <string>
+
 #include "tscore/ink_platform.h"
 #include "records/P_RecProcess.h"
 #include "ProxyConfig.h"
 #include "LogObject.h"
+#include "RolledLogDeleter.h"
+#include "tscpp/util/MemSpan.h"
 
 /* Instead of enumerating the stats in DynamicStats.h, each module needs
    to enumerate its stats separately and register them with librecords
@@ -72,7 +77,6 @@ enum {
 extern RecRawStatBlock *log_rsb;
 
 struct dirent;
-struct LogCollationAccept;
 
 /*-------------------------------------------------------------------------
   this object keeps the state of the logging configuraion variables.  upon
@@ -117,12 +121,6 @@ public:
   bool space_to_write(int64_t bytes_to_write) const;
 
   bool
-  am_collation_host() const
-  {
-    return collation_mode == Log::COLLATION_HOST;
-  }
-
-  bool
   space_is_short() const
   {
     return !space_to_write(max_space_mb_headroom * LOG_MEGABYTE);
@@ -139,12 +137,12 @@ public:
   void read_configuration_variables();
 
   // CVR This is the mgmt callback function, hence all the strange arguments
-  static void *reconfigure_mgmt_variables(void *token, char *data_raw, int data_len);
+  static void reconfigure_mgmt_variables(ts::MemSpan<void>);
 
   int
   get_max_space_mb() const
   {
-    return (use_orphan_log_space_value ? max_space_mb_for_orphan_logs : max_space_mb_for_logs);
+    return max_space_mb_for_logs;
   }
 
   void
@@ -159,11 +157,23 @@ public:
     return log_object_manager.has_api_objects();
   }
 
+  /** Register rolled logs of logname for auto-deletion when there are space
+   * constraints.
+   *
+   * @param[in] logname The name of the unrolled log to register, such as
+   * "diags.log".
+   *
+   * @param[in] rolling_min_count The minimum amount of rolled logs of logname
+   * to try to keep around. A value of 0 expresses a desire to keep all rolled
+   * files, if possible.
+   */
+  void register_rolled_log_auto_delete(std::string_view logname, int rolling_min_count);
+
 public:
-  bool initialized;
-  bool reconfiguration_needed;
-  bool logging_space_exhausted;
-  int64_t m_space_used;
+  bool initialized             = false;
+  bool reconfiguration_needed  = false;
+  bool logging_space_exhausted = false;
+  int64_t m_space_used         = 0;
   int64_t m_partition_space_left;
   bool roll_log_files_now; // signal that files must be rolled
 
@@ -175,19 +185,16 @@ public:
   int log_buffer_size;
   int max_secs_per_buffer;
   int max_space_mb_for_logs;
-  int max_space_mb_for_orphan_logs;
   int max_space_mb_headroom;
   int logfile_perm;
-  int collation_mode;
-  int collation_port;
-  bool collation_host_tagged;
-  int collation_preproc_threads;
-  int collation_retry_sec;
-  int collation_max_send_buffers;
+
+  int preproc_threads;
+
   Log::RollingEnabledValues rolling_enabled;
   int rolling_interval_sec;
   int rolling_offset_hr;
   int rolling_size_mb;
+  int rolling_min_count;
   int rolling_max_count;
   bool rolling_allow_empty;
   bool auto_delete_rolled_files;
@@ -198,44 +205,27 @@ public:
 
   int ascii_buffer_size;
   int max_line_size;
+  int logbuffer_max_iobuf_index;
 
   char *hostname;
   char *logfile_dir;
-  char *collation_host;
-  char *collation_secret;
 
 private:
   bool evaluate_config();
 
   void setup_default_values();
-  void setup_collation(LogConfig *prev_config);
 
 private:
-  // if true, use max_space_mb_for_orphan_logs to determine the amount
-  // of space that logging can use, otherwise use max_space_mb_for_logs
-  //
-  bool use_orphan_log_space_value;
+  bool m_disk_full                  = false;
+  bool m_disk_low                   = false;
+  bool m_partition_full             = false;
+  bool m_partition_low              = false;
+  bool m_log_directory_inaccessible = false;
 
-  LogCollationAccept *m_log_collation_accept;
-
-  bool m_disk_full;
-  bool m_disk_low;
-  bool m_partition_full;
-  bool m_partition_low;
-  bool m_log_directory_inaccessible;
+  RolledLogDeleter rolledLogDeleter;
 
   // noncopyable
   // -- member functions not allowed --
   LogConfig(const LogConfig &) = delete;
   LogConfig &operator=(const LogConfig &) = delete;
-};
-
-/*-------------------------------------------------------------------------
-  LogDeleteCandidate
-  -------------------------------------------------------------------------*/
-
-struct LogDeleteCandidate {
-  time_t mtime;
-  char *name;
-  int64_t size;
 };

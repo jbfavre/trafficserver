@@ -32,6 +32,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -106,7 +122,8 @@ host_triplet = @host@
 check_PROGRAMS = test_tscpputil$(EXEEXT)
 subdir = src/tscpp/util
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
@@ -117,16 +134,15 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
-	$(top_srcdir)/build/jansson.m4 $(top_srcdir)/build/jemalloc.m4 \
-	$(top_srcdir)/build/libtool.m4 \
+	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
+	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -179,7 +195,10 @@ libtscpputil_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 am__dirstamp = $(am__leading_dot)dirstamp
 am_test_tscpputil_OBJECTS =  \
 	unit_tests/test_tscpputil-unit_test_main.$(OBJEXT) \
-	unit_tests/test_tscpputil-test_TextView.$(OBJEXT)
+	unit_tests/test_tscpputil-test_MemSpan.$(OBJEXT) \
+	unit_tests/test_tscpputil-test_PostScript.$(OBJEXT) \
+	unit_tests/test_tscpputil-test_TextView.$(OBJEXT) \
+	unit_tests/test_tscpputil-test_ts_meta.$(OBJEXT)
 test_tscpputil_OBJECTS = $(am_test_tscpputil_OBJECTS)
 test_tscpputil_DEPENDENCIES = libtscpputil.la
 test_tscpputil_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
@@ -202,7 +221,10 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/TextView.Plo \
+	unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Po \
+	unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Po \
 	unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Po \
+	unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Po \
 	unit_tests/$(DEPDIR)/test_tscpputil-unit_test_main.Po
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -223,24 +245,6 @@ AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
 am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
-COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) \
-	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
-	$(AM_CFLAGS) $(CFLAGS)
-AM_V_CC = $(am__v_CC_@AM_V@)
-am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
-am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
-CCLD = $(CC)
-LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-AM_V_CCLD = $(am__v_CCLD_@AM_V@)
-am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
-am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
 SOURCES = $(libtscpputil_la_SOURCES) $(test_tscpputil_SOURCES)
 DIST_SOURCES = $(libtscpputil_la_SOURCES) $(test_tscpputil_SOURCES)
 am__can_run_installinfo = \
@@ -447,7 +451,8 @@ TEST_LOG_COMPILE = $(TEST_LOG_COMPILER) $(AM_TEST_LOG_FLAGS) \
 	$(TEST_LOG_FLAGS)
 am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(top_srcdir)/build/_aux/depcomp \
-	$(top_srcdir)/build/_aux/test-driver
+	$(top_srcdir)/build/_aux/test-driver \
+	$(top_srcdir)/build/tidy.mk
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 pkgdatadir = @pkgdatadir@
 pkglibdir = @pkglibdir@
@@ -461,6 +466,7 @@ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AM_LDFLAGS = @AM_LDFLAGS@
 AR = @AR@
 ASCPP = @ASCPP@
+ATOMIC_LIBS = @ATOMIC_LIBS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -474,6 +480,7 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
@@ -493,6 +500,7 @@ DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DOXYGEN = @DOXYGEN@
 DSYMUTIL = @DSYMUTIL@
+DTRACE = @DTRACE@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -526,19 +534,17 @@ LIBJANSSON = @LIBJANSSON@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
-LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
-LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
-LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_HIREDIS = @LIB_HIREDIS@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -553,6 +559,7 @@ LUAJIT_LIBS = @LUAJIT_LIBS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
+MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -590,16 +597,6 @@ SHELL = @SHELL@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
-TCL_BIN_DIR = @TCL_BIN_DIR@
-TCL_LIB_FILE = @TCL_LIB_FILE@
-TCL_LIB_FLAG = @TCL_LIB_FLAG@
-TCL_LIB_SPEC = @TCL_LIB_SPEC@
-TCL_PATCH_LEVEL = @TCL_PATCH_LEVEL@
-TCL_SRC_DIR = @TCL_SRC_DIR@
-TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
-TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
-TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
-TCL_VERSION = @TCL_VERSION@
 TS_INCLUDES = @TS_INCLUDES@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
@@ -669,16 +666,19 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_expensive_tests = @has_expensive_tests@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
+has_maxmind = @has_maxmind@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
+has_tls_early_data = @has_tls_early_data@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -699,7 +699,6 @@ localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
 mandir = @mandir@
-max_api_stats = @max_api_stats@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
@@ -749,32 +748,46 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cert_cb = @use_cert_cb@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
+use_hkdf = @use_hkdf@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
+use_quic = @use_quic@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
-use_sslv3_client = @use_sslv3_client@
-use_tls_alpn = @use_tls_alpn@
+use_tls13 = @use_tls13@
 use_tls_async = @use_tls_async@
-use_tls_eckey = @use_tls_eckey@
-use_tls_npn = @use_tls_npn@
 use_tls_ocsp = @use_tls_ocsp@
 use_tls_set_ciphersuites = @use_tls_set_ciphersuites@
 use_tproxy = @use_tproxy@
+Clang_Tidy_Options = -fix -fix-errors
+
+# Sort the filenames to remove duplicates, then filter to retain
+# just the C and C++ sources so we don't pick up lex and yacc files
+# for example.
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $^))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
+
+# clang-tidy rules. We expect these to be actions with something like
+# $(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+# is not an automake API, it is an implementation detail, but it ought
+# to be stable enough.
+#
+# All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
 TESTS = $(check_PROGRAMS)
 lib_LTLIBRARIES = libtscpputil.la
 libtscpputil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
 libtscpputil_la_SOURCES = \
-	TextView.h TextView.cc
+	TextView.cc
 
 test_tscpputil_CPPFLAGS = $(AM_CPPFLAGS)\
 	-I$(abs_top_srcdir)/tests/include
@@ -783,13 +796,16 @@ test_tscpputil_CXXFLAGS = -Wno-array-bounds $(AM_CXXFLAGS)
 test_tscpputil_LDADD = libtscpputil.la
 test_tscpputil_SOURCES = \
 	unit_tests/unit_test_main.cc \
-	unit_tests/test_TextView.cc
+	unit_tests/test_MemSpan.cc \
+	unit_tests/test_PostScript.cc \
+	unit_tests/test_TextView.cc \
+	unit_tests/test_ts_meta.cc
 
 all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -809,6 +825,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles);; \
 	esac;
+$(top_srcdir)/build/tidy.mk $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -874,7 +891,16 @@ unit_tests/$(DEPDIR)/$(am__dirstamp):
 unit_tests/test_tscpputil-unit_test_main.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscpputil-test_MemSpan.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscpputil-test_PostScript.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscpputil-test_TextView.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscpputil-test_ts_meta.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
 
@@ -890,7 +916,10 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TextView.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscpputil-unit_test_main.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -937,6 +966,34 @@ unit_tests/test_tscpputil-unit_test_main.obj: unit_tests/unit_test_main.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-unit_test_main.obj `if test -f 'unit_tests/unit_test_main.cc'; then $(CYGPATH_W) 'unit_tests/unit_test_main.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/unit_test_main.cc'; fi`
 
+unit_tests/test_tscpputil-test_MemSpan.o: unit_tests/test_MemSpan.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_MemSpan.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Tpo -c -o unit_tests/test_tscpputil-test_MemSpan.o `test -f 'unit_tests/test_MemSpan.cc' || echo '$(srcdir)/'`unit_tests/test_MemSpan.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_MemSpan.cc' object='unit_tests/test_tscpputil-test_MemSpan.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_MemSpan.o `test -f 'unit_tests/test_MemSpan.cc' || echo '$(srcdir)/'`unit_tests/test_MemSpan.cc
+
+unit_tests/test_tscpputil-test_MemSpan.obj: unit_tests/test_MemSpan.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_MemSpan.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Tpo -c -o unit_tests/test_tscpputil-test_MemSpan.obj `if test -f 'unit_tests/test_MemSpan.cc'; then $(CYGPATH_W) 'unit_tests/test_MemSpan.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_MemSpan.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_MemSpan.cc' object='unit_tests/test_tscpputil-test_MemSpan.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_MemSpan.obj `if test -f 'unit_tests/test_MemSpan.cc'; then $(CYGPATH_W) 'unit_tests/test_MemSpan.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_MemSpan.cc'; fi`
+
+unit_tests/test_tscpputil-test_PostScript.o: unit_tests/test_PostScript.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_PostScript.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Tpo -c -o unit_tests/test_tscpputil-test_PostScript.o `test -f 'unit_tests/test_PostScript.cc' || echo '$(srcdir)/'`unit_tests/test_PostScript.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_PostScript.cc' object='unit_tests/test_tscpputil-test_PostScript.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_PostScript.o `test -f 'unit_tests/test_PostScript.cc' || echo '$(srcdir)/'`unit_tests/test_PostScript.cc
+
+unit_tests/test_tscpputil-test_PostScript.obj: unit_tests/test_PostScript.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_PostScript.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Tpo -c -o unit_tests/test_tscpputil-test_PostScript.obj `if test -f 'unit_tests/test_PostScript.cc'; then $(CYGPATH_W) 'unit_tests/test_PostScript.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_PostScript.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_PostScript.cc' object='unit_tests/test_tscpputil-test_PostScript.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_PostScript.obj `if test -f 'unit_tests/test_PostScript.cc'; then $(CYGPATH_W) 'unit_tests/test_PostScript.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_PostScript.cc'; fi`
+
 unit_tests/test_tscpputil-test_TextView.o: unit_tests/test_TextView.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_TextView.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Tpo -c -o unit_tests/test_tscpputil-test_TextView.o `test -f 'unit_tests/test_TextView.cc' || echo '$(srcdir)/'`unit_tests/test_TextView.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Po
@@ -950,6 +1007,20 @@ unit_tests/test_tscpputil-test_TextView.obj: unit_tests/test_TextView.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_TextView.cc' object='unit_tests/test_tscpputil-test_TextView.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_TextView.obj `if test -f 'unit_tests/test_TextView.cc'; then $(CYGPATH_W) 'unit_tests/test_TextView.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_TextView.cc'; fi`
+
+unit_tests/test_tscpputil-test_ts_meta.o: unit_tests/test_ts_meta.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_ts_meta.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Tpo -c -o unit_tests/test_tscpputil-test_ts_meta.o `test -f 'unit_tests/test_ts_meta.cc' || echo '$(srcdir)/'`unit_tests/test_ts_meta.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_ts_meta.cc' object='unit_tests/test_tscpputil-test_ts_meta.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_ts_meta.o `test -f 'unit_tests/test_ts_meta.cc' || echo '$(srcdir)/'`unit_tests/test_ts_meta.cc
+
+unit_tests/test_tscpputil-test_ts_meta.obj: unit_tests/test_ts_meta.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscpputil-test_ts_meta.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Tpo -c -o unit_tests/test_tscpputil-test_ts_meta.obj `if test -f 'unit_tests/test_ts_meta.cc'; then $(CYGPATH_W) 'unit_tests/test_ts_meta.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_ts_meta.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Tpo unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_ts_meta.cc' object='unit_tests/test_tscpputil-test_ts_meta.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscpputil_CPPFLAGS) $(CPPFLAGS) $(test_tscpputil_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscpputil-test_ts_meta.obj `if test -f 'unit_tests/test_ts_meta.cc'; then $(CYGPATH_W) 'unit_tests/test_ts_meta.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_ts_meta.cc'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -1261,7 +1332,10 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
 
 distclean: distclean-am
 		-rm -f ./$(DEPDIR)/TextView.Plo
+	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-unit_test_main.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -1309,7 +1383,10 @@ installcheck-am:
 
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/TextView.Plo
+	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_MemSpan.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_PostScript.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_TextView.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-test_ts_meta.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscpputil-unit_test_main.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

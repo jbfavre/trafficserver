@@ -23,13 +23,12 @@
   limitations under the License.
  */
 
-#ifndef ProxyProtocol_H_
-#define ProxyProtocol_H_
+#pragma once
 
 #include "tscore/ink_defs.h"
 #include "tscore/ink_memory.h"
-#include "tscore/ink_resolver.h"
-#include "tscore/ink_platform.h"
+#include <tscore/ink_resolver.h>
+#include <tscore/ink_platform.h>
 #include "I_VConnection.h"
 #include "I_NetVConnection.h"
 #include "I_IOBuffer.h"
@@ -40,7 +39,7 @@ extern bool proxy_protov1_parse(NetVConnection *, ts::TextView hdr);
 extern bool ssl_has_proxy_v1(NetVConnection *, char *, int64_t *);
 extern bool http_has_proxy_v1(IOBufferReader *, NetVConnection *);
 
-const char *const PROXY_V1_CONNECTION_PREFACE = "\x50\x52\x4F\x58\x59";
+const char *const PROXY_V1_CONNECTION_PREFACE = R"(PROXY)";
 const char *const PROXY_V2_CONNECTION_PREFACE = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A\x02";
 
 const size_t PROXY_V1_CONNECTION_PREFACE_LEN = strlen(PROXY_V1_CONNECTION_PREFACE); // 5
@@ -51,5 +50,3 @@ const size_t PROXY_V2_CONNECTION_HEADER_LEN_MIN = 16;
 
 const size_t PROXY_V1_CONNECTION_HEADER_LEN_MAX = 108;
 const size_t PROXY_V2_CONNECTION_HEADER_LEN_MAX = 16;
-
-#endif /* ProxyProtocol_H_ */

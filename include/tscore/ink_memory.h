@@ -109,7 +109,7 @@ void *ats_track_malloc(size_t size, uint64_t *stat);
 void *ats_track_realloc(void *ptr, size_t size, uint64_t *alloc_stat, uint64_t *free_stat);
 void ats_track_free(void *ptr, uint64_t *stat);
 
-static inline size_t __attribute__((const)) ats_pagesize(void)
+static inline size_t __attribute__((const)) ats_pagesize()
 {
   static size_t page_size;
 
@@ -140,6 +140,8 @@ char *_xstrdup(const char *str, int length, const char *path);
 #endif
 
 #ifdef __cplusplus
+
+#include <memory>
 
 // this is to help with migration to a std::string issue with older code that
 // expects char* being copied. As more code moves to std::string, this can be
@@ -280,10 +282,18 @@ public:
   /// Construct with contained resource.
   explicit ats_scoped_resource(value_type rt) : _r(rt) {}
   /// Destructor.
-  ~ats_scoped_resource()
+  ~ats_scoped_resource() { this->clear(); }
+
+  /** Remove and clean up any existing resource in this object, and return to a default constructed state.
+   *
+   */
+  void
+  clear()
   {
-    if (Traits::isValid(_r))
+    if (Traits::isValid(_r)) {
       Traits::destroy(_r);
+    }
+    _r = Traits::initValue();
   }
 
   /// Automatic conversion to resource type.
@@ -326,8 +336,7 @@ public:
   self &
   operator=(value_type rt)
   {
-    if (Traits::isValid(_r))
-      Traits::destroy(_r);
+    this->clear();
     _r = rt;
     return *this;
   }
@@ -473,59 +482,73 @@ struct SCOPED_OBJECT_TRAITS {
 class ats_scoped_str : public ats_scoped_resource<detail::SCOPED_MALLOC_TRAITS<char>>
 {
 public:
-  typedef ats_scoped_resource<detail::SCOPED_MALLOC_TRAITS<char>> super; ///< Super type.
-  typedef ats_scoped_str self;                                           ///< Self reference type.
+  using super     = ats_scoped_resource<detail::SCOPED_MALLOC_TRAITS<char>>; ///< Super type.
+  using self_type = ats_scoped_str;                                          ///< Self reference type.
 
-  /// Default constructor (no string).
-  ats_scoped_str() {}
-  /// Construct and allocate @a n bytes for a string.
+  /** Default constructor.
+   * Constructs an empty container.
+   */
+  ats_scoped_str() = default;
+
+  /** Construct an empty buffer of @a n bytes.
+   *
+   * @param n Size of the contained buffer.
+   *
+   * The memory is left uninitialized, presumably ready for a @c memcpy.
+   */
   explicit ats_scoped_str(size_t n) : super(static_cast<char *>(ats_malloc(n))) {}
-  /// Put string @a s in this container for cleanup.
+
+  /** Construct with an existing buffer.
+   *
+   * @param s The string.
+   *
+   * This container takes ownership of the string memory. For this reason @a s must be independently
+   * allocated, not part of a larger memory allocation.
+   */
   explicit ats_scoped_str(char *s) : super(s) {}
-  // constructor with std::string
-  explicit ats_scoped_str(const std::string &s)
-  {
-    if (s.empty())
-      _r = nullptr;
-    else
-      _r = strdup(s.c_str());
-  }
-  // constructor with string_view
-  explicit ats_scoped_str(const std::string_view &s)
-  {
-    if (s.empty())
-      _r = nullptr;
-    else
-      _r = strdup(s.data());
-  }
-  /// Assign a string @a s to this container.
-  self &
-  operator=(char *s)
-  {
-    super::operator=(s);
-    return *this;
-  }
-  // std::string case
-  self &
-  operator=(const std::string &s)
-  {
-    if (s.empty())
-      _r = nullptr;
-    else
-      _r = strdup(s.c_str());
-    return *this;
-  }
-  // string_view case
-  self &
-  operator=(const std::string_view &s)
-  {
-    if (s.empty())
-      _r = nullptr;
-    else
-      _r = strdup(s.data());
-    return *this;
-  }
+
+  /** Construct from a @c string_view.
+   *
+   * @param s The string to copy.
+   *
+   * The string in @a s is duplicated into this container.
+   */
+  explicit ats_scoped_str(std::string_view s);
+
+  /** Put an existing buffer in this container.
+   *
+   * @param s The string buffer.
+   * @return @a this
+   *
+   * The container takes ownership of @a s. For this reason @a s must be independently allocated,
+   * not part of a larger memory allocation. Any currently contained resource is destroyed.
+   */
+  self_type &operator=(char *s);
+
+  /** Assign from a @c string_view
+   *
+   * @param s The source string.
+   * @return @a this
+   *
+   * The string data is duplicated into this object and guaranteed to be null terminated. Any currently
+   * contained resource is destroyed.
+   */
+  self_type &operator=(std::string_view s);
 };
+
+inline ats_scoped_str::ats_scoped_str(std::string_view s)
+{
+  if (!s.empty()) {
+    *this = s;
+  }
+}
+
+inline ats_scoped_str &
+ats_scoped_str::operator=(char *s)
+{
+  super::operator=(s);
+  return *this;
+}
 
 /** Specialization of @c ats_scoped_resource for pointers allocated with @c ats_malloc.
  */
@@ -568,7 +591,11 @@ public:
     return *this;
   }
 
-  T *operator->() const { return *this; }
+  T *
+  operator->() const
+  {
+    return *this;
+  }
 };
 
 /** Combine two strings as file paths.
@@ -597,4 +624,15 @@ path_join(ats_scoped_str const &lhs, ats_scoped_str const &rhs)
 
   return x.release();
 }
+
+struct ats_unique_buf_deleter {
+  void
+  operator()(uint8_t *p)
+  {
+    ats_free(p);
+  }
+};
+using ats_unique_buf = std::unique_ptr<uint8_t[], ats_unique_buf_deleter>;
+ats_unique_buf ats_unique_malloc(size_t size);
+
 #endif /* __cplusplus */

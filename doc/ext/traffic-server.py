@@ -47,6 +47,7 @@ except NameError:
     def is_string_type(s):
         return isinstance(s, str)
 
+
 class TSConfVar(std.Target):
     """
     Description of a traffic server configuration variable.
@@ -116,7 +117,7 @@ class TSConfVar(std.Target):
             title.set_class(self.options.get('class'))
         # This has to be a distinct node before the title. if nested then
         # the browser will scroll forward to just past the title.
-        anchor = nodes.target('', '', names=[cv_name])
+        nodes.target('', '', names=[cv_name])
         # Second (optional) arg is 'msgNode' - no idea what I should pass for that
         # or if it even matters, although I now think it should not be used.
         self.state.document.note_explicit_target(title)
@@ -168,7 +169,19 @@ def metrictypes(typename):
 
 
 def metricunits(unitname):
-    return directives.choice(unitname.lower(), ('ratio', 'percent', 'kbits', 'mbits', 'bytes', 'kbytes', 'mbytes', 'nanoseconds', 'microseconds', 'milliseconds', 'seconds'))
+    return directives.choice(
+        unitname.lower(),
+        ('ratio',
+         'percent',
+         'kbits',
+         'mbits',
+         'bytes',
+         'kbytes',
+         'mbytes',
+         'nanoseconds',
+         'microseconds',
+         'milliseconds',
+         'seconds'))
 
 
 class TSStat(std.Target):
@@ -240,7 +253,7 @@ class TSStat(std.Target):
 
         # This has to be a distinct node before the title. if nested then
         # the browser will scroll forward to just past the title.
-        anchor = nodes.target('', '', names=[stat_name])
+        nodes.target('', '', names=[stat_name])
         # Second (optional) arg is 'msgNode' - no idea what I should pass for that
         # or if it even matters, although I now think it should not be used.
         self.state.document.note_explicit_target(title)
@@ -301,8 +314,8 @@ class TrafficServerDomain(Domain):
     data_version = 2
 
     object_types = {
-        'cv': ObjType(l_('configuration variable'), 'cv'),
-        'stat': ObjType(l_('statistic'), 'stat')
+        'cv': ObjType(_('configuration variable'), 'cv'),
+        'stat': ObjType(_('statistic'), 'stat')
     }
 
     directives = {

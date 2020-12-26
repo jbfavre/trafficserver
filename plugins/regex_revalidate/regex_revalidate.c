@@ -19,8 +19,7 @@
   limitations under the License.
  */
 
-#include "tscore/ink_defs.h"
-#include "tscore/ink_platform.h"
+#include <ts/ts.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -32,7 +31,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <ts/ts.h>
 
 #ifdef HAVE_PCRE_PCRE_H
 #include <pcre/pcre.h>
@@ -331,7 +329,7 @@ list_config(plugin_state_t *pstate, invalidate_t *i)
 }
 
 static int
-free_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
+free_handler(TSCont cont, TSEvent event, void *edata)
 {
   invalidate_t *iptr;
 
@@ -343,7 +341,7 @@ free_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 }
 
 static int
-config_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
+config_handler(TSCont cont, TSEvent event, void *edata)
 {
   plugin_state_t *pstate;
   invalidate_t *i, *iptr;
@@ -368,7 +366,7 @@ config_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
     if (iptr) {
       free_cont = TSContCreate(free_handler, TSMutexCreate());
       TSContDataSet(free_cont, (void *)iptr);
-      TSContSchedule(free_cont, FREE_TMOUT, TS_THREAD_POOL_TASK);
+      TSContScheduleOnPool(free_cont, FREE_TMOUT, TS_THREAD_POOL_TASK);
     }
   } else {
     TSDebug(LOG_PREFIX, "No Changes");
@@ -379,7 +377,10 @@ config_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 
   TSMutexUnlock(mutex);
 
-  TSContSchedule(cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
+  // Don't reschedule for TS_EVENT_MGMT_UPDATE
+  if (event == TS_EVENT_TIMEOUT) {
+    TSContScheduleOnPool(cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
+  }
   return 0;
 }
 
@@ -503,7 +504,6 @@ TSPluginInit(int argc, const char *argv[])
       break;
     case 'l':
       if (TS_SUCCESS == TSTextLogObjectCreate(optarg, TS_LOG_MODE_ADD_TIMESTAMP, &pstate->log)) {
-        TSTextLogObjectRollingEnabledSet(pstate->log, 1);
         TSTextLogObjectRollingIntervalSecSet(pstate->log, LOG_ROLL_INTERVAL);
         TSTextLogObjectRollingOffsetHrSet(pstate->log, LOG_ROLL_OFFSET);
       }
@@ -561,7 +561,7 @@ TSPluginInit(int argc, const char *argv[])
   TSMgmtUpdateRegister(config_cont, LOG_PREFIX);
 
   if (!disable_timed_reload) {
-    TSContSchedule(config_cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
+    TSContScheduleOnPool(config_cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
   }
 
   TSDebug(LOG_PREFIX, "Plugin Init Complete");

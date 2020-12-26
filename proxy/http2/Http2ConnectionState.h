@@ -143,6 +143,11 @@ public:
   void
   destroy()
   {
+    if (in_destroy) {
+      schedule_zombie_event();
+      return;
+    }
+    in_destroy = true;
     if (shutdown_cont_event) {
       shutdown_cont_event->cancel();
       shutdown_cont_event = nullptr;
@@ -176,7 +181,7 @@ public:
   Http2Stream *find_stream(Http2StreamId id) const;
   void restart_streams();
   bool delete_stream(Http2Stream *stream);
-  void release_stream(Http2Stream *stream);
+  void release_stream();
   void cleanup_streams();
   void restart_receiving(Http2Stream *stream);
   void update_initial_rwnd(Http2WindowSize new_size);
@@ -228,6 +233,12 @@ public:
     return client_streams_in_count;
   }
 
+  void
+  decrement_stream_count()
+  {
+    --total_client_streams_count;
+  }
+
   double
   get_stream_error_rate() const
   {
@@ -252,7 +263,7 @@ public:
   void send_data_frames(Http2Stream *stream);
   Http2SendDataFrameResult send_a_data_frame(Http2Stream *stream, size_t &payload_length);
   void send_headers_frame(Http2Stream *stream);
-  void send_push_promise_frame(Http2Stream *stream, URL &url, const MIMEField *accept_encoding);
+  bool send_push_promise_frame(Http2Stream *stream, URL &url, const MIMEField *accept_encoding);
   void send_rst_stream_frame(Http2StreamId id, Http2ErrorCode ec);
   void send_settings_frame(const Http2ConnectionSettings &new_settings);
   void send_ping_frame(Http2StreamId id, uint8_t flag, const uint8_t *opaque_data);
@@ -348,7 +359,7 @@ private:
   // Counter for current active streams which is started by client
   std::atomic<uint32_t> client_streams_in_count = 0;
 
-  // Counter for current acive streams which is started by server
+  // Counter for current active streams which is started by server
   std::atomic<uint32_t> client_streams_out_count = 0;
 
   // Counter for current active streams and streams in the process of shutting down
@@ -379,6 +390,7 @@ private:
   Http2StreamId continued_stream_id = 0;
   bool _scheduled                   = false;
   bool fini_received                = false;
+  bool in_destroy                   = false;
   int recursion                     = 0;
   Http2ShutdownState shutdown_state = HTTP2_SHUTDOWN_NONE;
   Http2ErrorCode shutdown_reason    = Http2ErrorCode::HTTP2_ERROR_MAX;

@@ -42,7 +42,7 @@ ClassAllocator<HttpUpdateSM> httpUpdateSMAllocator("httpUpdateSMAllocator");
     Debug("http", "[%" PRId64 "] [%s, %s]", sm_id, #state_name, HttpDebugNames::get_event_name(event)); \
   }
 
-HttpUpdateSM::HttpUpdateSM() : cb_occured(false), cb_cont(nullptr), cb_action(), cb_event(HTTP_SCH_UPDATE_EVENT_ERROR) {}
+HttpUpdateSM::HttpUpdateSM() : cb_action(), cb_event(HTTP_SCH_UPDATE_EVENT_ERROR) {}
 
 void
 HttpUpdateSM::destroy()
@@ -72,7 +72,6 @@ HttpUpdateSM::start_scheduled_update(Continuation *cont, HTTPHdr *request)
   // Fix ME: What should these be set to since there is not a
   //   real client
   ats_ip4_set(&t_state.client_info.src_addr, htonl(INADDR_LOOPBACK), 0);
-  t_state.backdoor_request           = false;
   t_state.client_info.port_attribute = HttpProxyPort::TRANSPORT_DEFAULT;
 
   t_state.req_flavor = HttpTransact::REQ_FLAVOR_SCHEDULED_UPDATE;

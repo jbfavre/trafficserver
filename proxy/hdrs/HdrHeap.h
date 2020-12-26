@@ -36,28 +36,21 @@
 #include "tscore/ink_defs.h"
 #include "tscore/ink_assert.h"
 #include "tscore/Arena.h"
+#include "tscore/Scalar.h"
 #include "HdrToken.h"
 
 // Objects in the heap must currently be aligned to 8 byte boundaries,
 // so their (address & HDR_PTR_ALIGNMENT_MASK) == 0
 
-#define HDR_PTR_SIZE (sizeof(uint64_t))
-#define HDR_PTR_ALIGNMENT_MASK ((HDR_PTR_SIZE)-1L)
-
-#define ROUND(x, l) (((x) + ((l)-1L)) & ~((l)-1L))
+static constexpr size_t HDR_PTR_SIZE           = sizeof(uint64_t);
+static constexpr size_t HDR_PTR_ALIGNMENT_MASK = HDR_PTR_SIZE - 1L;
+using HdrHeapMarshalBlocks                     = ts::Scalar<HDR_PTR_SIZE>;
 
 // A many of the operations regarding read-only str
-//  heaps are hand unrolled in the code.  Chaning
+//  heaps are hand unrolled in the code.  Changing
 //  this value requires a full pass through HdrBuf.cc
 //  to fix the unrolled operations
-#define HDR_BUF_RONLY_HEAPS 3
-
-#define HDR_HEAP_DEFAULT_SIZE 2048
-#define HDR_STR_HEAP_DEFAULT_SIZE 2048
-
-#define HDR_MAX_ALLOC_SIZE (HDR_HEAP_DEFAULT_SIZE - sizeof(HdrHeap))
-#define HDR_HEAP_HDR_SIZE ROUND(sizeof(HdrHeap), HDR_PTR_SIZE)
-#define STR_HEAP_HDR_SIZE sizeof(HdrStrHeap)
+static constexpr unsigned HDR_BUF_RONLY_HEAPS = 3;
 
 class CoreUtils;
 class IOBufferBlock;
@@ -140,6 +133,8 @@ enum {
 class HdrStrHeap : public RefCountObj
 {
 public:
+  static constexpr int DEFAULT_SIZE = 2048;
+
   void free() override;
 
   char *allocate(int nbytes);
@@ -150,19 +145,22 @@ public:
   char *m_free_start;
   uint32_t m_free_size;
 
-  bool
-  contains(const char *str) const
-  {
-    return (str >= ((const char *)this + STR_HEAP_HDR_SIZE) && str < ((const char *)this + m_heap_size));
-  }
+  bool contains(const char *str) const;
 };
 
+inline bool
+HdrStrHeap::contains(const char *str) const
+{
+  return reinterpret_cast<char const *>(this + 1) <= str && str < reinterpret_cast<char const *>(this) + m_heap_size;
+}
+
 struct StrHeapDesc {
-  StrHeapDesc();
+  StrHeapDesc() = default;
+
   Ptr<RefCountObj> m_ref_count_ptr;
-  char *m_heap_start;
-  int32_t m_heap_len;
-  bool m_locked;
+  char const *m_heap_start = nullptr;
+  int32_t m_heap_len       = 0;
+  bool m_locked            = false;
 
   bool
   contains(const char *str) const
@@ -176,6 +174,8 @@ class HdrHeap
   friend class CoreUtils;
 
 public:
+  static constexpr int DEFAULT_SIZE = 2048;
+
   void init();
   inkcoreapi void destroy();
 
@@ -203,23 +203,23 @@ public:
   void set_ronly_str_heap_end(int slot, const char *end);
 
   // Lock read only str heaps so that can't be moved around
-  //  by a heap consolidation.  Does NOT lock for Multi-Threaed
+  //  by a heap consolidation.  Does NOT lock for Multi-Threaded
   //  access!
   void
-  lock_ronly_str_heap(int i)
+  lock_ronly_str_heap(unsigned i)
   {
     m_ronly_heap[i].m_locked = true;
   }
 
   void
-  unlock_ronly_str_heap(int i)
+  unlock_ronly_str_heap(unsigned i)
   {
     m_ronly_heap[i].m_locked = false;
     // INKqa11238
     // Move slot i to the first available slot in m_ronly_heap[].
     // The move is necessary because the rest of the code assumes
     // heaps are always allocated in order.
-    for (int j = 0; j < i; j++) {
+    for (unsigned j = 0; j < i; j++) {
       if (m_ronly_heap[j].m_heap_start == nullptr) {
         // move slot i to slot j
         m_ronly_heap[j].m_ref_count_ptr = m_ronly_heap[i].m_ref_count_ptr;
@@ -230,8 +230,29 @@ public:
         m_ronly_heap[i].m_heap_start    = nullptr;
         m_ronly_heap[i].m_heap_len      = 0;
         m_ronly_heap[i].m_locked        = false;
+        break; // Did the move, time to go.
       }
     }
+  }
+
+  // Working function to copy strings into a new heap
+  // Unlike the HDR_MOVE_STR macro, this function will call
+  // allocate_str which will update the new_heap to create more space
+  // if there is not originally sufficient space
+  inline std::string_view
+  localize(const std::string_view &string)
+  {
+    auto length = string.length();
+    if (length > 0) {
+      char *new_str = this->allocate_str(length);
+      if (new_str) {
+        memcpy(new_str, string.data(), length);
+      } else {
+        length = 0;
+      }
+      return {new_str, length};
+    }
+    return {nullptr, 0};
   }
 
   // Sanity Check Functions
@@ -264,7 +285,7 @@ public:
   void coalesce_str_heaps(int incoming_size = 0);
   void evacuate_from_str_heaps(HdrStrHeap *new_heap);
   size_t required_space_for_evacuation();
-  bool attach_str_heap(char *h_start, int h_len, RefCountObj *h_ref_obj, int *index);
+  bool attach_str_heap(char const *h_start, int h_len, RefCountObj *h_ref_obj, int *index);
 
   uint64_t total_used_size() const;
 
@@ -303,6 +324,9 @@ public:
   int m_lost_string_space;
 };
 
+static constexpr HdrHeapMarshalBlocks HDR_HEAP_HDR_SIZE{ts::round_up(sizeof(HdrHeap))};
+static constexpr size_t HDR_MAX_ALLOC_SIZE = HdrHeap::DEFAULT_SIZE - HDR_HEAP_HDR_SIZE;
+
 inline void
 HdrHeap::free_string(const char *s, int len)
 {
@@ -319,14 +343,15 @@ HdrHeap::unmarshal_size() const
 
 //
 struct MarshalXlate {
-  char *start;
-  char *end;
-  char *offset;
+  char const *start  = nullptr;
+  char const *end    = nullptr;
+  char const *offset = nullptr;
+  MarshalXlate() {}
 };
 
 struct HeapCheck {
-  char *start;
-  char *end;
+  char const *start;
+  char const *end;
 };
 
 // Nasty macro to do string marshalling
@@ -435,7 +460,7 @@ struct HeapCheck {
 //
 struct HdrHeapSDKHandle {
 public:
-  HdrHeapSDKHandle() : m_heap(nullptr) {}
+  HdrHeapSDKHandle() {}
   ~HdrHeapSDKHandle() { clear(); }
   // clear() only deallocates chained SDK return values
   //   The underlying MBuffer is left untouched
@@ -448,7 +473,7 @@ public:
   void set(const HdrHeapSDKHandle *from);
   const char *make_sdk_string(const char *raw_str, int raw_str_len);
 
-  HdrHeap *m_heap;
+  HdrHeap *m_heap = nullptr;
 
   // In order to prevent gratitous refcounting,
   //  automatic C++ copies are disabled!
@@ -479,6 +504,6 @@ HdrHeapSDKHandle::set(const HdrHeapSDKHandle *from)
 }
 
 HdrStrHeap *new_HdrStrHeap(int requested_size);
-inkcoreapi HdrHeap *new_HdrHeap(int size = HDR_HEAP_DEFAULT_SIZE);
+inkcoreapi HdrHeap *new_HdrHeap(int size = HdrHeap::DEFAULT_SIZE);
 
 void hdr_heap_test();

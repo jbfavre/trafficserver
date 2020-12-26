@@ -10,21 +10,18 @@
 
    @section license License
 
-   Licensed to the Apache Software Foundation (ASF) under one
-   or more contributor license agreements.  See the NOTICE file
-   distributed with this work for additional information
-   regarding copyright ownership.  The ASF licenses this file
-   to you under the Apache License, Version 2.0 (the
-   "License"); you may not use this file except in compliance
-   with the License.  You may obtain a copy of the License at
+   Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+   agreements.  See the NOTICE file distributed with this work for additional information regarding
+   copyright ownership.  The ASF licenses this file to you under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with the License.  You may obtain
+   a copy of the License at
 
    http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+   Unless required by applicable law or agreed to in writing, software distributed under the License
+   is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+   or implied. See the License for the specific language governing permissions and limitations under
+   the License.
  */
 
 #pragma once
@@ -36,50 +33,61 @@
 #include <string>
 #include <string_view>
 
-/// Apache Traffic Server commons.
+/** Compare views with ordering, ignoring case.
+ *
+ * @param lhs input view
+ * @param rhs input view
+ * @return The ordered comparison value.
+ *
+ * - -1 if @a lhs is less than @a rhs
+ * -  1 if @a lhs is greater than @a rhs
+ * -  0 if the views have identical content.
+ *
+ * If one view is the prefix of the other, the shorter view is less (first in the ordering).
+ */
+int strcasecmp(const std::string_view &lhs, const std::string_view &rhs);
+
+/** Compare views with ordering.
+ *
+ * @param lhs input view
+ * @param rhs input view
+ * @return The ordered comparison value.
+ *
+ * - -1 if @a lhs is less than @a rhs
+ * -  1 if @a lhs is greater than @a rhs
+ * -  0 if the views have identical content.
+ *
+ * If one view is the prefix of the other, the shorter view is less (first in the ordering).
+ *
+ * @note For string views, there is no difference between @c strcmp and @c memcmp.
+ * @see strcmp
+ */
+int memcmp(const std::string_view &lhs, const std::string_view &rhs);
+
+/** Compare views with ordering.
+ *
+ * @param lhs input view
+ * @param rhs input view
+ * @return The ordered comparison value.
+ *
+ * - -1 if @a lhs is less than @a rhs
+ * -  1 if @a lhs is greater than @a rhs
+ * -  0 if the views have identical content.
+ *
+ * If one view is the prefix of the other, the shorter view is less (first in the ordering).
+ *
+ * @note For string views, there is no difference between @c strcmp and @c memcmp.
+ * @see memcmp
+ */
+inline int
+strcmp(const std::string_view &lhs, const std::string_view &rhs)
+{
+  return memcmp(lhs, rhs);
+}
+
 namespace ts
 {
 class TextView;
-/// Compare the memory in two views.
-/// Return based on the first different byte. If one argument is a prefix of the other, the prefix
-/// is considered the "smaller" value.
-/// @return
-/// - -1 if @a lhs byte is less than @a rhs byte.
-/// -  1 if @a lhs byte is greater than @a rhs byte.
-/// -  0 if the views contain identical memory.
-int memcmp(TextView const &lhs, TextView const &rhs);
-using ::memcmp; // Make this an overload, not an override.
-/// Compare the strings in two views.
-/// Return based on the first different character. If one argument is a prefix of the other, the prefix
-/// is considered the "smaller" value.
-/// @return
-/// - -1 if @a lhs char is less than @a rhs char.
-/// -  1 if @a lhs char is greater than @a rhs char.
-/// -  0 if the views contain identical strings.
-int strcmp(TextView const &lhs, TextView const &rhs);
-using ::strcmp; // Make this an overload, not an override.
-/// Compare the strings in two views.
-/// Return based on the first different character. If one argument is a prefix of the other, the prefix
-/// is considered the "smaller" value. The values are compared ignoring case.
-/// @return
-/// - -1 if @a lhs char is less than @a rhs char.
-/// -  1 if @a lhs char is greater than @a rhs char.
-/// -  0 if the views contain identical strings.
-///
-/// @internal Why not <const&>? Because the implementation would make copies anyway, might as well save
-/// the cost of passing the pointers.
-int strcasecmp(TextView lhs, TextView rhs);
-using ::strcasecmp; // Make this an overload, not an override.
-
-/** Convert the text in @c TextView @a src to a numeric value.
-
-    If @a parsed is non-null then the part of the string actually parsed is placed there.
-    @a base sets the conversion base. This defaults to 10 with two special cases:
-
-    - If the number starts with a literal '0' then it is treated as base 8.
-    - If the number starts with the literal characters '0x' or '0X' then it is treated as base 16.
-*/
-intmax_t svtoi(TextView src, TextView *parsed = nullptr, int base = 0);
 
 /** A read only view of contiguous piece of memory.
 
@@ -115,7 +123,7 @@ public:
 
   /** Construct explicitly with a pointer and size.
       If @a n is negative it is treated as 0.
-      @internal Overload for convience, otherwise get "narrow conversion" errors.
+      @internal Overload for convenience, otherwise get "narrow conversion" errors.
    */
   constexpr TextView(const char *ptr, ///< Pointer to buffer.
                      int n            ///< Size of buffer.
@@ -132,7 +140,7 @@ public:
 
       Construct directly from an array of characters. All elements of the array are
       included in the view unless the last element is nul, in which case it is elided.
-      If this is inapropriate then a constructor with an explicit size should be used.
+      If this is inappropriate then a constructor with an explicit size should be used.
 
       @code
         TextView a("A literal string");
@@ -158,6 +166,7 @@ public:
   /// Assignment.
   self_type &operator                    =(super_type const &that);
   template <size_t N> self_type &operator=(const char (&s)[N]);
+  self_type &operator                    =(const std::string &s);
 
   /// Explicitly set the view.
   self_type &assign(char const *ptr, size_t n);
@@ -165,6 +174,16 @@ public:
   /// Explicitly set the view to the range [ @a b , @a e )
   self_type &assign(char const *b, char const *e);
 
+  /// Explicitly set the view from a @c std::string
+  self_type &assign(std::string const &s);
+
+  /** Dereference operator.
+
+      @note This allows the view to be used as if it were a character iterator to a null terminated
+      string which is handy for several other STL interfaces.
+
+      @return The first byte in the view, or a nul character if the view is empty.
+  */
   /// @return The first byte in the view.
   char operator*() const;
 
@@ -172,6 +191,10 @@ public:
       @return @a this.
   */
   self_type &operator++();
+
+  /// Shift the view to discard the first byte.
+  /// @return A pre-increment copy of the view.
+  self_type operator++(int);
 
   /** Shift the view to discard the leading @a n bytes.
       Equivalent to @c std::string_view::remove_prefix
@@ -264,7 +287,7 @@ public:
   self_type prefix(size_t n) const;
   /// Convenience overload to avoid ambiguity for literal numbers.
   self_type prefix(int n) const;
-  /** Get the prefix delimited by the first occurence of the character @a c.
+  /** Get the prefix delimited by the first occurrence of the character @a c.
 
       If @a c is not found the entire view is returned.
       The delimiter character is not included in the returned view.
@@ -272,7 +295,7 @@ public:
       @return A view of the prefix.
   */
   self_type prefix(char c) const;
-  /** Get the prefix delimited by the first occurence of a character in @a delimiters.
+  /** Get the prefix delimited by the first occurrence of a character in @a delimiters.
 
       If no such character is found the entire view is returned.
       The delimiter character is not included in the returned view.
@@ -288,6 +311,15 @@ public:
       @return A view of the prefix.
   */
   template <typename F> self_type prefix_if(F const &pred) const;
+
+  /// Overload to provide better return type.
+  self_type &remove_prefix(size_t n);
+
+  /// Remove the prefix delimited by the first occurrence of @a c.
+  self_type &remove_prefix_at(char c);
+
+  /// Remove the prefix delimited by the first occurrence of a character for which @a pred is @c true.
+  template <typename F> self_type &remove_prefix_if(F const &pred);
 
   /** Split a prefix from the view on the character at offset @a n.
 
@@ -379,6 +411,15 @@ public:
   self_type suffix(const char *delimiters) const;
   /// Get the prefix delimited by the first character for which @a pred is @c true.
   template <typename F> self_type suffix_if(F const &pred) const;
+
+  /// Overload to provide better return type.
+  self_type &remove_suffix(size_t n);
+
+  /// Remove a suffix, delimited by the last occurrence of @c c.
+  self_type &remove_suffix_at(char c);
+
+  /// Remove a suffix, delimited by the last occurrence of a character for which @a pred is @c true.
+  template <typename F> self_type &remove_suffix_if(F const &f);
 
   /** Split the view to get a suffix of size @a n.
 
@@ -496,6 +537,59 @@ protected:
   /// Initialize a bit mask to mark which characters are in this view.
   static void init_delimiter_set(super_type const &delimiters, std::bitset<256> &set);
 };
+
+// Internal character conversion table.
+// Converts a character to the numeric digit value, or negative if the character is not a valid digit.
+extern const int8_t svtoi_convert[256];
+;
+
+/** Convert the text in @c TextView @a src to a numeric value.
+
+    If @a parsed is non-null then the part of the string actually parsed is placed there.
+    @a base sets the conversion base. This defaults to 10 with two special cases:
+
+    - If the number starts with a literal '0' then it is treated as base 8.
+    - If the number starts with the literal characters '0x' or '0X' then it is treated as base 16.
+*/
+intmax_t svtoi(TextView src, TextView *parsed = nullptr, int base = 0);
+
+/** Convert the text in @c src to an unsigned numeric value.
+ *
+ * @tparam N The radix (must be  1..36)
+ * @param src The source text. Updated during parsing.
+ * @return The converted numeric value.
+ *
+ * This is a specialized function useful only where conversion performance is critical, or for some
+ * other reason the numeric text has already been parsed out. The performance gains comes from
+ * templating the divisor which enables the compiler to optimize the multiplication (e.g., for
+ * powers of 2 shifts is used). It is used inside @c svtoi and @c svtou for the common cases of 8,
+ * 10, and 16, therefore normally this isn't much more performant than @c svtoi. Because of this
+ * only positive values are parsed. If determining the radix from the text or signed value parsing
+ * is needed, used @c svtoi.
+ *
+ * @a src is updated in place by removing parsed characters. Parsing stops on the first invalid
+ * digit, so any leading non-digit characters (e.g. whitespace) must already be removed. Overflow
+ * is detected and the first digit that would overflow is not parsed, and the maximum value is
+ * returned.
+ */
+template <uintmax_t N>
+uintmax_t
+svto_radix(ts::TextView &src)
+{
+  static_assert(0 < N && N <= 36, "Radix must be in the range 1..36");
+  uintmax_t zret{0};
+  uintmax_t v;
+  while (src.size() && (0 <= (v = ts::svtoi_convert[static_cast<unsigned char>(*src)])) && v < N) {
+    auto n = zret * N + v;
+    if (n < zret) { // overflow / wrap
+      return std::numeric_limits<uintmax_t>::max();
+    }
+    zret = n;
+    ++src;
+  }
+  return zret;
+};
+
 // ----------------------------------------------------------
 // Inline implementations.
 
@@ -530,12 +624,14 @@ TextView::clear()
   return *this;
 }
 
-inline char TextView::operator*() const
+inline char
+TextView::operator*() const
 {
-  return *(this->data());
+  return this->empty() ? 0 : *(this->data());
 }
 
-inline bool TextView::operator!() const
+inline bool
+TextView::operator!() const
 {
   return this->empty();
 }
@@ -550,6 +646,14 @@ TextView::operator++()
 {
   this->remove_prefix(1);
   return *this;
+}
+
+inline TextView
+TextView::operator++(int)
+{
+  self_type zret{*this};
+  this->remove_prefix(1);
+  return zret;
 }
 
 inline TextView &
@@ -570,6 +674,20 @@ inline TextView &
 TextView::operator=(super_type const &that)
 {
   this->super_type::operator=(that);
+  return *this;
+}
+
+inline TextView &
+TextView::operator=(const std::string &s)
+{
+  this->super_type::operator=(s);
+  return *this;
+}
+
+inline TextView &
+TextView::assign(const std::string &s)
+{
+  *this = super_type(s);
   return *this;
 }
 
@@ -639,7 +757,43 @@ template <typename F>
 inline TextView
 TextView::prefix_if(F const &pred) const
 {
-  return this->prefix(this->find(pred));
+  return this->prefix(this->find_if(pred));
+}
+
+inline TextView &
+TextView::remove_prefix(size_t n)
+{
+  if (n > this->size()) {
+    this->clear();
+  } else {
+    this->super_type::remove_prefix(n);
+  }
+  return *this;
+}
+
+inline TextView &
+TextView::remove_prefix_at(char c)
+{
+  auto n = this->find(c);
+  if (n == npos) {
+    this->clear();
+  } else {
+    this->super_type::remove_prefix(n + 1);
+  }
+  return *this;
+}
+
+template <typename F>
+TextView &
+TextView::remove_prefix_if(F const &pred)
+{
+  auto n = this->find_if(pred);
+  if (n == npos) {
+    this->clear();
+  } else {
+    this->super_type::remove_prefix(n + 1);
+  }
+  return *this;
 }
 
 inline TextView
@@ -736,6 +890,42 @@ inline TextView
 TextView::suffix_if(F const &pred) const
 {
   return this->suffix((this->size() - std::min(this->size(), this->rfind_if(pred))) - 1);
+}
+
+inline TextView &
+TextView::remove_suffix_at(char c)
+{
+  auto n = this->rfind(c);
+  if (n == npos) {
+    this->clear();
+  } else {
+    this->remove_suffix(this->size() - n);
+  }
+  return *this;
+}
+
+template <typename F>
+TextView &
+TextView::remove_suffix_if(F const &pred)
+{
+  auto n = this->rfind_if(pred);
+  if (n == npos) {
+    this->clear();
+  } else {
+    this->remove_suffix(this->size() - n);
+  }
+  return *this;
+}
+
+inline auto
+TextView::remove_suffix(size_t n) -> self_type &
+{
+  if (n > this->size()) {
+    this->clear();
+  } else {
+    this->super_type::remove_suffix(n);
+  }
+  return *this;
 }
 
 inline TextView
@@ -894,7 +1084,7 @@ TextView::rtrim(super_type const &delimiters)
   const char *spot  = this->data_end();
   const char *limit = this->data();
 
-  while (limit < spot && valid[static_cast<uint8_t>(*--spot)])
+  while (limit < spot-- && valid[static_cast<uint8_t>(*spot)])
     ;
 
   this->remove_suffix(this->data_end() - (spot + 1));
@@ -914,7 +1104,9 @@ TextView::trim(super_type const &delimiters)
     ;
   this->remove_prefix(spot - this->data());
 
-  for (spot = this->data_end(), limit = this->data(); limit < spot && valid[static_cast<uint8_t>(*--spot)];)
+  spot  = this->data_end();
+  limit = this->data();
+  while (limit < spot-- && valid[static_cast<uint8_t>(*spot)])
     ;
   this->remove_suffix(this->data_end() - (spot + 1));
 
@@ -943,9 +1135,9 @@ template <typename F>
 inline TextView &
 TextView::rtrim_if(F const &pred)
 {
-  const char *spot;
-  const char *limit;
-  for (spot = this->data_end(), limit = this->data(); limit < spot && pred(*--spot);)
+  const char *spot  = this->data_end();
+  const char *limit = this->data();
+  while (limit < spot-- && pred(*spot))
     ;
   this->remove_suffix(this->data_end() - (spot + 1));
   return *this;
@@ -968,12 +1160,6 @@ inline bool
 TextView::isNoCasePrefixOf(super_type const &that) const
 {
   return this->size() <= that.size() && 0 == strncasecmp(this->data(), that.data(), this->size());
-}
-
-inline int
-strcmp(TextView const &lhs, TextView const &rhs)
-{
-  return ts::memcmp(lhs, rhs);
 }
 
 template <typename Stream>
@@ -1017,7 +1203,21 @@ extern template std::ostream &TextView::stream_write(std::ostream &, const TextV
 namespace std
 {
 ostream &operator<<(ostream &os, const ts::TextView &b);
-}
+
+/* For interaction with specific STL interfaces, primarily std::filesystem. Along with the
+ * dereference operator, this enables a @c TextView to act as a character iterator to a C string
+ * even if the internal view is not nul terminated.
+ * @note Putting these directly in the class doesn't seem to work.
+ */
+template <> struct iterator_traits<ts::TextView> {
+  using value_type        = char;
+  using pointer_type      = const char *;
+  using reference_type    = const char &;
+  using difference_type   = ssize_t;
+  using iterator_category = forward_iterator_tag;
+};
+
+} // namespace std
 
 // @c constexpr literal constructor for @c std::string_view
 // For unknown reasons, this enables creating @c constexpr constructs using @c std::string_view while the standard

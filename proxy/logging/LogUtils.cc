@@ -21,8 +21,22 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+
+#include <tscore/ink_align.h>
 #include "tscore/ink_config.h"
 #include "tscore/ink_string.h"
+#include <tscore/ink_assert.h>
+#include <tscore/BufferWriter.h>
+
+#ifdef TEST_LOG_UTILS
+
+#include "unit-tests/test_LogUtils.h"
+
+#else
+
+#include <MIME.h>
+
+#endif
 
 #include <cassert>
 #include <cstdio>
@@ -30,6 +44,8 @@
 #include <cstdarg>
 #include <cstring>
 #include <ctime>
+#include <string_view>
+#include <cstdint>
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -83,12 +99,11 @@ char *
 LogUtils::timestamp_to_netscape_str(long timestamp)
 {
   static char timebuf[64]; // NOTE: not MT safe
-  static char gmtstr[16];
   static long last_timestamp = 0;
-  static char bad_time[]     = "Bad timestamp";
 
   // safety check
   if (timestamp < 0) {
+    static char bad_time[] = "Bad timestamp";
     return bad_time;
   }
   //
@@ -118,6 +133,8 @@ LogUtils::timestamp_to_netscape_str(long timestamp)
       offset = zone / -60;
       sign   = '+';
     }
+
+    static char gmtstr[16];
     int glen = snprintf(gmtstr, 16, "%c%.2d%.2d", sign, offset / 60, offset % 60);
 
     strftime(timebuf, 64 - glen, "%d/%b/%Y:%H:%M:%S ", tms);
@@ -139,10 +156,10 @@ LogUtils::timestamp_to_date_str(long timestamp)
 {
   static char timebuf[64]; // NOTE: not MT safe
   static long last_timestamp = 0;
-  static char bad_time[]     = "Bad timestamp";
 
   // safety check
   if (timestamp < 0) {
+    static char bad_time[] = "Bad timestamp";
     return bad_time;
   }
   //
@@ -171,10 +188,10 @@ LogUtils::timestamp_to_time_str(long timestamp)
 {
   static char timebuf[64]; // NOTE: not MT safe
   static long last_timestamp = 0;
-  static char bad_time[]     = "Bad timestamp";
 
   // safety check
   if (timestamp < 0) {
+    static char bad_time[] = "Bad timestamp";
     return bad_time;
   }
   //
@@ -205,13 +222,13 @@ void
 LogUtils::manager_alarm(LogUtils::AlarmType alarm_type, const char *msg, ...)
 {
   char msg_buf[LOG_MAX_FORMATTED_LINE];
-  va_list ap;
 
   ink_assert(alarm_type >= 0 && alarm_type < LogUtils::LOG_ALARM_N_TYPES);
 
   if (msg == nullptr) {
     snprintf(msg_buf, sizeof(msg_buf), "No Message");
   } else {
+    va_list ap;
     va_start(ap, msg);
     vsnprintf(msg_buf, LOG_MAX_FORMATTED_LINE, msg, ap);
     va_end(ap);
@@ -357,7 +374,7 @@ escapify_url_common(Arena *arena, char *url, size_t len_in, int *len_out, char *
   if (dst) {
     new_url = dst;
   } else {
-    new_url = (char *)arena->str_alloc(out_len + 1);
+    new_url = arena->str_alloc(out_len + 1);
   }
 
   char *from = url;
@@ -428,46 +445,10 @@ LogUtils::remove_content_type_attributes(char *type_str, int *type_len)
   }
   // Look for a semicolon and cut out everything after that
   //
-  char *p = (char *)memchr(type_str, ';', *type_len);
+  char *p = static_cast<char *>(memchr(type_str, ';', *type_len));
   if (p) {
     *type_len = p - type_str;
   }
-}
-
-/*-------------------------------------------------------------------------
-  LogUtils::timestamp_to_hex_str
-
-  This routine simply writes the given timestamp integer [time_t] in the equivalent
-  hexadecimal string format "xxxxxxxxxx" into the provided buffer [buf] of
-  size [bufLen].
-
-  It returns 1 if the provided buffer is not big enough to hold the
-  equivalent ip string (and its null terminator), and 0 otherwise.
-  If the buffer is not big enough, only the ip "segments" that completely
-  fit into it are written, and the buffer is null terminated.
-  -------------------------------------------------------------------------*/
-
-int
-LogUtils::timestamp_to_hex_str(unsigned ip, char *buf, size_t bufLen, size_t *numCharsPtr)
-{
-  static const char *table = "0123456789abcdef@";
-  int retVal               = 1;
-  int shift                = 28;
-  if (buf && bufLen > 0) {
-    if (bufLen > 8) {
-      bufLen = 8;
-    }
-    for (retVal = 0; retVal < (int)bufLen;) {
-      buf[retVal++] = (char)table[((ip >> shift) & 0xf)];
-      shift -= 4;
-    }
-
-    if (numCharsPtr) {
-      *numCharsPtr = (size_t)retVal;
-    }
-    retVal = (retVal == 8) ? 0 : 1;
-  }
-  return retVal;
 }
 
 /*
@@ -495,6 +476,34 @@ LogUtils::seconds_to_next_roll(time_t time_now, int rolling_offset, int rolling_
   int sidl = lt.tm_sec + lt.tm_min * 60 + lt.tm_hour * 3600;
   int tr   = rolling_offset * 3600;
   return ((tr >= sidl ? (tr - sidl) % rolling_interval : (86400 - (sidl - tr)) % rolling_interval));
+}
+
+ts::TextView
+LogUtils::get_unrolled_filename(ts::TextView rolled_filename)
+{
+  auto unrolled_name = rolled_filename;
+
+  // A rolled log will look something like:
+  //   squid.log_some.hostname.com.20191029.18h15m02s-20191029.18h30m02s.old
+  auto suffix = rolled_filename;
+
+  suffix.remove_prefix_at('.');
+  // Using the above squid.log example, suffix now looks like:
+  //   log_some.hostname.com.20191029.18h15m02s-20191029.18h30m02s.old
+
+  // Some suffixes do not have the hostname.  Rolled diags.log files will look
+  // something like this, for example:
+  //   diags.log.20191114.21h43m16s-20191114.21h43m17s.old
+  //
+  // For these, the second delimeter will be a period. For this reason, we also
+  // split_prefix_at with a period as well.
+  if (suffix.split_prefix_at('_') || suffix.split_prefix_at('.')) {
+    // ' + 1' to remove the '_' or second '.':
+    return unrolled_name.remove_suffix(suffix.size() + 1);
+  }
+  // If there isn't a '.' or an '_' after the first '.', then this
+  // doesn't look like a rolled file.
+  return rolled_filename;
 }
 
 // Checks if the file pointed to by full_filename either is a regular
@@ -590,7 +599,7 @@ LogUtils::file_is_writeable(const char *full_filename, off_t *size_bytes, bool *
     if (e < 0) {
       ret_val = -1;
     } else {
-      if (limit_data.rlim_cur != (rlim_t)RLIM_INFINITY) {
+      if (limit_data.rlim_cur != static_cast<rlim_t> RLIM_INFINITY) {
         if (has_size_limit) {
           *has_size_limit = true;
         }
@@ -607,3 +616,158 @@ LogUtils::file_is_writeable(const char *full_filename, off_t *size_bytes, bool *
 
   return ret_val;
 }
+
+namespace
+{
+// Get a string out of a MIMEField using one of its member functions, and put it into a buffer writer, terminated with a nul.
+//
+void
+marshalStr(ts::FixedBufferWriter &bw, const MIMEField &mf, const char *(MIMEField::*get_func)(int *length) const)
+{
+  int length;
+  const char *data = (mf.*get_func)(&length);
+
+  if (!data or (*data == '\0')) {
+    // Empty string.  This is a problem, since it would result in two successive nul characters, which indicates the end of the
+    // marshaled hearer.  Change the string to a single blank character.
+
+    static const char Blank[] = " ";
+    data                      = Blank;
+    length                    = 1;
+  }
+
+  bw << std::string_view(data, length) << '\0';
+}
+
+void
+unmarshalStr(ts::FixedBufferWriter &bw, const char *&data)
+{
+  bw << '{';
+
+  while (*data) {
+    bw << *(data++);
+  }
+
+  // Skip over terminal nul.
+  ++data;
+
+  bw << '}';
+}
+
+} // end anonymous namespace
+
+namespace LogUtils
+{
+// Marshals header tags and values together, with a single terminating nul character.  Returns buffer space required.  'buf' points
+// to where to put the marshaled data.  If 'buf' is null, no data is marshaled, but the function returns the amount of space that
+// would have been used.
+//
+int
+marshalMimeHdr(MIMEHdr *hdr, char *buf)
+{
+  std::size_t bwSize = buf ? SIZE_MAX : 0;
+
+  ts::FixedBufferWriter bw(buf, bwSize);
+
+  if (hdr) {
+    MIMEFieldIter mfIter;
+    const MIMEField *mfp = hdr->iter_get_first(&mfIter);
+
+    while (mfp) {
+      marshalStr(bw, *mfp, &MIMEField::name_get);
+      marshalStr(bw, *mfp, &MIMEField::value_get);
+
+      mfp = hdr->iter_get_next(&mfIter);
+    }
+  }
+
+  bw << '\0';
+
+  return int(INK_ALIGN_DEFAULT(bw.extent()));
+}
+
+// Unmarshaled/printable format is {{{tag1}:{value1}}{{tag2}:{value2}} ... }
+//
+int
+unmarshalMimeHdr(char **buf, char *dest, int destLength)
+{
+  ink_assert(*buf != nullptr);
+
+  const char *data = *buf;
+
+  ink_assert(data != nullptr);
+
+  ts::FixedBufferWriter bw(dest, destLength);
+
+  bw << '{';
+
+  int pairEndFallback{0}, pairEndFallback2{0}, pairSeparatorFallback{0};
+
+  while (*data) {
+    if (!bw.error()) {
+      pairEndFallback2 = pairEndFallback;
+      pairEndFallback  = bw.size();
+    }
+
+    // Add open bracket of pair.
+    //
+    bw << '{';
+
+    // Unmarshal field name.
+    unmarshalStr(bw, data);
+
+    bw << ':';
+
+    if (!bw.error()) {
+      pairSeparatorFallback = bw.size();
+    }
+
+    // Unmarshal field value.
+    unmarshalStr(bw, data);
+
+    // Add close bracket of pair.
+    bw << '}';
+
+  } // end for loop
+
+  bw << '}';
+
+  if (bw.error()) {
+    // The output buffer wasn't big enough.
+
+    static std::string_view FULL_ELLIPSES("...}}}");
+
+    if ((pairSeparatorFallback > pairEndFallback) and ((pairSeparatorFallback + 7) <= destLength)) {
+      // In the report, we can show the existence of the last partial tag/value pair, and maybe part of the value.  If we only
+      // show part of the value, we want to end it with an elipsis, to make it clear it's not complete.
+
+      bw.reduce(destLength - FULL_ELLIPSES.size());
+      bw << FULL_ELLIPSES;
+
+    } else if (pairEndFallback and (pairEndFallback < destLength)) {
+      bw.reduce(pairEndFallback);
+      bw << '}';
+
+    } else if ((pairSeparatorFallback > pairEndFallback2) and ((pairSeparatorFallback + 7) <= destLength)) {
+      bw.reduce(destLength - FULL_ELLIPSES.size());
+      bw << FULL_ELLIPSES;
+
+    } else if (pairEndFallback2 and (pairEndFallback2 < destLength)) {
+      bw.reduce(pairEndFallback2);
+      bw << '}';
+
+    } else if (destLength > 1) {
+      bw.reduce(1);
+      bw << '}';
+
+    } else {
+      bw.reduce(0);
+    }
+  }
+
+  *buf += INK_ALIGN_DEFAULT(data - *buf + 1);
+
+  return bw.size();
+}
+
+} // end namespace LogUtils

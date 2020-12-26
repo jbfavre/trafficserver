@@ -23,6 +23,7 @@
 
 #include "Main.h"
 #include "tscore/I_Layout.h"
+#include "tscore/I_Version.h"
 #include "I_Net.h"
 #include "tscore/signals.h"
 #include "tscore/ink_cap.h"
@@ -32,6 +33,8 @@
 #if defined(__linux__)
 #include <ucontext.h>
 #endif
+
+extern AppVersionInfo appVersionInfo;
 
 static pid_t crash_logger_pid = -1;
 static int crash_logger_fd    = NO_FD;

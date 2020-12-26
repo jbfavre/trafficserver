@@ -21,10 +21,9 @@ import os
 Test.Summary = '''
 Test custom log file format
 '''
-# need Curl
+
+# this test depends on Linux specific behavior regarding loopback addresses
 Test.SkipUnless(
-    Condition.HasProgram(
-        "curl", "Curl need to be installed on system for this test to work"),
     Condition.IsPlatform("linux")
 )
 
@@ -38,12 +37,13 @@ ts.Disk.remap_config.AddLine(
 
 ts.Disk.logging_yaml.AddLines(
     '''
-formats:
-  - name: custom
-    format: "%<hii> %<hiih>"
-logs:
-  - filename: test_log_field
-    format: custom
+logging:
+  formats:
+    - name: custom
+      format: "%<hii> %<hiih>"
+  logs:
+    - filename: test_log_field
+      format: custom
 '''.split("\n")
 )
 

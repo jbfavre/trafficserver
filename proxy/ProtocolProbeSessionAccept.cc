@@ -93,7 +93,7 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
     }
 
     // if proxy_protocol is enabled via port descriptor AND the src IP is in
-    // the trusted whitelist for proxy protocol, then check to see if it is
+    // the trusted allowlist for proxy protocol, then check to see if it is
     // present
 
     IpMap *pp_ipmap;
@@ -101,21 +101,21 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
 
     if (netvc->get_is_proxy_protocol()) {
       Debug("proxyprotocol", "ioCompletionEvent: proxy protocol is enabled on this port");
-      if (pp_ipmap->getCount() > 0) {
-        Debug("proxyprotocol", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
+      if (pp_ipmap->count() > 0) {
+        Debug("proxyprotocol", "ioCompletionEvent: proxy protocol has a configured allowlist of trusted IPs - checking");
         void *payload = nullptr;
         if (!pp_ipmap->contains(netvc->get_remote_addr(), &payload)) {
           Debug("proxyprotocol",
-                "ioCompletionEvent: proxy protocol src IP is NOT in the configured whitelist of trusted IPs - closing connection");
+                "ioCompletionEvent: proxy protocol src IP is NOT in the configured allowlist of trusted IPs - closing connection");
           goto done;
         } else {
           char new_host[INET6_ADDRSTRLEN];
-          Debug("proxyprotocol", "ioCompletionEvent: Source IP [%s] is trusted in the whitelist for proxy protocol",
+          Debug("proxyprotocol", "ioCompletionEvent: Source IP [%s] is trusted in the allowlist for proxy protocol",
                 ats_ip_ntop(netvc->get_remote_addr(), new_host, sizeof(new_host)));
         }
       } else {
         Debug("proxyprotocol",
-              "ioCompletionEvent: proxy protocol DOES NOT have a configured whitelist of trusted IPs but proxy protocol is "
+              "ioCompletionEvent: proxy protocol DOES NOT have a configured allowlist of trusted IPs but proxy protocol is "
               "ernabled on this port - processing all connections");
       }
 
@@ -170,7 +170,7 @@ ProtocolProbeSessionAccept::mainEvent(int event, void *data)
     ink_assert(data);
 
     VIO *vio;
-    NetVConnection *netvc          = (NetVConnection *)data;
+    NetVConnection *netvc          = static_cast<NetVConnection *>(data);
     ProtocolProbeTrampoline *probe = new ProtocolProbeTrampoline(this, netvc->mutex, nullptr, nullptr);
 
     // XXX we need to apply accept inactivity timeout here ...
@@ -187,7 +187,7 @@ ProtocolProbeSessionAccept::mainEvent(int event, void *data)
     return EVENT_CONT;
   }
 
-  ink_abort("Protocol probe received a fatal error: errno = %d", -((int)(intptr_t)data));
+  ink_abort("Protocol probe received a fatal error: errno = %d", -(static_cast<int>((intptr_t)data)));
   return EVENT_CONT;
 }
 

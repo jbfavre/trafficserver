@@ -30,25 +30,31 @@
  ****************************************************************************/
 #pragma once
 
-#include "ProxyConfig.h"
-#include "SSLSessionCache.h"
-#include "tscore/ink_inet.h"
 #include <openssl/rand.h>
-#include "P_SSLCertLookup.h"
+
+#include "tscore/ink_inet.h"
 #include "tscore/IpMap.h"
+
+#include "ProxyConfig.h"
+
+#include "SSLSessionCache.h"
+#include "YamlSNIConfig.h"
+
+#include "P_SSLUtils.h"
 
 struct SSLCertLookup;
 struct ssl_ticket_key_block;
+
 /////////////////////////////////////////////////////////////
 //
 // struct SSLConfigParams
 //
-// configuration parameters as they apear in the global
+// configuration parameters as they appear in the global
 // configuration file.
 /////////////////////////////////////////////////////////////
 
 typedef void (*init_ssl_ctx_func)(void *, bool);
-typedef void (*load_ssl_file_func)(const char *, unsigned int);
+typedef void (*load_ssl_file_func)(const char *);
 
 struct SSLConfigParams : public ConfigInfo {
   enum SSL_SESSION_CACHE_MODE {
@@ -80,10 +86,14 @@ struct SSLConfigParams : public ConfigInfo {
   int ssl_session_cache_auto_clear;
 
   char *clientCertPath;
+  char *clientCertPathOnly;
   char *clientKeyPath;
+  char *clientKeyPathOnly;
   char *clientCACertFilename;
   char *clientCACertPath;
-  int8_t clientVerify;
+  YamlSNIConfig::Policy verifyServerPolicy;
+  YamlSNIConfig::Property verifyServerProperties;
+  bool tls_server_connection;
   int client_verify_depth;
   long ssl_ctx_options;
   long ssl_client_ctx_options;
@@ -93,7 +103,12 @@ struct SSLConfigParams : public ConfigInfo {
   char *server_groups_list;
   char *client_groups_list;
 
+  static uint32_t server_max_early_data;
+  static uint32_t server_recv_max_early_data;
+  static bool server_allow_early_data_params;
+
   static int ssl_maxrecord;
+  static int ssl_misc_max_iobuffer_size_index;
   static bool ssl_allow_client_renegotiation;
 
   static bool ssl_ocsp_enabled;
@@ -101,18 +116,11 @@ struct SSLConfigParams : public ConfigInfo {
   static int ssl_ocsp_request_timeout;
   static int ssl_ocsp_update_period;
   static int ssl_handshake_timeout_in;
+  char *ssl_ocsp_response_path_only;
 
   static size_t session_cache_number_buckets;
   static size_t session_cache_max_bucket_size;
   static bool session_cache_skip_on_lock_contention;
-  static bool sni_map_enable;
-
-  // TS-3435 Wiretracing for SSL Connections
-  static int ssl_wire_trace_enabled;
-  static char *ssl_wire_trace_addr;
-  static IpAddr *ssl_wire_trace_ip;
-  static int ssl_wire_trace_percentage;
-  static char *ssl_wire_trace_server_name;
 
   static IpMap *proxy_protocol_ipmap;
 
@@ -122,18 +130,21 @@ struct SSLConfigParams : public ConfigInfo {
   static int async_handshake_enabled;
   static char *engine_conf_file;
 
-  SSL_CTX *client_ctx;
+  shared_SSL_CTX client_ctx;
 
-  mutable HashMap<cchar *, class StringHashFns, SSL_CTX *> ctx_map;
+  // Client contexts are held by 2-level map:
+  // The first level maps from CA bundle file&path to next level map;
+  // The second level maps from cert&key to actual SSL_CTX;
+  // The second level map owns the client SSL_CTX objects and is responsible for cleaning them up
+  using CTX_MAP = std::unordered_map<std::string, shared_SSL_CTX>;
+  mutable std::unordered_map<std::string, CTX_MAP> top_level_ctx_map;
   mutable ink_mutex ctxMapLock;
 
-  SSL_CTX *getCTX(cchar *client_cert) const;
-  void deleteKey(cchar *key) const;
-  void freeCTXmap() const;
-  void printCTXmap() const;
-  bool InsertCTX(cchar *client_cert, SSL_CTX *cctx) const;
-  SSL_CTX *getClientSSL_CTX(void) const;
-  SSL_CTX *getNewCTX(cchar *client_cert) const;
+  shared_SSL_CTX getClientSSL_CTX() const;
+  shared_SSL_CTX getCTX(const char *client_cert, const char *key_file, const char *ca_bundle_file,
+                        const char *ca_bundle_path) const;
+
+  void cleanupCTXTable();
 
   void initialize();
   void cleanup();
@@ -174,7 +185,7 @@ struct SSLTicketParams : public ConfigInfo {
   ssl_ticket_key_block *default_global_keyblock = nullptr;
   time_t load_time                              = 0;
   char *ticket_key_filename;
-  bool LoadTicket();
+  bool LoadTicket(bool &nochange);
   void LoadTicketData(char *ticket_data, int ticket_data_len);
   void cleanup();
 

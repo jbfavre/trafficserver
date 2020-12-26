@@ -58,7 +58,7 @@ public:
   HttpSessionAcceptOptions();
 
   // Connection type (HttpProxyPort::TransportType)
-  int transport_type;
+  int transport_type = 0;
   /// Set the transport type.
   self &setTransportType(int);
   /// Local address to bind for outbound connections.
@@ -70,21 +70,17 @@ public:
   /// Set the outbound IP address to @a ip.
   self &setOutboundIp(IpEndpoint *ip);
   /// Local port for outbound connection.
-  uint16_t outbound_port;
+  uint16_t outbound_port = 0;
   /// Set outbound port.
   self &setOutboundPort(uint16_t);
   /// Outbound transparent.
-  bool f_outbound_transparent;
+  bool f_outbound_transparent = false;
   /// Set outbound transparency.
   self &setOutboundTransparent(bool);
   /// Transparent pass-through.
-  bool f_transparent_passthrough;
+  bool f_transparent_passthrough = false;
   /// Set transparent passthrough.
   self &setTransparentPassthrough(bool);
-  /// Accepting backdoor connections.
-  bool backdoor;
-  /// Set backdoor accept.
-  self &setBackdoor(bool);
   /// Host address resolution preference order.
   HostResPreferenceOrder host_res_preference;
   /// Set the host query preference.
@@ -96,7 +92,7 @@ public:
 };
 
 inline HttpSessionAcceptOptions::HttpSessionAcceptOptions()
-  : transport_type(0), outbound_port(0), f_outbound_transparent(false), f_transparent_passthrough(false), backdoor(false)
+
 {
   memcpy(host_res_preference, host_res_default_preference_order, sizeof(host_res_preference));
 }
@@ -146,13 +142,6 @@ inline HttpSessionAcceptOptions &
 HttpSessionAcceptOptions::setTransparentPassthrough(bool flag)
 {
   f_transparent_passthrough = flag;
-  return *this;
-}
-
-inline HttpSessionAcceptOptions &
-HttpSessionAcceptOptions::setBackdoor(bool flag)
-{
-  backdoor = flag;
   return *this;
 }
 
