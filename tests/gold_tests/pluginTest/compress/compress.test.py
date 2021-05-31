@@ -64,9 +64,26 @@ for i in range(3):
     server.addResponse("sessionfile.log", request_header, response_header)
 
 
+# post for the origin server
+post_request_header = {
+    "headers": "POST /obj3 HTTP/1.1\r\nHost: just.any.thing\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 11\r\n\r\n",
+    "timestamp": "1469733493.993",
+    "body": "knock knock"}
+server.addResponse("sessionfile.log", post_request_header, response_header)
+
+
 def curl(ts, idx, encodingList):
     return (
         "curl --verbose --proxy http://127.0.0.1:{}".format(ts.Variables.port) +
+        " --header 'X-Ats-Compress-Test: {}/{}'".format(idx, encodingList) +
+        " --header 'Accept-Encoding: {0}' 'http://ae-{1}/obj{1}'".format(encodingList, idx) +
+        " 2>> compress_long.log ; printf '\n===\n' >> compress_long.log"
+    )
+
+
+def curl_post(ts, idx, encodingList):
+    return (
+        "curl --verbose -d 'knock knock' --proxy http://127.0.0.1:{}".format(ts.Variables.port) +
         " --header 'X-Ats-Compress-Test: {}/{}'".format(idx, encodingList) +
         " --header 'Accept-Encoding: {0}' 'http://ae-{1}/obj{1}'".format(encodingList, idx) +
         " 2>> compress_long.log ; printf '\n===\n' >> compress_long.log"
@@ -77,10 +94,9 @@ waitForServer = True
 
 waitForTs = True
 
-ts = Test.MakeATSProcess("ts")
+ts = Test.MakeATSProcess("ts", enable_cache=False)
 
 ts.Disk.records_config.update({
-    'proxy.config.http.cache.http': 0,
     'proxy.config.diags.debug.enabled': 1,
     'proxy.config.diags.debug.tags': 'compress',
     'proxy.config.http.normalize_ae': 0,
@@ -100,12 +116,16 @@ ts.Disk.remap_config.AddLine(
     ' @plugin=conf_remap.so @pparam=proxy.config.http.normalize_ae=2' +
     ' @plugin=compress.so @pparam={}/compress2.config'.format(Test.TestDirectory)
 )
+ts.Disk.remap_config.AddLine(
+    'map http://ae-3/ http://127.0.0.1:{}/'.format(server.Variables.Port) +
+    ' @plugin=compress.so @pparam={}/compress.config'.format(Test.TestDirectory)
+)
 
 for i in range(3):
 
     tr = Test.AddTestRun()
     if (waitForTs):
-        tr.Processes.Default.StartBefore(ts, ready=When.PortOpen(ts.Variables.port))
+        tr.Processes.Default.StartBefore(ts)
     waitForTs = False
     if (waitForServer):
         tr.Processes.Default.StartBefore(server, ready=When.PortOpen(server.Variables.Port))
@@ -162,6 +182,11 @@ tr.Processes.Default.Command = curl(ts, 0, " br ; q=0.666, bbb")
 tr = Test.AddTestRun()
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Command = curl(ts, 0, "aaa, gzip;q=0.666 , ")
+
+# post
+tr = Test.AddTestRun()
+tr.Processes.Default.ReturnCode = 0
+tr.Processes.Default.Command = curl_post(ts, 3, "gzip")
 
 # compress_long.log contains all the output from the curl commands.  The tr removes the carriage returns for easier
 # readability.  Curl seems to have a bug, where it will neglect to output an end of line before outputing an HTTP
