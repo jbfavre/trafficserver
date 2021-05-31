@@ -198,6 +198,12 @@ size_t const OPT_OUTBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_OUTBOUND_IP_
 size_t const OPT_INBOUND_IP_PREFIX_LEN  = strlen(HttpProxyPort::OPT_INBOUND_IP_PREFIX);
 size_t const OPT_HOST_RES_PREFIX_LEN    = strlen(HttpProxyPort::OPT_HOST_RES_PREFIX);
 size_t const OPT_PROTO_PREFIX_LEN       = strlen(HttpProxyPort::OPT_PROTO_PREFIX);
+
+constexpr std::string_view TS_ALPN_PROTO_ID_OPENSSL_HTTP_0_9("\x8http/0.9");
+constexpr std::string_view TS_ALPN_PROTO_ID_OPENSSL_HTTP_1_0("\x8http/1.0");
+constexpr std::string_view TS_ALPN_PROTO_ID_OPENSSL_HTTP_1_1("\x8http/1.1");
+constexpr std::string_view TS_ALPN_PROTO_ID_OPENSSL_HTTP_2("\x2h2");
+constexpr std::string_view TS_ALPN_PROTO_ID_OPENSSL_HTTP_3("\x2h3");
 } // namespace
 
 namespace
@@ -214,7 +220,7 @@ HttpProxyPort::Group &HttpProxyPort::m_global = GLOBAL_DATA;
 HttpProxyPort::HttpProxyPort() : m_fd(ts::NO_FD)
 
 {
-  memcpy(m_host_res_preference, host_res_default_preference_order, sizeof(m_host_res_preference));
+  m_host_res_preference = host_res_default_preference_order;
 }
 
 bool
@@ -641,8 +647,7 @@ HttpProxyPort::print(char *out, size_t n)
    * transparent (which means the preference order is forced) or if
    * the order is the same as the default.
    */
-  if (!m_outbound_transparent_p &&
-      0 != memcmp(m_host_res_preference, host_res_default_preference_order, sizeof(m_host_res_preference))) {
+  if (!m_outbound_transparent_p && m_host_res_preference != host_res_default_preference_order) {
     zret += snprintf(out + zret, n - zret, ":%s=", OPT_HOST_RES_PREFIX);
     zret += ts_host_res_order_to_string(m_host_res_preference, out + zret, n - zret);
   }
@@ -697,9 +702,8 @@ void
 ts_host_res_global_init()
 {
   // Global configuration values.
-  memcpy(host_res_default_preference_order, HOST_RES_DEFAULT_PREFERENCE_ORDER, sizeof(host_res_default_preference_order));
-
-  char *ip_resolve = REC_ConfigReadString("proxy.config.hostdb.ip_resolve");
+  host_res_default_preference_order = HOST_RES_DEFAULT_PREFERENCE_ORDER;
+  char *ip_resolve                  = REC_ConfigReadString("proxy.config.hostdb.ip_resolve");
   if (ip_resolve) {
     parse_host_res_preference(ip_resolve, host_res_default_preference_order);
   }
@@ -760,6 +764,31 @@ RecNormalizeProtoTag(const char *tag)
 {
   auto findResult = TSProtoTags.find(tag);
   return findResult == TSProtoTags.end() ? nullptr : findResult->data();
+}
+
+/**
+   Convert TS_ALPN_PROTOCOL_INDEX_* into OpenSSL ALPN Wire Format
+
+   https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_set_alpn_protos.html
+
+   TODO: support dynamic generation of wire format
+ */
+std::string_view
+SessionProtocolNameRegistry::convert_openssl_alpn_wire_format(int index)
+{
+  if (index == TS_ALPN_PROTOCOL_INDEX_HTTP_0_9) {
+    return TS_ALPN_PROTO_ID_OPENSSL_HTTP_0_9;
+  } else if (index == TS_ALPN_PROTOCOL_INDEX_HTTP_1_0) {
+    return TS_ALPN_PROTO_ID_OPENSSL_HTTP_1_0;
+  } else if (index == TS_ALPN_PROTOCOL_INDEX_HTTP_1_1) {
+    return TS_ALPN_PROTO_ID_OPENSSL_HTTP_1_1;
+  } else if (index == TS_ALPN_PROTOCOL_INDEX_HTTP_2_0) {
+    return TS_ALPN_PROTO_ID_OPENSSL_HTTP_2;
+  } else if (index == TS_ALPN_PROTOCOL_INDEX_HTTP_3) {
+    return TS_ALPN_PROTO_ID_OPENSSL_HTTP_3;
+  }
+
+  return {};
 }
 
 int

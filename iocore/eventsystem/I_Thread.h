@@ -110,7 +110,7 @@ public:
   */
   Ptr<ProxyMutex> mutex;
 
-  void set_specific();
+  virtual void set_specific();
 
   inkcoreapi static ink_thread_key thread_data_key;
 
@@ -122,6 +122,7 @@ public:
   ProxyAllocator http1ClientSessionAllocator;
   ProxyAllocator http2ClientSessionAllocator;
   ProxyAllocator http2StreamAllocator;
+  ProxyAllocator httpSMAllocator;
   ProxyAllocator quicClientSessionAllocator;
   ProxyAllocator quicBidiStreamAllocator;
   ProxyAllocator quicSendStreamAllocator;
@@ -137,6 +138,11 @@ public:
   ProxyAllocator ioDataAllocator;
   ProxyAllocator ioAllocator;
   ProxyAllocator ioBlockAllocator;
+  // From InkAPI (plugins wrappers)
+  ProxyAllocator apiHookAllocator;
+  ProxyAllocator INKContAllocator;
+  ProxyAllocator INKVConnAllocator;
+  ProxyAllocator mHandleAllocator;
 
   /** Start the underlying thread.
 

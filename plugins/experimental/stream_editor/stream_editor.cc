@@ -224,7 +224,7 @@ public:
     if (error) {
       TSError("stream-editor: can't compile regexp [%s]", str);
       TSfree(str);
-      throw;
+      throw std::runtime_error("stream editor: Error compiling regex, regcomp in rxscope");
     }
     TSfree(str);
   }
@@ -358,7 +358,7 @@ public:
     if (error) {
       TSError("stream-editor: can't compile regexp [%s]", str);
       TSfree(str);
-      throw;
+      throw std::runtime_error("stream editor: Error compiling regex, regcomp in rxmatch");
     }
     TSfree(str);
   }
@@ -551,7 +551,7 @@ public:
 using ruleset_t = std::vector<rule_t>;
 using rule_p    = ruleset_t::const_iterator;
 
-typedef struct contdata_t {
+using contdata_t = struct contdata_t {
   TSCont cont             = nullptr;
   TSIOBuffer out_buf      = nullptr;
   TSIOBufferReader out_rd = nullptr;
@@ -582,7 +582,7 @@ typedef struct contdata_t {
       contbuf_sz = 2 * sz - 1;
     }
   }
-} contdata_t;
+};
 
 static int64_t
 process_block(contdata_t *contdata, TSIOBufferReader reader)

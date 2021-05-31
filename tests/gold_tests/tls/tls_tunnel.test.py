@@ -48,7 +48,7 @@ ts.addSSLfile("ssl/signer.key")
 dns.addRecords(records={"localhost": ["127.0.0.1"]})
 dns.addRecords(records={"one.testmatch": ["127.0.0.1"]})
 dns.addRecords(records={"two.example.one": ["127.0.0.1"]})
-# Need no remap rules.  Everything should be proccessed by sni
+# Need no remap rules.  Everything should be processed by sni
 
 # Make sure the TS server certs are different from the origin certs
 ts.Disk.ssl_multicert_config.AddLine(
@@ -200,6 +200,7 @@ tr.Processes.Default.Command = "curl -v --resolve 'foo.com:{0}:127.0.0.1' -k  ht
 tr.Processes.Default.Streams.All += Testers.ContainsExpression("Not Found on Accelerato", "Terminates on on Traffic Server")
 tr.Processes.Default.Streams.All += Testers.ContainsExpression("ATS", "Terminate on Traffic Server")
 tr.Processes.Default.Streams.All += Testers.ExcludesExpression("Could Not Connect", "Curl attempt should have succeeded")
+tr.TimeOut = 30
 
 # Should tunnel to server_bar
 tr = Test.AddTestRun("bar.com  Tunnel-test")

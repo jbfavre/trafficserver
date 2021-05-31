@@ -213,13 +213,25 @@ System Variables
 
 .. ts:cv:: CONFIG proxy.config.output.logfile  STRING traffic.out
 
-   The name and location of the file that contains warnings, status messages, and error messages produced by the |TS|
-   processes. If no path is specified, then |TS| creates the file in its logging directory.
+   This is used for log rolling configuration so |TS| knows the path of the
+   output file that should be rolled. This configuration takes the name of the
+   file receiving :program:`traffic_server` and :program:`traffic_manager`
+   process output that is set via the ``--bind_stdout`` and ``--bind_stderr``
+   :ref:`command-line options <traffic_server>`.
+   :ts:cv:`proxy.config.output.logfile` is used only to identify the name of
+   the output file for log rolling purposes and does not override the values
+   set via ``--bind_stdout`` and ``--bind_stderr``.
 
+   If a filename is passed to this option, then it will be interpreted relative
+   to :ts:cv:`proxy.config.log.logfile_dir`. If a different location is desired,
+   then pass an absolute path to this configuration.
 
 .. ts:cv:: CONFIG proxy.config.output.logfile_perm STRING rw-r--r--
 
-   The log file permissions. The standard UNIX file permissions are used (owner, group, other). Permissible values are:
+   The log file permissions for the file receiving |TS| output, the path of
+   which is configured via the ``--bind_stdout`` and ``--bind_stderr``
+   :ref:`command-line options <traffic_server>`.  The standard UNIX file
+   permissions are used (owner, group, other). Permissible values are:
 
    ===== ======================================================================
    Value Description
@@ -563,7 +575,23 @@ Local Manager
    root processes.
 
    This setting is not reloadable, since it is must be applied when
-   program:`traffic_manager` initializes.
+   :program:`traffic_manager` initializes.
+
+.. ts:cv:: CONFIG proxy.node.config.manager_exponential_sleep_ceiling INT 60
+
+   In case of :program:`traffic_manager` is unable to start :program:`traffic_server`,
+   this setting specifies the maximum amount of seconds that the :program:`traffic_manager`
+   process should wait until it tries again to restart :program:`traffic_server`.
+   In case of :program:`traffic_manager` failing to start :program:`traffic_server`, it will
+   retry exponentially until it reaches the ceiling time.
+
+.. ts:cv:: CONFIG proxy.node.config.manager_retry_cap INT 5
+
+   This setting specifies the number of times that :program:`traffic_manager` will retry
+   to restart :program:`traffic_server` once the  maximum ceiling time is reached.
+
+.. note::
+   If set to ``0``, no cap will take place.
 
 Alarm Configuration
 ===================
@@ -943,7 +971,7 @@ mptcp
                  of the origin server matches.
    ``host``      Re-use server sessions, checking that the fully qualified
                  domain name matches. In addition, if the session uses TLS, it also
-                 checks that the current transaction's host header value matchs the session's SNI.
+                 checks that the current transaction's host header value matches the session's SNI.
    ``both``      Equivalent to ``host,ip``.
    ``hostonly``  Check that the fully qualified domain name matches.
    ``sni``       Check that the SNI of the session matches the SNI that would be used to
@@ -959,8 +987,14 @@ mptcp
 
 .. note::
 
-   Server sessions to different ports never match even if the FQDN and IP
+   Server sessions to different upstream ports never match even if the FQDN and IP
    address match.
+
+.. note::
+
+   :ts:cv:`Upstream session tracking <proxy.config.http.per_server.connection.max>` uses a similar
+   set of options for matching sessions, but is :ts:cv:`set independently
+   <proxy.config.http.per_server.connection.match>` from session sharing.
 
 .. ts:cv:: CONFIG proxy.config.http.server_session_sharing.pool STRING thread
 
@@ -972,7 +1006,19 @@ mptcp
    ========== =================================================================
    ``global`` Re-use sessions from a global pool of all server sessions.
    ``thread`` Re-use sessions from a per-thread pool.
+   ``hybrid`` Try to work as a global pool, but release server sessions to the
+              per-thread pool if there is lock contention on the global pool.
    ========== =================================================================
+
+
+   Setting :ts:cv:`proxy.config.http.server_session_sharing.pool` to global can reduce
+   the number of connections to origin for some traffic loads.  However, if many
+   execute threads are active, the thread contention on the global pool can reduce the
+   lifetime of connections to origin and reduce effective origin connection reuse.
+
+   For a hybrid pool, the operation starts as the global pool, but sessons are returned
+   to the local thread pool if the global pool lock is not acquired rather than just
+   closing the origin connection as is the case in standard global mode.
 
 .. ts:cv:: CONFIG proxy.config.http.attach_server_session_to_client INT 0
    :overridable:
@@ -1170,6 +1216,11 @@ Parent Proxy Configuration
    :overridable:
 
    The amount of time allowed between connection retries to a parent cache that is unavailable.
+
+.. ts:cv:: CONFIG proxy.config.http.parent_proxy.max_trans_retries INT 2
+
+   Limits the number of simultaneous transactions that may retry a parent once the parents
+   ``retry_time`` has expired.
 
 .. ts:cv:: CONFIG proxy.config.http.parent_proxy.fail_threshold INT 10
    :reloadable:
@@ -1436,8 +1487,8 @@ Origin Server Connect Attempts
 
    The maximum number of connection retries |TS| can make when the origin server is not responding.
    Each retry attempt lasts for `proxy.config.http.connect_attempts_timeout`_ seconds.  Once the maximum number of retries is
-   reached, the origin is marked dead.  After this, the setting  `proxy.config.http.connect_attempts_max_retries_dead_server`_
-   is used to limit the number of retry attempts to the known dead origin.
+   reached, the origin is marked dead (as controlled by `proxy.config.http.connect.dead.policy`_.  After this, the setting
+   `proxy.config.http.connect_attempts_max_retries_dead_server`_ is used to limit the number of retry attempts to the known dead origin.
 
 .. ts:cv:: CONFIG proxy.config.http.connect_attempts_max_retries_dead_server INT 1
    :reloadable:
@@ -1446,6 +1497,13 @@ Origin Server Connect Attempts
    Maximum number of connection attempts |TS| can make while an origin is marked dead per request.  Typically this value is smaller than
    `proxy.config.http.connect_attempts_max_retries`_ so an error is returned to the client faster and also to reduce the load on the dead origin.
    The timeout interval `proxy.config.http.connect_attempts_timeout`_ in seconds is used with this setting.
+
+.. ts:cv:: CONFIG proxy.config.http.connect.dead.policy INT 2
+   :overridable:
+
+   Controls what origin server connection failures contribute to marking a server dead. When set to 2, any connection failure during the TCP and TLS
+   handshakes will contribute to marking the server dead. When set to 1, only TCP handshake failures will contribute to marking a server dead.
+   When set to 0, no connection failures will be used towards marking a server dead.
 
 .. ts:cv:: CONFIG proxy.config.http.server_max_connections INT 0
    :reloadable:
@@ -1479,7 +1537,7 @@ Origin Server Connect Attempts
    Frequency of alerts
       See :ts:cv:`proxy.config.http.per_server.connection.alert_delay`.
 
-.. ts:cv:: CONFIG proxy.config.http.per_server.connection.match STRING ip
+.. ts:cv:: CONFIG proxy.config.http.per_server.connection.match STRING both
    :reloadable:
    :overridable:
 
@@ -1500,6 +1558,11 @@ Origin Server Connect Attempts
       Group by IP address, port, and host name. Each distinct combination is a group.
 
    To disable upstream server grouping, set :ts:cv:`proxy.config.http.per_server.connection.max` to ``0``.
+
+.. note::
+
+   This setting is independent of the :ts:cv:`setting for upstream session sharing matching
+   <proxy.config.http.server_session_sharing.match>`.
 
 .. ts:cv:: CONFIG proxy.config.http.per_server.connection.queue_size INT 0
    :reloadable:
@@ -1572,13 +1635,6 @@ Origin Server Connect Attempts
    :overridable:
 
    Specifies how long (in seconds) |TS| remembers that an origin server was unreachable.
-
-.. ts:cv:: CONFIG proxy.config.http.down_server.abort_threshold INT 10
-   :reloadable:
-   :overridable:
-
-   The number of seconds before |TS| marks an origin server as unavailable after a client abandons a request
-   because the origin server was too slow in sending the response header.
 
 .. ts:cv:: CONFIG proxy.config.http.uncacheable_requests_bypass_parent INT 1
    :reloadable:
@@ -1670,14 +1726,35 @@ Negative Response Caching
    to network or HTTP errors. If it is enabled, rather than caching the negative response, the
    current stale content is preserved and served. Note this is considered only on a revalidation of
    already cached content. A revalidation failure means a connection failure or a 50x response code.
+   When considering replying with a stale response in these negative revalidating circumstances,
+   |TS| will respect the :ts:cv:`proxy.config.http.cache.max_stale_age` configuration and will not
+   use a cached response older than ``max_stale_age`` seconds.
 
    A value of ``0`` disables serving stale content and a value of ``1`` enables keeping and serving stale content if revalidation fails.
 
 .. ts:cv:: CONFIG proxy.config.http.negative_revalidating_lifetime INT 1800
 
-   How long, in seconds, to consider a stale cached document valid if If
-   :ts:cv:`proxy.config.http.negative_revalidating_enabled` is enabled and |TS| receives a negative
-   (``5xx`` only) response from the origin server during revalidation.
+   When replying with a stale cached response in negative revalidating circumstances (see
+   :ts:cv:`proxy.config.http.negative_revalidating_enabled`), |TS| includes an ``Expires:`` HTTP
+   header field in the cached response with a future time so that upstream caches will not try to
+   revalidate their respective stale objects. This configuration specifies how many seconds in the
+   future |TS| will calculate the value of this inserted ``Expires:`` header field.
+
+   There is a limitation to this method to be aware of: per specification (see IETF RFC 7234,
+   section 4.2.1), ``Cache-Control:`` response directives take precedence over the ``Expires:``
+   header field when determining object freshness. Thus if the cached response contains either a
+   ``max-age`` or an ``s-maxage`` ``Cache-Control:`` response directive, then these directives would
+   take precedence for the upstream caches over the inserted ``Expires:`` field, rendering the
+   ``Expires:`` header ineffective in specifying the configured freshness lifetime.
+
+   Finally, be aware that the only way this configuration is used is as input into calculating the
+   value of these inserted ``Expires:`` header fields. This configuration does not direct |TS|
+   behavior with regard to whether it considers a stale object to be fresh enough to serve out of
+   cache when revalidation fails. As mentioned above in
+   :ts:cv:`proxy.config.http.negative_revalidating_enabled`,
+   :ts:cv:`proxy.config.http.cache.max_stale_age` is used for that determination.
+
+   This configuration defaults to 1,800 seconds (30 minutes).
 
 Proxy User Variables
 ====================
@@ -1790,6 +1867,21 @@ Proxy User Variables
 
    See :ref:`proxy-protocol` for more discussion on how |TS| transforms the `Forwarded: header`.
 
+.. ts:cv:: CONFIG proxy.config.http.proxy_protocol_out INT ``-1``
+   :reloadable:
+   :overridable:
+
+   Set the behavior of outbound PROXY Protocol.
+
+   =========== ======================================================================
+   Value       Description
+   =========== ======================================================================
+   ``-1``      Disable (default)
+   ``0``       Forward received PROXY protocol to the next hop
+   ``1``       Send client information in PROXY protocol version 1
+   ``2``       Send client information in PROXY protocol version 2
+   =========== ======================================================================
+
 .. ts:cv:: CONFIG proxy.config.http.normalize_ae INT 1
    :reloadable:
    :overridable:
@@ -1866,7 +1958,7 @@ Security
 
    You can override this global setting on a per domain basis in the :file:`sni.yaml` file using the :ref:`host_sni_policy attribute<override-host-sni-policy>` action.
 
-   Currently, only the verify_client policy is checked for host name and SNI matching.
+   Currently, only the verify_client and ip_allow policies are checked for host name and SNI matching.
 
 Cache Control
 =============
@@ -2071,7 +2163,7 @@ Cache Control
    :reloadable:
    :overridable:
 
-   The maximum age allowed for a stale response before it cannot be cached.
+   The maximum age in seconds allowed for a stale response before it cannot be cached.
 
 .. ts:cv:: CONFIG proxy.config.http.cache.guaranteed_min_lifetime INT 0
    :reloadable:
@@ -2503,6 +2595,18 @@ DNS
    be appended to the list of nameservers specified here. To prevent this, a bogus file
    can be listed there.
 
+.. topic:: Example
+
+   IPv4 DNS server, loopback and port 9999 ::
+
+      CONFIG proxy.config.dns.nameservers STRING 127.0.0.1:9999
+
+.. topic:: Example
+
+   IPv6 DNS server, loopback and port 9999 ::
+
+      CONFIG proxy.config.dns.nameservers STRING [::1]:9999
+
 .. ts:cv:: CONFIG proxy.config.srv_enabled INT 0
    :reloadable:
    :overridable:
@@ -2543,6 +2647,13 @@ DNS
    ``1`` TCP_RETRY: |TS| first UDP, retries with TCP if UDP response is truncated.
    ``2`` TCP_ONLY:  |TS| always talks to nameservers over TCP.
    ===== ======================================================================
+
+.. ts:cv:: CONFIG proxy.config.dns.max_tcp_continuous_failures INT 10
+
+   If DNS connection mode is TCP_RETRY, set the threshold of the continuous TCP
+   query failures count for the TCP connection, reset the TCP connection immediately
+   if the continuous TCP query failures conut over the threshold. If the threshold
+   is 0 (or less than 0) we close this feature.
 
 .. ts:cv:: CONFIG proxy.config.dns.max_dns_in_flight INT 2048
 
@@ -3602,23 +3713,38 @@ Client-Related Configuration
 .. ts:cv:: CONFIG proxy.config.ssl.client.sni_policy STRING NULL
    :overridable:
 
-   Indicate how the SNI value for the TLS connection to the origin is selected.  By default it is
-   `host` which means the host header field value is used for the SNI.  If `remap` is specified, the
-   remapped origin name is used for the SNI value.  If `verify_with_name_source` is specified, the
-   SNI will be the host header value and the name to check in the server certificate will be the
-   remap header value.
+   Indicate how the SNI value for the TLS connection to the origin is selected.
+
+   ``host``
+      This is the default. The value of the ``Host`` field in the proxy request is used.
+
+   ``server_name``
+      The SNI value of the inbound TLS connection is used.
+
+   ``remap``
+      The remapped upstream name is used.
+
+   ``verify_with_name_source``
+      The value of the ``Host`` field in the proxy request is used. In addition, if the names in the
+      server certificate of the upstream are checked, they are checked against the remapped upstream
+      name, not the SNI.
+
+   ``@...``
+      If the policy starts with the ``@`` character, it is treated as a literal, less the leading
+      ``@``. E.g. if the policy is "@apache.org" the SNI will be "apache.org".
+
    We have two names that could be used in the transaction host header and the SNI value to the
    origin. These could be the host header from the client or the remap host name. Unless you have
    pristine host header enabled, these are likely the same values.
-   If sni_policy = host, both the sni and the host header to origin will be the same.
-   If sni_policy = remap, the sni value with be the remap host name and the host header will be the
-   host header from the client.
-   In addition, We may want to set the SNI and host headers the same (makes some common web servers
-   happy), but the certificate served by the origin may have a name that corresponds to the remap
-   name. So instead of using the SNI name for the name check, we may want to use the remap name.
-   So if sni_policy = verify_with_name_source, the sni will be the host header value and the name to
-   check in the server certificate will be the remap header value.
+   If sni_policy = ``host``, both the sni and the value of the ``Host`` field to origin will be the
+   same. If sni_policy = ``remap``, the sni value will be the remap host name and the host header
+   will be the host header from the client.
 
+   In addition, We may want to set the SNI and host headers the same (makes some common web servers
+   happy), but the server certificate for the upstream may have a name that corresponds to the remap
+   name. So instead of using the SNI name for the name check, we may want to use the remap name. So
+   if sni_policy = ``verify_with_name_source``, the sni will be the host header value and the name
+   to check in the server certificate will be the remap header value.
 
 .. ts:cv:: CONFIG proxy.config.ssl.client.TLSv1 INT 0
 
@@ -3785,7 +3911,6 @@ HTTP/2 Configuration
 
 .. ts:cv:: CONFIG proxy.config.http2.accept_no_activity_timeout INT 120
    :reloadable:
-   :overridable:
 
    Specifies how long |TS| keeps connections to clients open if no
    activity is received on the connection. Lowering this timeout can ease
@@ -3794,7 +3919,6 @@ HTTP/2 Configuration
 
 .. ts:cv:: CONFIG proxy.config.http2.no_activity_timeout_in INT 120
    :reloadable:
-   :overridable:
 
    Specifies how long |TS| keeps connections to clients open if a
    transaction stalls. Lowering this timeout can ease pressure on the proxy if
@@ -4236,13 +4360,13 @@ Sockets
 .. ts:cv:: CONFIG  proxy.config.net.tcp_congestion_control_in STRING ""
 
    This directive will override the congestion control algorithm for incoming
-   connections (accept sockets). On linux the allowed values are typically
+   connections (accept sockets). On Linux, the allowed values are typically
    specified in a space separated list in /proc/sys/net/ipv4/tcp_allowed_congestion_control
 
 .. ts:cv:: CONFIG  proxy.config.net.tcp_congestion_control_out STRING ""
 
    This directive will override the congestion control algorithm for outgoing
-   connections (connect sockets). On linux the allowed values are typically
+   connections (connect sockets). On Linux, the allowed values are typically
    specified in a space separated list in /proc/sys/net/ipv4/tcp_allowed_congestion_control
 
 .. ts:cv:: CONFIG proxy.config.net.sock_send_buffer_size_in INT 0
@@ -4261,6 +4385,8 @@ Sockets
         SO_KEEPALIVE (2)
         SO_LINGER (4) - with a timeout of 0 seconds
         TCP_FASTOPEN (8)
+        PACKET_MARK (16)
+        PACKET_TOS (32)
 
 .. note::
 
@@ -4293,6 +4419,8 @@ Sockets
         SO_KEEPALIVE (2)
         SO_LINGER (4) - with a timeout of 0 seconds
         TCP_FASTOPEN (8)
+        PACKET_MARK (16)
+        PACKET_TOS (32)
 
 .. note::
 
@@ -4394,7 +4522,7 @@ Sockets
 
    Enable (1) the use of huge pages on supported platforms. (Currently only Linux)
 
-   You must also enable hugepages at the OS level. In a modern linux Kernel
+   You must also enable hugepages at the OS level. In modern Linux kernels,
    this can be done by setting ``/proc/sys/vm/nr_overcommit_hugepages`` to a
    sufficiently large value. It is reasonable to use (system
    memory/hugepage size) because these pages are only created on demand.
@@ -4426,8 +4554,8 @@ Sockets
 .. ts:cv:: CONFIG proxy.config.allocator.dontdump_iobuffers INT 1
 
    Enable (1) the exclusion of IO buffers from core files when ATS crashes on supported
-   platforms.  (Currently only linux).  IO buffers are allocated with the MADV_DONTDUMP
-   with madvise() on linux platforms that support MADV_DONTDUMP.  Enabled by default.
+   platforms.  (Currently only Linux).  IO buffers are allocated with the MADV_DONTDUMP
+   with madvise() on Linux platforms that support MADV_DONTDUMP.  Enabled by default.
 
 .. ts:cv:: CONFIG proxy.config.ssl.misc.io.max_buffer_index INT 8
 

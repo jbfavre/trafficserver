@@ -14,6 +14,7 @@
 --  See the License for the specific language governing permissions and
 --  limitations under the License.
 
+
 -- This example depends on "luajit-geoip".
 -- It illustrates how to connect to GeoIP and use it to look up country of an IP address.
 -- It can be used in plugin.config with the lua plugin.
@@ -25,11 +26,11 @@
 --    or just copy geoip/init.lua from the repo to /usr/local/share/lua/5.1/geoip/init.lua
 -- 4) You may need to make change so luajit-geoip does ffi.load() on /usr/local/lib/libGeoIP.so
 
-ts.add_package_path("/usr/local/share/lua/5.1/?.lua")
+ts.add_package_path('/usr/local/share/lua/5.1/?.lua')
 
-local geoip = require "geoip"
+local geoip = require 'geoip'
 
 function do_global_send_response()
   local res = geoip.lookup_addr("8.8.8.8")
-  ts.client_response.header["X-Country"] = res.country_code
+  ts.client_response.header['X-Country'] = res.country_code
 end

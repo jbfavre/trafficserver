@@ -32,7 +32,6 @@
 #include "tscore/Tokenizer.h"
 #include "tscore/Filenames.h"
 
-#ifdef SPLIT_DNS
 #include <sys/types.h>
 #include "P_SplitDNS.h"
 #include "tscore/MatcherUtils.h"
@@ -527,7 +526,7 @@ SplitDNSRecord::UpdateMatch(SplitDNSResult *result, RequestData * /* rdata ATS_U
     SplitDNSRecord::Print()
    -------------------------------------------------------------- */
 void
-SplitDNSRecord::Print()
+SplitDNSRecord::Print() const
 {
   for (int i = 0; i < m_dnsSrvr_cnt; i++) {
     char ab[INET6_ADDRPORTSTRLEN];
@@ -547,5 +546,3 @@ ink_split_dns_init(ts::ModuleVersion v)
 
   init_called = 1;
 }
-
-#endif // SPLIT_DNS

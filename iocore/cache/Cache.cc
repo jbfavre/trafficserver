@@ -681,7 +681,7 @@ CacheProcessor::start_internal(int flags)
         }
 
         // It's actually common that the hardware I/O size is larger than the store block size as
-        // storage systems increasingly want larger I/Os. For example, on OS X, the filesystem block
+        // storage systems increasingly want larger I/Os. For example, on macOS, the filesystem block
         // size is always reported as 1MB.
         if (sd->hw_sector_size <= 0 || sector_size > STORE_BLOCK_SIZE) {
           Note("resetting hardware sector size from %d to %d", sector_size, STORE_BLOCK_SIZE);
@@ -729,6 +729,8 @@ CacheProcessor::start_internal(int flags)
     }
     Emergency("Cache initialization failed - only %d out of %d disks were valid and all were required.", gndisks,
               theCacheStore.n_disks_in_config);
+  } else if (this->waitForCache() == 2 && static_cast<unsigned int>(gndisks) < theCacheStore.n_disks_in_config) {
+    Warning("Cache initialization incomplete - only %d out of %d disks were valid.", gndisks, theCacheStore.n_disks_in_config);
   }
 
   // If we got here, we have enough disks to proceed
@@ -784,7 +786,9 @@ CacheProcessor::diskInitialized()
       if (cb_after_init) {
         cb_after_init();
       }
-      Fatal("Cache initialization failed - only %d of %d disks were available.", gndisks, theCacheStore.n_disks_in_config);
+      Emergency("Cache initialization failed - only %d of %d disks were available.", gndisks, theCacheStore.n_disks_in_config);
+    } else if (this->waitForCache() == 2) {
+      Warning("Cache initialization incomplete - only %d of %d disks were available.", gndisks, theCacheStore.n_disks_in_config);
     }
   }
 
@@ -1052,7 +1056,7 @@ CacheProcessor::cacheInitialized()
 
   // TS-3848
   if (CACHE_INIT_FAILED == CacheProcessor::initialized && cacheProcessor.waitForCache() > 1) {
-    Fatal("Cache initialization failed with cache required, exiting.");
+    Emergency("Cache initialization failed with cache required, exiting.");
   }
 }
 
@@ -1384,8 +1388,6 @@ Vol::handle_dir_read(int event, void *data)
   sector_size = header->sector_size;
 
   return this->recover_data();
-
-  return EVENT_CONT;
 }
 
 int
@@ -2064,7 +2066,7 @@ Cache::open_done()
 
   // TS-3848
   if (ready == CACHE_INIT_FAILED && cacheProcessor.waitForCache() >= 2) {
-    Fatal("Failed to initialize cache host table");
+    Emergency("Failed to initialize cache host table");
   }
 
   cacheProcessor.cacheInitialized();
@@ -2594,7 +2596,7 @@ cplist_update()
 
     if (!config_vol) {
       // did not find a matching volume in the config file.
-      // Delete hte volume from the cache vol list
+      // Delete the volume from the cache vol list
       int d_no;
       for (d_no = 0; d_no < gndisks; d_no++) {
         if (cp->disk_vols[d_no]) {
@@ -2838,7 +2840,7 @@ cplist_reconfigure()
       }
 
       if (!config_vol->cachep) {
-        // we did not find a corresponding entry in cache vol...creat one
+        // we did not find a corresponding entry in cache vol...create one
 
         CacheVol *new_cp  = new CacheVol();
         new_cp->disk_vols = static_cast<DiskVol **>(ats_malloc(gndisks * sizeof(DiskVol *)));

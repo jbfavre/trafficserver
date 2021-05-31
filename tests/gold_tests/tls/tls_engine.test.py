@@ -33,9 +33,8 @@ Test.SkipUnless(Condition.HasOpenSSLVersion('1.1.1'))
 ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
 server = Test.MakeOriginServer("server")
 
-# Compile with tsxs.  That should bring in the consisten versions of openssl
-ts.Setup.Copy(os.path.join(Test.Variables.AtsTestToolsDir, '../../contrib/openssl', 'async_engine.c'), Test.RunDirectory)
-ts.Setup.RunCommand("tsxs -o async_engine.so async_engine.c")
+# Compile with tsxs.  That should bring in the consistent versions of openssl
+ts.Setup.Copy(os.path.join(Test.Variables.AtsTestPluginsDir, 'async_engine.so'), Test.RunDirectory)
 
 # Add info the origin server responses
 server.addResponse("sessionlog.json",
@@ -65,7 +64,7 @@ ts.Disk.records_config.update({
     'proxy.config.ssl.engine.conf_file': '{0}/ts/config/load_engine.cnf'.format(Test.RunDirectory),
     'proxy.config.ssl.async.handshake.enabled': 1,
     'proxy.config.diags.debug.enabled': 0,
-    'proxy.config.diags.debug.tags': 'ssl'
+    'proxy.config.diags.debug.tags': 'ssl|http'
 })
 
 ts.Disk.MakeConfigFile('load_engine.cnf').AddLines([

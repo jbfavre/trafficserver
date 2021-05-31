@@ -56,7 +56,7 @@ are a few simple rules to follow:
    **WIP** label.
 
 8. Make sure you run **clang-format** before making the _PR_. This is easiest
-   done with e.g. "make clang-format", which works on OSX and Linux.
+   done with e.g. "make clang-format", which works on macOS and Linux.
 
 9. Make sure you run **autopep8** before making the _PR_. This is easiest
    done with e.g. "make autopep8".

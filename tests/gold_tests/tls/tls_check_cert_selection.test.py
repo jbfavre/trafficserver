@@ -21,7 +21,7 @@ Test ATS offering different certificates based on SNI
 '''
 
 # Define default ATS
-ts = Test.MakeATSProcess("ts", select_ports=False)
+ts = Test.MakeATSProcess("ts", enable_tls=True)
 server = Test.MakeOriginServer("server", ssl=True)
 dns = Test.MakeDNServer("dns")
 
@@ -35,19 +35,17 @@ ts.addSSLfile("ssl/signed-foo.key")
 ts.addSSLfile("ssl/signed-bar.pem")
 ts.addSSLfile("ssl/signed2-bar.pem")
 ts.addSSLfile("ssl/signed-bar.key")
-ts.addSSLfile("ssl/server.pem")
-ts.addSSLfile("ssl/server.key")
 ts.addSSLfile("ssl/signer.pem")
 ts.addSSLfile("ssl/signer.key")
+ts.addSSLfile("ssl/combo.pem")
 
-ts.Variables.ssl_port = 4443
 ts.Disk.remap_config.AddLine(
     'map / https://foo.com:{1}'.format(ts.Variables.ssl_port, server.Variables.SSL_Port))
 
 ts.Disk.ssl_multicert_config.AddLines([
     'dest_ip=127.0.0.1 ssl_cert_name=signed-foo.pem ssl_key_name=signed-foo.key',
     'ssl_cert_name=signed2-bar.pem ssl_key_name=signed-bar.key',
-    'dest_ip=* ssl_cert_name=server.pem ssl_key_name=server.key'
+    'dest_ip=* ssl_cert_name=combo.pem'
 ])
 
 # Case 1, global config policy=permissive properties=signature
@@ -55,7 +53,6 @@ ts.Disk.ssl_multicert_config.AddLines([
 ts.Disk.records_config.update({
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.http.server_ports': '{0} {1}:proto=http2;http:ssl'.format(ts.Variables.port, ts.Variables.ssl_port),
     'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.url_remap.pristine_host_hdr': 1,
     'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(dns.Variables.Port),

@@ -65,12 +65,8 @@ ts.Disk.sni_yaml.AddLine(
 ts.Disk.sni_yaml.AddLine(
     '  verify_server_policy: PERMISSIVE')
 
-Test.PrepareTestPlugin(
-    os.path.join(
-        Test.Variables.AtsTestPluginsDir,
-        'ssl_verify_test.so'),
-    ts,
-    '-count=2 -bad=random.com -bad=bar.com')
+Test.PrepareTestPlugin(os.path.join(Test.Variables.AtsTestPluginsDir, 'ssl_verify_test.so'),
+                       ts, '-count=2 -bad=random.com -bad=bar.com')
 
 tr = Test.AddTestRun("request good name")
 tr.Processes.Default.StartBefore(server)
@@ -107,20 +103,14 @@ ts.Disk.diags_log.Content += Testers.ContainsExpression(
 ts.Disk.diags_log.Content += Testers.ExcludesExpression("SNI=foo.com", "foo.com should not fail in any way")
 
 ts.Streams.All += Testers.ContainsExpression(
-    r"Server verify callback 0 [\da-fx]+? - event is good SNI=foo.com good HS",
-    "verify callback happens 2 times")
+    "Server verify callback 0 [\da-fx]+? - event is good SNI=foo.com good HS", "verify callback happens 2 times")
 ts.Streams.All += Testers.ContainsExpression(
-    r"Server verify callback 1 [\da-fx]+? - event is good SNI=foo.com good HS",
-    "verify callback happens 2 times")
+    "Server verify callback 1 [\da-fx]+? - event is good SNI=foo.com good HS", "verify callback happens 2 times")
 ts.Streams.All += Testers.ContainsExpression(
-    r"Server verify callback 0 [\da-fx]+? - event is good SNI=random.com error HS",
-    "verify callback happens 2 times")
+    "Server verify callback 0 [\da-fx]+? - event is good SNI=random.com error HS", "verify callback happens 2 times")
 ts.Streams.All += Testers.ContainsExpression(
-    r"Server verify callback 1 [\da-fx]+? - event is good SNI=random.com error HS",
-    "verify callback happens 2 times")
+    "Server verify callback 1 [\da-fx]+? - event is good SNI=random.com error HS", "verify callback happens 2 times")
 ts.Streams.All += Testers.ContainsExpression(
-    r"Server verify callback 0 [\da-fx]+? - event is good SNI=bar.com error HS",
-    "verify callback happens 2 times")
+    "Server verify callback 0 [\da-fx]+? - event is good SNI=bar.com error HS", "verify callback happens 2 times")
 ts.Streams.All += Testers.ContainsExpression(
-    r"Server verify callback 1 [\da-fx]+? - event is good SNI=bar.com error HS",
-    "verify callback happens 2 times")
+    "Server verify callback 1 [\da-fx]+? - event is good SNI=bar.com error HS", "verify callback happens 2 times")

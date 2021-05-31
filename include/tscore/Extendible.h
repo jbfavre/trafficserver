@@ -360,7 +360,7 @@ namespace details
   /// Bool specializations
 
   template <typename Derived_t>
-  const bool
+  bool
   fieldGet(const void *fld_ptr, FieldId<Derived_t, bool> const &field)
   {
     return bool((*static_cast<const uint8_t *>(fld_ptr)) & field.desc->mask);
@@ -396,7 +396,7 @@ namespace details
   /// std::atomic<bool> specializations (same as bool)
 
   template <typename Derived_t>
-  inline const bool
+  inline bool
   fieldGet(void const *fld_ptr, FieldId<Derived_t, std::atomic<bool>> const &field)
   {
     return bool(fld_ptr & field.mask);
@@ -617,16 +617,16 @@ namespace details
   /// recursively init all extendible structures, and construct fields
   template <typename Derived_t>
   uintptr_t
-  initRecurseSuper(Derived_t &devired, uintptr_t tail_ptr /*= 0*/)
+  initRecurseSuper(Derived_t &derived, uintptr_t tail_ptr /*= 0*/)
   {
-    // track a tail pointer, that starts after the class, and interate each extendible block
+    // track a tail pointer, that starts after the class, and iterate each extendible block
     if constexpr (has_super_type<Derived_t>::value) {
       // init super type, move tail pointer
-      tail_ptr = initRecurseSuper<typename Derived_t::super_type>(devired, tail_ptr);
+      tail_ptr = initRecurseSuper<typename Derived_t::super_type>(derived, tail_ptr);
     }
     if constexpr (std::is_base_of<Extendible<Derived_t>, Derived_t>::value) {
       // set start for this extendible block after the previous extendible, and move tail pointer to after this block
-      tail_ptr = devired.Extendible<Derived_t>::initFields(tail_ptr);
+      tail_ptr = derived.Extendible<Derived_t>::initFields(tail_ptr);
     }
     return tail_ptr;
   }

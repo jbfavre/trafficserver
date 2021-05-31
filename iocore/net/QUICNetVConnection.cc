@@ -207,7 +207,7 @@ public:
     }
   }
 
-  std::unordered_map<uint16_t, std::pair<const uint8_t *, uint16_t>>
+  const std::unordered_map<uint16_t, std::pair<const uint8_t *, uint16_t>> &
   additional_tp() const override
   {
     return this->_additional_tp;
@@ -242,6 +242,7 @@ void
 QUICNetVConnection::init(QUICVersion version, QUICConnectionId peer_cid, QUICConnectionId original_cid, UDPConnection *udp_con,
                          QUICPacketHandler *packet_handler, QUICResetTokenTable *rtable)
 {
+  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::startEvent);
   this->_initial_version             = version;
   this->_udp_con                     = udp_con;
   this->_packet_handler              = packet_handler;
@@ -388,6 +389,25 @@ QUICNetVConnection::acceptEvent(int event, Event *e)
   return EVENT_DONE;
 }
 
+int
+QUICNetVConnection::startEvent(int event, Event *e)
+{
+  ink_assert(event == EVENT_IMMEDIATE);
+  MUTEX_TRY_LOCK(lock, get_NetHandler(e->ethread)->mutex, e->ethread);
+  if (!lock.is_locked()) {
+    e->schedule_in(HRTIME_MSECONDS(net_retry_delay));
+    return EVENT_CONT;
+  }
+
+  if (!action_.cancelled) {
+    this->connectUp(e->ethread, NO_FD);
+  } else {
+    this->free(e->ethread);
+  }
+
+  return EVENT_DONE;
+}
+
 // XXX This might be called on ET_UDP thread
 void
 QUICNetVConnection::start()
@@ -460,7 +480,7 @@ QUICNetVConnection::start()
   this->_frame_dispatcher->add_handler(this->_path_validator);
   this->_frame_dispatcher->add_handler(this->_handshake_handler);
 
-  // regist qlog
+  // register qlog
   if (this->_context->config()->qlog_dir() != nullptr) {
     this->_qlog = std::make_unique<QLog::QLogListener>(*this->_context, this->_original_quic_connection_id.hex());
     this->_qlog->last_trace().set_vantage_point(
@@ -2112,6 +2132,8 @@ QUICNetVConnection::_start_application()
       app_name     = reinterpret_cast<const uint8_t *>(IP_PROTO_TAG_HTTP_QUIC.data());
       app_name_len = IP_PROTO_TAG_HTTP_QUIC.size();
     }
+
+    this->set_negotiated_protocol_id({reinterpret_cast<const char *>(app_name), static_cast<size_t>(app_name_len)});
 
     if (netvc_context == NET_VCONNECTION_IN) {
       if (!this->setSelectedProtocol(app_name, app_name_len)) {

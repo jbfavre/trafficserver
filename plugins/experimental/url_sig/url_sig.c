@@ -60,6 +60,7 @@ struct config {
   pcre_extra *regex_extra;
   int pristine_url_flag;
   char *sig_anchor;
+  bool ignore_expiry;
 };
 
 static void
@@ -229,6 +230,11 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
 #endif
         cfg->regex_extra = pcre_study(
           cfg->regex, options, &errptr); // We do not need to check the error here because we can still run without the studying?
+      }
+    } else if (strncmp(line, "ignore_expiry", 13) == 0) {
+      if (strncmp(value, "true", 4) == 0) {
+        cfg->ignore_expiry = true;
+        TSError("[url_sig] Plugin IGNORES sig expiration");
       }
     } else {
       TSError("[url_sig] Error parsing line %d of file %s (%s)", line_no, config_file, line);
@@ -452,7 +458,7 @@ urlParse(char const *const url_in, char *anchor, char *new_path_seg, int new_pat
     } else {
       TSError("insufficient space to copy into new_path_seg buffer.");
     }
-  } else { // no signature anchor string was found, assum it is in the last path segment.
+  } else { // no signature anchor string was found, assume it is in the last path segment.
     if (strlen(segment[numtoks - 2]) < signed_seg_len) {
       memcpy(signed_seg, segment[numtoks - 2], strlen(segment[numtoks - 2]));
     } else {
@@ -680,17 +686,19 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   }
 
   // Expiration
-  cp = strstr(query, EXP_QSTRING "=");
-  if (cp != NULL) {
-    cp += strlen(EXP_QSTRING) + 1;
-    if (sscanf(cp, "%" SCNu64, &expiration) != 1 || (time_t)expiration < time(NULL)) {
-      err_log(url, "Invalid expiration, or expired");
+  if (!cfg->ignore_expiry) {
+    cp = strstr(query, EXP_QSTRING "=");
+    if (cp != NULL) {
+      cp += strlen(EXP_QSTRING) + 1;
+      if (sscanf(cp, "%" SCNu64, &expiration) != 1 || (time_t)expiration < time(NULL)) {
+        err_log(url, "Invalid expiration, or expired");
+        goto deny;
+      }
+      TSDebug(PLUGIN_NAME, "Exp: %" PRIu64, expiration);
+    } else {
+      err_log(url, "Expiration query string not found");
       goto deny;
     }
-    TSDebug(PLUGIN_NAME, "Exp: %" PRIu64, expiration);
-  } else {
-    err_log(url, "Expiration query string not found");
-    goto deny;
   }
   // Algorithm
   cp = strstr(query, ALG_QSTRING "=");

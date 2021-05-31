@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <ctime>
 #include <fstream>
-#include <pthread.h>
 #include <arpa/inet.h>
 #include <limits>
 #include <getopt.h>
@@ -340,9 +339,6 @@ static bool writeStandardHeaderFields(InterceptData &int_data, int &n_bytes_writ
 static void prepareResponse(InterceptData &int_data, ByteBlockList &body_blocks, string &resp_header_fields);
 static bool getDefaultBucket(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc hdr_obj, ClientRequest &creq);
 
-// libesi TLS key.
-pthread_key_t threadKey = 0;
-
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -433,8 +429,6 @@ TSPluginInit(int argc, const char *argv[])
     ContentTypeHandler::loadAllowList(content_type_allowlist_filespec);
   }
   ++optind;
-
-  TSReleaseAssert(pthread_key_create(&threadKey, nullptr) == 0);
 
   TSCont rrh_contp = TSContCreate(handleReadRequestHeader, nullptr);
   if (!rrh_contp) {
@@ -577,18 +571,6 @@ getDefaultBucket(TSHttpTxn /* txnp ATS_UNUSED */, TSMBuffer bufp, TSMLoc hdr_obj
   LOG_DEBUG("host: %.*s", host_len, host);
   creq.defaultBucket = string(host, host_len);
   defaultBucketFound = true;
-
-  /*
-  for(int i = 0 ; i < host_len; i++)
-    {
-      if (host[i] == '.')
-        {
-          creq.defaultBucket = string(host, i);
-          defaultBucketFound = true;
-          break;
-        }
-    }
-  */
 
   TSHandleMLocRelease(bufp, hdr_obj, field_loc);
 

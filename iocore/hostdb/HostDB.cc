@@ -64,6 +64,10 @@ int hostdb_sync_frequency                          = 0;
 int hostdb_disable_reverse_lookup                  = 0;
 int hostdb_max_iobuf_index                         = BUFFER_SIZE_INDEX_32K;
 
+// Verify the generic storage is sufficient to cover all alternate members.
+static_assert(sizeof(HostDBApplicationInfo::allotment) == sizeof(HostDBApplicationInfo),
+              "Generic storage for HostDBApplicationInfo is smaller than the union storage.");
+
 ClassAllocator<HostDBContinuation> hostDBContAllocator("hostDBContAllocator");
 
 // Static configuration information
@@ -169,7 +173,7 @@ HostDBHash::set_host(const char *name, int len)
 {
   host_name = name;
   host_len  = len;
-#ifdef SPLIT_DNS
+
   if (host_name && SplitDNSConfig::isSplitDNSEnabled()) {
     const char *scan;
     // I think this is checking for a hostname that is just an address.
@@ -189,7 +193,7 @@ HostDBHash::set_host(const char *name, int len)
       dns_server = nullptr;
     }
   }
-#endif // SPLIT_DNS
+
   return *this;
 }
 
@@ -945,79 +949,6 @@ HostDBContinuation::setbyEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUS
   return EVENT_DONE;
 }
 
-static bool
-remove_round_robin(HostDBInfo *r, const char *hostname, IpAddr const &ip)
-{
-  if (r) {
-    if (!r->round_robin) {
-      return false;
-    }
-    HostDBRoundRobin *rr = r->rr();
-    if (!rr) {
-      return false;
-    }
-    for (int i = 0; i < rr->good; i++) {
-      if (ip == rr->info(i).ip()) {
-        ip_text_buffer b;
-        Debug("hostdb", "Deleting %s from '%s' round robin DNS entry", ip.toString(b, sizeof b), hostname);
-        HostDBInfo tmp         = rr->info(i);
-        rr->info(i)            = rr->info(rr->good - 1);
-        rr->info(rr->good - 1) = tmp;
-        rr->good--;
-        if (rr->good <= 0) {
-          hostDB.refcountcache->erase(r->key);
-          return false;
-        } else {
-          if (is_debug_tag_set("hostdb")) {
-            int bufsize      = rr->good * INET6_ADDRSTRLEN;
-            char *rr_ip_list = static_cast<char *>(alloca(bufsize));
-            char *p          = rr_ip_list;
-            for (int n = 0; n < rr->good; ++n) {
-              ats_ip_ntop(rr->info(n).ip(), p, bufsize);
-              int nbytes = strlen(p);
-              p += nbytes;
-              bufsize -= nbytes;
-            }
-            Note("'%s' round robin DNS entry updated, entries=%d, IP list: %s", hostname, rr->good, rr_ip_list);
-          }
-        }
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-int
-HostDBContinuation::removeEvent(int /* event ATS_UNUSED */, Event *e)
-{
-  Continuation *cont = action.continuation;
-  Ptr<ProxyMutex> proxy_mutex;
-  if (cont) {
-    proxy_mutex = cont->mutex;
-  }
-  WEAK_MUTEX_TRY_LOCK(lock, proxy_mutex, e->ethread);
-  if (!lock.is_locked()) {
-    e->schedule_in(HOST_DB_RETRY_PERIOD);
-    return EVENT_CONT;
-  }
-  if (!action.cancelled) {
-    if (!hostdb_enable) {
-      if (cont) {
-        cont->handleEvent(EVENT_HOST_DB_IP_REMOVED, (void *)nullptr);
-      }
-    } else {
-      Ptr<HostDBInfo> r = probe(mutex, hash, false);
-      bool res          = remove_round_robin(r.get(), hash.host_name, hash.ip);
-      if (cont) {
-        cont->handleEvent(EVENT_HOST_DB_IP_REMOVED, res ? static_cast<void *>(&hash.ip) : static_cast<void *>(nullptr));
-      }
-    }
-  }
-  hostdb_cont_free(this);
-  return EVENT_DONE;
-}
-
 // Lookup done, insert into the local table, return data to the
 // calling continuation.
 // NOTE: if "i" exists it means we already allocated the space etc, just return
@@ -1659,9 +1590,8 @@ HostDBContinuation::do_dns()
     HostsFileMap::iterator find_result                = current_host_file_map->hosts_file_map.find(hname);
     if (find_result != current_host_file_map->hosts_file_map.end()) {
       if (action.continuation) {
-        // Set the TTL based on how much time remains until the next sync
-        HostDBInfo *r = lookup_done(IpAddr(find_result->second), hash.host_name, false,
-                                    current_host_file_map->next_sync_time - ink_time(), nullptr);
+        // Set the TTL based on how often we stat() the host file
+        HostDBInfo *r = lookup_done(IpAddr(find_result->second), hash.host_name, false, hostdb_hostfile_check_interval, nullptr);
         reply_to_cont(action.continuation, r);
       }
       hostdb_cont_free(this);
@@ -2248,9 +2178,8 @@ ParseHostFile(const char *path, unsigned int hostdb_hostfile_check_interval_pars
         // +1 in case no terminating newline
         int64_t size = info.st_size + 1;
 
-        parsed_hosts_file_ptr                 = new RefCountedHostsFileMap;
-        parsed_hosts_file_ptr->next_sync_time = ink_time() + hostdb_hostfile_check_interval_parse;
-        parsed_hosts_file_ptr->HostFileText   = static_cast<char *>(ats_malloc(size));
+        parsed_hosts_file_ptr               = new RefCountedHostsFileMap;
+        parsed_hosts_file_ptr->HostFileText = static_cast<char *>(ats_malloc(size));
         if (parsed_hosts_file_ptr->HostFileText) {
           char *base = parsed_hosts_file_ptr->HostFileText;
           char *limit;
@@ -2328,7 +2257,11 @@ struct HostDBRegressionContinuation : public Continuation {
       // since this is a lookup done, data is either hostdbInfo or nullptr
       if (r) {
         rprintf(test, "hostdbinfo r=%x\n", r);
-        rprintf(test, "hostdbinfo hostname=%s\n", r->perm_hostname());
+        char const *hname = r->perm_hostname();
+        if (nullptr == hname) {
+          hname = "(null)";
+        }
+        rprintf(test, "hostdbinfo hostname=%s\n", hname);
         rprintf(test, "hostdbinfo rr %x\n", r->rr());
         // If RR, print all of the enclosed records
         if (r->rr()) {

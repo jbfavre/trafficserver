@@ -30,12 +30,24 @@ ProxySession::ProxySession() : VConnection(nullptr) {}
 
 ProxySession::ProxySession(NetVConnection *vc) : VConnection(nullptr), _vc(vc) {}
 
+ProxySession::~ProxySession()
+{
+  if (schedule_event) {
+    schedule_event->cancel();
+    schedule_event = nullptr;
+  }
+  this->api_hooks.clear();
+  this->mutex.clear();
+  this->acl.clear();
+  this->_ssl.reset();
+}
+
 void
 ProxySession::set_session_active()
 {
   if (!m_active) {
     m_active = true;
-    this->increment_current_active_client_connections_stat();
+    this->increment_current_active_connections_stat();
   }
 }
 
@@ -44,7 +56,7 @@ ProxySession::clear_session_active()
 {
   if (m_active) {
     m_active = false;
-    this->decrement_current_active_client_connections_stat();
+    this->decrement_current_active_connections_stat();
   }
 }
 
@@ -68,19 +80,6 @@ static const TSEvent eventmap[TS_HTTP_LAST_HOOK + 1] = {
   TS_EVENT_NONE,                       // TS_HTTP_RESPONSE_CLIENT_HOOK
   TS_EVENT_NONE,                       // TS_HTTP_LAST_HOOK
 };
-
-void
-ProxySession::free()
-{
-  if (schedule_event) {
-    schedule_event->cancel();
-    schedule_event = nullptr;
-  }
-  this->api_hooks.clear();
-  this->mutex.clear();
-  this->acl.clear();
-  this->_ssl.reset();
-}
 
 int
 ProxySession::state_api_callout(int event, void *data)
@@ -201,12 +200,12 @@ ProxySession::connection_id() const
 }
 
 bool
-ProxySession::attach_server_session(Http1ServerSession *ssession, bool transaction_done)
+ProxySession::attach_server_session(PoolableSession *ssession, bool transaction_done)
 {
   return false;
 }
 
-Http1ServerSession *
+PoolableSession *
 ProxySession::get_server_session() const
 {
   return nullptr;
@@ -236,6 +235,14 @@ ProxySession::cancel_inactivity_timeout()
   }
 }
 
+void
+ProxySession::cancel_active_timeout()
+{
+  if (_vc) {
+    _vc->cancel_active_timeout();
+  }
+}
+
 int
 ProxySession::populate_protocol(std::string_view *result, int size) const
 {
@@ -249,7 +256,7 @@ ProxySession::protocol_contains(std::string_view tag_prefix) const
 }
 
 sockaddr const *
-ProxySession::get_client_addr()
+ProxySession::get_remote_addr() const
 {
   return _vc ? _vc->get_remote_addr() : nullptr;
 }

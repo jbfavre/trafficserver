@@ -26,6 +26,8 @@
 #include <optional>
 #include <memory>
 
+#include "SSLTypes.h"
+
 #include "tscore/Errata.h"
 
 #define TSDECL(id) constexpr char TS_##id[] = #id
@@ -36,6 +38,7 @@ TSDECL(verify_client_ca_certs);
 TSDECL(tunnel_route);
 TSDECL(forward_route);
 TSDECL(partial_blind_route);
+TSDECL(tunnel_alpn);
 TSDECL(verify_server_policy);
 TSDECL(verify_server_properties);
 TSDECL(verify_origin_server);
@@ -76,10 +79,9 @@ struct YamlSNIConfig {
     uint8_t verify_client_level = 255;
     std::string verify_client_ca_file;
     std::string verify_client_ca_dir;
-    uint8_t host_sni_policy = 255;
+    uint8_t host_sni_policy    = 255;
+    SNIRoutingType tunnel_type = SNIRoutingType::NONE;
     std::string tunnel_destination;
-    bool tunnel_decrypt               = false;
-    bool tls_upstream                 = false;
     Policy verify_server_policy       = Policy::UNSET;
     Property verify_server_properties = Property::UNSET;
     std::string client_cert;
@@ -87,6 +89,7 @@ struct YamlSNIConfig {
     std::string ip_allow;
     bool protocol_unset = true;
     unsigned long protocol_mask;
+    std::vector<int> tunnel_alpn{};
 
     void EnableProtocol(YamlSNIConfig::TLSProtocol proto);
   };

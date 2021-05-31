@@ -69,8 +69,8 @@ ts.Disk.remap_config.AddLines([
 ts.Disk.plugin_config.AddLine('xdebug.so')
 
 ts.Disk.records_config.update({
-    #  'proxy.config.diags.debug.enabled': 1,
-    #  'proxy.config.diags.debug.tags': 'cache_range_requests|slice',
+    'proxy.config.diags.debug.enabled': 0,
+    'proxy.config.diags.debug.tags': 'cache_range_requests|slice',
 })
 
 curl_and_args = 'curl -s -D /dev/stdout -o /dev/stderr -x localhost:{}'.format(ts.Variables.port) + ' -H "x-debug: x-cache"'
@@ -178,7 +178,7 @@ ps.Streams.stderr = "gold/bb.gold"
 ps.Streams.stdout.Content = Testers.ContainsExpression("etagnew", "expected etagnew")
 tr.StillRunningAfter = ts
 
-# 3 Test - Request fullly healed asset via slice plugin
+# 3 Test - Request fully healed asset via slice plugin
 tr = Test.AddTestRun("Request full healed slice")
 ps = tr.Processes.Default
 ps.Command = curl_and_args + ' http://slice/second'

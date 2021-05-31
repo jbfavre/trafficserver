@@ -63,7 +63,7 @@ class CacheControlResult
 {
 public:
   inkcoreapi CacheControlResult();
-  void Print();
+  void Print() const;
 
   // Data for external use
   //
@@ -83,7 +83,7 @@ public:
   //   Keeps track of the last line number
   //    on which a parameter was set
   //   Used to tell if a parameter needs to
-  //    be overriden by something that appeared
+  //    be overridden by something that appeared
   //    earlier in the the config file
   //
   int reval_line         = -1;
@@ -109,7 +109,7 @@ public:
   int cache_responses_to_cookies = -1;
   Result Init(matcher_line *line_info);
   inkcoreapi void UpdateMatch(CacheControlResult *result, RequestData *rdata);
-  void Print();
+  void Print() const;
 };
 
 inline CacheControlRecord::CacheControlRecord() : ControlBase() {}

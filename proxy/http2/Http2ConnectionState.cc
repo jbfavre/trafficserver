@@ -30,6 +30,7 @@
 #include "HttpDebugNames.h"
 
 #include "tscpp/util/PostScript.h"
+#include "tscpp/util/LocalBuffer.h"
 
 #include <sstream>
 #include <numeric>
@@ -244,9 +245,12 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     if (stream == nullptr) {
       return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_STREAM_CLOSED,
                         "recv headers cannot find existing stream_id");
+    } else if (stream->get_state() == Http2StreamState::HTTP2_STREAM_STATE_CLOSED) {
+      return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_STREAM_CLOSED,
+                        "recv_header to closed stream");
     } else if (!stream->has_trailing_header()) {
       return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR,
-                        "recv headers cannot find existing stream_id");
+                        "stream not expecting trailer header");
     }
   } else {
     // Create new stream
@@ -359,7 +363,7 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
       }
       // If the flag has already been set before decoding header blocks, this is the trailing header.
       // Set a flag to avoid initializing fetcher for now.
-      // Decoding header blocks is stil needed to maintain a HPACK dynamic table.
+      // Decoding header blocks is still needed to maintain a HPACK dynamic table.
       // TODO: TS-3812
       empty_request = true;
     }
@@ -389,7 +393,7 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
       // Send request header to SM
       stream->send_request(cstate);
     } else {
-      // Signal VC_EVENT_READ_COMPLETE becasue received trailing header fields with END_STREAM flag
+      // Signal VC_EVENT_READ_COMPLETE because received trailing header fields with END_STREAM flag
       stream->signal_read_event(VC_EVENT_READ_COMPLETE);
     }
   } else {
@@ -453,7 +457,7 @@ rcv_priority_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
 
   // Update PRIORITY frame count per minute
   cstate.increment_received_priority_frame_count();
-  // Close this conection if its priority frame count received exceeds a limit
+  // Close this connection if its priority frame count received exceeds a limit
   if (Http2::max_priority_frames_per_minute != 0 &&
       cstate.get_received_priority_frame_count() > Http2::max_priority_frames_per_minute) {
     HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_PRIORITY_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
@@ -567,7 +571,7 @@ rcv_settings_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
 
   // Update SETTIGNS frame count per minute
   cstate.increment_received_settings_frame_count();
-  // Close this conection if its SETTINGS frame count exceeds a limit
+  // Close this connection if its SETTINGS frame count exceeds a limit
   if (cstate.get_received_settings_frame_count() > Http2::max_settings_frames_per_minute) {
     HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_SETTINGS_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
     Http2StreamDebug(cstate.ua_session, stream_id, "Observed too frequent SETTINGS frames: %u frames within a last minute",
@@ -645,9 +649,9 @@ rcv_settings_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     ++n_settings;
   }
 
-  // Update settigs count per minute
+  // Update settings count per minute
   cstate.increment_received_settings_count(n_settings);
-  // Close this conection if its settings count received exceeds a limit
+  // Close this connection if its settings count received exceeds a limit
   if (cstate.get_received_settings_count() > Http2::max_settings_per_minute) {
     HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_SETTINGS_PER_MINUTE_EXCEEDED, this_ethread());
     Http2StreamDebug(cstate.ua_session, stream_id, "Observed too frequent setting changes: %u settings within a last minute",
@@ -701,7 +705,7 @@ rcv_ping_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
 
   // Update PING frame count per minute
   cstate.increment_received_ping_frame_count();
-  // Close this conection if its ping count received exceeds a limit
+  // Close this connection if its ping count received exceeds a limit
   if (cstate.get_received_ping_frame_count() > Http2::max_ping_frames_per_minute) {
     HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_PING_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
     Http2StreamDebug(cstate.ua_session, stream_id, "Observed too frequent PING frames: %u PING frames within a last minute",
@@ -1067,7 +1071,7 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
 
     if (error.cls != Http2ErrorClass::HTTP2_ERROR_CLASS_NONE) {
       ip_port_text_buffer ipb;
-      const char *client_ip = ats_ip_ntop(ua_session->get_client_addr(), ipb, sizeof(ipb));
+      const char *client_ip = ats_ip_ntop(ua_session->get_remote_addr(), ipb, sizeof(ipb));
       if (error.cls == Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION) {
         if (error.msg) {
           Error("HTTP/2 connection error code=0x%02x client_ip=%s session_id=%" PRId64 " stream_id=%u %s",
@@ -1092,7 +1096,7 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
 
   } break;
 
-  // Initiate a gracefull shutdown
+  // Initiate a graceful shutdown
   case HTTP2_SESSION_EVENT_SHUTDOWN_INIT: {
     REMEMBER(event, this->recursion);
     ink_assert(shutdown_state == HTTP2_SHUTDOWN_NOT_INITIATED);
@@ -1106,7 +1110,7 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
     shutdown_cont_event = this_ethread()->schedule_in((Continuation *)this, HRTIME_SECONDS(2), HTTP2_SESSION_EVENT_SHUTDOWN_CONT);
   } break;
 
-  // Continue a gracefull shutdown
+  // Continue a graceful shutdown
   case HTTP2_SESSION_EVENT_SHUTDOWN_CONT: {
     REMEMBER(event, this->recursion);
     ink_assert(shutdown_state == HTTP2_SHUTDOWN_INITIATED);
@@ -1136,7 +1140,7 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
       if (lock.is_locked()) {
         this->ua_session->free();
         // After the free, the Http2ConnectionState object is also freed.
-        // The Http2ConnectionState object is allocted within the Http2ClientSession object
+        // The Http2ConnectionState object is allocated within the Http2ClientSession object
       }
     }
   }
@@ -1216,8 +1220,8 @@ Http2ConnectionState::create_stream(Http2StreamId new_id, Http2Error &error)
     }
   }
 
-  Http2Stream *new_stream = THREAD_ALLOC_INIT(http2StreamAllocator, this_ethread());
-  new_stream->init(new_id, client_settings.get(HTTP2_SETTINGS_INITIAL_WINDOW_SIZE));
+  Http2Stream *new_stream = THREAD_ALLOC_INIT(http2StreamAllocator, this_ethread(), ua_session, new_id,
+                                              client_settings.get(HTTP2_SETTINGS_INITIAL_WINDOW_SIZE));
 
   ink_assert(nullptr != new_stream);
   ink_assert(!stream_list.in(new_stream));
@@ -1239,7 +1243,6 @@ Http2ConnectionState::create_stream(Http2StreamId new_id, Http2Error &error)
     zombie_event = nullptr;
   }
 
-  new_stream->set_proxy_ssn(ua_session);
   new_stream->mutex                     = new_ProxyMutex();
   new_stream->is_first_transaction_flag = get_stream_requests() == 0;
   increment_stream_requests();
@@ -1630,8 +1633,6 @@ Http2ConnectionState::send_data_frames(Http2Stream *stream)
 void
 Http2ConnectionState::send_headers_frame(Http2Stream *stream)
 {
-  uint8_t *buf                = nullptr;
-  uint32_t buf_len            = 0;
   uint32_t header_blocks_size = 0;
   int payload_length          = 0;
   uint8_t flags               = 0x00;
@@ -1641,17 +1642,14 @@ Http2ConnectionState::send_headers_frame(Http2Stream *stream)
   HTTPHdr *resp_hdr = &stream->response_header;
   http2_convert_header_from_1_1_to_2(resp_hdr);
 
-  buf_len = resp_hdr->length_get() * 2; // Make it double just in case
-  buf     = static_cast<uint8_t *>(ats_malloc(buf_len));
-  if (buf == nullptr) {
-    return;
-  }
+  uint32_t buf_len = resp_hdr->length_get() * 2; // Make it double just in case
+  ts::LocalBuffer local_buffer(buf_len);
+  uint8_t *buf = local_buffer.data();
 
   stream->mark_milestone(Http2StreamMilestone::START_ENCODE_HEADERS);
   Http2ErrorCode result = http2_encode_header_blocks(resp_hdr, buf, buf_len, &header_blocks_size, *(this->remote_hpack_handle),
                                                      client_settings.get(HTTP2_SETTINGS_HEADER_TABLE_SIZE));
   if (result != Http2ErrorCode::HTTP2_ERROR_NO_ERROR) {
-    ats_free(buf);
     return;
   }
 
@@ -1678,7 +1676,6 @@ Http2ConnectionState::send_headers_frame(Http2Stream *stream)
       fini_event = this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
     }
 
-    ats_free(buf);
     return;
   }
 
@@ -1701,15 +1698,11 @@ Http2ConnectionState::send_headers_frame(Http2Stream *stream)
     this->ua_session->xmit(continuation_frame);
     sent += payload_length;
   }
-
-  ats_free(buf);
 }
 
 bool
 Http2ConnectionState::send_push_promise_frame(Http2Stream *stream, URL &url, const MIMEField *accept_encoding)
 {
-  uint8_t *buf                = nullptr;
-  uint32_t buf_len            = 0;
   uint32_t header_blocks_size = 0;
   int payload_length          = 0;
   uint8_t flags               = 0x00;
@@ -1741,15 +1734,13 @@ Http2ConnectionState::send_push_promise_frame(Http2Stream *stream, URL &url, con
 
   http2_convert_header_from_1_1_to_2(&hdr);
 
-  buf_len = hdr.length_get() * 2; // Make it double just in case
-  buf     = static_cast<uint8_t *>(ats_malloc(buf_len));
-  if (buf == nullptr) {
-    return false;
-  }
+  uint32_t buf_len = hdr.length_get() * 2; // Make it double just in case
+  ts::LocalBuffer local_buffer(buf_len);
+  uint8_t *buf = local_buffer.data();
+
   Http2ErrorCode result = http2_encode_header_blocks(&hdr, buf, buf_len, &header_blocks_size, *(this->remote_hpack_handle),
                                                      client_settings.get(HTTP2_SETTINGS_HEADER_TABLE_SIZE));
   if (result != Http2ErrorCode::HTTP2_ERROR_NO_ERROR) {
-    ats_free(buf);
     return false;
   }
 
@@ -1785,7 +1776,6 @@ Http2ConnectionState::send_push_promise_frame(Http2Stream *stream, URL &url, con
     this->ua_session->xmit(continuation);
     sent += payload_length;
   }
-  ats_free(buf);
 
   Http2Error error(Http2ErrorClass::HTTP2_ERROR_CLASS_NONE);
   stream = this->create_stream(id, error);
@@ -1810,6 +1800,7 @@ Http2ConnectionState::send_push_promise_frame(Http2Stream *stream, URL &url, con
   stream->change_state(HTTP2_FRAME_TYPE_PUSH_PROMISE, HTTP2_FLAGS_PUSH_PROMISE_END_HEADERS);
   stream->set_request_headers(hdr);
   stream->new_transaction();
+  stream->recv_end_stream = true; // No more data with the request
   stream->send_request(*this);
 
   return true;
@@ -1882,7 +1873,7 @@ Http2ConnectionState::send_ping_frame(Http2StreamId id, uint8_t flag, const uint
   this->ua_session->xmit(ping);
 }
 
-// As for gracefull shutdown, TS should process outstanding stream as long as possible.
+// As for graceful shutdown, TS should process outstanding stream as long as possible.
 // As for signal connection error, TS should close connection immediately.
 void
 Http2ConnectionState::send_goaway_frame(Http2StreamId id, Http2ErrorCode ec)

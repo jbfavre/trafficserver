@@ -219,7 +219,6 @@ public:
   enum AbortState_t {
     ABORT_UNDEFINED = 0,
     DIDNOT_ABORT,
-    MAYBE_ABORTED,
     ABORTED,
   };
 
@@ -272,15 +271,6 @@ public:
     FRESHNESS_FRESH = 0, // Fresh enough, serve it
     FRESHNESS_WARNING,   // Stale, but client says OK
     FRESHNESS_STALE      // Stale, don't use
-  };
-
-  enum HostNameExpansionError_t {
-    RETRY_EXPANDED_NAME,
-    EXPANSION_FAILED,
-    EXPANSION_NOT_ALLOWED,
-    DNS_ATTEMPTS_EXHAUSTED,
-    NO_PARENT_PROXY_EXPANSION,
-    TOTAL_HOST_NAME_EXPANSION_TYPES
   };
 
   enum HttpTransactMagic_t {
@@ -534,7 +524,6 @@ public:
     // The following variable is true if the client expects to
     // received a chunked response.
     bool receive_chunked_response = false;
-    bool pipeline_possible        = false;
     bool proxy_connect_hdr        = false;
     /// @c errno from the most recent attempt to connect.
     /// zero means no failure (not attempted, succeeded).
@@ -570,12 +559,6 @@ public:
     {
       connect_result = 0;
     }
-    void
-    set_connect_fail(int e)
-    {
-      connect_result = e;
-    }
-
     ConnectionAttributes() { clear(); }
 
     void
@@ -593,7 +576,7 @@ public:
     ConnectionAttributes *server               = nullptr;
     ink_time_t now                             = 0;
     ServerState_t state                        = STATE_UNDEFINED;
-    unsigned attempts                          = 1;
+    unsigned attempts                          = 0;
     unsigned simple_retry_attempts             = 0;
     unsigned unavailable_server_retry_attempts = 0;
     ParentRetry_t retry_type                   = PARENT_RETRY_NONE;
@@ -602,7 +585,6 @@ public:
   } CurrentInfo;
 
   typedef struct _DNSLookupInfo {
-    int attempts = 0;
     /** Origin server address source selection.
 
         If config says to use CTA (client target addr) state is
@@ -683,10 +665,9 @@ public:
     DNSLookupInfo dns_info;
     RedirectInfo redirect_info;
     OutboundConnTrack::TxnState outbound_conn_track_state;
-    unsigned int updated_server_version   = HostDBApplicationInfo::HTTP_VERSION_UNDEFINED;
+    HTTPVersion updated_server_version    = HTTP_INVALID;
     bool force_dns                        = false;
     MgmtByte cache_open_write_fail_action = 0;
-    bool is_revalidation_necessary        = false; // Added to check if revalidation is necessary - YTS Team, yamsat
     ConnectionAttributes client_info;
     ConnectionAttributes parent_info;
     ConnectionAttributes server_info;
@@ -702,12 +683,6 @@ public:
     // To handle parent proxy case, we need to be
     //  able to defer some work in building the request
     TransactFunc_t pending_work = nullptr;
-
-    // Sandbox of Variables
-    StateMachineAction_t cdn_saved_next_action        = SM_ACTION_UNDEFINED;
-    void (*cdn_saved_transact_return_point)(State *s) = nullptr;
-    bool cdn_remap_complete                           = false;
-    bool first_dns_lookup                             = true;
 
     HttpRequestData request_data;
     ParentConfigParams *parent_params                           = nullptr;
@@ -750,8 +725,6 @@ public:
     char via_string[MAX_VIA_INDICES + 1];
 
     int64_t state_machine_id = 0;
-
-    // HttpAuthParams auth_params;
 
     // new ACL filtering result (calculated immediately after remap)
     bool client_connection_enabled = true;
@@ -926,7 +899,18 @@ public:
       internal_msg_buffer_size = 0;
     }
 
-    NetVConnection::ProxyProtocol pp_info;
+    ProxyProtocol pp_info;
+
+    void
+    set_connect_fail(int e)
+    {
+      if (e == EIO || this->current.server->connect_result == EIO) {
+        this->current.server->connect_result = e;
+      }
+      if (e != EIO) {
+        this->cause_of_death_errno = e;
+      }
+    }
 
   private:
     // Make this a raw byte array, so it will be accessed through the my_txn_conf() member function.
@@ -936,7 +920,6 @@ public:
 
   static void HandleBlindTunnel(State *s);
   static void StartRemapRequest(State *s);
-  static void RemapRequest(State *s);
   static void EndRemapRequest(State *s);
   static void PerformRemap(State *s);
   static void ModifyRequest(State *s);
@@ -945,7 +928,6 @@ public:
   static bool handleIfRedirect(State *s);
 
   static void StartAccessControl(State *s);
-  static void StartAuth(State *s);
   static void HandleRequestAuthorized(State *s);
   static void BadRequest(State *s);
   static void Forbidden(State *s);
@@ -961,8 +943,6 @@ public:
   static void OSDNSLookup(State *s);
   static void ReDNSRoundRobin(State *s);
   static void PPDNSLookup(State *s);
-  static void HandleAuth(State *s);
-  static void HandleAuthFailed(State *s);
   static void OriginServerRawOpen(State *s);
   static void HandleCacheOpenRead(State *s);
   static void HandleCacheOpenReadHitFreshness(State *s);
@@ -981,6 +961,7 @@ public:
   static void handle_response_from_server(State *s);
   static void delete_server_rr_entry(State *s, int max_retries);
   static void retry_server_connection_not_open(State *s, ServerState_t conn_state, unsigned max_retries);
+  static void error_log_connection_failure(State *s, ServerState_t conn_state);
   static void handle_server_connection_not_open(State *s);
   static void handle_forward_server_connection_open(State *s);
   static void handle_cache_operation_on_forward_server_response(State *s);
@@ -1014,8 +995,8 @@ public:
   static void add_client_ip_to_outgoing_request(State *s, HTTPHdr *request);
   static RequestError_t check_request_validity(State *s, HTTPHdr *incoming_hdr);
   static ResponseError_t check_response_validity(State *s, HTTPHdr *incoming_hdr);
+  static void set_client_request_state(State *s, HTTPHdr *incoming_hdr);
   static bool delete_all_document_alternates_and_return(State *s, bool cache_hit);
-  static bool did_forward_server_send_0_9_response(State *s);
   static bool does_client_request_permit_cached_response(const OverridableHttpConfigParams *p, CacheControlResult *c, HTTPHdr *h,
                                                          char *via_string);
   static bool does_client_request_permit_dns_caching(CacheControlResult *c, HTTPHdr *h);
@@ -1038,11 +1019,6 @@ public:
   static bool is_response_valid(State *s, HTTPHdr *incoming_response);
 
   static void process_quick_http_filter(State *s, int method);
-  static bool perform_accept_encoding_filtering(State *s);
-
-  static HostNameExpansionError_t try_to_expand_host_name(State *s);
-
-  static bool setup_auth_lookup(State *s);
   static bool will_this_request_self_loop(State *s);
   static bool is_request_likely_cacheable(State *s, HTTPHdr *request);
   static bool is_cache_hit(CacheLookupResult_t r);
@@ -1063,7 +1039,6 @@ public:
   static void handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
   static int get_max_age(HTTPHdr *response);
   static int calculate_document_freshness_limit(State *s, HTTPHdr *response, time_t response_date, bool *heuristic);
-  static int calculate_freshness_fuzz(State *s, int fresh_limit);
   static Freshness_t what_is_document_freshness(State *s, HTTPHdr *client_request, HTTPHdr *cached_obj_response);
   static Authentication_t AuthenticationNeeded(const OverridableHttpConfigParams *p, HTTPHdr *client_request,
                                                HTTPHdr *obj_response);

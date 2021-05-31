@@ -48,6 +48,7 @@ public:
   void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader) override;
   void start() override;
   void destroy() override;
+  void free() override;
   void release(ProxyTransaction *trans) override;
   int get_transact_count() const override;
 
@@ -71,8 +72,8 @@ public:
   ~Http3Session();
 
   // ProxySession interface
-  void increment_current_active_client_connections_stat() override;
-  void decrement_current_active_client_connections_stat() override;
+  void increment_current_active_connections_stat() override;
+  void decrement_current_active_connections_stat() override;
 
   QPACK *local_qpack();
   QPACK *remote_qpack();
@@ -94,8 +95,8 @@ public:
   ~Http09Session();
 
   // ProxySession interface
-  void increment_current_active_client_connections_stat() override;
-  void decrement_current_active_client_connections_stat() override;
+  void increment_current_active_connections_stat() override;
+  void decrement_current_active_connections_stat() override;
 
 private:
 };

@@ -60,24 +60,6 @@ enum class Http2SsnMilestone {
 
 size_t const HTTP2_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
 
-// To support Upgrade: h2c
-struct Http2UpgradeContext {
-  Http2UpgradeContext() {}
-  ~Http2UpgradeContext()
-  {
-    if (req_header) {
-      req_header->clear();
-      delete req_header;
-    }
-  }
-
-  // Modified request header
-  HTTPHdr *req_header = nullptr;
-
-  // Decoded HTTP2-Settings Header Field
-  Http2ConnectionSettings client_settings;
-};
-
 class Http2ClientSession : public ProxySession
 {
 public:
@@ -106,17 +88,16 @@ public:
 
   ////////////////////
   // Accessors
-  sockaddr const *get_client_addr() override;
+  sockaddr const *get_remote_addr() const override;
   sockaddr const *get_local_addr() override;
   int get_transact_count() const override;
   const char *get_protocol_string() const override;
   int populate_protocol(std::string_view *result, int size) const override;
   const char *protocol_contains(std::string_view prefix) const override;
-  void increment_current_active_client_connections_stat() override;
-  void decrement_current_active_client_connections_stat() override;
+  void increment_current_active_connections_stat() override;
+  void decrement_current_active_connections_stat() override;
 
   void set_upgrade_context(HTTPHdr *h);
-  const Http2UpgradeContext &get_upgrade_context() const;
   void set_dying_event(int event);
   int get_dying_event() const;
   bool ready_to_free() const;
@@ -155,12 +136,17 @@ private:
 
   bool _should_do_something_else();
 
-  int64_t total_write_len             = 0;
-  SessionHandler session_handler      = nullptr;
+  ////////
+  // Variables
+  SessionHandler session_handler = nullptr;
+
   MIOBuffer *read_buffer              = nullptr;
-  IOBufferReader *_reader             = nullptr;
-  MIOBuffer *write_buffer             = nullptr;
-  IOBufferReader *sm_writer           = nullptr;
+  IOBufferReader *_read_buffer_reader = nullptr;
+
+  VIO *write_vio                       = nullptr;
+  MIOBuffer *write_buffer              = nullptr;
+  IOBufferReader *_write_buffer_reader = nullptr;
+
   Http2FrameHeader current_hdr        = {0, 0, 0, 0};
   uint32_t _write_size_threshold      = 0;
   uint32_t _write_time_threshold      = 100;
@@ -172,10 +158,6 @@ private:
   History<HISTORY_DEFAULT_SIZE> _history;
   Milestones<Http2SsnMilestone, static_cast<size_t>(Http2SsnMilestone::LAST_ENTRY)> _milestones;
 
-  // For Upgrade: h2c
-  Http2UpgradeContext upgrade_context;
-
-  VIO *write_vio                 = nullptr;
   int dying_event                = 0;
   bool kill_me                   = false;
   Http2SessionCod cause_of_death = Http2SessionCod::NOT_PROVIDED;
@@ -193,16 +175,10 @@ private:
   bool cur_frame_from_early_data = false;
 };
 
-extern ClassAllocator<Http2ClientSession> http2ClientSessionAllocator;
+extern ClassAllocator<Http2ClientSession, true> http2ClientSessionAllocator;
 
 ///////////////////////////////////////////////
 // INLINE
-
-inline const Http2UpgradeContext &
-Http2ClientSession::get_upgrade_context() const
-{
-  return upgrade_context;
-}
 
 inline bool
 Http2ClientSession::ready_to_free() const

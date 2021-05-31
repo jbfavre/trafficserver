@@ -27,7 +27,6 @@
 #include "HttpSessionAccept.h"
 #include "ReverseProxy.h"
 #include "HttpSessionManager.h"
-#include "HttpUpdateSM.h"
 #ifdef USE_HTTP_DEBUG_LISTS
 #include "Http1ClientSession.h"
 #endif
@@ -56,6 +55,10 @@ static Ptr<ProxyMutex> ssl_plugin_mutex;
 std::mutex proxyServerMutex;
 std::condition_variable proxyServerCheck;
 bool et_net_threads_ready = false;
+
+std::mutex etUdpMutex;
+std::condition_variable etUdpCheck;
+bool et_udp_threads_ready = false;
 
 extern int num_of_net_threads;
 extern int num_accept_threads;
@@ -323,6 +326,15 @@ init_HttpProxyServer()
     lock.unlock();
     proxyServerCheck.notify_one();
   }
+
+#if TS_USE_QUIC == 1
+  if (eventProcessor.has_tg_started(ET_UDP)) {
+    std::unique_lock<std::mutex> lock(etUdpMutex);
+    et_udp_threads_ready = true;
+    lock.unlock();
+    etUdpCheck.notify_one();
+  }
+#endif
 }
 
 void
@@ -359,12 +371,6 @@ start_HttpProxyServer()
     // XXX although we make a good pretence here, I don't believe that NetProcessor::main_accept() ever actually returns
     // NULL. It would be useful to be able to detect errors and spew them here though.
   }
-
-#if TS_HAS_TESTS
-  if (is_action_tag_set("http_update_test")) {
-    init_http_update_test();
-  }
-#endif
 
   // Set up stat page for http connection count
   statPagesManager.register_http("connection_count", register_ShowConnectionCount);

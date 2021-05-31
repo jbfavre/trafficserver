@@ -37,17 +37,14 @@
 #include <cstdio>
 #include <bitset>
 #include <map>
-
-#ifdef HAVE_CTYPE_H
 #include <cctype>
-#endif
+#include <string_view>
 
 #include "tscore/ink_platform.h"
 #include "tscore/ink_inet.h"
 #include "tscore/ink_resolver.h"
 #include "tscore/IpMap.h"
 #include "tscore/Regex.h"
-#include "string_view"
 #include "tscore/BufferWriter.h"
 #include "HttpProxyAPIEnums.h"
 #include "ProxyConfig.h"
@@ -68,6 +65,7 @@ enum {
   http_current_client_transactions_stat,
   http_total_incoming_connections_stat,
   http_current_server_transactions_stat,
+  http_pooled_server_connections_stat,
 
   //  Http Abort information (from HttpNetConnection)
   http_ua_msecs_counts_errors_pre_accept_hangups_stat,
@@ -87,6 +85,7 @@ enum {
   http_total_parent_switches_stat,
   http_total_parent_retries_exhausted_stat,
   http_total_parent_marked_down_count,
+  http_background_fill_total_count_stat,
   http_current_parent_proxy_connections_stat,
   http_current_server_connections_stat,
   http_current_cache_connections_stat,
@@ -350,6 +349,8 @@ enum {
   http_origin_shutdown_cleanup_entry,
   http_origin_shutdown_tunnel_abort,
 
+  http_dead_server_no_requests,
+
   http_stat_count
 };
 
@@ -521,6 +522,7 @@ struct OverridableHttpConfigParams {
   // Forwarded //
   ///////////////
   HttpForwarded::OptionBitSet insert_forwarded;
+  MgmtInt proxy_protocol_out = -1;
 
   //////////////////////
   //  Version Hell    //
@@ -652,6 +654,8 @@ struct OverridableHttpConfigParams {
   MgmtInt connect_attempts_timeout                 = 30;
   MgmtInt post_connect_attempts_timeout            = 1800;
 
+  MgmtInt connect_dead_policy = 2;
+
   ////////////////////////////////////
   // parent proxy connect attempts //
   ///////////////////////////////////
@@ -662,7 +666,7 @@ struct OverridableHttpConfigParams {
   MgmtInt parent_connect_timeout      = 30;
 
   MgmtInt down_server_timeout    = 300;
-  MgmtInt client_abort_threshold = 10;
+  MgmtInt client_abort_threshold = 1000;
 
   // open read failure retries.
   MgmtInt max_cache_open_read_retries = -1;
@@ -714,7 +718,7 @@ struct OverridableHttpConfigParams {
 //
 // struct HttpConfigParams
 //
-// configuration parameters as they apear in the global
+// configuration parameters as they appear in the global
 // configuration file.
 /////////////////////////////////////////////////////////////
 struct HttpConfigParams : public ConfigInfo {

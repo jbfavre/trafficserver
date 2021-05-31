@@ -300,9 +300,8 @@ ts.Disk.records_config.update({
 # taken from the slice plug code
 ts.Disk.diags_log.Content = Testers.ContainsExpression('reason="Mismatch block Etag', "Mismatch block etag")
 ts.Disk.diags_log.Content += Testers.ContainsExpression('reason="Mismatch block Last-Modified', "Mismatch block Last-Modified")
-ts.Disk.diags_log.Content += Testers.ContainsExpression(
-    'reason="Mismatch/Bad block Content-Range',
-    "Mismatch/Bad block Content-Range")
+ts.Disk.diags_log.Content += Testers.ContainsExpression('reason="Mismatch/Bad block Content-Range',
+                                                        "Mismatch/Bad block Content-Range")
 ts.Disk.diags_log.Content += Testers.ContainsExpression('reason="404 internal block response', "404 internal block response")
 
 # 0 Test - Etag mismatch test

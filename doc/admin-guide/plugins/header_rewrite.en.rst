@@ -82,10 +82,15 @@ This plugin may be enabled globally, so that the conditions and header
 rewriting rules are evaluated for every request made to your |TS| instance.
 This is done by adding the following line to your :file:`plugin.config`::
 
-  header_rewrite.so config_file_1.conf config_file_2.conf ...
+  header_rewrite.so [--geo-db-path=path/to/geoip.db] config_file_1.conf config_file_2.conf ...
 
 You may specify multiple configuration files. Their rules will be evaluated in
 the order the files are listed.
+
+The plugin takes an optional switch ``--geo-db-path``. If MaxMindDB support has
+been compiled in, use this switch to point at your .mmdb file. This also applies to
+the remap context.
+
 
 Enabling Per-Mapping
 --------------------
@@ -219,7 +224,7 @@ GEO
     cond %{GEO:<part>} <operand>
 
 Perform a GeoIP lookup of the client-IP, using a 3rd party library and
-DB. Currently only the MaxMind GeoIP API is supported. The default is to
+DB. Currently the MaxMind GeoIP and MaxMindDB APIs are supported. The default is to
 do a Country lookup, but the following qualifiers are supported::
 
     %{GEO:COUNTRY}      The country code (e.g. "US")
@@ -413,7 +418,7 @@ values, such as year, month etc.
     %{NOW:MONTH}     Current month (0-11, 0 == January)
     %{NOW:DAY}       Current day of the month (1-31)
     %{NOW:HOUR}      Current hour (0-23, in the 24h system)
-    %{NOW:MIN}       Current minute (0-59}
+    %{NOW:MINUTE}    Current minute (0-59}
     %{NOW:WEEKDAY}   Current weekday (0-6, 0 == Sunday)
     %{NOW:YEARDAY}   Current day of the year (0-365, 0 == Jan 1st)
 
@@ -424,7 +429,7 @@ RANDOM
 
     cond %{RANDOM:<n>} <operand>
 
-Generates a random integer between ``0`` and ``<n>``, inclusive.
+Generates a random integer from ``0`` up to (but not including) ``<n>``. Mathematically, ``[0,n)`` or ``0 <= r < n``.
 
 STATUS
 ~~~~~~
@@ -481,6 +486,24 @@ being evaluated.
 Refer to `Requests vs. Responses`_ for more information on determining the
 context in which the transaction's URL is evaluated.  The ``<part>`` may be
 specified according to the options documented in `URL Parts`_.
+
+SSN-TXN-COUNT
+~~~~~~~~~~~~~
+::
+
+    cond %{SSN-TXN-COUNT} <operand>
+
+Returns the number of transactions between the Traffic Server proxy and the origin server from a single session.
+Any value greater than zero indicates connection reuse.
+
+TCP-INFO
+~~~~~~~~
+::
+
+    cond %{<name>}
+        add-header @PropertyName "%{TCP-INFO}"
+
+This operation records TCP Info struct field values as an Internal remap as well as global header at the event hook specified by the condition. Supported hook conditions include TXN_START_HOOK, SEND_RESPONSE_HEADER_HOOK and TXN_CLOSE_HOOK in the Global plugin and REMAP_PSEUDO_HOOK, SEND_RESPONSE_HEADER_HOOK and TXN_CLOSE_HOOK in the Remap plugin. Conditions supported as request headers include TXN_START_HOOK and REMAP_PSEUDO_HOOK. The other conditions are supported as response headers. TCP Info fields currently recorded include rtt, rto, snd_cwnd and all_retrans. This operation is not supported on transactions originated within Traffic Server (for e.g using the |TS| :c:func:`TSHttpTxnIsInternal`)
 
 Condition Operands
 ------------------
@@ -913,7 +936,7 @@ READ_RESPONSE_HDR_HOOK
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Rulesets evaluated within this context will process only once the origin server
-response (or cached response) has been read, but prior to |TS| sending that
+response has been read, but prior to |TS| sending that
 response to the client.
 
 This is the default hook condition for all globally-configured rulesets.
@@ -925,6 +948,15 @@ Evaluates rulesets just prior to sending the client response, but after any
 cache updates may have been performed. This hook context provides a means to
 modify aspects of the response sent to a client, while still caching the
 original versions of those attributes delivered by the origin server.
+
+TXN_START_HOOK
+~~~~~~~~~~~~~~
+Rulesets are evaluated when |TS| receives a request and accepts it. This hook context indicates that a HTTP transaction is initiated and therefore, can only be enabled as a global plugin.
+
+TXN_CLOSE_HOOK
+~~~~~~~~~~~~~~
+
+Rulesets are evaluated when |TS| completes a transaction, i.e., after a response has been sent to the client. Therefore, header modifications at this hook condition only makes sense for internal headers.
 
 Affected Conditions
 -------------------

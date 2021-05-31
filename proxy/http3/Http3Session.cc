@@ -140,6 +140,12 @@ HQSession::destroy()
 }
 
 void
+HQSession::free()
+{
+  delete this;
+}
+
+void
 HQSession::release(ProxyTransaction *trans)
 {
   return;
@@ -170,13 +176,13 @@ Http3Session::~Http3Session()
 }
 
 void
-Http3Session::increment_current_active_client_connections_stat()
+Http3Session::increment_current_active_connections_stat()
 {
   // TODO Implement stats
 }
 
 void
-Http3Session::decrement_current_active_client_connections_stat()
+Http3Session::decrement_current_active_connections_stat()
 {
   // TODO Implement stats
 }
@@ -202,13 +208,13 @@ Http09Session::~Http09Session()
 }
 
 void
-Http09Session::increment_current_active_client_connections_stat()
+Http09Session::increment_current_active_connections_stat()
 {
   // TODO Implement stats
 }
 
 void
-Http09Session::decrement_current_active_client_connections_stat()
+Http09Session::decrement_current_active_connections_stat()
 {
   // TODO Implement stats
 }

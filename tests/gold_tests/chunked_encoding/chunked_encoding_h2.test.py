@@ -16,7 +16,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
 Test.Summary = '''
 Test interaction of H2 and chunked encoding
 '''
@@ -33,8 +32,7 @@ Test.GetTcpPort("upstream_port")
 ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
 
 # add ssl materials like key, certificates for the server
-ts.addSSLfile("ssl/server.pem")
-ts.addSSLfile("ssl/server.key")
+ts.addDefaultSSLFiles()
 
 ts.Disk.records_config.update({
     'proxy.config.http2.enabled': 1,    # this option is for VZM-internal only
