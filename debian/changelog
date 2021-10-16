@@ -1,3 +1,15 @@
+trafficserver (9.1.0+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.1.0+ds
+  * Patches refresh for 9.1.0
+  * Add patch to fix traffic_top build when using format-security
+  * Add patch to fix traffic_manager build when using mime-sanity-check
+  * Disable documentation build
+  * Bump Standards-Version
+  * Update experimental plugins list
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 16 Oct 2021 11:21:06 +0200
+
 trafficserver (9.0.1+ds-1) UNRELEASED; urgency=medium
 
   * New upstream version 9.0.1+ds
