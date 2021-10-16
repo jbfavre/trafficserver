@@ -30,7 +30,6 @@
 #include <string>
 #include <list>
 #include <arpa/inet.h>
-#include <pthread.h>
 #include <getopt.h>
 
 #include "ts/ts.h"
@@ -47,7 +46,6 @@
 #include "serverIntercept.h"
 #include "Stats.h"
 #include "HttpDataFetcherImpl.h"
-#include "FailureInfo.h"
 using std::string;
 using std::list;
 using namespace EsiLib;
@@ -512,7 +510,6 @@ ContData::~ContData()
 static int
 removeCacheHandler(TSCont contp, TSEvent /* event ATS_UNUSED */, void * /* edata ATS_UNUSED */)
 {
-  // TSDebug(DEBUG_TAG, "[%s] event: %d", __FUNCTION__, (int)event);
   TSContDestroy(contp);
   // just ignore cache remove message
   return 0;
@@ -612,7 +609,7 @@ cacheNodeList(ContData *cont_data)
   string body("");
   cont_data->esi_proc->packNodeList(body, false);
   char buf[64];
-  snprintf(buf, 64, "%s: %d\r\n\r\n", TS_MIME_FIELD_CONTENT_LENGTH, (int)body.size());
+  snprintf(buf, 64, "%s: %d\r\n\r\n", TS_MIME_FIELD_CONTENT_LENGTH, static_cast<int>(body.size()));
 
   post_request.append(buf);
   post_request.append(body);
@@ -1338,13 +1335,6 @@ isCacheObjTransformable(TSHttpTxn txnp, bool *intercept_header, bool *head_only)
     return false;
   }
   if (obj_status == TS_CACHE_LOOKUP_HIT_FRESH) {
-    /*
-    time_t respTime;
-    if (TSHttpTxnCachedRespTimeGet(txnp, &respTime) == TS_SUCCESS) {
-      TSError("[%s] RespTime; %d", __FUNCTION__, (int)respTime);
-    }
-    */
-
     TSDebug(DEBUG_TAG, "[%s] doc found in cache, will add transformation", __FUNCTION__);
     return isTxnTransformable(txnp, true, intercept_header, head_only);
   }
@@ -1490,7 +1480,6 @@ lFail:
   return false;
 }
 
-pthread_key_t threadKey = 0;
 static int
 globalHookHandler(TSCont contp, TSEvent event, void *edata)
 {
@@ -1626,28 +1615,14 @@ esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptionInfo)
     }
   }
 
-  int result = 0;
-  bool bKeySet;
-  if (threadKey == 0) {
-    bKeySet = true;
-    if ((result = pthread_key_create(&threadKey, nullptr)) != 0) {
-      TSError("[esi][%s] Could not create key", __FUNCTION__);
-      TSDebug(DEBUG_TAG, "[%s] Could not create key", __FUNCTION__);
-    }
-  } else {
-    bKeySet = false;
-  }
+  TSDebug(DEBUG_TAG,
+          "[%s] Plugin started, "
+          "packed-node-support: %d, private-response: %d, "
+          "disable-gzip-output: %d, first-byte-flush: %d ",
+          __FUNCTION__, pOptionInfo->packed_node_support, pOptionInfo->private_response, pOptionInfo->disable_gzip_output,
+          pOptionInfo->first_byte_flush);
 
-  if (result == 0) {
-    TSDebug(DEBUG_TAG,
-            "[%s] Plugin started%s, "
-            "packed-node-support: %d, private-response: %d, "
-            "disable-gzip-output: %d, first-byte-flush: %d ",
-            __FUNCTION__, bKeySet ? " and key is set" : "", pOptionInfo->packed_node_support, pOptionInfo->private_response,
-            pOptionInfo->disable_gzip_output, pOptionInfo->first_byte_flush);
-  }
-
-  return result;
+  return 0;
 }
 
 void

@@ -30,9 +30,9 @@
 
 // Data Structures and Classes
 struct Config {
-  static constexpr int64_t const blockbytesmin     = 1024 * 256;       // 256KB
-  static constexpr int64_t const blockbytesmax     = 1024 * 1024 * 32; // 32MB
-  static constexpr int64_t const blockbytesdefault = 1024 * 1024;      // 1MB
+  static constexpr int64_t const blockbytesmin     = 1024 * 256;        // 256KB
+  static constexpr int64_t const blockbytesmax     = 1024 * 1024 * 128; // 128MB
+  static constexpr int64_t const blockbytesdefault = 1024 * 1024;       // 1MB
 
   int64_t m_blockbytes{blockbytesdefault};
   std::string m_remaphost; // remap host to use for loopback slice GET
@@ -54,7 +54,7 @@ struct Config {
   // Parse from args, ast one wins
   bool fromArgs(int const argc, char const *const argv[]);
 
-  // Check if the error should can be logged, if sucessful may update m_nexttime
+  // Check if the error should can be logged, if successful may update m_nexttime
   bool canLogError();
 
   // Check if regex supplied

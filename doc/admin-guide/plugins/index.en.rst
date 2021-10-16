@@ -147,6 +147,7 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
    :hidden:
 
    Access Control <access_control.en>
+   Cache Fill <cache_fill.en>
    Certifier <certifier.en>
    Cert Reporting Tool <cert_reporting_tool.en>
    Collapsed-Forwarding <collapsed_forwarding.en>
@@ -154,6 +155,7 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
    FQ Pacing <fq_pacing.en>
    Header Frequency <header_freq.en>
    Hook Trace <hook-trace.en>
+   ICAP <icap.en>
    JA3 Fingerprint <ja3_fingerprint.en>
    Maxmind ACL <maxmind_acl.en>
    Memcache <memcache.en>
@@ -163,6 +165,7 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
    MP4 <mp4.en>
    Multiplexer <multiplexer.en>
    MySQL Remap <mysql_remap.en>
+   Rate Limit <rate_limit.en>
    Signed URLs <url_sig.en>
    Slice <slice.en>
    SSL Headers <sslheaders.en>
@@ -194,6 +197,9 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 :doc:`Header Frequency <header_freq.en>`
    Count the frequency of headers.
 
+:doc:`ICAP <icap.en>`
+   Pass response data to external server for further processing using the ICAP protocol.
+
 :doc:`JA3 Fingerprint <ja3_fingerprint.en>`
    Calculates JA3 Fingerprints for incoming SSL traffic.
 
@@ -223,6 +229,9 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 
 :doc:`Prefetch <prefetch.en>`
    Pre-fetch objects based on the requested URL path pattern.
+
+:doc:`Rate Limit <rate_limit.en>`
+   Simple transaction rate limiting.
 
 :doc:`Remap Purge <remap_purge.en>`
    This remap plugin allows the administrator to easily setup remotely

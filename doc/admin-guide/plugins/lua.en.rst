@@ -299,6 +299,46 @@ Here is an example:
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
+ts.status
+---------
+**syntax:** *ts.status(MESSAGE)*
+
+**context:** global
+
+**description**: Log the MESSAGE to error.log as status
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.note
+-------
+**syntax:** *ts.note(MESSAGE)*
+
+**context:** global
+
+**description**: Log the MESSAGE to error.log as note
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.warning
+----------
+**syntax:** *ts.warning(MESSAGE)*
+
+**context:** global
+
+**description**: Log the MESSAGE to error.log as warning
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.alert
+--------
+**syntax:** *ts.alert(MESSAGE)*
+
+**context:** global
+
+**description**: Log the MESSAGE to error.log as alert
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
 TS Basic Internal Information
 -----------------------------
 **syntax:** *ts.get_install_dir()*
@@ -2257,6 +2297,42 @@ Current possible values are 1.0, 1.1, and 0.9.
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
+ts.server_response.is_cacheable
+-------------------------------
+**syntax:** *can_cache = ts.server_response.is_cacheable()*
+
+**context:** function @ TS_LUA_HOOK_READ_RESPONSE_HDR hook point or later.
+
+**description:** Return 1 if the server response can be cached, 0 otherwise.
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.server_response.get_maxage
+------------------------------
+**syntax:** *maxage = ts.server_response.get_maxage()*
+
+**context:** function @ TS_LUA_HOOK_READ_RESPONSE_HDR hook point or later.
+
+**description:** Return the maximum age of the server response in seconds if specified by Cache-Control, -1 otherwise.
+
+For example:
+
+::
+
+    function debug_long_maxage()
+        maxage = ts.server_response.get_maxage()
+        if ts.server_response.is_cacheable() and maxage > 86400 then
+            ts.debug('Cacheable response with maxage=' .. maxage)
+        end
+    end
+
+    function do_remap()
+        ts.hook(TS_LUA_HOOK_READ_RESPONSE_HDR, debug_long_maxage)
+        return 0
+    end
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
 ts.server_response.set_version
 ------------------------------
 **syntax:** *ts.server_response.set_version(VERSION_STR)*
@@ -2734,6 +2810,28 @@ Here is an example:
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
+ts.http.get_server_protocol_stack
+---------------------------------
+**syntax:** *ts.http.get_server_protocol_stack()*
+
+**context:** do_global_read_response or later
+
+**description:** This function can be used to get server protocol stack information
+
+Here is an example:
+
+::
+
+    function do_global_read_response()
+        local stack = {ts.http.get_server_protocol_stack()}
+        for k,v in pairs(stack) do
+          ts.debug(v)
+        end
+        return 0
+    end
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
 ts.http.server_push
 -------------------
 **syntax:** *ts.http.server_push()*
@@ -2879,7 +2977,7 @@ ts.http.transaction_count
 
 **context:** do_remap/do_os_response or do_global_* or later
 
-**description:** This function returns the number of transaction in this connection
+**description:** This function returns the number of transaction in this client connection
 
 Here is an example
 
@@ -2890,6 +2988,16 @@ Here is an example
         ts.debug(tostring(count))
         return 0
     end
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.http.server_transaction_count
+--------------------------------
+**syntax:** *ts.http.server_transaction_count()*
+
+**context:** do_remap/do_os_response or do_global_* or later
+
+**description:** This function returns the number of transaction in this server connection
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
@@ -4134,6 +4242,21 @@ ts.mgmt.get_string
 ::
 
     name = ts.mgmt.get_string('proxy.config.product_name')
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.mgmt.add_config_file
+-----------------------
+**syntax:** *ts.mgmt.add_config_file(parent, filename)*
+
+**context:** do_remap/do_os_response or do_global_* or later.
+
+**description:** This function invokes ``TSMgmtConfigFileAdd`` API.
+
+::
+
+    remap = ts.mgmt.get_string('proxy.config.url_remap.filename')
+    ts.mgmt.add_config_file(remap, '/etc/my.config')
 
 :ref:`TOP <admin-plugins-ts-lua>`
 

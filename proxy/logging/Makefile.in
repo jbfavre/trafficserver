@@ -119,10 +119,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-check_PROGRAMS = test_LogUtils$(EXEEXT) test_LogUtils2$(EXEEXT) \
-	test_RolledLogDeleter$(EXEEXT)
-TESTS = test_LogUtils$(EXEEXT) test_LogUtils2$(EXEEXT) \
-	test_RolledLogDeleter$(EXEEXT)
+check_PROGRAMS = test_LogUtils$(EXEEXT) test_RolledLogDeleter$(EXEEXT)
 subdir = proxy/logging
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
@@ -135,6 +132,7 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
 	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
+	$(top_srcdir)/build/boringocsp.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
@@ -170,7 +168,9 @@ am_liblogging_a_OBJECTS = Log.$(OBJEXT) LogAccess.$(OBJEXT) \
 	LogUtils.$(OBJEXT) RolledLogDeleter.$(OBJEXT) \
 	YamlLogConfig.$(OBJEXT) YamlLogConfigDecoders.$(OBJEXT)
 liblogging_a_OBJECTS = $(am_liblogging_a_OBJECTS)
-am_test_LogUtils_OBJECTS = test_LogUtils-test_LogUtils.$(OBJEXT)
+am__dirstamp = $(am__leading_dot)dirstamp
+am_test_LogUtils_OBJECTS = test_LogUtils-LogUtils.$(OBJEXT) \
+	unit-tests/test_LogUtils-test_LogUtils.$(OBJEXT)
 test_LogUtils_OBJECTS = $(am_test_LogUtils_OBJECTS)
 test_LogUtils_DEPENDENCIES = $(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
@@ -179,14 +179,6 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-am__dirstamp = $(am__leading_dot)dirstamp
-am_test_LogUtils2_OBJECTS = test_LogUtils2-LogUtils.$(OBJEXT) \
-	unit-tests/test_LogUtils2-BufferWriterFormat.$(OBJEXT) \
-	unit-tests/test_LogUtils2-test_LogUtils2.$(OBJEXT)
-test_LogUtils2_OBJECTS = $(am_test_LogUtils2_OBJECTS)
-test_LogUtils2_DEPENDENCIES = $(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a
 am_test_RolledLogDeleter_OBJECTS =  \
 	test_RolledLogDeleter-RolledLogDeleter.$(OBJEXT) \
 	test_RolledLogDeleter-LogUtils.$(OBJEXT) \
@@ -219,12 +211,10 @@ am__depfiles_remade = ./$(DEPDIR)/Log.Po ./$(DEPDIR)/LogAccess.Po \
 	./$(DEPDIR)/LogUtils.Po ./$(DEPDIR)/RolledLogDeleter.Po \
 	./$(DEPDIR)/YamlLogConfig.Po \
 	./$(DEPDIR)/YamlLogConfigDecoders.Po \
-	./$(DEPDIR)/test_LogUtils-test_LogUtils.Po \
-	./$(DEPDIR)/test_LogUtils2-LogUtils.Po \
+	./$(DEPDIR)/test_LogUtils-LogUtils.Po \
 	./$(DEPDIR)/test_RolledLogDeleter-LogUtils.Po \
 	./$(DEPDIR)/test_RolledLogDeleter-RolledLogDeleter.Po \
-	unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Po \
-	unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Po \
+	unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Po \
 	unit-tests/$(DEPDIR)/test_RolledLogDeleter-test_RolledLogDeleter.Po
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -264,9 +254,9 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(liblogging_a_SOURCES) $(test_LogUtils_SOURCES) \
-	$(test_LogUtils2_SOURCES) $(test_RolledLogDeleter_SOURCES)
+	$(test_RolledLogDeleter_SOURCES)
 DIST_SOURCES = $(liblogging_a_SOURCES) $(test_LogUtils_SOURCES) \
-	$(test_LogUtils2_SOURCES) $(test_RolledLogDeleter_SOURCES)
+	$(test_RolledLogDeleter_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -525,6 +515,9 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BORINGOCSP_INCLUDES = @BORINGOCSP_INCLUDES@
+BORINGOCSP_LDFLAGS = @BORINGOCSP_LDFLAGS@
+BORINGOCSP_LIBS = @BORINGOCSP_LIBS@
 BROTLIENC_CFLAGS = @BROTLIENC_CFLAGS@
 BROTLIENC_LIB = @BROTLIENC_LIB@
 CC = @CC@
@@ -563,7 +556,7 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEO_LIBS = @GEO_LIBS@
+GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
@@ -720,12 +713,14 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_boringocsp = @has_boringocsp@
 has_expensive_tests = @has_expensive_tests@
+has_geoip = @has_geoip@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
-has_maxmind = @has_maxmind@
+has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
@@ -733,6 +728,7 @@ has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_session_ticket = @has_tls_session_ticket@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -793,6 +789,7 @@ rel_prefix = @rel_prefix@
 rel_runtimedir = @rel_runtimedir@
 rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
+runstatedir = @runstatedir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
@@ -802,12 +799,15 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_boringocsp = @use_boringocsp@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
 use_hkdf = @use_hkdf@
+use_hrw_geoip = @use_hrw_geoip@
+use_hrw_maxminddb = @use_hrw_maxminddb@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -870,29 +870,17 @@ liblogging_a_SOURCES = \
 	YamlLogConfigDecoders.cc \
 	YamlLogConfig.h
 
+TESTS = $(check_PROGRAMS)
 test_LogUtils_CPPFLAGS = \
-	$(AM_CPPFLAGS) \
-	-DTEST_LOG_UTILS
-
-test_LogUtils_SOURCES = \
-	test_LogUtils.cc
-
-test_LogUtils_LDADD = \
-	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a
-
-test_LogUtils2_CPPFLAGS = \
 	$(AM_CPPFLAGS) \
 	-DTEST_LOG_UTILS \
 	-I$(abs_top_srcdir)/tests/include
 
-test_LogUtils2_SOURCES = \
+test_LogUtils_SOURCES = \
 	LogUtils.cc \
-	unit-tests/BufferWriterFormat.cc \
-	unit-tests/test_LogUtils2.cc
+	unit-tests/test_LogUtils.cc
 
-test_LogUtils2_LDADD = \
+test_LogUtils_LDADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a
@@ -963,26 +951,19 @@ liblogging.a: $(liblogging_a_OBJECTS) $(liblogging_a_DEPENDENCIES) $(EXTRA_liblo
 	$(AM_V_at)-rm -f liblogging.a
 	$(AM_V_AR)$(liblogging_a_AR) liblogging.a $(liblogging_a_OBJECTS) $(liblogging_a_LIBADD)
 	$(AM_V_at)$(RANLIB) liblogging.a
-
-test_LogUtils$(EXEEXT): $(test_LogUtils_OBJECTS) $(test_LogUtils_DEPENDENCIES) $(EXTRA_test_LogUtils_DEPENDENCIES) 
-	@rm -f test_LogUtils$(EXEEXT)
-	$(AM_V_CXXLD)$(CXXLINK) $(test_LogUtils_OBJECTS) $(test_LogUtils_LDADD) $(LIBS)
 unit-tests/$(am__dirstamp):
 	@$(MKDIR_P) unit-tests
 	@: > unit-tests/$(am__dirstamp)
 unit-tests/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) unit-tests/$(DEPDIR)
 	@: > unit-tests/$(DEPDIR)/$(am__dirstamp)
-unit-tests/test_LogUtils2-BufferWriterFormat.$(OBJEXT):  \
-	unit-tests/$(am__dirstamp) \
-	unit-tests/$(DEPDIR)/$(am__dirstamp)
-unit-tests/test_LogUtils2-test_LogUtils2.$(OBJEXT):  \
+unit-tests/test_LogUtils-test_LogUtils.$(OBJEXT):  \
 	unit-tests/$(am__dirstamp) \
 	unit-tests/$(DEPDIR)/$(am__dirstamp)
 
-test_LogUtils2$(EXEEXT): $(test_LogUtils2_OBJECTS) $(test_LogUtils2_DEPENDENCIES) $(EXTRA_test_LogUtils2_DEPENDENCIES) 
-	@rm -f test_LogUtils2$(EXEEXT)
-	$(AM_V_CXXLD)$(CXXLINK) $(test_LogUtils2_OBJECTS) $(test_LogUtils2_LDADD) $(LIBS)
+test_LogUtils$(EXEEXT): $(test_LogUtils_OBJECTS) $(test_LogUtils_DEPENDENCIES) $(EXTRA_test_LogUtils_DEPENDENCIES) 
+	@rm -f test_LogUtils$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_LogUtils_OBJECTS) $(test_LogUtils_LDADD) $(LIBS)
 unit-tests/test_RolledLogDeleter-test_RolledLogDeleter.$(OBJEXT):  \
 	unit-tests/$(am__dirstamp) \
 	unit-tests/$(DEPDIR)/$(am__dirstamp)
@@ -1012,12 +993,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RolledLogDeleter.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/YamlLogConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/YamlLogConfigDecoders.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_LogUtils-test_LogUtils.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_LogUtils2-LogUtils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_LogUtils-LogUtils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_RolledLogDeleter-LogUtils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_RolledLogDeleter-RolledLogDeleter.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit-tests/$(DEPDIR)/test_RolledLogDeleter-test_RolledLogDeleter.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -1050,61 +1029,33 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
 
-test_LogUtils-test_LogUtils.o: test_LogUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_LogUtils-test_LogUtils.o -MD -MP -MF $(DEPDIR)/test_LogUtils-test_LogUtils.Tpo -c -o test_LogUtils-test_LogUtils.o `test -f 'test_LogUtils.cc' || echo '$(srcdir)/'`test_LogUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_LogUtils-test_LogUtils.Tpo $(DEPDIR)/test_LogUtils-test_LogUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='test_LogUtils.cc' object='test_LogUtils-test_LogUtils.o' libtool=no @AMDEPBACKSLASH@
+test_LogUtils-LogUtils.o: LogUtils.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_LogUtils-LogUtils.o -MD -MP -MF $(DEPDIR)/test_LogUtils-LogUtils.Tpo -c -o test_LogUtils-LogUtils.o `test -f 'LogUtils.cc' || echo '$(srcdir)/'`LogUtils.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_LogUtils-LogUtils.Tpo $(DEPDIR)/test_LogUtils-LogUtils.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='LogUtils.cc' object='test_LogUtils-LogUtils.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_LogUtils-test_LogUtils.o `test -f 'test_LogUtils.cc' || echo '$(srcdir)/'`test_LogUtils.cc
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_LogUtils-LogUtils.o `test -f 'LogUtils.cc' || echo '$(srcdir)/'`LogUtils.cc
 
-test_LogUtils-test_LogUtils.obj: test_LogUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_LogUtils-test_LogUtils.obj -MD -MP -MF $(DEPDIR)/test_LogUtils-test_LogUtils.Tpo -c -o test_LogUtils-test_LogUtils.obj `if test -f 'test_LogUtils.cc'; then $(CYGPATH_W) 'test_LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/test_LogUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_LogUtils-test_LogUtils.Tpo $(DEPDIR)/test_LogUtils-test_LogUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='test_LogUtils.cc' object='test_LogUtils-test_LogUtils.obj' libtool=no @AMDEPBACKSLASH@
+test_LogUtils-LogUtils.obj: LogUtils.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_LogUtils-LogUtils.obj -MD -MP -MF $(DEPDIR)/test_LogUtils-LogUtils.Tpo -c -o test_LogUtils-LogUtils.obj `if test -f 'LogUtils.cc'; then $(CYGPATH_W) 'LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/LogUtils.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_LogUtils-LogUtils.Tpo $(DEPDIR)/test_LogUtils-LogUtils.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='LogUtils.cc' object='test_LogUtils-LogUtils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_LogUtils-test_LogUtils.obj `if test -f 'test_LogUtils.cc'; then $(CYGPATH_W) 'test_LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/test_LogUtils.cc'; fi`
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_LogUtils-LogUtils.obj `if test -f 'LogUtils.cc'; then $(CYGPATH_W) 'LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/LogUtils.cc'; fi`
 
-test_LogUtils2-LogUtils.o: LogUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_LogUtils2-LogUtils.o -MD -MP -MF $(DEPDIR)/test_LogUtils2-LogUtils.Tpo -c -o test_LogUtils2-LogUtils.o `test -f 'LogUtils.cc' || echo '$(srcdir)/'`LogUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_LogUtils2-LogUtils.Tpo $(DEPDIR)/test_LogUtils2-LogUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='LogUtils.cc' object='test_LogUtils2-LogUtils.o' libtool=no @AMDEPBACKSLASH@
+unit-tests/test_LogUtils-test_LogUtils.o: unit-tests/test_LogUtils.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_LogUtils-test_LogUtils.o -MD -MP -MF unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Tpo -c -o unit-tests/test_LogUtils-test_LogUtils.o `test -f 'unit-tests/test_LogUtils.cc' || echo '$(srcdir)/'`unit-tests/test_LogUtils.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Tpo unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/test_LogUtils.cc' object='unit-tests/test_LogUtils-test_LogUtils.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_LogUtils2-LogUtils.o `test -f 'LogUtils.cc' || echo '$(srcdir)/'`LogUtils.cc
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_LogUtils-test_LogUtils.o `test -f 'unit-tests/test_LogUtils.cc' || echo '$(srcdir)/'`unit-tests/test_LogUtils.cc
 
-test_LogUtils2-LogUtils.obj: LogUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_LogUtils2-LogUtils.obj -MD -MP -MF $(DEPDIR)/test_LogUtils2-LogUtils.Tpo -c -o test_LogUtils2-LogUtils.obj `if test -f 'LogUtils.cc'; then $(CYGPATH_W) 'LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/LogUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_LogUtils2-LogUtils.Tpo $(DEPDIR)/test_LogUtils2-LogUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='LogUtils.cc' object='test_LogUtils2-LogUtils.obj' libtool=no @AMDEPBACKSLASH@
+unit-tests/test_LogUtils-test_LogUtils.obj: unit-tests/test_LogUtils.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_LogUtils-test_LogUtils.obj -MD -MP -MF unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Tpo -c -o unit-tests/test_LogUtils-test_LogUtils.obj `if test -f 'unit-tests/test_LogUtils.cc'; then $(CYGPATH_W) 'unit-tests/test_LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/unit-tests/test_LogUtils.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Tpo unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/test_LogUtils.cc' object='unit-tests/test_LogUtils-test_LogUtils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_LogUtils2-LogUtils.obj `if test -f 'LogUtils.cc'; then $(CYGPATH_W) 'LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/LogUtils.cc'; fi`
-
-unit-tests/test_LogUtils2-BufferWriterFormat.o: unit-tests/BufferWriterFormat.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_LogUtils2-BufferWriterFormat.o -MD -MP -MF unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Tpo -c -o unit-tests/test_LogUtils2-BufferWriterFormat.o `test -f 'unit-tests/BufferWriterFormat.cc' || echo '$(srcdir)/'`unit-tests/BufferWriterFormat.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Tpo unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/BufferWriterFormat.cc' object='unit-tests/test_LogUtils2-BufferWriterFormat.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_LogUtils2-BufferWriterFormat.o `test -f 'unit-tests/BufferWriterFormat.cc' || echo '$(srcdir)/'`unit-tests/BufferWriterFormat.cc
-
-unit-tests/test_LogUtils2-BufferWriterFormat.obj: unit-tests/BufferWriterFormat.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_LogUtils2-BufferWriterFormat.obj -MD -MP -MF unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Tpo -c -o unit-tests/test_LogUtils2-BufferWriterFormat.obj `if test -f 'unit-tests/BufferWriterFormat.cc'; then $(CYGPATH_W) 'unit-tests/BufferWriterFormat.cc'; else $(CYGPATH_W) '$(srcdir)/unit-tests/BufferWriterFormat.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Tpo unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/BufferWriterFormat.cc' object='unit-tests/test_LogUtils2-BufferWriterFormat.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_LogUtils2-BufferWriterFormat.obj `if test -f 'unit-tests/BufferWriterFormat.cc'; then $(CYGPATH_W) 'unit-tests/BufferWriterFormat.cc'; else $(CYGPATH_W) '$(srcdir)/unit-tests/BufferWriterFormat.cc'; fi`
-
-unit-tests/test_LogUtils2-test_LogUtils2.o: unit-tests/test_LogUtils2.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_LogUtils2-test_LogUtils2.o -MD -MP -MF unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Tpo -c -o unit-tests/test_LogUtils2-test_LogUtils2.o `test -f 'unit-tests/test_LogUtils2.cc' || echo '$(srcdir)/'`unit-tests/test_LogUtils2.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Tpo unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/test_LogUtils2.cc' object='unit-tests/test_LogUtils2-test_LogUtils2.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_LogUtils2-test_LogUtils2.o `test -f 'unit-tests/test_LogUtils2.cc' || echo '$(srcdir)/'`unit-tests/test_LogUtils2.cc
-
-unit-tests/test_LogUtils2-test_LogUtils2.obj: unit-tests/test_LogUtils2.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_LogUtils2-test_LogUtils2.obj -MD -MP -MF unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Tpo -c -o unit-tests/test_LogUtils2-test_LogUtils2.obj `if test -f 'unit-tests/test_LogUtils2.cc'; then $(CYGPATH_W) 'unit-tests/test_LogUtils2.cc'; else $(CYGPATH_W) '$(srcdir)/unit-tests/test_LogUtils2.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Tpo unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/test_LogUtils2.cc' object='unit-tests/test_LogUtils2-test_LogUtils2.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils2_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_LogUtils2-test_LogUtils2.obj `if test -f 'unit-tests/test_LogUtils2.cc'; then $(CYGPATH_W) 'unit-tests/test_LogUtils2.cc'; else $(CYGPATH_W) '$(srcdir)/unit-tests/test_LogUtils2.cc'; fi`
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_LogUtils_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_LogUtils-test_LogUtils.obj `if test -f 'unit-tests/test_LogUtils.cc'; then $(CYGPATH_W) 'unit-tests/test_LogUtils.cc'; else $(CYGPATH_W) '$(srcdir)/unit-tests/test_LogUtils.cc'; fi`
 
 test_RolledLogDeleter-RolledLogDeleter.o: RolledLogDeleter.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_RolledLogDeleter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_RolledLogDeleter-RolledLogDeleter.o -MD -MP -MF $(DEPDIR)/test_RolledLogDeleter-RolledLogDeleter.Tpo -c -o test_RolledLogDeleter-RolledLogDeleter.o `test -f 'RolledLogDeleter.cc' || echo '$(srcdir)/'`RolledLogDeleter.cc
@@ -1355,13 +1306,6 @@ test_LogUtils.log: test_LogUtils$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_LogUtils2.log: test_LogUtils2$(EXEEXT)
-	@p='test_LogUtils2$(EXEEXT)'; \
-	b='test_LogUtils2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_RolledLogDeleter.log: test_RolledLogDeleter$(EXEEXT)
 	@p='test_RolledLogDeleter$(EXEEXT)'; \
 	b='test_RolledLogDeleter'; \
@@ -1482,12 +1426,10 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/RolledLogDeleter.Po
 	-rm -f ./$(DEPDIR)/YamlLogConfig.Po
 	-rm -f ./$(DEPDIR)/YamlLogConfigDecoders.Po
-	-rm -f ./$(DEPDIR)/test_LogUtils-test_LogUtils.Po
-	-rm -f ./$(DEPDIR)/test_LogUtils2-LogUtils.Po
+	-rm -f ./$(DEPDIR)/test_LogUtils-LogUtils.Po
 	-rm -f ./$(DEPDIR)/test_RolledLogDeleter-LogUtils.Po
 	-rm -f ./$(DEPDIR)/test_RolledLogDeleter-RolledLogDeleter.Po
-	-rm -f unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Po
-	-rm -f unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Po
+	-rm -f unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Po
 	-rm -f unit-tests/$(DEPDIR)/test_RolledLogDeleter-test_RolledLogDeleter.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -1548,12 +1490,10 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/RolledLogDeleter.Po
 	-rm -f ./$(DEPDIR)/YamlLogConfig.Po
 	-rm -f ./$(DEPDIR)/YamlLogConfigDecoders.Po
-	-rm -f ./$(DEPDIR)/test_LogUtils-test_LogUtils.Po
-	-rm -f ./$(DEPDIR)/test_LogUtils2-LogUtils.Po
+	-rm -f ./$(DEPDIR)/test_LogUtils-LogUtils.Po
 	-rm -f ./$(DEPDIR)/test_RolledLogDeleter-LogUtils.Po
 	-rm -f ./$(DEPDIR)/test_RolledLogDeleter-RolledLogDeleter.Po
-	-rm -f unit-tests/$(DEPDIR)/test_LogUtils2-BufferWriterFormat.Po
-	-rm -f unit-tests/$(DEPDIR)/test_LogUtils2-test_LogUtils2.Po
+	-rm -f unit-tests/$(DEPDIR)/test_LogUtils-test_LogUtils.Po
 	-rm -f unit-tests/$(DEPDIR)/test_RolledLogDeleter-test_RolledLogDeleter.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

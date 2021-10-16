@@ -1001,16 +1001,18 @@ HttpTunnel::producer_handler_dechunked(int event, HttpTunnelProducer *p)
 
   // We only interested in translating certain events
   switch (event) {
-  case VC_EVENT_READ_READY:
   case VC_EVENT_READ_COMPLETE:
   case HTTP_TUNNEL_EVENT_PRECOMPLETE:
   case VC_EVENT_EOS:
+    p->alive = false; // Update the producer state for final_consumer_bytes_to_write
+    /* fallthrough */
+  case VC_EVENT_READ_READY:
     p->last_event = p->chunked_handler.last_server_event = event;
     if (p->chunked_handler.generate_chunked_content()) { // We are done, make sure the consumer is activated
       HttpTunnelConsumer *c;
       for (c = p->consumer_list.head; c; c = c->link.next) {
         if (c->alive) {
-          c->write_vio->nbytes = p->chunked_handler.chunked_size;
+          c->write_vio->nbytes = final_consumer_bytes_to_write(p, c);
           // consumer_handler(VC_EVENT_WRITE_COMPLETE, c);
         }
       }
@@ -1027,7 +1029,7 @@ HttpTunnel::producer_handler_dechunked(int event, HttpTunnelProducer *p)
 //
 //   Handles events from chunked producers.  It calls the chunking handlers
 //    if appropriate and then translates the event we got into a suitable
-//    event to represent the unchunked state, and does chunked bookeeping
+//    event to represent the unchunked state, and does chunked bookkeeping
 //
 int
 HttpTunnel::producer_handler_chunked(int event, HttpTunnelProducer *p)
@@ -1234,7 +1236,7 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer *c)
 {
   HttpTunnelProducer *p = c->producer;
 
-  if (p && p->alive && p->read_buffer->write_avail() > 0) {
+  if (p && p->alive) {
     // Only do flow control if enabled and the producer is an external
     // source.  Otherwise disable by making the backlog zero. Because
     // the backlog short cuts quit when the value is equal (or
@@ -1312,6 +1314,10 @@ HttpTunnel::consumer_handler(int event, HttpTunnelConsumer *c)
   switch (event) {
   case VC_EVENT_WRITE_READY:
     this->consumer_reenable(c);
+    // Once we get a write ready from the origin, we can assume the connect to some degree succeeded
+    if (c->vc_type == HT_HTTP_SERVER) {
+      sm->t_state.current.server->clear_connect_fail();
+    }
     break;
 
   case VC_EVENT_WRITE_COMPLETE:
@@ -1337,16 +1343,7 @@ HttpTunnel::consumer_handler(int event, HttpTunnelConsumer *c)
         c->producer->read_success = true;
         // Go ahead and clean up the producer side
         if (p->alive) {
-          p->alive = false;
-          if (p->read_vio) {
-            p->bytes_read = p->read_vio->ndone;
-          } else {
-            p->bytes_read = 0;
-          }
-          if (p->vc != HTTP_TUNNEL_STATIC_PRODUCER) {
-            // Clear any outstanding reads
-            p->vc->do_io_read(nullptr, 0, nullptr);
-          }
+          producer_handler(VC_EVENT_READ_COMPLETE, p);
         }
       } else if (c->vc_type == HT_HTTP_SERVER) {
         c->producer->handler_state = HTTP_SM_POST_UA_FAIL;
@@ -1370,7 +1367,7 @@ HttpTunnel::consumer_handler(int event, HttpTunnelConsumer *c)
     //    the SM since the reenabling has the side effect
     //    updating the buffer state for the VConnection
     //    that is being reenabled
-    if (p->alive && p->read_vio && p->read_buffer->write_avail() > 0) {
+    if (p->alive && p->read_vio) {
       if (p->is_throttled()) {
         this->consumer_reenable(c);
       } else {
@@ -1515,9 +1512,7 @@ HttpTunnel::finish_all_internal(HttpTunnelProducer *p, bool chain)
         ink_assert(c->write_vio->nbytes >= 0);
 
         if (c->write_vio->nbytes < 0) {
-          // TODO: Wtf, printf?
-          fprintf(stderr, "[HttpTunnel::finish_all_internal] ERROR: Incorrect total_bytes - c->skip_bytes = %" PRId64 "\n",
-                  static_cast<int64_t>(total_bytes - c->skip_bytes));
+          Error("Incorrect total_bytes - c->skip_bytes = %" PRId64 "\n", total_bytes - c->skip_bytes);
         }
       }
 
@@ -1526,7 +1521,7 @@ HttpTunnel::finish_all_internal(HttpTunnelProducer *p, bool chain)
       }
       // The IO Core will not call us back if there
       //   is nothing to do.  Check to see if there is
-      //   nothing to do and take the appripriate
+      //   nothing to do and take the appropriate
       //   action
       if (c->write_vio && c->alive && c->write_vio->nbytes == c->write_vio->ndone) {
         consumer_handler(VC_EVENT_WRITE_COMPLETE, c);
@@ -1637,7 +1632,7 @@ HttpTunnel::main_handler(int event, void *data)
 
   // We called a vc handler, the tunnel might be
   //  finished.  Check to see if there are any remaining
-  //  VConnections alive.  If not, notifiy the state machine
+  //  VConnections alive.  If not, notify the state machine
   //
   // Don't call out if we are nested
   if (call_sm || (sm_callback && !is_tunnel_alive())) {

@@ -360,7 +360,7 @@ escapify_url_common(Arena *arena, char *url, size_t len_in, int *len_out, char *
   //
   size_t out_len = len_in + 2 * count;
 
-  if (dst && out_len > dst_size) {
+  if (dst && (out_len + 1) > dst_size) {
     *len_out = 0;
     return nullptr;
   }
@@ -495,7 +495,7 @@ LogUtils::get_unrolled_filename(ts::TextView rolled_filename)
   // something like this, for example:
   //   diags.log.20191114.21h43m16s-20191114.21h43m17s.old
   //
-  // For these, the second delimeter will be a period. For this reason, we also
+  // For these, the second delimiter will be a period. For this reason, we also
   // split_prefix_at with a period as well.
   if (suffix.split_prefix_at('_') || suffix.split_prefix_at('.')) {
     // ' + 1' to remove the '_' or second '.':

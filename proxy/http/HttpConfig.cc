@@ -33,6 +33,7 @@
 #include "P_Net.h"
 #include "records/P_RecUtils.h"
 #include <records/I_RecHttp.h>
+#include "HttpSessionManager.h"
 
 #define HttpEstablishStaticConfigStringAlloc(_ix, _n) \
   REC_EstablishStaticConfigStringAlloc(_ix, _n);      \
@@ -164,7 +165,8 @@ http_config_enum_mask_read(const char *name, MgmtByte &value)
 
 static const ConfigEnumPair<TSServerSessionSharingPoolType> SessionSharingPoolStrings[] = {
   {TS_SERVER_SESSION_SHARING_POOL_GLOBAL, "global"},
-  {TS_SERVER_SESSION_SHARING_POOL_THREAD, "thread"}};
+  {TS_SERVER_SESSION_SHARING_POOL_THREAD, "thread"},
+  {TS_SERVER_SESSION_SHARING_POOL_HYBRID, "hybrid"}};
 
 int HttpConfig::m_id = 0;
 HttpConfigParams HttpConfig::m_master;
@@ -350,6 +352,9 @@ register_stat_callbacks()
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.total_parent_marked_down_count", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_total_parent_marked_down_count, RecRawStatSyncCount);
 
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.background_fill_total_count", RECD_INT, RECP_PERSISTENT,
+                     (int)http_background_fill_total_count_stat, RecRawStatSyncCount);
+
   // Stats to track causes of ATS initiated origin shutdowns
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_shutdown.pool_lock_contention", RECD_INT,
                      RECP_NON_PERSISTENT, (int)http_origin_shutdown_pool_lock_contention, RecRawStatSyncCount);
@@ -410,6 +415,10 @@ register_stat_callbacks()
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.transaction_totaltime.errors.pre_accept_hangups", RECD_FLOAT,
                      RECP_PERSISTENT, (int)http_ua_msecs_counts_errors_pre_accept_hangups_stat,
                      RecRawStatSyncIntMsecsToFloatSeconds);
+
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.pooled_server_connections", RECD_INT, RECP_NON_PERSISTENT,
+                     (int)http_pooled_server_connections_stat, RecRawStatSyncSum);
+  HTTP_CLEAR_DYN_STAT(http_pooled_server_connections_stat);
 
   // Transactional stats
 
@@ -1027,6 +1036,9 @@ register_stat_callbacks()
                      (int)http_sm_start_time_stat, RecRawStatSyncSum);
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.milestone.sm_finish", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_sm_finish_time_stat, RecRawStatSyncSum);
+
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.dead_server.no_requests", RECD_COUNTER, RECP_PERSISTENT,
+                     (int)http_dead_server_no_requests, RecRawStatSyncSum);
 }
 
 static bool
@@ -1153,6 +1165,7 @@ HttpConfig::startup()
   http_config_enum_mask_read("proxy.config.http.server_session_sharing.match", c.oride.server_session_sharing_match);
   HttpEstablishStaticConfigStringAlloc(c.oride.server_session_sharing_match_str, "proxy.config.http.server_session_sharing.match");
   http_config_enum_read("proxy.config.http.server_session_sharing.pool", SessionSharingPoolStrings, c.server_session_sharing_pool);
+  httpSessionManager.set_pool_type(c.server_session_sharing_pool);
 
   RecRegisterConfigUpdateCb("proxy.config.http.insert_forwarded", &http_insert_forwarded_cb, &c);
   {
@@ -1195,6 +1208,8 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_max_retries_dead_server,
                                     "proxy.config.http.connect_attempts_max_retries_dead_server");
 
+  HttpEstablishStaticConfigLongLong(c.oride.connect_dead_policy, "proxy.config.http.connect.dead.policy");
+
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_rr_retries, "proxy.config.http.connect_attempts_rr_retries");
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_timeout, "proxy.config.http.connect_attempts_timeout");
   HttpEstablishStaticConfigLongLong(c.oride.post_connect_attempts_timeout, "proxy.config.http.post_connect_attempts_timeout");
@@ -1231,6 +1246,8 @@ HttpConfig::startup()
     c.oride.proxy_response_server_string ? strlen(c.oride.proxy_response_server_string) : 0;
 
   HttpEstablishStaticConfigByte(c.oride.insert_squid_x_forwarded_for, "proxy.config.http.insert_squid_x_forwarded_for");
+
+  HttpEstablishStaticConfigLongLong(c.oride.proxy_protocol_out, "proxy.config.http.proxy_protocol_out");
 
   HttpEstablishStaticConfigByte(c.oride.insert_age_in_response, "proxy.config.http.insert_age_in_response");
   HttpEstablishStaticConfigByte(c.enable_http_stats, "proxy.config.http.enable_http_stats");
@@ -1311,7 +1328,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.referer_format_redirect, "proxy.config.http.referer_format_redirect");
 
   HttpEstablishStaticConfigLongLong(c.oride.down_server_timeout, "proxy.config.http.down_server.cache_time");
-  HttpEstablishStaticConfigLongLong(c.oride.client_abort_threshold, "proxy.config.http.down_server.abort_threshold");
 
   // Negative caching and revalidation
   HttpEstablishStaticConfigByte(c.oride.negative_caching_enabled, "proxy.config.http.negative_caching_enabled");
@@ -1479,6 +1495,7 @@ HttpConfig::reconfigure()
   params->oride.connect_attempts_rr_retries   = m_master.oride.connect_attempts_rr_retries;
   params->oride.connect_attempts_timeout      = m_master.oride.connect_attempts_timeout;
   params->oride.post_connect_attempts_timeout = m_master.oride.post_connect_attempts_timeout;
+  params->oride.connect_dead_policy           = m_master.oride.connect_dead_policy;
   params->oride.parent_connect_attempts       = m_master.oride.parent_connect_attempts;
   params->oride.parent_retry_time             = m_master.oride.parent_retry_time;
   params->oride.parent_fail_threshold         = m_master.oride.parent_fail_threshold;
@@ -1522,6 +1539,7 @@ HttpConfig::reconfigure()
   params->oride.insert_age_in_response       = INT_TO_BOOL(m_master.oride.insert_age_in_response);
   params->enable_http_stats                  = INT_TO_BOOL(m_master.enable_http_stats);
   params->oride.normalize_ae                 = m_master.oride.normalize_ae;
+  params->oride.proxy_protocol_out           = m_master.oride.proxy_protocol_out;
 
   params->oride.cache_heuristic_min_lifetime = m_master.oride.cache_heuristic_min_lifetime;
   params->oride.cache_heuristic_max_lifetime = m_master.oride.cache_heuristic_max_lifetime;
@@ -1613,8 +1631,7 @@ HttpConfig::reconfigure()
 
   params->strict_uri_parsing = INT_TO_BOOL(m_master.strict_uri_parsing);
 
-  params->oride.down_server_timeout    = m_master.oride.down_server_timeout;
-  params->oride.client_abort_threshold = m_master.oride.client_abort_threshold;
+  params->oride.down_server_timeout = m_master.oride.down_server_timeout;
 
   params->oride.negative_caching_enabled       = INT_TO_BOOL(m_master.oride.negative_caching_enabled);
   params->oride.negative_caching_lifetime      = m_master.oride.negative_caching_lifetime;

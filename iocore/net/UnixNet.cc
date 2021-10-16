@@ -70,7 +70,10 @@ public:
       }
 
       // set a default inactivity timeout if one is not set
-      if (ne->next_inactivity_timeout_at == 0 && nh.config.default_inactivity_timeout > 0) {
+      // The event `EVENT_INACTIVITY_TIMEOUT` only be triggered if a read
+      // or write I/O operation was set by `do_io_read()` or `do_io_write()`.
+      if (ne->next_inactivity_timeout_at == 0 && nh.config.default_inactivity_timeout > 0 &&
+          (ne->read.enabled || ne->write.enabled)) {
         Debug("inactivity_cop", "vc: %p inactivity timeout not set, setting a default of %d", ne,
               nh.config.default_inactivity_timeout);
         ne->set_default_inactivity_timeout(HRTIME_SECONDS(nh.config.default_inactivity_timeout));
@@ -504,28 +507,30 @@ NetHandler::waitForActivity(ink_hrtime timeout)
       if (cop_list.in(ne)) {
         cop_list.remove(ne);
       }
-      if (get_ev_events(pd, x) & (EVENTIO_READ | EVENTIO_ERROR)) {
+      int flags = get_ev_events(pd, x);
+      if (flags & (EVENTIO_ERROR)) {
+        ne->set_error_from_socket();
+      }
+      if (flags & (EVENTIO_READ)) {
         ne->read.triggered = 1;
         if (!read_ready_list.in(ne)) {
           read_ready_list.enqueue(ne);
-        } else if (get_ev_events(pd, x) & EVENTIO_ERROR) {
-          // check for unhandled epoll events that should be handled
-          Debug("iocore_net_main", "Unhandled epoll event on read: 0x%04x read.enabled=%d closed=%d read.netready_queue=%d",
-                get_ev_events(pd, x), ne->read.enabled, ne->closed, read_ready_list.in(ne));
         }
       }
-      ne = epd->data.ne;
-      if (get_ev_events(pd, x) & (EVENTIO_WRITE | EVENTIO_ERROR)) {
+      if (flags & (EVENTIO_WRITE)) {
         ne->write.triggered = 1;
         if (!write_ready_list.in(ne)) {
           write_ready_list.enqueue(ne);
-        } else if (get_ev_events(pd, x) & EVENTIO_ERROR) {
-          // check for unhandled epoll events that should be handled
-          Debug("iocore_net_main", "Unhandled epoll event on write: 0x%04x write.enabled=%d closed=%d write.netready_queue=%d",
-                get_ev_events(pd, x), ne->write.enabled, ne->closed, write_ready_list.in(ne));
         }
-      } else if (!(get_ev_events(pd, x) & EVENTIO_READ)) {
-        Debug("iocore_net_main", "Unhandled epoll event: 0x%04x", get_ev_events(pd, x));
+      } else if (!(flags & (EVENTIO_READ))) {
+        Debug("iocore_net_main", "Unhandled epoll event: 0x%04x", flags);
+        // In practice we sometimes see EPOLLERR and EPOLLHUP through there
+        // Anything else would be surprising
+        ink_assert((flags & ~(EVENTIO_ERROR)) == 0);
+        ne->write.triggered = 1;
+        if (!write_ready_list.in(ne)) {
+          write_ready_list.enqueue(ne);
+        }
       }
     } else if (epd->type == EVENTIO_DNS_CONNECTION) {
       if (epd->data.dnscon != nullptr) {

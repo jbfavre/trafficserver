@@ -58,9 +58,7 @@
 // Log global objects
 inkcoreapi LogObject *Log::error_log = nullptr;
 LogFieldList Log::global_field_list;
-LogFormat *Log::global_scrap_format = nullptr;
-LogObject *Log::global_scrap_object = nullptr;
-Log::LoggingMode Log::logging_mode  = LOG_MODE_NONE;
+Log::LoggingMode Log::logging_mode = LOG_MODE_NONE;
 
 // Flush thread stuff
 EventNotify *Log::preproc_notify;
@@ -72,6 +70,7 @@ int Log::preproc_threads;
 int Log::init_status                  = 0;
 int Log::config_flags                 = 0;
 bool Log::logging_mode_changed        = false;
+bool Log::log_rotate_signal_received  = false;
 uint32_t Log::periodic_tasks_interval = PERIODIC_TASKS_INTERVAL_FALLBACK;
 
 // Hash table for LogField symbols
@@ -240,19 +239,17 @@ Log::periodic_tasks(long time_now)
       if (error_log) {
         error_log->roll_files(time_now);
       }
-      if (global_scrap_object) {
-        global_scrap_object->roll_files(time_now);
-      }
       Log::config->log_object_manager.roll_files(time_now);
       Log::config->roll_log_files_now = false;
     } else {
       if (error_log) {
         error_log->roll_files(time_now);
       }
-      if (global_scrap_object) {
-        global_scrap_object->roll_files(time_now);
-      }
       Log::config->log_object_manager.roll_files(time_now);
+    }
+    if (log_rotate_signal_received) {
+      Log::config->log_object_manager.reopen_moved_log_files();
+      log_rotate_signal_received = false;
     }
   }
 }
@@ -447,6 +444,11 @@ Log::init_fields()
   global_field_list.add(field, false);
   field_symbol_hash.emplace("cqpv", field);
 
+  field = new LogField("server_req_protocol_version", "sqpv", LogField::dINT, &LogAccess::marshal_server_req_protocol_version,
+                       reinterpret_cast<LogField::UnmarshalFunc>(&LogAccess::unmarshal_str));
+  global_field_list.add(field, false);
+  field_symbol_hash.emplace("sqpv", field);
+
   field = new LogField("client_req_header_len", "cqhl", LogField::sINT, &LogAccess::marshal_client_req_header_len,
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
@@ -526,6 +528,11 @@ Log::init_fields()
                        reinterpret_cast<LogField::UnmarshalFunc>(&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   field_symbol_hash.emplace("cqssu", field);
+
+  field = new LogField("client_sec_alpn", "cqssa", LogField::STRING, &LogAccess::marshal_client_security_alpn,
+                       reinterpret_cast<LogField::UnmarshalFunc>(&LogAccess::unmarshal_str));
+  global_field_list.add(field, false);
+  field_symbol_hash.emplace("cqssa", field);
 
   Ptr<LogFieldAliasTable> finish_status_map = make_ptr(new LogFieldAliasTable);
   finish_status_map->init(N_LOG_FINISH_CODE_TYPES, LOG_FINISH_FIN, "FIN", LOG_FINISH_INTR, "INTR", LOG_FINISH_TIMEOUT, "TIMEOUT");
@@ -980,6 +987,14 @@ Log::handle_periodic_tasks_int_change(const char * /* name ATS_UNUSED */, RecDat
   return REC_ERR_OKAY;
 }
 
+int
+Log::handle_log_rotation_request()
+{
+  Debug("log", "Request to reopen rotated log files.");
+  log_rotate_signal_received = true;
+  return 0;
+}
+
 void
 Log::init(int flags)
 {
@@ -1062,14 +1077,6 @@ Log::init_when_enabled()
     }
 
     LogConfig::register_mgmt_callbacks();
-    // setup global scrap object
-    //
-    global_scrap_format = MakeTextLogFormat();
-    global_scrap_object =
-      new LogObject(Log::config, global_scrap_format, Log::config->logfile_dir, "scrapfile.log", LOG_FILE_BINARY, nullptr,
-                    Log::config->rolling_enabled, Log::config->preproc_threads, Log::config->rolling_interval_sec,
-                    Log::config->rolling_offset_hr, Log::config->rolling_size_mb,
-                    /* auto create */ false, Log::config->rolling_max_count, Log::config->rolling_min_count);
 
     // create the flush thread
     create_threads();
@@ -1110,11 +1117,9 @@ Log::create_threads()
   flush_notify    = new EventNotify;
   flush_data_list = new InkAtomicList;
 
-  sprintf(desc, "Logging flush buffer list");
-  ink_atomiclist_init(flush_data_list, desc, 0);
+  ink_atomiclist_init(flush_data_list, "Logging flush buffer list", 0);
   Continuation *flush_cont = new LoggingFlushContinuation(0);
-  sprintf(desc, "[LOG_FLUSH]");
-  eventProcessor.spawn_thread(flush_cont, desc, stacksize);
+  eventProcessor.spawn_thread(flush_cont, "[LOG_FLUSH]", stacksize);
 }
 
 /*-------------------------------------------------------------------------
@@ -1162,7 +1167,7 @@ Log::access(LogAccess *lad)
     ret = Log::SKIP;
     goto done;
   }
-  // initialize this LogAccess object and proccess
+  // initialize this LogAccess object and process
   //
   lad->init();
   ret = config->log_object_manager.log(lad);

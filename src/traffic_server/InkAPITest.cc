@@ -3034,6 +3034,7 @@ REGRESSION_TEST(SDK_API_TSContSchedule)(RegressionTest *test, int /* atype ATS_U
 //                    TSHttpTxnNextHopAddrGet
 //                    TSHttpTxnClientProtocolStackGet
 //                    TSHttpTxnClientProtocolStackContains
+//                    TSHttpTxnServerSsnTransactionCount
 //////////////////////////////////////////////////////////////////////////////
 
 #define HTTP_HOOK_TEST_REQUEST_ID 1
@@ -3375,6 +3376,22 @@ checkHttpTxnServerRespGet(SocketTest *test, void *data)
   return TS_EVENT_CONTINUE;
 }
 
+// This func is called by us from mytest_handler to test TSHttpTxnServerSsnTransactionCount
+static int
+checkHttpTxnServerSsnTransactionCount(SocketTest *test, void *data)
+{
+  TSHttpTxn txnp = static_cast<TSHttpTxn>(data);
+
+  int count = TSHttpTxnServerSsnTransactionCount(txnp);
+  if (count < 0) {
+    SDK_RPRINT(test->regtest, "TSHttpTxnServerSsnTransactionCount", "TestCase1", TC_FAIL, "invalid count value '%d'", count);
+  } else {
+    SDK_RPRINT(test->regtest, "TSHttpTxnServerSsnTransactionCount", "TestCase1", TC_PASS, "ok - count='%d'", count);
+  }
+
+  return count;
+}
+
 // This func is called both by us when scheduling EVENT_IMMEDIATE
 // And by HTTP SM for registered hooks
 // Depending on the timing of the DNS response, OS_DNS can happen before or after CACHE_LOOKUP.
@@ -3455,6 +3472,7 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
       test->hook_mask |= 32;
     }
     checkHttpTxnServerRespGet(test, data);
+    checkHttpTxnServerSsnTransactionCount(test, data);
 
     TSHttpTxnReenable(static_cast<TSHttpTxn>(data), TS_EVENT_HTTP_CONTINUE);
     test->reenable_mask |= 32;
@@ -3466,7 +3484,6 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
     }
 
     checkHttpTxnClientRespGet(test, data);
-
     TSHttpTxnReenable(static_cast<TSHttpTxn>(data), TS_EVENT_HTTP_CONTINUE);
     test->reenable_mask |= 64;
     break;
@@ -6441,6 +6458,7 @@ REGRESSION_TEST(SDK_API_TSTextLog)(RegressionTest *test, int /* atype ATS_UNUSED
 //                     TSMgmtFloatGet
 //                     TSMgmtIntGet
 //                     TSMgmtStringGet
+//                     TSMgmtDataTypeGet
 //////////////////////////////////////////////
 
 REGRESSION_TEST(SDK_API_TSMgmtGet)(RegressionTest *test, int /* atype ATS_UNUSED */, int *pstatus)
@@ -6500,6 +6518,21 @@ REGRESSION_TEST(SDK_API_TSMgmtGet)(RegressionTest *test, int /* atype ATS_UNUSED
     err = 1;
   } else {
     SDK_RPRINT(test, "TSMgmtStringGet", "TestCase1.4", TC_PASS, "ok");
+  }
+
+  {
+    TSRecordDataType result;
+    auto ret = TSMgmtDataTypeGet(CONFIG_PARAM_STRING_NAME, &result);
+    if (ret != TS_SUCCESS) {
+      SDK_RPRINT(test, "TSMgmtDataTypeGet", "TestCase1.5", TC_FAIL, "can not get value of param %s", CONFIG_PARAM_STRING_NAME);
+      err = 1;
+    } else if (result != TSRecordDataType::TS_RECORDDATATYPE_STRING) {
+      SDK_RPRINT(test, "TSMgmtDataTypeGet", "TestCase1.5", TC_FAIL, "can not get right type for %s - %d", CONFIG_PARAM_STRING_NAME,
+                 result);
+      err = 1;
+    } else {
+      SDK_RPRINT(test, "TSMgmtDataTypeGet", "TestCase1.5", TC_PASS, "ok");
+    }
   }
 
   if (err) {
@@ -8649,6 +8682,7 @@ std::array<std::string_view, TS_CONFIG_LAST_ENTRY> SDK_Overridable_Configs = {
    "proxy.config.http.parent_proxy.connect_attempts_timeout",
    "proxy.config.http.normalize_ae",
    "proxy.config.http.insert_forwarded",
+   "proxy.config.http.proxy_protocol_out",
    "proxy.config.http.allow_multi_range",
    "proxy.config.http.request_buffer_enabled",
    "proxy.config.http.allow_half_open",
@@ -8661,13 +8695,16 @@ std::array<std::string_view, TS_CONFIG_LAST_ENTRY> SDK_Overridable_Configs = {
    "proxy.config.ssl.client.sni_policy",
    "proxy.config.ssl.client.private_key.filename",
    "proxy.config.ssl.client.CA.cert.filename",
-   "proxy.config.hostdb.ip_resolve"}};
+   "proxy.config.hostdb.ip_resolve",
+   "proxy.config.http.connect.dead.policy"}};
+
+extern ClassAllocator<HttpSM> httpSMAllocator;
 
 REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS)(RegressionTest *test, int /* atype ATS_UNUSED */, int *pstatus)
 {
   TSOverridableConfigKey key;
   TSRecordDataType type;
-  HttpSM *s      = HttpSM::allocate();
+  HttpSM *s      = THREAD_ALLOC(httpSMAllocator, this_thread());
   bool success   = true;
   TSHttpTxn txnp = reinterpret_cast<TSHttpTxn>(s);
   InkRand generator(17);
@@ -8771,7 +8808,7 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS)(RegressionTest *test, int /* atype 
 
 REGRESSION_TEST(SDK_API_TXN_HTTP_INFO_GET)(RegressionTest *test, int /* atype ATS_UNUSED */, int *pstatus)
 {
-  HttpSM *s      = HttpSM::allocate();
+  HttpSM *s      = THREAD_ALLOC(httpSMAllocator, this_thread());
   bool success   = true;
   TSHttpTxn txnp = reinterpret_cast<TSHttpTxn>(s);
   TSMgmtInt ival_read;

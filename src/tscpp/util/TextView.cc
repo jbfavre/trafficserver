@@ -27,6 +27,8 @@
 #include <cctype>
 #include <sstream>
 
+static_assert(size_t(-1) == std::string_view::npos, "TextView assumes -1 is the same as npos");
+
 int
 memcmp(std::string_view const &lhs, std::string_view const &rhs)
 {
@@ -134,7 +136,7 @@ ts::svtoi(TextView src, TextView *out, int base)
       zret = svto_radix<16>(src);
       break;
     default:
-      while (src.size() && (0 <= (v = svtoi_convert[static_cast<unsigned char>(*src)])) && v < base) {
+      while (src.size() && (0 <= (v = svtoi_convert[static_cast<unsigned char>(*src)])) && static_cast<int>(v) < base) {
         auto n = zret * base + v;
         if (n < zret) {
           zret = std::numeric_limits<uintmax_t>::max();

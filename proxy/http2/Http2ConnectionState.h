@@ -24,6 +24,9 @@
 #pragma once
 
 #include <atomic>
+
+#include "NetTimeout.h"
+
 #include "HTTP2.h"
 #include "HPACK.h"
 #include "Http2Stream.h"
@@ -123,6 +126,7 @@ public:
   HpackHandle *local_hpack_handle  = nullptr;
   HpackHandle *remote_hpack_handle = nullptr;
   DependencyTree *dependency_tree  = nullptr;
+  ActivityCop<Http2Stream> _cop;
 
   // Settings.
   Http2ConnectionSettings server_settings;
@@ -138,6 +142,9 @@ public:
     if (Http2::stream_priority_enabled) {
       dependency_tree = new DependencyTree(Http2::max_concurrent_streams_in);
     }
+
+    _cop = ActivityCop<Http2Stream>(this->mutex, &stream_list, 1);
+    _cop.start();
   }
 
   void
@@ -148,6 +155,9 @@ public:
       return;
     }
     in_destroy = true;
+
+    _cop.stop();
+
     if (shutdown_cont_event) {
       shutdown_cont_event->cancel();
       shutdown_cont_event = nullptr;

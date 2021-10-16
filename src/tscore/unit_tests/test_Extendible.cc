@@ -465,6 +465,8 @@ TEST_CASE("Extendible", "")
     CHECK(ref.m_str == "Hello");
   }
 
+  printf("\n");
+
   INFO("Extendible Test Complete")
 }
 

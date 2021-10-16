@@ -77,7 +77,7 @@ SNIConfigParams::loadSNIConfig()
       ai->actions.push_back(std::make_unique<TLSValidProtocols>(item.protocol_mask));
     }
     if (item.tunnel_destination.length() > 0) {
-      ai->actions.push_back(std::make_unique<TunnelDestination>(item.tunnel_destination, item.tunnel_decrypt, item.tls_upstream));
+      ai->actions.push_back(std::make_unique<TunnelDestination>(item.tunnel_destination, item.tunnel_type, item.tunnel_alpn));
     }
 
     ai->actions.push_back(std::make_unique<SNI_IpAllow>(item.ip_allow, item.fqdn));
@@ -101,7 +101,6 @@ SNIConfigParams::loadSNIConfig()
     nps->setGlobName(item.fqdn);
     nps->prop.verifyServerPolicy     = item.verify_server_policy;
     nps->prop.verifyServerProperties = item.verify_server_properties;
-    nps->prop.tls_upstream           = item.tls_upstream;
   } // end for
 }
 
@@ -216,7 +215,7 @@ SNIConfig::release(SNIConfigParams *params)
 
 // See if any of the client-side actions would trigger for this combination of servername and
 // client IP
-// host_sni_policy is an in/out paramter.  It starts with the global policy from the records.config
+// host_sni_policy is an in/out parameter.  It starts with the global policy from the records.config
 // setting proxy.config.http.host_sni_policy and is possibly overridden if the sni policy
 // contains a host_sni_policy entry
 bool

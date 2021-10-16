@@ -9,22 +9,23 @@ Last-Update: 2019-01-03
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/doc/ext/traffic-server.py
 +++ b/doc/ext/traffic-server.py
-@@ -393,7 +393,7 @@ with open('../configure.ac', 'r') as f:
-     autoconf_version = '.'.join(match.group(1).split('.', 2)[:2] + ['x'])
+@@ -398,8 +398,7 @@ with open(CONFIGURE_AC, 'r') as f:
  
  # get the current branch the local repository is on
--git_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+ REPO_GIT_DIR = os.path.join(REPO_ROOT, ".git")
+-git_branch = subprocess.check_output(['git', '--git-dir', REPO_GIT_DIR,
+-                                      'rev-parse', '--abbrev-ref', 'HEAD'])
 +git_branch = "master"
  
  
- def make_github_link(name, rawtext, text, lineno, inliner, options={}, content=[]):
+ def make_github_link(name, rawtext, text, lineno, inliner, options=None, content=None):
 --- a/doc/Makefile.am
 +++ b/doc/Makefile.am
 @@ -51,7 +51,7 @@ I18NSPHINXOPTS  = $(SPHINXOPTS)
  # The PAPER setting variables requires recursive make variable expansion, which automake
  # detects as non-portable. We bounce this through a shell script and do the expansion there.
  SBUILD = PAPEROPT_a4="$(PAPEROPT_a4)" PAPEROPT_letter="$(PAPEROPT_letter)" PAPER="$(PAPER)" \
--	PLANTUML_JAR="$(shell ext/plantuml_fetch.sh | tail -1)" \
+-	PLANTUML_JAR="$(shell $(srcdir)/ext/plantuml_fetch.sh | tail -1)" \
 +	PLANTUML_JAR="/usr/share/plantuml/plantuml.jar" \
  	$(srcdir)/sbuild "$(SPHINXBUILD)" \
  	-c $(srcdir) \
@@ -35,21 +36,8 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  if BUILD_DOCS
  images := $(patsubst %.uml,images/%.svg,$(wildcard *.uml))
  images += $(patsubst %.plantuml,images/%.svg,$(wildcard *.plantuml))
--PLANTUML_JAR := $(shell ../ext/plantuml_fetch.sh | tail -1)
+-PLANTUML_JAR := $(shell $(srcdir)/../ext/plantuml_fetch.sh | tail -1)
 +PLANTUML_JAR := /usr/share/plantuml/plantuml.jar
  
  all-am: jar-check $(images)
  endif
-@@ -40,10 +40,10 @@ latex: all-am
- man: all-am
- 
- images/%.svg : %.uml
--	$(JAVA) -jar $(PLANTUML_JAR) -o images -tsvg $<
-+	$(JAVA) -jar $(PLANTUML_JAR) -graphvizdot /usr/bin/dot -o images -tsvg $<
- 
- images/%.svg : %.plantuml
--	$(JAVA) -jar $(PLANTUML_JAR) -o images -tsvg $<
-+	$(JAVA) -jar $(PLANTUML_JAR) -graphvizdot /usr/bin/dot -o images -tsvg $<
- 
- clean-local:
- 	rm -f images/*.svg

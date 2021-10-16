@@ -26,12 +26,12 @@
  *   System must be built with jemalloc to be useful
  */
 
-#include <stdio.h>
+#include <cstdio>
 #include <unistd.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <ts/ts.h>
-#include <string.h>
-#include <errno.h>
+#include <cstring>
+#include <cerrno>
 #include <tscore/ink_config.h>
 #if TS_HAS_JEMALLOC
 #include <jemalloc/jemalloc.h>
@@ -45,30 +45,32 @@ CallbackHandler(TSCont cont, TSEvent id, void *data)
   (void)cont; // make compiler shut up about unused variable.
 
   if (id == TS_EVENT_LIFECYCLE_MSG) {
-    TSPluginMsg *msg = (TSPluginMsg *)data;
+    TSPluginMsg *msg = static_cast<TSPluginMsg *>(data);
     TSDebug(PLUGIN_NAME, "Message to '%s' - %zu bytes of data", msg->tag, msg->data_size);
     if (strcmp(PLUGIN_NAME, msg->tag) == 0) { // Message is for us
 #if TS_HAS_JEMALLOC
-      int retval = 0;
-      if (strncmp((char *)msg->data, "dump", msg->data_size) == 0) {
-        if ((retval = mallctl("prof.dump", nullptr, nullptr, nullptr, 0)) != 0) {
-          TSError("mallct(prof.dump) failed retval=%d errno=%d", retval, errno);
-        }
-      } else if (strncmp((char *)msg->data, "activate", msg->data_size) == 0) {
-        bool active = true;
+      if (msg->data_size) {
+        int retval = 0;
+        if (strncmp((char *)msg->data, "dump", msg->data_size) == 0) {
+          if ((retval = mallctl("prof.dump", nullptr, nullptr, nullptr, 0)) != 0) {
+            TSError("mallct(prof.dump) failed retval=%d errno=%d", retval, errno);
+          }
+        } else if (strncmp((char *)msg->data, "activate", msg->data_size) == 0) {
+          bool active = true;
 
-        if ((retval = mallctl("prof.active", nullptr, nullptr, &active, sizeof(active))) != 0) {
-          TSError("mallct(prof.activate) on failed retval=%d errno=%d", retval, errno);
+          if ((retval = mallctl("prof.active", nullptr, nullptr, &active, sizeof(active))) != 0) {
+            TSError("mallct(prof.activate) on failed retval=%d errno=%d", retval, errno);
+          }
+        } else if (strncmp((char *)msg->data, "deactivate", msg->data_size) == 0) {
+          bool active = false;
+          if ((retval = mallctl("prof.active", nullptr, nullptr, &active, sizeof(active))) != 0) {
+            TSError("mallct(prof.activate) off failed retval=%d errno=%d", retval, errno);
+          }
+        } else if (strncmp((char *)msg->data, "stats", msg->data_size) == 0) {
+          malloc_stats_print(nullptr, nullptr, nullptr);
+        } else {
+          TSError("Unexpected msg %*.s", (int)msg->data_size, (char *)msg->data);
         }
-      } else if (strncmp((char *)msg->data, "deactivate", msg->data_size) == 0) {
-        bool active = false;
-        if ((retval = mallctl("prof.active", nullptr, nullptr, &active, sizeof(active))) != 0) {
-          TSError("mallct(prof.activate) off failed retval=%d errno=%d", retval, errno);
-        }
-      } else if (strncmp((char *)msg->data, "stats", msg->data_size) == 0) {
-        malloc_stats_print(nullptr, nullptr, nullptr);
-      } else {
-        TSError("Unexpected msg %*.s", (int)msg->data_size, (char *)msg->data);
       }
 #else
       TSError("Not built with jemalloc");
@@ -96,7 +98,7 @@ TSPluginInit(int argc, const char *argv[])
     goto Lerror;
   }
 
-  cb = TSContCreate(CallbackHandler, NULL);
+  cb = TSContCreate(CallbackHandler, nullptr);
 
   TSLifecycleHookAdd(TS_LIFECYCLE_MSG_HOOK, cb);
 

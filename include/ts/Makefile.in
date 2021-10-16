@@ -115,6 +115,7 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
 	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
+	$(top_srcdir)/build/boringocsp.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
@@ -223,6 +224,9 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BORINGOCSP_INCLUDES = @BORINGOCSP_INCLUDES@
+BORINGOCSP_LDFLAGS = @BORINGOCSP_LDFLAGS@
+BORINGOCSP_LIBS = @BORINGOCSP_LIBS@
 BROTLIENC_CFLAGS = @BROTLIENC_CFLAGS@
 BROTLIENC_LIB = @BROTLIENC_LIB@
 CC = @CC@
@@ -261,7 +265,7 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEO_LIBS = @GEO_LIBS@
+GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
@@ -418,12 +422,14 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_boringocsp = @has_boringocsp@
 has_expensive_tests = @has_expensive_tests@
+has_geoip = @has_geoip@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
-has_maxmind = @has_maxmind@
+has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
@@ -431,6 +437,7 @@ has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_session_ticket = @has_tls_session_ticket@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -491,6 +498,7 @@ rel_prefix = @rel_prefix@
 rel_runtimedir = @rel_runtimedir@
 rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
+runstatedir = @runstatedir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
@@ -500,12 +508,15 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_boringocsp = @use_boringocsp@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
 use_hkdf = @use_hkdf@
+use_hrw_geoip = @use_hrw_geoip@
+use_hrw_maxminddb = @use_hrw_maxminddb@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@

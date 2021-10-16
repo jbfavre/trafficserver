@@ -109,6 +109,9 @@
 /* Define to 1 if you have the `epoll_ctl' function. */
 #undef HAVE_EPOLL_CTL
 
+/* Define to 1 if you have the `ERR_get_error_all' function. */
+#undef HAVE_ERR_GET_ERROR_ALL
+
 /* Define to 1 if you have the `eventfd' function. */
 #undef HAVE_EVENTFD
 
@@ -139,8 +142,8 @@
 /* Define to 1 if you have the `getreuid' function. */
 #undef HAVE_GETREUID
 
-/* Define to 1 if you have the <google/profiler.h> header file. */
-#undef HAVE_GOOGLE_PROFILER_H
+/* Define to 1 if you have the <gperftools/profiler.h> header file. */
+#undef HAVE_GPERFTOOLS_PROFILER_H
 
 /* Define to 1 if you have the `hcreate_r' function. */
 #undef HAVE_HCREATE_R
@@ -369,6 +372,13 @@
 
 /* Define to 1 if you have the `SSL_CTX_set_ciphersuites' function. */
 #undef HAVE_SSL_CTX_SET_CIPHERSUITES
+
+/* Define to 1 if you have the `SSL_CTX_set_tlsext_ticket_key_cb' function. */
+#undef HAVE_SSL_CTX_SET_TLSEXT_TICKET_KEY_CB
+
+/* Define to 1 if you have the `SSL_CTX_set_tlsext_ticket_key_evp_cb'
+   function. */
+#undef HAVE_SSL_CTX_SET_TLSEXT_TICKET_KEY_EVP_CB
 
 /* Define to 1 if you have the `SSL_get_all_async_fds' function. */
 #undef HAVE_SSL_GET_ALL_ASYNC_FDS

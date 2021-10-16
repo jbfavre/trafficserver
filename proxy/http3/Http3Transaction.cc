@@ -57,12 +57,10 @@
 //
 // HQTransaction
 //
-HQTransaction::HQTransaction(HQSession *session, QUICStreamIO *stream_io) : super(), _stream_io(stream_io)
+HQTransaction::HQTransaction(HQSession *session, QUICStreamIO *stream_io) : super(session), _stream_io(stream_io)
 {
   this->mutex   = new_ProxyMutex();
   this->_thread = this_ethread();
-
-  this->set_proxy_ssn(session);
 
   this->_reader = this->_read_vio_buf.alloc_reader();
 
@@ -110,12 +108,6 @@ HQTransaction::release(IOBufferReader *r)
 {
   this->do_io_close();
   this->_sm = nullptr;
-}
-
-bool
-HQTransaction::allow_half_open() const
-{
-  return false;
 }
 
 VIO *
@@ -215,12 +207,6 @@ HQTransaction::reenable(VIO *vio)
       this->_signal_write_event();
     }
   }
-}
-
-void
-HQTransaction::destroy()
-{
-  _sm = nullptr;
 }
 
 void
@@ -601,6 +587,13 @@ Http3Transaction::_on_qpack_decode_complete()
   } while (!done);
 
   return 1;
+}
+
+// TODO:  Just a place holder for now
+bool
+Http3Transaction::has_request_body(int64_t content_length, bool is_chunked_set) const
+{
+  return false;
 }
 
 //

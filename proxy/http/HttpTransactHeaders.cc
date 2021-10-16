@@ -35,6 +35,7 @@
 #include "HdrUtils.h"
 #include "HttpCompat.h"
 #include "HttpSM.h"
+#include "PoolableSession.h"
 
 #include "I_Machine.h"
 
@@ -208,7 +209,7 @@ HttpTransactHeaders::copy_header_fields(HTTPHdr *src_hdr, HTTPHdr *new_hdr, bool
 
   // Nuke hop-by-hop headers
   //
-  //    The hop-by-hop header fields are layed out by the spec
+  //    The hop-by-hop header fields are laid out by the spec
   //    with two adjustments
   //      1) we treat TE as hop-by-hop because spec implies
   //         that it is by declaring anyone who sends a TE must
@@ -253,10 +254,6 @@ HttpTransactHeaders::convert_request(HTTPVersion outgoing_ver, HTTPHdr *outgoing
     convert_to_1_0_request_header(outgoing_request);
   } else if (outgoing_ver == HTTPVersion(1, 1)) {
     convert_to_1_1_request_header(outgoing_request);
-  } else if (outgoing_ver == HTTPVersion(0, 9)) {
-    // Http 0.9 is a special case - do not bother copying over fields,
-    // because they will all need to be removed anyway.
-    convert_to_0_9_request_header(outgoing_request);
   } else {
     Debug("http_trans", "[HttpTransactHeaders::convert_request]"
                         "Unsupported Version - passing through");
@@ -272,29 +269,10 @@ HttpTransactHeaders::convert_response(HTTPVersion outgoing_ver, HTTPHdr *outgoin
     convert_to_1_0_response_header(outgoing_response);
   } else if (outgoing_ver == HTTPVersion(1, 1)) {
     convert_to_1_1_response_header(outgoing_response);
-  } else if (outgoing_ver == HTTPVersion(0, 9)) {
-    // Http 0.9 is a special case - do not bother copying over fields,
-    // because they will all need to be removed anyway.
-    convert_to_0_9_response_header(outgoing_response);
   } else {
     Debug("http_trans", "[HttpTransactHeaders::convert_response]"
                         "Unsupported Version - passing through");
   }
-}
-
-////////////////////////////////////////////////////////////////////////
-// Take an existing outgoing request header and make it HTTP/0.9
-void
-HttpTransactHeaders::convert_to_0_9_request_header(HTTPHdr *outgoing_request)
-{
-  // These are required
-  ink_assert(outgoing_request->method_get_wksidx() == HTTP_WKSIDX_GET);
-  ink_assert(outgoing_request->url_get()->valid());
-
-  outgoing_request->version_set(HTTPVersion(0, 9));
-
-  // HTTP/0.9 has no headers: nuke them all
-  outgoing_request->fields_clear();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -336,20 +314,6 @@ HttpTransactHeaders::convert_to_1_1_request_header(HTTPHdr *outgoing_request)
   // so specify that response should use identity transfer coding.
   // outgoing_request->value_insert(MIME_FIELD_TE, "identity;q=1.0");
   // outgoing_request->value_insert(MIME_FIELD_TE, "chunked;q=0.0");
-}
-
-////////////////////////////////////////////////////////////////////////
-// Take an existing outgoing response header and make it HTTP/0.9
-void
-HttpTransactHeaders::convert_to_0_9_response_header(HTTPHdr * /* outgoing_response ATS_UNUSED */)
-{
-  // Http 0.9 does not require a response header.
-
-  // There used to be clear header here, but the state machine
-  // does not write down the response header if the client is
-  // 0.9. We need the header fields to make decisions about
-  // the size of the response body, however.
-  // There is therefore no need to clear the header.
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -475,12 +439,6 @@ HttpTransactHeaders::downgrade_request(bool *origin_server_keep_alive, HTTPHdr *
   if (outgoing_request->version_get() == HTTPVersion(1, 1)) {
     // ver.set (HTTPVersion (1, 0));
     convert_to_1_0_request_header(outgoing_request);
-
-    // bz48199: only GET requests can be downgraded to HTTP/0.9
-  } else if (outgoing_request->version_get() == HTTPVersion(1, 0) && outgoing_request->method_get_wksidx() == HTTP_WKSIDX_GET) {
-    // ver.set (HTTPVersion (0, 9));
-    convert_to_0_9_request_header(outgoing_request);
-
   } else {
     return false;
   }
@@ -592,8 +550,6 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
   // Errors may override the other codes, so check the via string error codes last
   switch (via_string[VIA_ERROR_TYPE]) {
   case VIA_ERROR_AUTHORIZATION:
-    // TODO decide which one?
-    // log_code = SQUID_LOG_TCP_DENIED;
     log_code = SQUID_LOG_ERR_PROXY_DENIED;
     break;
   case VIA_ERROR_CONNECTION:
@@ -881,7 +837,8 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
   int n_proto = 0;
 
   // Should suffice - if we're adding a response VIA, the connection is HTTP and only 1.0 and 1.1 are supported outbound.
-  proto_buf[n_proto++] = HTTP_MINOR(header->version_get().m_version) == 0 ? IP_PROTO_TAG_HTTP_1_0 : IP_PROTO_TAG_HTTP_1_1;
+  // TODO H2 expand for HTTP/2 outbound
+  proto_buf[n_proto++] = header->version_get().get_minor() == 0 ? IP_PROTO_TAG_HTTP_1_0 : IP_PROTO_TAG_HTTP_1_1;
 
   auto ss = s->state_machine->get_server_session();
   if (ss) {

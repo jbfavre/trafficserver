@@ -49,8 +49,6 @@ public:
   void set_inactivity_timeout(ink_hrtime timeout_in) override;
   void cancel_inactivity_timeout() override;
   void transaction_done() override;
-  bool allow_half_open() const override;
-  void destroy() override;
   void release(IOBufferReader *r) override;
   int get_transaction_id() const override;
   void increment_client_transactions_stat() override;
@@ -105,6 +103,9 @@ public:
 
   bool is_response_header_sent() const;
   bool is_response_body_sent() const;
+
+  // TODO:  Just a place holder for now
+  bool has_request_body(int64_t content_length, bool is_chunked_set) const override;
 
 private:
   int64_t _process_read_vio() override;

@@ -22,12 +22,19 @@
  */
 
 #include "http/HttpSM.h"
-#include "http/Http1ServerSession.h"
 #include "Plugin.h"
 
 #define HttpTxnDebug(fmt, ...) SsnDebug(this, "http_txn", fmt, __VA_ARGS__)
 
-ProxyTransaction::ProxyTransaction() : VConnection(nullptr) {}
+extern ClassAllocator<HttpSM> httpSMAllocator;
+
+ProxyTransaction::ProxyTransaction(ProxySession *session) : VConnection(nullptr), _proxy_ssn(session) {}
+
+ProxyTransaction::~ProxyTransaction()
+{
+  this->_sm = nullptr;
+  this->mutex.clear();
+}
 
 void
 ProxyTransaction::new_transaction(bool from_early_data)
@@ -38,7 +45,7 @@ ProxyTransaction::new_transaction(bool from_early_data)
   // connection re-use
 
   ink_release_assert(_proxy_ssn != nullptr);
-  _sm = HttpSM::allocate();
+  _sm = THREAD_ALLOC(httpSMAllocator, this_thread());
   _sm->init(from_early_data);
   HttpTxnDebug("[%" PRId64 "] Starting transaction %d using sm [%" PRId64 "]", _proxy_ssn->connection_id(),
                _proxy_ssn->get_transact_count(), _sm->sm_id);
@@ -57,16 +64,9 @@ ProxyTransaction::new_transaction(bool from_early_data)
 }
 
 bool
-ProxyTransaction::attach_server_session(Http1ServerSession *ssession, bool transaction_done)
+ProxyTransaction::attach_server_session(PoolableSession *ssession, bool transaction_done)
 {
   return _proxy_ssn->attach_server_session(ssession, transaction_done);
-}
-
-void
-ProxyTransaction::destroy()
-{
-  _sm = nullptr;
-  this->mutex.clear();
 }
 
 void
@@ -167,11 +167,6 @@ ProxyTransaction::set_outbound_transparent(bool flag)
   upstream_outbound_options.f_outbound_transparent = flag;
 }
 
-void
-ProxyTransaction::set_h2c_upgrade_flag()
-{
-}
-
 int
 ProxyTransaction::get_transaction_priority_weight() const
 {
@@ -189,4 +184,47 @@ ProxyTransaction::transaction_done()
 {
   SCOPED_MUTEX_LOCK(lock, this->mutex, this_ethread());
   this->decrement_client_transactions_stat();
+}
+
+// Implement VConnection interface.
+VIO *
+ProxyTransaction::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
+{
+  return _proxy_ssn->do_io_read(c, nbytes, buf);
+}
+VIO *
+ProxyTransaction::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner)
+{
+  return _proxy_ssn->do_io_write(c, nbytes, buf, owner);
+}
+
+void
+ProxyTransaction::do_io_close(int lerrno)
+{
+  _proxy_ssn->do_io_close(lerrno);
+  // this->destroy(); Parent owns this data structure.  No need for separate destroy.
+}
+
+void
+ProxyTransaction::do_io_shutdown(ShutdownHowTo_t howto)
+{
+  _proxy_ssn->do_io_shutdown(howto);
+}
+
+void
+ProxyTransaction::reenable(VIO *vio)
+{
+  _proxy_ssn->reenable(vio);
+}
+
+bool
+ProxyTransaction::has_request_body(int64_t request_content_length, bool is_chunked) const
+{
+  return request_content_length > 0 || is_chunked;
+}
+
+bool
+ProxyTransaction::allow_half_open() const
+{
+  return false;
 }

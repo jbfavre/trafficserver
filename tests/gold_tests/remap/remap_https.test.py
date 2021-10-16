@@ -22,7 +22,7 @@ Test a basic remap of a http connection
 
 Test.ContinueOnFail = True
 # Define default ATS
-ts = Test.MakeATSProcess("ts", select_ports=False)
+ts = Test.MakeATSProcess("ts", enable_tls=True)
 server = Test.MakeOriginServer("server")
 server2 = Test.MakeOriginServer("server2", ssl=True)
 
@@ -37,10 +37,8 @@ server.addResponse("sessionlog.json", request_header, response_header)
 server2.addResponse("sessionlog.json", request_header, response_header)
 
 # add ssl materials like key, certificates for the server
-ts.addSSLfile("ssl/server.pem")
-ts.addSSLfile("ssl/server.key")
+ts.addDefaultSSLFiles()
 
-ts.Variables.ssl_port = 4443
 ts.Disk.records_config.update({
     'proxy.config.diags.debug.enabled': 1,
     'proxy.config.diags.debug.tags': 'lm|ssl',
@@ -97,7 +95,7 @@ tr.Processes.Default.Streams.stderr = "gold/remap-https-200.gold"
 
 # www.example.com:8080 host
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'curl --http1.1 -k https://127.0.0.1:{0} -H "Host: www.example.com:4443" --verbose'.format(
+tr.Processes.Default.Command = 'curl --http1.1 -k https://127.0.0.1:{0} -H "Host: www.example.com:{0}" --verbose'.format(
     ts.Variables.ssl_port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stderr = "gold/remap-https-200.gold"

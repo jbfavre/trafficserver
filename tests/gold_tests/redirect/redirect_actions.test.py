@@ -169,7 +169,7 @@ class AddressE(Enum):
     Classes of addresses are mapped to example addresses.
     '''
     Private = ('10.0.0.1', '[fc00::1]')
-    Loopback = (['127.1.2.3'])  # [::1] is ommitted here because it is likely overwritten by Self, and there are no others in IPv6.
+    Loopback = (['127.1.2.3'])  # [::1] is omitted here because it is likely overwritten by Self, and there are no others in IPv6.
     Multicast = ('224.1.2.3', '[ff42::]')
     Linklocal = ('169.254.0.1', '[fe80::]')
     Routable = ('72.30.35.10', '[2001:4998:58:1836::10]')  # Do not Follow redirects to these in an automated test.
@@ -184,7 +184,7 @@ class ActionE(Enum):
     Follow = {'config': 'follow', 'expectedStatusLine': 'HTTP/1.1 204 No Content\r\n'}
 
     # Added to test failure modes.
-    Break = {'expectedStatusLine': 'HTTP/1.1 502 Cannot find server.\r\n'}
+    Break = {'expectedStatusLine': 'HTTP/1.1 500 Cannot find server.\r\n'}
 
 
 scenarios = [

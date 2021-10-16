@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-/***************************************/
 #include "tscore/ink_platform.h"
 #include "tscore/Tokenizer.h"
 #include "tscore/ink_assert.h"
@@ -334,11 +333,11 @@ Tokenizer::iterNext(tok_iter_state *state)
 }
 
 void
-Tokenizer::Print()
+Tokenizer::Print() const
 {
-  tok_node *cur_node = &start_node;
-  int node_index     = 0;
-  int count          = 0;
+  const tok_node *cur_node = &start_node;
+  int node_index           = 0;
+  int count                = 0;
 
   while (cur_node != nullptr) {
     if (cur_node->el[node_index] != nullptr) {
@@ -375,28 +374,3 @@ Tokenizer::ReUse()
   add_node       = &start_node;
   add_index      = 0;
 }
-
-#if TS_HAS_TESTS
-#include "tscore/TestBox.h"
-
-REGRESSION_TEST(libts_Tokenizer)(RegressionTest *test, int /* atype ATS_UNUSED */, int *pstatus)
-{
-  TestBox box(test, pstatus);
-  box = REGRESSION_TEST_PASSED;
-
-  Tokenizer remap(" \t");
-
-  const char *line = "map https://abc.com https://abc.com @plugin=conf_remap.so @pparam=proxy.config.abc='ABC DEF'";
-
-  const char *toks[] = {"map", "https://abc.com", "https://abc.com", "@plugin=conf_remap.so", "@pparam=proxy.config.abc='ABC DEF'"};
-
-  unsigned count = remap.Initialize(const_cast<char *>(line), (COPY_TOKS | ALLOW_SPACES));
-
-  box.check(count == 5, "check that we parsed 5 tokens");
-  box.check(count == remap.count(), "parsed %u tokens, but now we have %u tokens", count, remap.count());
-
-  for (unsigned i = 0; i < count; ++i) {
-    box.check(strcmp(remap[i], toks[i]) == 0, "expected token %u to be '%s' but found '%s'", count, toks[i], remap[i]);
-  }
-}
-#endif

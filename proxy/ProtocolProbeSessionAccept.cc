@@ -27,6 +27,7 @@
 #include "http2/HTTP2.h"
 #include "ProxyProtocol.h"
 #include "I_NetVConnection.h"
+#include "http/HttpConfig.h"
 
 static bool
 proto_is_http2(IOBufferReader *reader)
@@ -66,7 +67,8 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
   {
     VIO *vio;
     NetVConnection *netvc;
-    ProtoGroupKey key = N_PROTO_GROUPS; // use this as an invalid value.
+    SessionAccept *acceptor = nullptr;
+    ProtoGroupKey key       = N_PROTO_GROUPS; // use this as an invalid value.
 
     vio   = static_cast<VIO *>(edata);
     netvc = static_cast<NetVConnection *>(vio->vc_server);
@@ -99,7 +101,7 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
     IpMap *pp_ipmap;
     pp_ipmap = probeParent->proxy_protocol_ipmap;
 
-    if (netvc->get_is_proxy_protocol()) {
+    if (netvc->get_is_proxy_protocol() && netvc->get_proxy_protocol_version() == ProxyProtocolVersion::UNDEFINED) {
       Debug("proxyprotocol", "ioCompletionEvent: proxy protocol is enabled on this port");
       if (pp_ipmap->count() > 0) {
         Debug("proxyprotocol", "ioCompletionEvent: proxy protocol has a configured allowlist of trusted IPs - checking");
@@ -119,8 +121,8 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
               "ernabled on this port - processing all connections");
       }
 
-      if (http_has_proxy_v1(reader, netvc)) {
-        Debug("proxyprotocol", "ioCompletionEvent: http has proxy_v1 header");
+      if (netvc->has_proxy_protocol(reader)) {
+        Debug("proxyprotocol", "ioCompletionEvent: http has proxy protocol header");
         netvc->set_remote_addr(netvc->get_proxy_protocol_src_addr());
       } else {
         Debug("proxyprotocol",
@@ -136,15 +138,17 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
       key = PROTO_HTTP;
     }
 
-    netvc->do_io_read(nullptr, 0, nullptr); // Disable the read IO that we started.
-
-    if (probeParent->endpoint[key] == nullptr) {
+    acceptor = probeParent->endpoint[key];
+    if (acceptor == nullptr) {
       Warning("Unregistered protocol type %d", key);
       goto done;
     }
 
+    // Disable the read IO that we started.
+    netvc->do_io_read(acceptor, 0, nullptr);
+
     // Directly invoke the session acceptor, letting it take ownership of the input buffer.
-    if (!probeParent->endpoint[key]->accept(netvc, this->iobuf, reader)) {
+    if (!acceptor->accept(netvc, this->iobuf, reader)) {
       // IPAllow check fails in XxxSessionAccept::accept() if false returned.
       goto done;
     }
@@ -173,7 +177,11 @@ ProtocolProbeSessionAccept::mainEvent(int event, void *data)
     NetVConnection *netvc          = static_cast<NetVConnection *>(data);
     ProtocolProbeTrampoline *probe = new ProtocolProbeTrampoline(this, netvc->mutex, nullptr, nullptr);
 
-    // XXX we need to apply accept inactivity timeout here ...
+    // The connection has completed, set the accept inactivity timeout here to watch over the difference between the
+    // connection set up and the first transaction..
+    HttpConfigParams *param = HttpConfig::acquire();
+    netvc->set_inactivity_timeout(HRTIME_SECONDS(param->accept_no_activity_timeout));
+    HttpConfig::release(param);
 
     if (!probe->reader->is_read_avail_more_than(0)) {
       Debug("http", "probe needs data, read..");
@@ -181,7 +189,7 @@ ProtocolProbeSessionAccept::mainEvent(int event, void *data)
       vio->reenable();
     } else {
       Debug("http", "probe already has data, call ioComplete directly..");
-      vio = netvc->do_io_read(nullptr, 0, nullptr);
+      vio = netvc->do_io_read(this, 0, nullptr);
       probe->ioCompletionEvent(VC_EVENT_READ_COMPLETE, (void *)vio);
     }
     return EVENT_CONT;

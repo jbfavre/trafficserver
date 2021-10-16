@@ -153,28 +153,24 @@ private:
 // Private
 //
 
-static SSL *
-make_ssl_connection(SSL_CTX *ctx, SSLNetVConnection *netvc)
+void
+SSLNetVConnection::_make_ssl_connection(SSL_CTX *ctx)
 {
-  SSL *ssl;
-
-  if (likely(ssl = SSL_new(ctx))) {
-    netvc->ssl = ssl;
-
+  if (likely(this->ssl = SSL_new(ctx))) {
     // Only set up the bio stuff for the server side
-    if (netvc->get_context() == NET_VCONNECTION_OUT) {
+    if (this->get_context() == NET_VCONNECTION_OUT) {
       BIO *bio = BIO_new(const_cast<BIO_METHOD *>(BIO_s_fastopen()));
-      BIO_set_fd(bio, netvc->get_socket(), BIO_NOCLOSE);
+      BIO_set_fd(bio, this->get_socket(), BIO_NOCLOSE);
 
-      if (netvc->options.f_tcp_fastopen) {
-        BIO_set_conn_address(bio, netvc->get_remote_addr());
+      if (this->options.f_tcp_fastopen) {
+        BIO_set_conn_address(bio, this->get_remote_addr());
       }
 
       SSL_set_bio(ssl, bio, bio);
     } else {
-      netvc->initialize_handshake_buffers();
+      this->initialize_handshake_buffers();
       BIO *rbio = BIO_new(BIO_s_mem());
-      BIO *wbio = BIO_new_fd(netvc->get_socket(), BIO_NOCLOSE);
+      BIO *wbio = BIO_new_fd(this->get_socket(), BIO_NOCLOSE);
       BIO_set_mem_eof_return(wbio, -1);
       SSL_set_bio(ssl, rbio, wbio);
 
@@ -210,11 +206,24 @@ make_ssl_connection(SSL_CTX *ctx, SSLNetVConnection *netvc)
       }
 #endif
     }
-
-    SSLNetVCAttach(ssl, netvc);
+    this->_bindSSLObject();
   }
+}
 
-  return ssl;
+void
+SSLNetVConnection::_bindSSLObject()
+{
+  SSLNetVCAttach(this->ssl, this);
+  TLSSessionResumptionSupport::bind(this->ssl, this);
+  TLSSNISupport::bind(this->ssl, this);
+}
+
+void
+SSLNetVConnection::_unbindSSLObject()
+{
+  SSLNetVCDetach(this->ssl);
+  TLSSessionResumptionSupport::unbind(this->ssl);
+  TLSSNISupport::unbind(this->ssl);
 }
 
 static void
@@ -405,7 +414,7 @@ SSLNetVConnection::read_raw_data()
   IpMap *pp_ipmap;
   pp_ipmap = SSLConfigParams::proxy_protocol_ipmap;
 
-  if (this->get_is_proxy_protocol()) {
+  if (this->get_is_proxy_protocol() && this->get_proxy_protocol_version() == ProxyProtocolVersion::UNDEFINED) {
     Debug("proxyprotocol", "proxy protocol is enabled on this port");
     if (pp_ipmap->count() > 0) {
       Debug("proxyprotocol", "proxy protocol has a configured allowlist of trusted IPs - checking");
@@ -430,8 +439,8 @@ SSLNetVConnection::read_raw_data()
                              "proxy protocol is enabled on this port - processing all connections");
     }
 
-    if (ssl_has_proxy_v1(this, buffer, &r)) {
-      Debug("proxyprotocol", "ssl has proxy_v1 header");
+    if (this->has_proxy_protocol(buffer, &r)) {
+      Debug("proxyprotocol", "ssl has proxy protocol header");
       set_remote_addr(get_proxy_protocol_src_addr());
     } else {
       Debug("proxyprotocol", "proxy protocol was enabled, but required header was not present in the "
@@ -533,7 +542,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
   // If the key renegotiation failed it's over, just signal the error and finish.
   if (sslClientRenegotiationAbort == true) {
     this->read.triggered = 0;
-    readSignalError(nh, static_cast<int>(r));
+    readSignalError(nh, -ENET_SSL_FAILED);
     Debug("ssl", "client renegotiation setting read signal error");
     return;
   }
@@ -608,7 +617,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
           Debug("ssl", "ssl handshake for vc %p, expired, release the connection", this);
           read.triggered = 0;
           nh->read_ready_list.remove(this);
-          readSignalError(nh, VC_EVENT_EOS);
+          readSignalError(nh, ETIMEDOUT);
           return;
         }
       }
@@ -657,6 +666,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
   //
   // not sure if this do-while loop is really needed here, please replace
   // this comment if you know
+  int ssl_read_errno = 0;
   do {
     ret = ssl_read_from_net(this, lthread, r);
     if (ret == SSL_READ_READY || ret == SSL_READ_ERROR_NONE) {
@@ -664,6 +674,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     }
     ink_assert(bytes >= 0);
   } while ((ret == SSL_READ_READY && bytes == 0) || ret == SSL_READ_ERROR_NONE);
+  ssl_read_errno = errno;
 
   if (bytes > 0) {
     if (ret == SSL_READ_WOULD_BLOCK || ret == SSL_READ_READY) {
@@ -723,7 +734,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     break;
   case SSL_READ_ERROR:
     this->read.triggered = 0;
-    readSignalError(nh, static_cast<int>(r));
+    readSignalError(nh, (ssl_read_errno) ? ssl_read_errno : -ENET_SSL_FAILED);
     Debug("ssl", "read finished - read error");
     break;
   }
@@ -921,7 +932,6 @@ SSLNetVConnection::do_io_close(int lerrno)
 void
 SSLNetVConnection::clear()
 {
-  _serverName.reset();
   _ca_cert_file.reset();
   _ca_cert_dir.reset();
 
@@ -931,6 +941,7 @@ SSLNetVConnection::clear()
   }
   ALPNSupport::clear();
   TLSSessionResumptionSupport::clear();
+  TLSSNISupport::_clear();
 
   sslHandshakeStatus          = SSL_HANDSHAKE_ONGOING;
   sslHandshakeBeginTime       = 0;
@@ -971,6 +982,7 @@ SSLNetVConnection::free(EThread *t)
   early_data_buf    = nullptr;
 
   clear();
+  SET_CONTINUATION_HANDLER(this, (SSLNetVConnHandler)&SSLNetVConnection::startEvent);
   ink_assert(con.fd == NO_FD);
   ink_assert(t == this_ethread());
 
@@ -1039,7 +1051,7 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
       // Attach the default SSL_CTX to this SSL session. The default context is never going to be able
       // to negotiate a SSL session, but it's enough to trampoline us into the SNI callback where we
       // can select the right server certificate.
-      this->ssl = make_ssl_connection(lookup->defaultContext(), this);
+      this->_make_ssl_connection(lookup->defaultContext());
     }
 
     if (this->ssl == nullptr) {
@@ -1116,7 +1128,7 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
         return EVENT_ERROR;
       }
 
-      this->ssl = make_ssl_connection(clientCTX, this);
+      this->_make_ssl_connection(clientCTX);
       if (this->ssl == nullptr) {
         SSLErrorVC(this, "failed to create SSL client session");
         return EVENT_ERROR;
@@ -1124,6 +1136,7 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
 
       SSL_set_verify(this->ssl, SSL_VERIFY_PEER, verify_callback);
 
+      // SNI
       ats_scoped_str &tlsext_host_name = this->options.sni_hostname ? this->options.sni_hostname : this->options.sni_servername;
       if (tlsext_host_name) {
         if (SSL_set_tlsext_host_name(this->ssl, tlsext_host_name)) {
@@ -1131,6 +1144,16 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
         } else {
           Debug("ssl.error", "failed to set SNI name '%s' for client handshake", tlsext_host_name.get());
           SSL_INCREMENT_DYN_STAT(ssl_sni_name_set_failure);
+        }
+      }
+
+      // ALPN
+      if (!this->options.alpn_protos.empty()) {
+        if (int res = SSL_set_alpn_protos(this->ssl, reinterpret_cast<const uint8_t *>(this->options.alpn_protos.data()),
+                                          this->options.alpn_protos.size());
+            res != 0) {
+          Debug("ssl.error", "failed to set ALPN '%.*s' for client handshake", static_cast<int>(this->options.alpn_protos.size()),
+                this->options.alpn_protos.data());
         }
       }
     }
@@ -1296,6 +1319,15 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
       SSL_INCREMENT_DYN_STAT_EX(ssl_total_handshake_time_stat, ssl_handshake_time);
       SSL_INCREMENT_DYN_STAT(ssl_total_success_handshake_count_in_stat);
     }
+
+    if (_tunnel_type != SNIRoutingType::NONE) {
+      // Foce to use HTTP/1.1 endpoint for SNI Routing
+      if (!this->setSelectedProtocol(reinterpret_cast<const unsigned char *>(IP_PROTO_TAG_HTTP_1_1.data()),
+                                     IP_PROTO_TAG_HTTP_1_1.size())) {
+        return EVENT_ERROR;
+      }
+    }
+
     {
       const unsigned char *proto = nullptr;
       unsigned len               = 0;
@@ -1312,14 +1344,17 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
       }
 
       if (len) {
-        if (!this->setSelectedProtocol(proto, len)) {
+        if (_tunnel_type == SNIRoutingType::NONE && !this->setSelectedProtocol(proto, len)) {
           return EVENT_ERROR;
         }
+        this->set_negotiated_protocol_id({reinterpret_cast<const char *>(proto), static_cast<size_t>(len)});
+
         Debug("ssl", "client selected next protocol '%.*s'", len, proto);
       } else {
         Debug("ssl", "client did not select a next protocol");
       }
     }
+
 #if TS_USE_TLS_ASYNC
     if (SSLConfigParams::async_handshake_enabled) {
       SSL_clear_mode(ssl, SSL_MODE_ASYNC);
@@ -1364,6 +1399,7 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
 
 #if TS_USE_TLS_ASYNC
   case SSL_ERROR_WANT_ASYNC:
+    SSL_INCREMENT_DYN_STAT(ssl_error_async);
     return SSL_WAIT_FOR_ASYNC;
 #endif
 
@@ -1393,6 +1429,35 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
 
   // Initialize properly for a client connection
   if (sslHandshakeHookState == HANDSHAKE_HOOKS_PRE) {
+    if (this->pp_info.version != ProxyProtocolVersion::UNDEFINED) {
+      // Outbound PROXY Protocol
+      VIO &vio        = this->write.vio;
+      int64_t ntodo   = vio.ntodo();
+      int64_t towrite = vio.buffer.reader()->read_avail();
+
+      if (ntodo > 0 && towrite > 0) {
+        MIOBufferAccessor &buf = vio.buffer;
+        int needs              = 0;
+        int64_t total_written  = 0;
+        int64_t r              = super::load_buffer_and_write(towrite, buf, total_written, needs);
+
+        if (total_written > 0) {
+          vio.ndone += total_written;
+          if (vio.ntodo() != 0) {
+            return SSL_WAIT_FOR_HOOK;
+          }
+        }
+
+        if (r < 0) {
+          if (r == -EAGAIN || r == -ENOTCONN || -r == EINPROGRESS) {
+            return SSL_WAIT_FOR_HOOK;
+          } else {
+            return EVENT_ERROR;
+          }
+        }
+      }
+    }
+
     sslHandshakeHookState = HANDSHAKE_HOOKS_OUTBOUND_PRE;
   }
 
@@ -1479,7 +1544,7 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
 
   case SSL_ERROR_SSL:
   default: {
-    err = (errno) ? errno : -ENET_CONNECT_FAILED;
+    err = (errno) ? errno : -ENET_SSL_CONNECT_FAILED;
     char buf[512];
     unsigned long e = ERR_peek_last_error();
     ERR_error_string_n(e, buf, sizeof(buf));
@@ -1817,7 +1882,7 @@ SSLNetVConnection::populate(Connection &con, Continuation *c, void *arg)
   // Maybe bring over the stats?
 
   sslHandshakeStatus = SSL_HANDSHAKE_DONE;
-  SSLNetVCAttach(this->ssl, this);
+  this->_bindSSLObject();
   return EVENT_DONE;
 }
 
@@ -1909,14 +1974,9 @@ SSLNetVConnection::protocol_contains(std::string_view prefix) const
 }
 
 void
-SSLNetVConnection::set_server_name(std::string_view name)
+SSLNetVConnection::_fire_ssl_servername_event()
 {
-  if (name.size()) {
-    char *n = new char[name.size() + 1];
-    std::memcpy(n, name.data(), name.size());
-    n[name.size()] = '\0';
-    _serverName.reset(n);
-  }
+  this->callHooks(TS_EVENT_SSL_SERVERNAME);
 }
 
 void
@@ -1934,4 +1994,21 @@ SSLNetVConnection::set_ca_cert_file(std::string_view file, std::string_view dir)
     n[dir.size()] = '\0';
     _ca_cert_dir.reset(n);
   }
+}
+
+void *
+SSLNetVConnection::_prepareForMigration()
+{
+  SSL *save_ssl = this->ssl;
+
+  this->_unbindSSLObject();
+  this->ssl = nullptr;
+
+  return save_ssl;
+}
+
+NetProcessor *
+SSLNetVConnection::_getNetProcessor()
+{
+  return &sslNetProcessor;
 }

@@ -29,7 +29,7 @@ def make_id(s):
 
 
 def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
-                   enable_tls=False, enable_cache=True):
+                   enable_tls=False, enable_cache=True, enable_quic=False):
     #####################################
     # common locations
 
@@ -67,9 +67,9 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     # p.StartBefore(p_debug)
     # we want to have a few directories more fixed
     # this helps with debugging as location are common
-    # we do this by overiding locations from the "layout"
+    # we do this by overriding locations from the "layout"
     # used as part of build. This means loctaion such as
-    # PROXY_CONFIG_BIN_PATH with alway be $root/bin
+    # PROXY_CONFIG_BIN_PATH with always be $root/bin
     # not something else such as bin64
     #####
 
@@ -162,6 +162,10 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     p.Env['PROXY_CONFIG_SSL_DIR'] = ssl_dir
     p.Variables.SSLDir = ssl_dir
     AddMethodToInstance(p, addSSLfile)
+
+    # Add default cert folder & register handy method.
+    AddMethodToInstance(p, addDefaultSSLFiles)
+    AddMethodToInstance(p, addSSLFileFromDefaultTestFolder)
     ########################################################
     # cache.db directory
     p.Setup.MakeDir(storage_dir)
@@ -193,6 +197,11 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     p.Disk.diags_log.Content += Testers.ExcludesExpression(
         "FATAL:", "diags.log should not contain errors")
 
+    if command == "traffic_manager":
+        fname = "manager.log"
+        tmpname = os.path.join(log_dir, fname)
+        p.Disk.File(tmpname, id=make_id(fname))
+
     # config files
     def MakeConfigFile(self, fname):
         tmpname = os.path.join(config_dir, fname)
@@ -206,6 +215,11 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     p.Disk.File(tmpname, id=make_id(fname), typename="ats:config:records")
 
     fname = "cache.config"
+    tmpname = os.path.join(config_dir, fname)
+    p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
+
+    # for conf_remap_float, used by conf_remap plugin
+    fname = "delain.config"
     tmpname = os.path.join(config_dir, fname)
     p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
 
@@ -271,11 +285,13 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
         if enable_tls:
             get_port(p, "ssl_port")
             get_port(p, "ssl_portv6")
-        # p.Ready = When.PortOpen(p.Variables.port)
     else:
         p.Variables.port = 8080
         p.Variables.portv6 = 8080
-        p.Variables.ssl_port = 4443
+
+        if enable_tls:
+            p.Variables.ssl_port = 4443
+            p.Variables.ssl_portv6 = 4444
 
     get_port(p, "manager_port")
     get_port(p, "admin_port")
@@ -297,19 +313,28 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
             'proxy.config.http.cache.http': 0
         })
 
+    if enable_quic:
+        p.Disk.records_config.update({
+            'proxy.config.udp.threads': 1,
+        })
+
     # The following message was added so that tests and users can know when
     # Traffic Server is ready to both receive and optimize traffic.
     p.Ready = When.FileContains(p.Disk.diags_log.AbsPath, "NOTE: Traffic Server is fully initialized")
 
-    # set the ports
     if select_ports:
-        port_str = "{port} {v6_port}:ipv6 ".format(port=p.Variables.port, v6_port=p.Variables.portv6)
-
+        # default config
+        port_str = "{port} {v6_port}:ipv6".format(port=p.Variables.port, v6_port=p.Variables.portv6)
         if enable_tls:
-            port_str += "{ssl_port}:ssl {ssl_portv6}:ssl:ipv6".format(
+            port_str += " {ssl_port}:ssl {ssl_portv6}:ssl:ipv6".format(
                 ssl_port=p.Variables.ssl_port, ssl_portv6=p.Variables.ssl_portv6)
-
-        p.Env['PROXY_CONFIG_HTTP_SERVER_PORTS'] = port_str
+        if enable_quic:
+            port_str += " {ssl_port}:quic {ssl_portv6}:quic:ipv6".format(
+                ssl_port=p.Variables.ssl_port, ssl_portv6=p.Variables.ssl_portv6)
+        #p.Env['PROXY_CONFIG_HTTP_SERVER_PORTS'] = port_str
+        p.Disk.records_config.update({
+            'proxy.config.http.server_ports': port_str,
+        })
 
     p.Env['PROXY_CONFIG_PROCESS_MANAGER_MGMT_PORT'] = str(
         p.Variables.manager_port)
@@ -363,7 +388,7 @@ class Config(File):
         '''
         Write contents to disk
         '''
-        host.WriteVerbosef('ats-config-file', "Writting out file {0}",
+        host.WriteVerbosef('ats-config-file', "Writing out file {0}",
                            self.Name)
         if self.content is not None:
             with open(name, 'w') as f:
@@ -418,7 +443,7 @@ class RecordsConfig(Config, dict):
         self.WriteCustomOn(self._do_write)
 
     def _do_write(self, name):
-        host.WriteVerbosef('ats-config-file', "Writting out file {0}", name)
+        host.WriteVerbosef('ats-config-file', "Writing out file {0}", name)
         if len(self) > 0:
             with open(name, 'w') as f:
                 for name, val in self.items():
@@ -438,6 +463,15 @@ class RecordsConfig(Config, dict):
 
 def addSSLfile(self, filename):
     self.Setup.CopyAs(filename, self.Variables.SSLDir)
+
+
+def addDefaultSSLFiles(self):
+    addSSLfile(self, os.path.join(self.Variables.AtsTestToolsDir, "ssl", "server.pem"))
+    addSSLfile(self, os.path.join(self.Variables.AtsTestToolsDir, "ssl", "server.key"))
+
+
+def addSSLFileFromDefaultTestFolder(self, filename):
+    addSSLfile(self, os.path.join(self.Variables.AtsTestToolsDir, "ssl", filename))
 
 
 RegisterFileType(Config, "ats:config")

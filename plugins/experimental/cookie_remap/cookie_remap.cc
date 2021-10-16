@@ -40,28 +40,8 @@
 using namespace std;
 
 #define MY_NAME "cookie_remap"
+
 const int OVECCOUNT = 30; // We support $1 - $9 only, and this needs to be 3x that
-
-#if TS_VERSION_MAJOR > 7
-#define SETHTTPSTATUS(TXN, STATUS) TSHttpTxnStatusSet((TXN), STATUS)
-#else
-#define SETHTTPSTATUS(TXN, STATUS) TSHttpTxnSetHttpRetStatus((TXN), STATUS)
-#endif
-
-///////////////////////////////////////////////////////////////////////////////
-// Helpers for memory management (to make sure pcre uses the TS APIs).
-//
-inline void *
-ink_malloc(size_t s)
-{
-  return TSmalloc(s);
-}
-
-inline void
-ink_free(void *s)
-{
-  return TSfree(s);
-}
 
 class UrlComponents
 {
@@ -186,13 +166,6 @@ private:
     return std::string_view(data, length);
   }
 };
-
-void
-setup_memory_allocation()
-{
-  pcre_malloc = &ink_malloc;
-  pcre_free   = &ink_free;
-}
 
 enum operation_type { UNKNOWN = -1, EXISTS = 1, NOTEXISTS, REGEXP, STRING, BUCKET };
 
@@ -800,7 +773,7 @@ public:
           TSDebug(MY_NAME, "we hashed in the range, yay!");
           continue; // we hashed in the range
         } else {
-          TSDebug(MY_NAME, "we didnt hash in the "
+          TSDebug(MY_NAME, "we didn't hash in the "
                            "range requested, so "
                            "sad");
           retval &= 0;
@@ -838,8 +811,8 @@ private:
   TSHttpStatus else_status = TS_HTTP_STATUS_NONE;
 };
 
-typedef std::pair<std::string, std::string> StringPair;
-using OpMap = std::vector<StringPair>;
+using StringPair = std::pair<std::string, std::string>;
+using OpMap      = std::vector<StringPair>;
 
 //----------------------------------------------------------------------------
 static bool
@@ -919,8 +892,6 @@ using OpsQueue = std::vector<const op *>;
 TSReturnCode
 TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
 {
-  setup_memory_allocation();
-
   return TS_SUCCESS;
 }
 
@@ -1064,7 +1035,7 @@ sub_lookup(char const *targ, int targ_len)
   for (;;) {
     while ((targ_len < static_cast<int>(opt->comp.size())) || (std::string_view(targ, opt->comp.size()) != opt->comp)) {
       if (!--count) {
-        return 1; // Failed lookup, return some positive numver.
+        return 1; // Failed lookup, return some positive number.
       }
       ++opt;
     }
@@ -1241,18 +1212,18 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
       // Maybe set the return status
       if (status > TS_HTTP_STATUS_NONE) {
         TSDebug(MY_NAME, "Setting return status to %d", status);
-        SETHTTPSTATUS(txnp, status);
+        TSHttpTxnStatusSet(txnp, status);
         if ((status == TS_HTTP_STATUS_MOVED_PERMANENTLY) || (status == TS_HTTP_STATUS_MOVED_TEMPORARILY)) {
           if (rewrite_to.size() > 8192) {
             TSError("Redirect in target "
                     "URL too long");
-            SETHTTPSTATUS(txnp, TS_HTTP_STATUS_REQUEST_URI_TOO_LONG);
+            TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_REQUEST_URI_TOO_LONG);
           } else {
             const char *start = rewrite_to.c_str();
             int dest_len      = rewrite_to.size();
 
             if (TS_PARSE_ERROR == TSUrlParse(rri->requestBufp, rri->requestUrl, &start, start + dest_len)) {
-              SETHTTPSTATUS(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
               TSError("can't parse "
                       "substituted "
                       "URL string");
@@ -1275,7 +1246,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
 
       // set the new url
       if (TSUrlParse(rri->requestBufp, rri->requestUrl, &start, start + rewrite_to.length()) == TS_PARSE_ERROR) {
-        SETHTTPSTATUS(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
         TSError("can't parse substituted URL string");
         goto error;
       } else {

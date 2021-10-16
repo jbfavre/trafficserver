@@ -137,6 +137,7 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
 	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
+	$(top_srcdir)/build/boringocsp.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
@@ -196,12 +197,13 @@ libhttp_remap_a_AR = $(AR) $(ARFLAGS)
 libhttp_remap_a_LIBADD =
 am_libhttp_remap_a_OBJECTS = AclFiltering.$(OBJEXT) \
 	NextHopSelectionStrategy.$(OBJEXT) \
-	NextHopConsistentHash.$(OBJEXT) NextHopRoundRobin.$(OBJEXT) \
-	NextHopStrategyFactory.$(OBJEXT) RemapConfig.$(OBJEXT) \
-	RemapPluginInfo.$(OBJEXT) PluginDso.$(OBJEXT) \
-	PluginFactory.$(OBJEXT) RemapPlugins.$(OBJEXT) \
-	RemapProcessor.$(OBJEXT) UrlMapping.$(OBJEXT) \
-	UrlMappingPathIndex.$(OBJEXT) UrlRewrite.$(OBJEXT)
+	NextHopConsistentHash.$(OBJEXT) NextHopHealthStatus.$(OBJEXT) \
+	NextHopRoundRobin.$(OBJEXT) NextHopStrategyFactory.$(OBJEXT) \
+	RemapConfig.$(OBJEXT) RemapPluginInfo.$(OBJEXT) \
+	PluginDso.$(OBJEXT) PluginFactory.$(OBJEXT) \
+	RemapPlugins.$(OBJEXT) RemapProcessor.$(OBJEXT) \
+	UrlMapping.$(OBJEXT) UrlMappingPathIndex.$(OBJEXT) \
+	UrlRewrite.$(OBJEXT)
 libhttp_remap_a_OBJECTS = $(am_libhttp_remap_a_OBJECTS)
 unit_tests_plugin_init_fail_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
@@ -303,6 +305,7 @@ am_test_NextHopConsistentHash_OBJECTS =  \
 	test_NextHopConsistentHash-NextHopSelectionStrategy.$(OBJEXT) \
 	test_NextHopConsistentHash-NextHopStrategyFactory.$(OBJEXT) \
 	test_NextHopConsistentHash-NextHopConsistentHash.$(OBJEXT) \
+	test_NextHopConsistentHash-NextHopHealthStatus.$(OBJEXT) \
 	test_NextHopConsistentHash-NextHopRoundRobin.$(OBJEXT) \
 	unit-tests/test_NextHopConsistentHash-test_NextHopConsistentHash.$(OBJEXT) \
 	unit-tests/test_NextHopConsistentHash-nexthop_test_stubs.$(OBJEXT)
@@ -326,6 +329,7 @@ am_test_NextHopRoundRobin_OBJECTS =  \
 	test_NextHopRoundRobin-NextHopStrategyFactory.$(OBJEXT) \
 	test_NextHopRoundRobin-NextHopRoundRobin.$(OBJEXT) \
 	test_NextHopRoundRobin-NextHopConsistentHash.$(OBJEXT) \
+	test_NextHopRoundRobin-NextHopHealthStatus.$(OBJEXT) \
 	unit-tests/test_NextHopRoundRobin-test_NextHopRoundRobin.$(OBJEXT) \
 	unit-tests/test_NextHopRoundRobin-nexthop_test_stubs.$(OBJEXT)
 test_NextHopRoundRobin_OBJECTS = $(am_test_NextHopRoundRobin_OBJECTS)
@@ -346,6 +350,7 @@ am_test_NextHopStrategyFactory_OBJECTS = test_NextHopStrategyFactory-NextHopSele
 	test_NextHopStrategyFactory-NextHopStrategyFactory.$(OBJEXT) \
 	test_NextHopStrategyFactory-NextHopRoundRobin.$(OBJEXT) \
 	test_NextHopStrategyFactory-NextHopConsistentHash.$(OBJEXT) \
+	test_NextHopStrategyFactory-NextHopHealthStatus.$(OBJEXT) \
 	unit-tests/test_NextHopStrategyFactory-test_NextHopStrategyFactory.$(OBJEXT) \
 	unit-tests/test_NextHopStrategyFactory-nexthop_test_stubs.$(OBJEXT)
 test_NextHopStrategyFactory_OBJECTS =  \
@@ -420,6 +425,7 @@ depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/AclFiltering.Po \
 	./$(DEPDIR)/NextHopConsistentHash.Po \
+	./$(DEPDIR)/NextHopHealthStatus.Po \
 	./$(DEPDIR)/NextHopRoundRobin.Po \
 	./$(DEPDIR)/NextHopSelectionStrategy.Po \
 	./$(DEPDIR)/NextHopStrategyFactory.Po ./$(DEPDIR)/PluginDso.Po \
@@ -428,14 +434,17 @@ am__depfiles_remade = ./$(DEPDIR)/AclFiltering.Po \
 	./$(DEPDIR)/RemapProcessor.Po ./$(DEPDIR)/UrlMapping.Po \
 	./$(DEPDIR)/UrlMappingPathIndex.Po ./$(DEPDIR)/UrlRewrite.Po \
 	./$(DEPDIR)/test_NextHopConsistentHash-NextHopConsistentHash.Po \
+	./$(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Po \
 	./$(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Po \
 	./$(DEPDIR)/test_NextHopConsistentHash-NextHopSelectionStrategy.Po \
 	./$(DEPDIR)/test_NextHopConsistentHash-NextHopStrategyFactory.Po \
 	./$(DEPDIR)/test_NextHopRoundRobin-NextHopConsistentHash.Po \
+	./$(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Po \
 	./$(DEPDIR)/test_NextHopRoundRobin-NextHopRoundRobin.Po \
 	./$(DEPDIR)/test_NextHopRoundRobin-NextHopSelectionStrategy.Po \
 	./$(DEPDIR)/test_NextHopRoundRobin-NextHopStrategyFactory.Po \
 	./$(DEPDIR)/test_NextHopStrategyFactory-NextHopConsistentHash.Po \
+	./$(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Po \
 	./$(DEPDIR)/test_NextHopStrategyFactory-NextHopRoundRobin.Po \
 	./$(DEPDIR)/test_NextHopStrategyFactory-NextHopSelectionStrategy.Po \
 	./$(DEPDIR)/test_NextHopStrategyFactory-NextHopStrategyFactory.Po \
@@ -768,6 +777,9 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BORINGOCSP_INCLUDES = @BORINGOCSP_INCLUDES@
+BORINGOCSP_LDFLAGS = @BORINGOCSP_LDFLAGS@
+BORINGOCSP_LIBS = @BORINGOCSP_LIBS@
 BROTLIENC_CFLAGS = @BROTLIENC_CFLAGS@
 BROTLIENC_LIB = @BROTLIENC_LIB@
 CC = @CC@
@@ -806,7 +818,7 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEO_LIBS = @GEO_LIBS@
+GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
@@ -963,12 +975,14 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_boringocsp = @has_boringocsp@
 has_expensive_tests = @has_expensive_tests@
+has_geoip = @has_geoip@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
-has_maxmind = @has_maxmind@
+has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
@@ -976,6 +990,7 @@ has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_session_ticket = @has_tls_session_ticket@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -1036,6 +1051,7 @@ rel_prefix = @rel_prefix@
 rel_runtimedir = @rel_runtimedir@
 rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
+runstatedir = @runstatedir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
@@ -1045,12 +1061,15 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_boringocsp = @use_boringocsp@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
 use_hkdf = @use_hkdf@
+use_hrw_geoip = @use_hrw_geoip@
+use_hrw_maxminddb = @use_hrw_maxminddb@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -1088,6 +1107,7 @@ libhttp_remap_a_SOURCES = \
 	NextHopSelectionStrategy.cc \
 	NextHopConsistentHash.h \
 	NextHopConsistentHash.cc \
+	NextHopHealthStatus.cc \
 	NextHopRoundRobin.h \
 	NextHopRoundRobin.cc \
 	NextHopStrategyFactory.h \
@@ -1191,6 +1211,7 @@ test_NextHopStrategyFactory_SOURCES = \
 	NextHopStrategyFactory.cc \
 	NextHopRoundRobin.cc \
 	NextHopConsistentHash.cc \
+	NextHopHealthStatus.cc \
 	unit-tests/test_NextHopStrategyFactory.cc \
 	unit-tests/nexthop_test_stubs.cc
 
@@ -1220,6 +1241,7 @@ test_NextHopRoundRobin_SOURCES = \
 	NextHopStrategyFactory.cc \
 	NextHopRoundRobin.cc \
 	NextHopConsistentHash.cc \
+	NextHopHealthStatus.cc \
 	unit-tests/test_NextHopRoundRobin.cc \
 	unit-tests/nexthop_test_stubs.cc
 
@@ -1248,6 +1270,7 @@ test_NextHopConsistentHash_SOURCES = \
 	NextHopSelectionStrategy.cc \
 	NextHopStrategyFactory.cc \
 	NextHopConsistentHash.cc \
+	NextHopHealthStatus.cc \
 	NextHopRoundRobin.cc \
 	unit-tests/test_NextHopConsistentHash.cc \
 	unit-tests/nexthop_test_stubs.cc
@@ -1526,6 +1549,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/AclFiltering.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NextHopConsistentHash.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NextHopHealthStatus.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NextHopRoundRobin.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NextHopSelectionStrategy.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NextHopStrategyFactory.Po@am__quote@ # am--include-marker
@@ -1539,14 +1563,17 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UrlMappingPathIndex.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UrlRewrite.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopConsistentHash-NextHopConsistentHash.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopConsistentHash-NextHopSelectionStrategy.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopConsistentHash-NextHopStrategyFactory.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopRoundRobin-NextHopConsistentHash.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopRoundRobin-NextHopRoundRobin.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopRoundRobin-NextHopSelectionStrategy.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopRoundRobin-NextHopStrategyFactory.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopStrategyFactory-NextHopConsistentHash.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopStrategyFactory-NextHopRoundRobin.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopStrategyFactory-NextHopSelectionStrategy.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_NextHopStrategyFactory-NextHopStrategyFactory.Po@am__quote@ # am--include-marker
@@ -1729,6 +1756,20 @@ test_NextHopConsistentHash-NextHopConsistentHash.obj: NextHopConsistentHash.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopConsistentHash_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopConsistentHash-NextHopConsistentHash.obj `if test -f 'NextHopConsistentHash.cc'; then $(CYGPATH_W) 'NextHopConsistentHash.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopConsistentHash.cc'; fi`
 
+test_NextHopConsistentHash-NextHopHealthStatus.o: NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopConsistentHash_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopConsistentHash-NextHopHealthStatus.o -MD -MP -MF $(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Tpo -c -o test_NextHopConsistentHash-NextHopHealthStatus.o `test -f 'NextHopHealthStatus.cc' || echo '$(srcdir)/'`NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Tpo $(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopHealthStatus.cc' object='test_NextHopConsistentHash-NextHopHealthStatus.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopConsistentHash_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopConsistentHash-NextHopHealthStatus.o `test -f 'NextHopHealthStatus.cc' || echo '$(srcdir)/'`NextHopHealthStatus.cc
+
+test_NextHopConsistentHash-NextHopHealthStatus.obj: NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopConsistentHash_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopConsistentHash-NextHopHealthStatus.obj -MD -MP -MF $(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Tpo -c -o test_NextHopConsistentHash-NextHopHealthStatus.obj `if test -f 'NextHopHealthStatus.cc'; then $(CYGPATH_W) 'NextHopHealthStatus.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopHealthStatus.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Tpo $(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopHealthStatus.cc' object='test_NextHopConsistentHash-NextHopHealthStatus.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopConsistentHash_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopConsistentHash-NextHopHealthStatus.obj `if test -f 'NextHopHealthStatus.cc'; then $(CYGPATH_W) 'NextHopHealthStatus.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopHealthStatus.cc'; fi`
+
 test_NextHopConsistentHash-NextHopRoundRobin.o: NextHopRoundRobin.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopConsistentHash_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopConsistentHash-NextHopRoundRobin.o -MD -MP -MF $(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Tpo -c -o test_NextHopConsistentHash-NextHopRoundRobin.o `test -f 'NextHopRoundRobin.cc' || echo '$(srcdir)/'`NextHopRoundRobin.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Tpo $(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Po
@@ -1827,6 +1868,20 @@ test_NextHopRoundRobin-NextHopConsistentHash.obj: NextHopConsistentHash.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopRoundRobin_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopRoundRobin-NextHopConsistentHash.obj `if test -f 'NextHopConsistentHash.cc'; then $(CYGPATH_W) 'NextHopConsistentHash.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopConsistentHash.cc'; fi`
 
+test_NextHopRoundRobin-NextHopHealthStatus.o: NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopRoundRobin_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopRoundRobin-NextHopHealthStatus.o -MD -MP -MF $(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Tpo -c -o test_NextHopRoundRobin-NextHopHealthStatus.o `test -f 'NextHopHealthStatus.cc' || echo '$(srcdir)/'`NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Tpo $(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopHealthStatus.cc' object='test_NextHopRoundRobin-NextHopHealthStatus.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopRoundRobin_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopRoundRobin-NextHopHealthStatus.o `test -f 'NextHopHealthStatus.cc' || echo '$(srcdir)/'`NextHopHealthStatus.cc
+
+test_NextHopRoundRobin-NextHopHealthStatus.obj: NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopRoundRobin_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopRoundRobin-NextHopHealthStatus.obj -MD -MP -MF $(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Tpo -c -o test_NextHopRoundRobin-NextHopHealthStatus.obj `if test -f 'NextHopHealthStatus.cc'; then $(CYGPATH_W) 'NextHopHealthStatus.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopHealthStatus.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Tpo $(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopHealthStatus.cc' object='test_NextHopRoundRobin-NextHopHealthStatus.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopRoundRobin_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopRoundRobin-NextHopHealthStatus.obj `if test -f 'NextHopHealthStatus.cc'; then $(CYGPATH_W) 'NextHopHealthStatus.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopHealthStatus.cc'; fi`
+
 unit-tests/test_NextHopRoundRobin-test_NextHopRoundRobin.o: unit-tests/test_NextHopRoundRobin.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopRoundRobin_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_NextHopRoundRobin-test_NextHopRoundRobin.o -MD -MP -MF unit-tests/$(DEPDIR)/test_NextHopRoundRobin-test_NextHopRoundRobin.Tpo -c -o unit-tests/test_NextHopRoundRobin-test_NextHopRoundRobin.o `test -f 'unit-tests/test_NextHopRoundRobin.cc' || echo '$(srcdir)/'`unit-tests/test_NextHopRoundRobin.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_NextHopRoundRobin-test_NextHopRoundRobin.Tpo unit-tests/$(DEPDIR)/test_NextHopRoundRobin-test_NextHopRoundRobin.Po
@@ -1910,6 +1965,20 @@ test_NextHopStrategyFactory-NextHopConsistentHash.obj: NextHopConsistentHash.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopConsistentHash.cc' object='test_NextHopStrategyFactory-NextHopConsistentHash.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopStrategyFactory_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopStrategyFactory-NextHopConsistentHash.obj `if test -f 'NextHopConsistentHash.cc'; then $(CYGPATH_W) 'NextHopConsistentHash.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopConsistentHash.cc'; fi`
+
+test_NextHopStrategyFactory-NextHopHealthStatus.o: NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopStrategyFactory_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopStrategyFactory-NextHopHealthStatus.o -MD -MP -MF $(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Tpo -c -o test_NextHopStrategyFactory-NextHopHealthStatus.o `test -f 'NextHopHealthStatus.cc' || echo '$(srcdir)/'`NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Tpo $(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopHealthStatus.cc' object='test_NextHopStrategyFactory-NextHopHealthStatus.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopStrategyFactory_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopStrategyFactory-NextHopHealthStatus.o `test -f 'NextHopHealthStatus.cc' || echo '$(srcdir)/'`NextHopHealthStatus.cc
+
+test_NextHopStrategyFactory-NextHopHealthStatus.obj: NextHopHealthStatus.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopStrategyFactory_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_NextHopStrategyFactory-NextHopHealthStatus.obj -MD -MP -MF $(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Tpo -c -o test_NextHopStrategyFactory-NextHopHealthStatus.obj `if test -f 'NextHopHealthStatus.cc'; then $(CYGPATH_W) 'NextHopHealthStatus.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopHealthStatus.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Tpo $(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='NextHopHealthStatus.cc' object='test_NextHopStrategyFactory-NextHopHealthStatus.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopStrategyFactory_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_NextHopStrategyFactory-NextHopHealthStatus.obj `if test -f 'NextHopHealthStatus.cc'; then $(CYGPATH_W) 'NextHopHealthStatus.cc'; else $(CYGPATH_W) '$(srcdir)/NextHopHealthStatus.cc'; fi`
 
 unit-tests/test_NextHopStrategyFactory-test_NextHopStrategyFactory.o: unit-tests/test_NextHopStrategyFactory.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_NextHopStrategyFactory_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_NextHopStrategyFactory-test_NextHopStrategyFactory.o -MD -MP -MF unit-tests/$(DEPDIR)/test_NextHopStrategyFactory-test_NextHopStrategyFactory.Tpo -c -o unit-tests/test_NextHopStrategyFactory-test_NextHopStrategyFactory.o `test -f 'unit-tests/test_NextHopStrategyFactory.cc' || echo '$(srcdir)/'`unit-tests/test_NextHopStrategyFactory.cc
@@ -2454,6 +2523,7 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 distclean: distclean-am
 		-rm -f ./$(DEPDIR)/AclFiltering.Po
 	-rm -f ./$(DEPDIR)/NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/NextHopStrategyFactory.Po
@@ -2467,14 +2537,17 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/UrlMappingPathIndex.Po
 	-rm -f ./$(DEPDIR)/UrlRewrite.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopStrategyFactory.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopStrategyFactory.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopStrategyFactory.Po
@@ -2554,6 +2627,7 @@ installcheck-am:
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/AclFiltering.Po
 	-rm -f ./$(DEPDIR)/NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/NextHopStrategyFactory.Po
@@ -2567,14 +2641,17 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/UrlMappingPathIndex.Po
 	-rm -f ./$(DEPDIR)/UrlRewrite.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/test_NextHopConsistentHash-NextHopStrategyFactory.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/test_NextHopRoundRobin-NextHopStrategyFactory.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopConsistentHash.Po
+	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopHealthStatus.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopRoundRobin.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopSelectionStrategy.Po
 	-rm -f ./$(DEPDIR)/test_NextHopStrategyFactory-NextHopStrategyFactory.Po
