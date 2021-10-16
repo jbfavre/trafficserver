@@ -1,6 +1,40 @@
 trafficserver for Debian
 ------------------------
 
+* ATS 9.0.0 comes with slight changes
+  Some config files have been removed:
+    - /etc/trafficserver/sni.yaml
+  One file has been migrated to yaml format:
+    - /etc/trafficserver/ip_allow.config
+  Some config file have been added:
+    - /etc/trafficserver/sni.yaml
+    - /etc/trafficserver/strategies.yaml
+  wccp is now disabled by default.
+    Therefore, it has been removed from Debian package.
+  Following plugins have been removed from experimental:
+    - balancer
+    - buffer-upload
+    - header_normalize
+    - hipes
+    - memcached_remap
+    - ssl_cert_loader
+    - stale_while_revalidate
+  Following plugins have been added as experimental:
+    - cert_reporting_tool
+    - cookie_remap
+    - ja3_fingerprint
+    - memory_profile
+    - redo_cache_lookup
+    - ssl_session_reuse
+    - statichit
+  Following plugins have been promoted to stable:
+    - cache_range_requests
+    - certifier
+    - multiplexer
+    - prefetch
+    - remap_purge
+    - server_push_preload
+
 * ATS 8.0.0 comes with slight changes in config files.
     Following ones has been removed:
     - /etc/trafficserver/vaddrs.config

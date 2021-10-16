@@ -1,5 +1,13 @@
 trafficserver (6.0.0-3) unstable; urgency=medium
 
+  Due to uncertainty around wccp feature, and failing build,
+  support has been temporarily disabled in Debian.
+  It might be re-enabled, depending on how things will evolve
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 26 Dec 2020 22:55:18 +0100
+
+trafficserver (6.0.0-3) unstable; urgency=medium
+
   If you are using 32-bits package, please not that upstream has
   discontinued 32-bit support.
   32-bits Debian package will still be built, but is subject to removal

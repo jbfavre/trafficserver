@@ -28,10 +28,6 @@ configure_flags = \
 	--with-yaml-cpp=/usr \
         $(shell dpkg-buildflags --export=configure)
 
-ifeq ($(DEB_HOST_ARCH_OS),linux)
-	configure_flags += --enable-wccp
-endif
-
 %:
 	dh $@
 
@@ -53,6 +49,12 @@ endif
 
 override_dh_install:
 	dh_install
+	# Remove .so from unit-test
+	# rm -f debian/tmp/lib/trafficserver/plugin_missing*
+	# rm -f debian/tmp/lib/trafficserver/plugin_required*
+	# rm -f debian/tmp/lib/trafficserver/plugin_testing*
+	# rm -f debian/tmp/lib/trafficserver/plugin_v*
+	rm -f debian/tmp/usr/lib/trafficserver/plugin*
 	dh_missing --list-missing
 	./debian/change_config.pl debian/trafficserver/etc/trafficserver/records.config
 	# Lintian fixes
@@ -67,8 +69,6 @@ override_dh_fixperms:
 		    -Xvar/log/trafficserver \
 		    -Xvar/cache/trafficserver \
 		    -Xvar/run/trafficserver
-	# Fix lintian warning
-	chmod -x debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/remap_header_add/build.txt
 
 override_dh_installexamples:
 	dh_installexamples -XMakefile -X.libs -X.dirstamp -X.deps -X.la -X.lo

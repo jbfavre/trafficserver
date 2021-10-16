@@ -1,5 +1,3 @@
-#!/bin/sh
-
 #  Licensed to the Apache Software Foundation (ASF) under one
 #  or more contributor license agreements.  See the NOTICE file
 #  distributed with this work for additional information
@@ -16,18 +14,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-cmd='curl'
-for arg in "$@"; do
-	case "$arg" in
-		*\'*)
-#			arg=`printf '%s' "$arg" | sed s/'/'\"'\"'/g"`
-			arg=`printf '%s' "$arg"`
-			;;
-		*) : ;;
-	esac
-	cmd="$cmd '$arg'"
-done
-
-cmd="$cmd -s -D /dev/stdout -o /dev/stderr"
-
-eval " $cmd" | sort
+nc -4 -l ${2} -c  "sh ./delay-inactive-server.sh" &
+sleep 1
+curl -d "post body" -i  http://127.0.0.1:${1}/${3}

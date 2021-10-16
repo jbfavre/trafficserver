@@ -46,14 +46,12 @@ with open(os.path.join(Test.TestDirectory, 'replay/yts-2819.replay.json')) as sr
 replay_txns = replay["sessions"][0]["transactions"]
 
 # Define ATS and configure
-ts = Test.MakeATSProcess("ts", command="traffic_server")
+ts = Test.MakeATSProcess("ts", command="traffic_server", enable_cache=False)
 
 testName = "regex_remap"
 
 regex_remap_conf_path = os.path.join(ts.Variables.CONFIGDIR, 'regex_remap.conf')
 curl_and_args = 'curl -s -D - -v --proxy localhost:{} '.format(ts.Variables.port)
-
-path1_rule = 'path1 {}\n'.format(int(time.time()) + 600)
 
 ts.Disk.File(regex_remap_conf_path, typename="ats:config").AddLines([
     "# regex_remap configuration\n"
@@ -63,12 +61,15 @@ ts.Disk.File(regex_remap_conf_path, typename="ats:config").AddLines([
 ts.Disk.remap_config.AddLine(
     "map http://example.one/ http://localhost:{}/ @plugin=regex_remap.so @pparam=regex_remap.conf\n".format(server.Variables.Port)
 )
+ts.Disk.remap_config.AddLine(
+    "map http://example.two/ http://localhost:{}/ ".format(server.Variables.Port) +
+    "@plugin=regex_remap.so @pparam=regex_remap.conf @pparam=pristine\n"
+)
 
 # minimal configuration
 ts.Disk.records_config.update({
     'proxy.config.diags.debug.enabled': 1,
     'proxy.config.diags.debug.tags': 'http|regex_remap',
-    'proxy.config.http.cache.http': 0,
     'proxy.config.http.server_ports': '{}'.format(ts.Variables.port),
 })
 
@@ -82,7 +83,18 @@ tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stdout = "gold/regex_remap_smoke.gold"
 tr.StillRunningAfter = ts
 
-# Crash test.
+# 1 Test - Match and redirect
+tr = Test.AddTestRun("pristine test")
+tr.Processes.Default.Command = (
+    curl_and_args +
+    "'http://example.two/alpha/bravo/?action=newsfed;param0001=00003E;param0002=00004E;param0003=00005E'" +
+    f" | grep -e '^HTTP/' -e '^Location' | sed 's/{server.Variables.Port}/SERVER_PORT/'"
+)
+tr.Processes.Default.ReturnCode = 0
+tr.Processes.Default.Streams.stdout = "gold/regex_remap_redirect.gold"
+tr.StillRunningAfter = ts
+
+# 2 Test - Crash test.
 tr = Test.AddTestRun("crash test")
 creq = replay_txns[1]['client-request']
 tr.Processes.Default.Command = curl_and_args + \

@@ -43,7 +43,14 @@ We are moving configurations over to YAML, and thus far, the following configura
 
 In addition, a new file for TLS handshake negotiation configuration is added:
 
-* :file:`sni.yaml` (this was for a while named ssl_server_name.config in Github)
+* :file:`sni.yaml` (this was for a while named ssl_server_name.yaml in Github)
+
+HTTP/2
+------
+
+HTTP/2 is enabled by default in ATS v9.0.0 on TLS ports. This can be customized per individual domain or globally via
+:file:`sni.yaml`. Note that this is a major behavior change compared to prior releases where HTTP/2 was explicitly
+required to be enabled per listener port via :ts:cv:`proxy.config.http.server_ports`.
 
 Configuration Settings: records.config
 --------------------------------------
@@ -51,7 +58,7 @@ Configuration Settings: records.config
 These are the changes that are most likely to cause problems during an upgrade. Take special care making sure you have updated your
 configurations accordingly.
 
-Connection management
+Connection Management
 ~~~~~~~~~~~~~~~~~~~~~
 
 The old settings for origin connection management included the following settings:
@@ -69,7 +76,13 @@ These are all gone, and replaced with the following set of configurations:
 * :ts:cv:`proxy.config.http.per_server.connection.queue_delay`
 * :ts:cv:`proxy.config.http.per_server.connection.min`
 
-Removed records.config settings
+
+Renamed records.config Settings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* `proxy.config.http.proxy_protocol_whitelist` was renamed to :ts:cv:`proxy.config.http.proxy_protocol_allowlist`
+* `proxy.config.net.max_connections_active_in` was renamed to :ts:cv:`proxy.config.net.max_requests_in`
+
+Removed records.config Settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following settings are simply gone, and have no purpose:
@@ -79,14 +92,27 @@ The following settings are simply gone, and have no purpose:
 * `proxy.config.http.server_tcp_init_cwnd` (see Solaris section below)
 * `proxy.config.http.parent_proxy_routing_enable` (implicit by use of :file:`parent.config`)
 
-All the `Vary` related configuration overrides were eliminated, prefer to set this via the origin server,
-or modify the `Vary` header on server responses instead.
+All the `Vary` related configuration overrides were eliminated, prefer to set this via the origin server, or modify the `Vary`
+header on server responses instead.
 
 * `proxy.config.http.cache.vary_default_text`
 * `proxy.config.http.cache.vary_default_images`
 * `proxy.config.http.cache.vary_default_other`
 
-Deprecated records.config settings
+SSLv3 support has been removed
+
+* `proxy.config.ssl.client.SSLv3`
+
+The option to disable the caching of an empty response (zero length body response) has been removed.  Zero length body responses are no
+longer a special case and are handled the same as a response with a non-zero length body.
+
+* `proxy.config.http.cache.allow_empty_doc`
+
+
+* `proxy.config.ssl.client.verify.server` was deprecated for ATS 8.x and has been removed.  Use
+   :ts:cv:`proxy.config.ssl.client.verify.server.properties` instead.
+
+Deprecated records.config Settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following configurations still exist, and functions, but are considered deprecated and will be removed in a future release. We
@@ -104,7 +130,7 @@ The following configurations still exist, and functions, but are considered depr
   * ``proxy.config.cache.volume_filename``
   * ``proxy.config.dns.splitdns.filename``
 
-Settings with new defaults
+Settings With New Defaults
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following settings have changed from being `on` by default, to being off:
@@ -114,18 +140,48 @@ The following settings have changed from being `on` by default, to being off:
 * :ts:cv:`proxy.config.ssl.client.TLSv1`
 * :ts:cv:`proxy.config.ssl.client.TLSv1_1`
 
+The default cipher list has changed:
+* :ts:cv:`proxy.config.ssl.server.cipher_suite`
+
+* :ts:cv:`proxy.config.exec_thread.autoconfig.scale` went from a value of 1.5 to 1.  This controls the number of worker threads and
+  the ratio is now worker thread 1 to 1 processing thread on the CPU or CPUs.
+
+
+Settings with new behavior
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+* :ts:cv:`proxy.config.http.connect_attempts_max_retries_dead_server` specifies the exact number of times a dead server will be
+  retried for each new request.  Before ATS tried 1 time more than this setting making it impossible to set the retry value to 0.
 
 Metrics
 -------
 
-Renamed or modified metrics
+Renamed or Modified Metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 `proxy.process.http2.current_client_sessions` is renamed to be :ts:stat:`proxy.process.http2.current_client_connections`
 
-:ts:stat:`proxy.process.http.current_client_transactions` used to record both the number current of HTTP/1.1 and HTTP/2 requests.  Now it only records
-the number current of HTTP/1.1 client requests.  Please use :ts:stat:`proxy.process.http2.current_client_streams` to get the number of current HTTP/2
-client requests.
+:ts:stat:`proxy.process.http.current_client_transactions` used to record both the number current of HTTP/1.1 and HTTP/2 requests.
+Now it only records the number current of HTTP/1.1 client requests.  Please use
+:ts:stat:`proxy.process.http2.current_client_streams` to get the number of current HTTP/2 client requests.
+
+Removed Metrics
+~~~~~~~~~~~~~~~
+
+The following metrics have been removed.
+
+* `proxy.process.ssl.ssl_error_want_read`
+* `proxy.process.ssl.ssl_error_want_write`
+* `proxy.process.ssl.ssl_error_want_x509_lookup`
+* `proxy.process.ssl.ssl_error_zero_return`
+
+Command Line Options
+--------------------
+
+The following command line options were either renamed or removed.
+
+* `--with-max-api-stats` was replace with `--maxRecords` to specify the total number of metric instead of just the total API metrics
+  to use when running ATS.
+* `--read_core` was removed and gdb should be used instead.
 
 Deprecated or Removed Features
 ------------------------------
@@ -135,6 +191,14 @@ should be avoided, with the expectation that they will be removed in the next ma
 
 Removed the log collation feature along with its configuration settings (`proxy.local.log.collation*`).
 
+Rollback Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+The rollback configuration code was removed in for ATS v9.0.0.  This featured copied the configuration files to have version numbers
+if the end user wanted to rollback to a previous version of the configuration.
+
+`records.config.shadow` and `records.config.snap` support has also been removed in order to clean up and simply loading of
+configuration files.
+
 API Changes
 -----------
 
@@ -143,15 +207,16 @@ Our APIs are guaranteed to be compatible within major versions, but we do make c
 Removed APIs
 ~~~~~~~~~~~~
 
-* ``TSHttpTxnRedirectRequest()``
+* :func:`TSHttpTxnRedirectRequest`
 
-Renamed or modified APIs
+Renamed or Modified APIs
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``TSVConnSSLConnectionGet()`` is renamed to be :c:func:`TSVConnSslConnectionGet`
-
-* ``TSHttpTxnServerPush()`` now returns a :c:type:`TSReturnCode`
-
+* :func:`TSVConnSSLConnectionGet` is renamed to be :func:`TSVConnSslConnectionGet`
+* :func:`TSHttpTxnServerPush` now returns a :c:type:`TSReturnCode`
+* :func:`TSContSchedule` and :func:`TSContScheduleAPI` by default will run on the same thread from which they are called.
+* :func:`TSFetchUrl` and :func:`TSFetchCreate` now return a :c:type:`TSFetchSM`
+* :func:`TSHttpArgIndexReserve` is now renamed to be :func:`TSHttpTxnArgIndexReserve`
 
 Cache
 -----
@@ -164,11 +229,33 @@ in a remap rule would get the pristine URL, and subsequent plugins would get the
 receive the remapped URL. If you are using a plugin that modifies the cache key, e.g. :ref:`admin-plugins-cachekey`, if it was
 evaluated first in a remap rule, the behavior (input) changes, and therefore, cache keys can change!
 
-Caches created with ATS v2.x are incompatible and can't be loading into ATS v9.0.0 or later. We feel that this is an unlikely scenario,
-but if you do run into this, clearing the cache is required.
+Caches created with ATS v2.x are incompatible and can't be loading into ATS v9.0.0 or later. We feel that this is an unlikely
+scenario, but if you do run into this, clearing the cache is required.
 
 Plugins
 -------
+
+Promoted Plugins
+~~~~~~~~~~~~~~~~
+
+The following plugins have been promoted from experimental to stable plugins:
+* :ts:cv:`cache_range_requests`
+* :ts:cv:`certifier`
+* :ts:cv:`multiplexer`
+* :ts:cv:`prefetch`
+* :ts:cv:`remap_purge`
+
+Removed Plugins
+~~~~~~~~~~~~~~~
+
+The following plugins have been removed because they are no longer used or maintained:
+* `balancer`
+* `buffer_uplaod`
+* `header_normalize`
+* `hipes`
+* `memcached_remap`
+* `stale_while_revalidate`
+* `mysql_remap`
 
 The following plugins have changes that might require you to change
 configurations.
@@ -181,13 +268,23 @@ Header Rewrite
 
 * `header-rewrite-expansion` was removed and replaced with `header-rewrite-concatenations`
 
-Library Dependencies
---------------------
-TCL is no longer required to build ATS.
+Cache Key
+~~~~~~~~~
+* `--ua-blacklist` was renamed to `--ua-blocklist` and `--ua-whitelist` was renamed to `--ua-allowlist`
 
-The minium OpenSSL version to build ATS is now 1.0.2.
+Logging
+-------
+* cqhv has been deprecated and cqpv should be used instead.
 
-Platform specific
+Library Dependencies and Builds
+-------------------------------
+* TCL is no longer required to build ATS.
+* The minium OpenSSL version to build ATS is now 1.0.2.
+* To build the documentation we now require Sphinx 2.0.1
+* CentOS 6 support has been removed.
+* Ubuntu 14.04 support has been removed.
+
+Platform Specific
 -----------------
 
 Solaris is no longer a supported platform, but the code is still there. However, it's unlikely to work, and unless someone takes on

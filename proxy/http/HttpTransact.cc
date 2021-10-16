@@ -3779,7 +3779,7 @@ HttpTransact::handle_response_from_server(State *s)
         return CallOSDNSLookup(s);
       } else if ((s->dns_info.srv_lookup_success || s->host_db_info.is_rr_elt()) &&
                  (s->txn_conf->connect_attempts_rr_retries > 0) &&
-                 (s->current.attempts % s->txn_conf->connect_attempts_rr_retries == 0)) {
+                 ((s->current.attempts + 1) % s->txn_conf->connect_attempts_rr_retries == 0)) {
         delete_server_rr_entry(s, max_connect_retries);
         return;
       } else {
@@ -4376,68 +4376,72 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
          server_response_code == HTTP_STATUS_BAD_GATEWAY || server_response_code == HTTP_STATUS_SERVICE_UNAVAILABLE) &&
         s->cache_info.action == CACHE_DO_UPDATE && s->txn_conf->negative_revalidating_enabled &&
         is_stale_cache_response_returnable(s)) {
-      TxnDebug("http_trans", "[hcoofsr] negative revalidating: revalidate stale object and serve from cache");
+      HTTPStatus cached_response_code = s->cache_info.object_read->response_get()->status_get();
+      if (!(cached_response_code == HTTP_STATUS_INTERNAL_SERVER_ERROR || cached_response_code == HTTP_STATUS_GATEWAY_TIMEOUT ||
+            cached_response_code == HTTP_STATUS_BAD_GATEWAY || cached_response_code == HTTP_STATUS_SERVICE_UNAVAILABLE)) {
+        TxnDebug("http_trans", "[hcoofsr] negative revalidating: revalidate stale object and serve from cache");
 
-      s->cache_info.object_store.create();
-      s->cache_info.object_store.request_set(&s->hdr_info.client_request);
-      s->cache_info.object_store.response_set(s->cache_info.object_read->response_get());
-      base_response   = s->cache_info.object_store.response_get();
-      time_t exp_time = s->txn_conf->negative_revalidating_lifetime + ink_local_time();
-      base_response->set_expires(exp_time);
+        s->cache_info.object_store.create();
+        s->cache_info.object_store.request_set(&s->hdr_info.client_request);
+        s->cache_info.object_store.response_set(s->cache_info.object_read->response_get());
+        base_response   = s->cache_info.object_store.response_get();
+        time_t exp_time = s->txn_conf->negative_revalidating_lifetime + ink_local_time();
+        base_response->set_expires(exp_time);
 
-      SET_VIA_STRING(VIA_CACHE_FILL_ACTION, VIA_CACHE_UPDATED);
-      HTTP_INCREMENT_DYN_STAT(http_cache_updates_stat);
+        SET_VIA_STRING(VIA_CACHE_FILL_ACTION, VIA_CACHE_UPDATED);
+        HTTP_INCREMENT_DYN_STAT(http_cache_updates_stat);
 
-      // unset Cache-control: "need-revalidate-once" (if it's set)
-      // This directive is used internally by T.S. to invalidate
-      // documents so that an invalidated document needs to be
-      // revalidated again.
-      base_response->unset_cooked_cc_need_revalidate_once();
+        // unset Cache-control: "need-revalidate-once" (if it's set)
+        // This directive is used internally by T.S. to invalidate
+        // documents so that an invalidated document needs to be
+        // revalidated again.
+        base_response->unset_cooked_cc_need_revalidate_once();
 
-      if (is_request_conditional(&s->hdr_info.client_request) &&
-          HttpTransactCache::match_response_to_request_conditionals(&s->hdr_info.client_request,
-                                                                    s->cache_info.object_read->response_get(),
-                                                                    s->response_received_time) == HTTP_STATUS_NOT_MODIFIED) {
-        s->next_action       = SM_ACTION_INTERNAL_CACHE_UPDATE_HEADERS;
-        client_response_code = HTTP_STATUS_NOT_MODIFIED;
-      } else {
-        if (s->method == HTTP_WKSIDX_HEAD) {
-          s->cache_info.action = CACHE_DO_UPDATE;
-          s->next_action       = SM_ACTION_INTERNAL_CACHE_NOOP;
+        if (is_request_conditional(&s->hdr_info.client_request) &&
+            HttpTransactCache::match_response_to_request_conditionals(&s->hdr_info.client_request,
+                                                                      s->cache_info.object_read->response_get(),
+                                                                      s->response_received_time) == HTTP_STATUS_NOT_MODIFIED) {
+          s->next_action       = SM_ACTION_INTERNAL_CACHE_UPDATE_HEADERS;
+          client_response_code = HTTP_STATUS_NOT_MODIFIED;
         } else {
-          s->cache_info.action = CACHE_DO_SERVE_AND_UPDATE;
-          s->next_action       = SM_ACTION_SERVE_FROM_CACHE;
+          if (s->method == HTTP_WKSIDX_HEAD) {
+            s->cache_info.action = CACHE_DO_UPDATE;
+            s->next_action       = SM_ACTION_INTERNAL_CACHE_NOOP;
+          } else {
+            s->cache_info.action = CACHE_DO_SERVE_AND_UPDATE;
+            s->next_action       = SM_ACTION_SERVE_FROM_CACHE;
+          }
+
+          client_response_code = s->cache_info.object_read->response_get()->status_get();
         }
 
-        client_response_code = s->cache_info.object_read->response_get()->status_get();
+        ink_assert(base_response->valid());
+
+        if (client_response_code == HTTP_STATUS_NOT_MODIFIED) {
+          ink_assert(GET_VIA_STRING(VIA_CLIENT_REQUEST) != VIA_CLIENT_SIMPLE);
+          SET_VIA_STRING(VIA_CLIENT_REQUEST, VIA_CLIENT_IMS);
+          SET_VIA_STRING(VIA_PROXY_RESULT, VIA_PROXY_NOT_MODIFIED);
+        } else {
+          SET_VIA_STRING(VIA_PROXY_RESULT, VIA_PROXY_SERVED);
+        }
+
+        ink_assert(client_response_code != HTTP_STATUS_NONE);
+
+        if (s->next_action == SM_ACTION_SERVE_FROM_CACHE && s->state_machine->do_transform_open()) {
+          set_header_for_transform(s, base_response);
+        } else {
+          build_response(s, base_response, &s->hdr_info.client_response, s->client_info.http_version, client_response_code);
+        }
+
+        return;
       }
-
-      ink_assert(base_response->valid());
-
-      if (client_response_code == HTTP_STATUS_NOT_MODIFIED) {
-        ink_assert(GET_VIA_STRING(VIA_CLIENT_REQUEST) != VIA_CLIENT_SIMPLE);
-        SET_VIA_STRING(VIA_CLIENT_REQUEST, VIA_CLIENT_IMS);
-        SET_VIA_STRING(VIA_PROXY_RESULT, VIA_PROXY_NOT_MODIFIED);
-      } else {
-        SET_VIA_STRING(VIA_PROXY_RESULT, VIA_PROXY_SERVED);
-      }
-
-      ink_assert(client_response_code != HTTP_STATUS_NONE);
-
-      if (s->next_action == SM_ACTION_SERVE_FROM_CACHE && s->state_machine->do_transform_open()) {
-        set_header_for_transform(s, base_response);
-      } else {
-        build_response(s, base_response, &s->hdr_info.client_response, s->client_info.http_version, client_response_code);
-      }
-
-      return;
     }
 
     s->next_action       = SM_ACTION_SERVER_READ;
     client_response_code = server_response_code;
     base_response        = &s->hdr_info.server_response;
 
-    s->is_cacheable_and_negative_caching_is_enabled = cacheable && s->txn_conf->negative_caching_enabled;
+    s->is_cacheable_due_to_negative_caching_configuration = cacheable && is_negative_caching_appropriate(s);
 
     // determine the correct cache action given the original cache action,
     // cacheability of server response, and request method
@@ -4499,7 +4503,7 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
     //   before issuing a 304
     if (s->cache_info.action == CACHE_DO_WRITE || s->cache_info.action == CACHE_DO_NO_ACTION ||
         s->cache_info.action == CACHE_DO_REPLACE) {
-      if (s->is_cacheable_and_negative_caching_is_enabled) {
+      if (s->is_cacheable_due_to_negative_caching_configuration) {
         HTTPHdr *resp;
         s->cache_info.object_store.create();
         s->cache_info.object_store.request_set(&s->hdr_info.client_request);
@@ -4535,8 +4539,8 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
           SET_VIA_STRING(VIA_PROXY_RESULT, VIA_PROXY_SERVER_REVALIDATED);
         }
       }
-    } else if (s->is_cacheable_and_negative_caching_is_enabled) {
-      s->is_cacheable_and_negative_caching_is_enabled = false;
+    } else if (s->is_cacheable_due_to_negative_caching_configuration) {
+      s->is_cacheable_due_to_negative_caching_configuration = false;
     }
 
     break;
@@ -4946,7 +4950,7 @@ HttpTransact::set_headers_for_cache_write(State *s, HTTPInfo *cache_info, HTTPHd
      sites yields no insight. So the assert is removed and we keep the behavior that if the response
      in @a cache_info is already set, we don't override it.
   */
-  if (!s->is_cacheable_and_negative_caching_is_enabled || !cache_info->response_get()->valid()) {
+  if (!s->is_cacheable_due_to_negative_caching_configuration || !cache_info->response_get()->valid()) {
     cache_info->response_set(response);
   }
 
@@ -6678,6 +6682,7 @@ HttpTransact::will_this_request_self_loop(State *s)
         TxnDebug("http_transact", "unknown's ip and port same as local ip and port - bailing");
         break;
       }
+      SET_VIA_STRING(VIA_ERROR_TYPE, VIA_ERROR_LOOP_DETECTED);
       build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Cycle Detected", "request#cycle_detected");
       return true;
     }
@@ -6885,7 +6890,7 @@ HttpTransact::handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPH
     case KA_CONNECTION:
       ink_assert(s->current.server->keep_alive != HTTP_NO_KEEPALIVE);
       if (ver == HTTPVersion(1, 0)) {
-        if (s->current.request_to == PARENT_PROXY) {
+        if (s->current.request_to == PARENT_PROXY && parent_is_proxy(s)) {
           heads->value_set(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, "keep-alive", 10);
         } else {
           heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "keep-alive", 10);
@@ -6899,7 +6904,7 @@ HttpTransact::handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPH
       if (s->current.server->keep_alive != HTTP_NO_KEEPALIVE || (ver == HTTPVersion(1, 1))) {
         /* Had keep-alive */
         s->current.server->keep_alive = HTTP_NO_KEEPALIVE;
-        if (s->current.request_to == PARENT_PROXY) {
+        if (s->current.request_to == PARENT_PROXY && parent_is_proxy(s)) {
           heads->value_set(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, "close", 5);
         } else {
           heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "close", 5);
@@ -7595,10 +7600,18 @@ HttpTransact::handle_parent_died(State *s)
 {
   ink_assert(s->parent_result.result == PARENT_FAIL);
 
-  if (s->current.state == OUTBOUND_CONGESTION) {
+  switch (s->current.state) {
+  case OUTBOUND_CONGESTION:
     build_error_response(s, HTTP_STATUS_SERVICE_UNAVAILABLE, "Next Hop Congested", "congestion#retryAfter");
-  } else {
-    build_error_response(s, HTTP_STATUS_BAD_GATEWAY, "Next Hop Connection Failed", "connect#failed_connect");
+    break;
+  case INACTIVE_TIMEOUT:
+    build_error_response(s, HTTP_STATUS_GATEWAY_TIMEOUT, "Next Hop Timeout", "timeout#inactivity");
+    break;
+  case ACTIVE_TIMEOUT:
+    build_error_response(s, HTTP_STATUS_GATEWAY_TIMEOUT, "Next Hop Timeout", "timeout#activity");
+    break;
+  default:
+    build_error_response(s, HTTP_STATUS_BAD_GATEWAY, "Next Hop Connection Failed", "connect");
   }
   TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, nullptr);
 }
