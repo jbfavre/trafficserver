@@ -1,7 +1,6 @@
-0001-Use-mcx16-on-x86-platforms-only.patch
 0003-reproductible-build.patch
 0006-fix-doc-build.patch
 0008-fix-python-check-unused-dependencies.patch
 0013-fix-perl-interpreter-path.patch
 0014-use_system_yaml-cpp.patch
-0017-fix_sphinx_3.0.patch
+0015-workaround-python3-sphinxcontrib.plantuml-bug
