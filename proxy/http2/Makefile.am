@@ -54,11 +54,6 @@ libhttp2_a_SOURCES = \
 	Http2SessionAccept.cc \
 	Http2SessionAccept.h
 
-if BUILD_TESTS
-libhttp2_a_SOURCES += \
-	RegressionHPACK.cc
-endif
-
 check_PROGRAMS = \
 	test_libhttp2 \
 	test_Http2DependencyTree \
@@ -71,11 +66,12 @@ TESTS = $(check_PROGRAMS)
 # Be careful if you change the order. Details in GitHub #6666
 test_libhttp2_LDADD = \
 	libhttp2.a \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/proxy/hdrs/libhdrs.a \
-	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/lib/records/librecords_p.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
 	@HWLOC_LIBS@
@@ -86,6 +82,7 @@ test_libhttp2_CPPFLAGS = $(AM_CPPFLAGS)\
 test_libhttp2_SOURCES = \
 	unit_tests/test_HTTP2.cc \
 	unit_tests/test_Http2Frame.cc \
+	unit_tests/test_HpackIndexingTable.cc \
 	unit_tests/main.cc
 
 test_Http2DependencyTree_LDADD = \

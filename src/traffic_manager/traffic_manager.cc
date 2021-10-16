@@ -52,6 +52,8 @@
 #include "records/P_RecLocal.h"
 #include "DerivativeMetrics.h"
 
+#include <random>
+
 #if TS_USE_POSIX_CAP
 #include <sys/capability.h>
 #endif
@@ -81,14 +83,14 @@ extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer,
 
 static AppVersionInfo appVersionInfo; // Build info for this application
 
-static inkcoreapi DiagsConfig *diagsConfig;
-static char debug_tags[1024]  = "";
-static char action_tags[1024] = "";
-static int proxy_off          = false;
-static int listen_off         = false;
-static char bind_stdout[512]  = "";
-static char bind_stderr[512]  = "";
-static const char *mgmt_path  = nullptr;
+static inkcoreapi DiagsConfig *diagsConfig = nullptr;
+static char debug_tags[1024]               = "";
+static char action_tags[1024]              = "";
+static int proxy_off                       = false;
+static int listen_off                      = false;
+static char bind_stdout[512]               = "";
+static char bind_stderr[512]               = "";
+static const char *mgmt_path               = nullptr;
 
 // By default, set the current directory as base
 static const char *recs_conf = ts::filename::RECORDS;
@@ -490,7 +492,8 @@ main(int argc, const char **argv)
   char *tsArgs       = nullptr;
   int disable_syslog = false;
   char userToRunAs[MAX_LOGIN + 1];
-  RecInt fds_throttle = -1;
+  RecInt fds_throttle        = -1;
+  bool printed_unrecoverable = false;
 
   ArgumentDescription argument_descriptions[] = {
     {"proxyOff", '-', "Disable proxy", "F", &proxy_off, nullptr, nullptr},
@@ -708,9 +711,18 @@ main(int argc, const char **argv)
 
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.draining", 0, RECP_NON_PERSISTENT);
 
-  const int MAX_SLEEP_S      = 60; // Max sleep duration
-  int sleep_time             = 0;  // sleep_time given in sec
-  uint64_t last_start_epoc_s = 0;  // latest start attempt in seconds since epoc
+  int sleep_time             = 0; // sleep_time given in sec
+  uint64_t last_start_epoc_s = 0; // latest start attempt in seconds since epoc
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<> dis(0.0, 0.5);
+
+  RecInt sleep_ceiling = 60;
+  RecGetRecordInt("proxy.node.config.manager_exponential_sleep_ceiling", &sleep_ceiling);
+  RecInt retry_cap = 0; // 0  means no cap.
+  RecGetRecordInt("proxy.node.config.manager_retry_cap", &retry_cap);
+  bool ignore_retry_cap{retry_cap <= 0};
 
   DerivativeMetrics derived; // This is simple class to calculate some useful derived metrics
 
@@ -798,12 +810,19 @@ main(int argc, const char **argv)
       break;
     }
 
-    if (lmgmt->run_proxy && !lmgmt->processRunning() && lmgmt->proxy_recoverable) { /* Make sure we still have a proxy up */
+    if (lmgmt->run_proxy && !lmgmt->processRunning() && lmgmt->proxy_recoverable &&
+        (retry_cap > 0 || ignore_retry_cap)) { /* Make sure we still have a proxy up */
       const uint64_t now = static_cast<uint64_t>(time(nullptr));
-      if (sleep_time && ((now - last_start_epoc_s) < MAX_SLEEP_S)) {
-        mgmt_log("Relaunching proxy after %d sec...", sleep_time);
-        millisleep(1000 * sleep_time); // we use millisleep instead of sleep because it doesnt interfere with signals
-        sleep_time = std::min(sleep_time * 2, MAX_SLEEP_S);
+      if (sleep_time && ((now - last_start_epoc_s) < static_cast<uint64_t>(sleep_ceiling))) {
+        const auto variance = dis(gen);
+        // We add a bit of variance to the regular sleep time.
+        const int mod_sleep_time = sleep_time + static_cast<int>(sleep_time * variance);
+        mgmt_log("Relaunching proxy after %d sec..", mod_sleep_time);
+        if (!ignore_retry_cap && sleep_time >= sleep_ceiling) {
+          --retry_cap;
+        }
+        millisleep((1000 * mod_sleep_time)); // we use millisleep instead of sleep because it doesnt interfere with signals
+        sleep_time = std::min<int>(sleep_time * 2, sleep_ceiling);
       } else {
         sleep_time = 1;
       }
@@ -813,9 +832,12 @@ main(int argc, const char **argv)
       } else {
         just_started++;
       }
-    } else { /* Give the proxy a chance to fire up */
-      if (!lmgmt->proxy_recoverable) {
+    } else {
+      // Even if we shouldn't try to start the proxy again, leave manager around to
+      // avoid external automated restarts
+      if (!lmgmt->proxy_recoverable && !printed_unrecoverable) {
         mgmt_log("[main] Proxy is un-recoverable. Proxy will not be relaunched.\n");
+        printed_unrecoverable = true;
       }
 
       just_started++;
@@ -902,6 +924,22 @@ SignalHandler(int sig)
 
   if (sig == SIGHUP) {
     sigHupNotifier = 1;
+    return;
+  }
+
+  if (sig == SIGUSR2) {
+    fprintf(stderr, "[TrafficManager] ==> received SIGUSR2, rotating the logs.\n");
+    mgmt_log("[TrafficManager] ==> received SIGUSR2, rotating the logs.\n");
+    if (lmgmt && lmgmt->watched_process_pid != -1) {
+      kill(lmgmt->watched_process_pid, sig);
+    }
+    diags->set_std_output(StdStream::STDOUT, bind_stdout);
+    diags->set_std_output(StdStream::STDERR, bind_stderr);
+    if (diags->reseat_diagslog()) {
+      Note("Reseated %s", DIAGS_LOG_FILENAME);
+    } else {
+      Note("Could not reseat %s", DIAGS_LOG_FILENAME);
+    }
     return;
   }
 

@@ -36,10 +36,9 @@ server.addResponse("sessionlog.json", request_header, response_header)
 
 # Disable the cache to make sure each request is forwarded to the origin
 # server.
-ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True, enable_cache=False)
+ts = Test.MakeATSProcess("ts", enable_tls=True, enable_cache=False)
 
-ts.addSSLfile("ssl/server.pem")
-ts.addSSLfile("ssl/server.key")
+ts.addDefaultSSLFiles()
 # ts.addSSLfile("ssl/signer.pem")
 
 ts.Disk.records_config.update({

@@ -112,6 +112,54 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 
 VPATH = @srcdir@
 am__is_gnu_make = { \
@@ -185,6 +233,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 noinst_PROGRAMS = gold_tests/chunked_encoding/smuggle-client$(EXEEXT) \
+	gold_tests/timeout/ssl-delay-server$(EXEEXT) \
 	gold_tests/tls/ssl-post$(EXEEXT)
 TESTS =
 subdir = tests
@@ -199,6 +248,7 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
 	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
+	$(top_srcdir)/build/boringocsp.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
@@ -221,16 +271,30 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 PROGRAMS = $(noinst_PROGRAMS)
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-tools_plugins_cert_update_la_LIBADD =
+gold_tests_continuations_plugins_session_id_verify_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
-am_tools_plugins_cert_update_la_OBJECTS =  \
-	tools/plugins/cert_update.lo
-tools_plugins_cert_update_la_OBJECTS =  \
-	$(am_tools_plugins_cert_update_la_OBJECTS)
+am_gold_tests_continuations_plugins_session_id_verify_la_OBJECTS =  \
+	gold_tests/continuations/plugins/session_id_verify.lo
+gold_tests_continuations_plugins_session_id_verify_la_OBJECTS = $(am_gold_tests_continuations_plugins_session_id_verify_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+gold_tests_pluginTest_tsapi_test_tsapi_la_LIBADD =
+am_gold_tests_pluginTest_tsapi_test_tsapi_la_OBJECTS =  \
+	gold_tests/pluginTest/tsapi/test_tsapi.lo
+gold_tests_pluginTest_tsapi_test_tsapi_la_OBJECTS =  \
+	$(am_gold_tests_pluginTest_tsapi_test_tsapi_la_OBJECTS)
+tools_plugins_async_engine_la_LIBADD =
+am_tools_plugins_async_engine_la_OBJECTS =  \
+	tools/plugins/async_engine.lo
+tools_plugins_async_engine_la_OBJECTS =  \
+	$(am_tools_plugins_async_engine_la_OBJECTS)
+tools_plugins_cert_update_la_LIBADD =
+am_tools_plugins_cert_update_la_OBJECTS =  \
+	tools/plugins/cert_update.lo
+tools_plugins_cert_update_la_OBJECTS =  \
+	$(am_tools_plugins_cert_update_la_OBJECTS)
 tools_plugins_conf_remap_stripped_la_LIBADD =
 am_tools_plugins_conf_remap_stripped_la_OBJECTS =  \
 	tools/plugins/conf_remap_stripped.lo
@@ -315,10 +379,6 @@ am_tools_plugins_test_log_interface_la_OBJECTS =  \
 	tools/plugins/test_log_interface.lo
 tools_plugins_test_log_interface_la_OBJECTS =  \
 	$(am_tools_plugins_test_log_interface_la_OBJECTS)
-tools_plugins_test_tsapi_la_LIBADD =
-am_tools_plugins_test_tsapi_la_OBJECTS = tools/plugins/test_tsapi.lo
-tools_plugins_test_tsapi_la_OBJECTS =  \
-	$(am_tools_plugins_test_tsapi_la_OBJECTS)
 tools_plugins_user_args_la_LIBADD =
 am_tools_plugins_user_args_la_OBJECTS = tools/plugins/user_args.lo
 tools_plugins_user_args_la_OBJECTS =  \
@@ -328,6 +388,11 @@ am_gold_tests_chunked_encoding_smuggle_client_OBJECTS =  \
 gold_tests_chunked_encoding_smuggle_client_OBJECTS =  \
 	$(am_gold_tests_chunked_encoding_smuggle_client_OBJECTS)
 gold_tests_chunked_encoding_smuggle_client_DEPENDENCIES =
+am_gold_tests_timeout_ssl_delay_server_OBJECTS =  \
+	gold_tests/timeout/ssl-delay-server.$(OBJEXT)
+gold_tests_timeout_ssl_delay_server_OBJECTS =  \
+	$(am_gold_tests_timeout_ssl_delay_server_OBJECTS)
+gold_tests_timeout_ssl_delay_server_DEPENDENCIES =
 am_gold_tests_tls_ssl_post_OBJECTS =  \
 	gold_tests/tls/ssl-post.$(OBJEXT)
 gold_tests_tls_ssl_post_OBJECTS =  \
@@ -350,7 +415,11 @@ depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade =  \
 	gold_tests/chunked_encoding/$(DEPDIR)/smuggle-client.Po \
+	gold_tests/continuations/plugins/$(DEPDIR)/session_id_verify.Plo \
+	gold_tests/pluginTest/tsapi/$(DEPDIR)/test_tsapi.Plo \
+	gold_tests/timeout/$(DEPDIR)/ssl-delay-server.Po \
 	gold_tests/tls/$(DEPDIR)/ssl-post.Po \
+	tools/plugins/$(DEPDIR)/async_engine.Plo \
 	tools/plugins/$(DEPDIR)/cert_update.Plo \
 	tools/plugins/$(DEPDIR)/conf_remap_stripped.Plo \
 	tools/plugins/$(DEPDIR)/cont_schedule.Plo \
@@ -369,7 +438,6 @@ am__depfiles_remade =  \
 	tools/plugins/$(DEPDIR)/test_cppapi.Plo \
 	tools/plugins/$(DEPDIR)/test_hooks.Plo \
 	tools/plugins/$(DEPDIR)/test_log_interface.Plo \
-	tools/plugins/$(DEPDIR)/test_tsapi.Plo \
 	tools/plugins/$(DEPDIR)/user_args.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -408,7 +476,10 @@ AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
 am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
-SOURCES = $(tools_plugins_cert_update_la_SOURCES) \
+SOURCES = $(gold_tests_continuations_plugins_session_id_verify_la_SOURCES) \
+	$(gold_tests_pluginTest_tsapi_test_tsapi_la_SOURCES) \
+	$(tools_plugins_async_engine_la_SOURCES) \
+	$(tools_plugins_cert_update_la_SOURCES) \
 	$(tools_plugins_conf_remap_stripped_la_SOURCES) \
 	$(tools_plugins_cont_schedule_la_SOURCES) \
 	$(tools_plugins_continuations_verify_la_SOURCES) \
@@ -425,11 +496,14 @@ SOURCES = $(tools_plugins_cert_update_la_SOURCES) \
 	$(tools_plugins_test_cppapi_la_SOURCES) \
 	$(tools_plugins_test_hooks_la_SOURCES) \
 	$(tools_plugins_test_log_interface_la_SOURCES) \
-	$(tools_plugins_test_tsapi_la_SOURCES) \
 	$(tools_plugins_user_args_la_SOURCES) \
 	$(gold_tests_chunked_encoding_smuggle_client_SOURCES) \
+	$(gold_tests_timeout_ssl_delay_server_SOURCES) \
 	$(gold_tests_tls_ssl_post_SOURCES)
-DIST_SOURCES = $(tools_plugins_cert_update_la_SOURCES) \
+DIST_SOURCES = $(gold_tests_continuations_plugins_session_id_verify_la_SOURCES) \
+	$(gold_tests_pluginTest_tsapi_test_tsapi_la_SOURCES) \
+	$(tools_plugins_async_engine_la_SOURCES) \
+	$(tools_plugins_cert_update_la_SOURCES) \
 	$(tools_plugins_conf_remap_stripped_la_SOURCES) \
 	$(tools_plugins_cont_schedule_la_SOURCES) \
 	$(tools_plugins_continuations_verify_la_SOURCES) \
@@ -446,9 +520,9 @@ DIST_SOURCES = $(tools_plugins_cert_update_la_SOURCES) \
 	$(tools_plugins_test_cppapi_la_SOURCES) \
 	$(tools_plugins_test_hooks_la_SOURCES) \
 	$(tools_plugins_test_log_interface_la_SOURCES) \
-	$(tools_plugins_test_tsapi_la_SOURCES) \
 	$(tools_plugins_user_args_la_SOURCES) \
 	$(gold_tests_chunked_encoding_smuggle_client_SOURCES) \
+	$(gold_tests_timeout_ssl_delay_server_SOURCES) \
 	$(gold_tests_tls_ssl_post_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
@@ -695,6 +769,9 @@ am__set_b = \
 DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/gold_tests/chunked_encoding/Makefile.inc \
+	$(srcdir)/gold_tests/continuations/plugins/Makefile.inc \
+	$(srcdir)/gold_tests/pluginTest/tsapi/Makefile.inc \
+	$(srcdir)/gold_tests/timeout/Makefile.inc \
 	$(srcdir)/gold_tests/tls/Makefile.inc \
 	$(srcdir)/tools/plugins/Makefile.inc \
 	$(top_srcdir)/build/_aux/depcomp \
@@ -753,6 +830,9 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BORINGOCSP_INCLUDES = @BORINGOCSP_INCLUDES@
+BORINGOCSP_LDFLAGS = @BORINGOCSP_LDFLAGS@
+BORINGOCSP_LIBS = @BORINGOCSP_LIBS@
 BROTLIENC_CFLAGS = @BROTLIENC_CFLAGS@
 BROTLIENC_LIB = @BROTLIENC_LIB@
 CC = @CC@
@@ -791,7 +871,7 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEO_LIBS = @GEO_LIBS@
+GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
@@ -948,12 +1028,14 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_boringocsp = @has_boringocsp@
 has_expensive_tests = @has_expensive_tests@
+has_geoip = @has_geoip@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
-has_maxmind = @has_maxmind@
+has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
@@ -961,6 +1043,7 @@ has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_session_ticket = @has_tls_session_ticket@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -1021,6 +1104,7 @@ rel_prefix = @rel_prefix@
 rel_runtimedir = @rel_runtimedir@
 rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
+runstatedir = @runstatedir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
@@ -1030,12 +1114,15 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_boringocsp = @use_boringocsp@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
 use_hkdf = @use_hkdf@
+use_hrw_geoip = @use_hrw_geoip@
+use_hrw_maxminddb = @use_hrw_maxminddb@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -1082,7 +1169,10 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
 # All this clearly requires GNU make.
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
-noinst_LTLIBRARIES = tools/plugins/cert_update.la \
+noinst_LTLIBRARIES =  \
+	gold_tests/continuations/plugins/session_id_verify.la \
+	gold_tests/pluginTest/tsapi/test_tsapi.la \
+	tools/plugins/cert_update.la \
 	tools/plugins/conf_remap_stripped.la \
 	tools/plugins/continuations_verify.la \
 	tools/plugins/cont_schedule.la \
@@ -1097,11 +1187,15 @@ noinst_LTLIBRARIES = tools/plugins/cert_update.la \
 	tools/plugins/ssl_verify_test.la \
 	tools/plugins/ssntxnorder_verify.la \
 	tools/plugins/test_cppapi.la tools/plugins/test_hooks.la \
-	tools/plugins/test_log_interface.la \
-	tools/plugins/test_tsapi.la tools/plugins/user_args.la
+	tools/plugins/test_log_interface.la tools/plugins/user_args.la \
+	tools/plugins/async_engine.la
 SUBDIRS = 
+gold_tests_continuations_plugins_session_id_verify_la_SOURCES = gold_tests/continuations/plugins/session_id_verify.cc
 gold_tests_chunked_encoding_smuggle_client_SOURCES = gold_tests/chunked_encoding/smuggle-client.c
 gold_tests_chunked_encoding_smuggle_client_LDADD = -lssl
+gold_tests_pluginTest_tsapi_test_tsapi_la_SOURCES = gold_tests/pluginTest/tsapi/test_tsapi.cc
+gold_tests_timeout_ssl_delay_server_SOURCES = gold_tests/timeout/ssl-delay-server.cc
+gold_tests_timeout_ssl_delay_server_LDADD = -lssl -lcrypto
 gold_tests_tls_ssl_post_SOURCES = gold_tests/tls/ssl-post.c
 gold_tests_tls_ssl_post_LDADD = -lssl -lcrypto
 tools_plugins_cert_update_la_SOURCES = tools/plugins/cert_update.cc
@@ -1130,13 +1224,13 @@ tools_plugins_test_cppapi_la_LDFLAGS = \
 tools_plugins_test_cppapi_la_LIBADD = -ltscppapi
 tools_plugins_test_hooks_la_SOURCES = tools/plugins/test_hooks.cc
 tools_plugins_test_log_interface_la_SOURCES = tools/plugins/test_log_interface.cc
-tools_plugins_test_tsapi_la_SOURCES = tools/plugins/test_tsapi.cc
 tools_plugins_user_args_la_SOURCES = tools/plugins/user_args.cc
+tools_plugins_async_engine_la_SOURCES = tools/plugins/async_engine.cc
 all: all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/gold_tests/chunked_encoding/Makefile.inc $(srcdir)/gold_tests/tls/Makefile.inc $(srcdir)/tools/plugins/Makefile.inc $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/gold_tests/continuations/plugins/Makefile.inc $(srcdir)/gold_tests/chunked_encoding/Makefile.inc $(srcdir)/gold_tests/pluginTest/tsapi/Makefile.inc $(srcdir)/gold_tests/timeout/Makefile.inc $(srcdir)/gold_tests/tls/Makefile.inc $(srcdir)/tools/plugins/Makefile.inc $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -1156,7 +1250,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles);; \
 	esac;
-$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/gold_tests/chunked_encoding/Makefile.inc $(srcdir)/gold_tests/tls/Makefile.inc $(srcdir)/tools/plugins/Makefile.inc $(am__empty):
+$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/gold_tests/continuations/plugins/Makefile.inc $(srcdir)/gold_tests/chunked_encoding/Makefile.inc $(srcdir)/gold_tests/pluginTest/tsapi/Makefile.inc $(srcdir)/gold_tests/timeout/Makefile.inc $(srcdir)/gold_tests/tls/Makefile.inc $(srcdir)/tools/plugins/Makefile.inc $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -1186,12 +1280,41 @@ clean-noinstLTLIBRARIES:
 	  echo rm -f $${locs}; \
 	  rm -f $${locs}; \
 	}
+gold_tests/continuations/plugins/$(am__dirstamp):
+	@$(MKDIR_P) gold_tests/continuations/plugins
+	@: > gold_tests/continuations/plugins/$(am__dirstamp)
+gold_tests/continuations/plugins/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) gold_tests/continuations/plugins/$(DEPDIR)
+	@: > gold_tests/continuations/plugins/$(DEPDIR)/$(am__dirstamp)
+gold_tests/continuations/plugins/session_id_verify.lo:  \
+	gold_tests/continuations/plugins/$(am__dirstamp) \
+	gold_tests/continuations/plugins/$(DEPDIR)/$(am__dirstamp)
+
+gold_tests/continuations/plugins/session_id_verify.la: $(gold_tests_continuations_plugins_session_id_verify_la_OBJECTS) $(gold_tests_continuations_plugins_session_id_verify_la_DEPENDENCIES) $(EXTRA_gold_tests_continuations_plugins_session_id_verify_la_DEPENDENCIES) gold_tests/continuations/plugins/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK)  $(gold_tests_continuations_plugins_session_id_verify_la_OBJECTS) $(gold_tests_continuations_plugins_session_id_verify_la_LIBADD) $(LIBS)
+gold_tests/pluginTest/tsapi/$(am__dirstamp):
+	@$(MKDIR_P) gold_tests/pluginTest/tsapi
+	@: > gold_tests/pluginTest/tsapi/$(am__dirstamp)
+gold_tests/pluginTest/tsapi/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) gold_tests/pluginTest/tsapi/$(DEPDIR)
+	@: > gold_tests/pluginTest/tsapi/$(DEPDIR)/$(am__dirstamp)
+gold_tests/pluginTest/tsapi/test_tsapi.lo:  \
+	gold_tests/pluginTest/tsapi/$(am__dirstamp) \
+	gold_tests/pluginTest/tsapi/$(DEPDIR)/$(am__dirstamp)
+
+gold_tests/pluginTest/tsapi/test_tsapi.la: $(gold_tests_pluginTest_tsapi_test_tsapi_la_OBJECTS) $(gold_tests_pluginTest_tsapi_test_tsapi_la_DEPENDENCIES) $(EXTRA_gold_tests_pluginTest_tsapi_test_tsapi_la_DEPENDENCIES) gold_tests/pluginTest/tsapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK)  $(gold_tests_pluginTest_tsapi_test_tsapi_la_OBJECTS) $(gold_tests_pluginTest_tsapi_test_tsapi_la_LIBADD) $(LIBS)
 tools/plugins/$(am__dirstamp):
 	@$(MKDIR_P) tools/plugins
 	@: > tools/plugins/$(am__dirstamp)
 tools/plugins/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) tools/plugins/$(DEPDIR)
 	@: > tools/plugins/$(DEPDIR)/$(am__dirstamp)
+tools/plugins/async_engine.lo: tools/plugins/$(am__dirstamp) \
+	tools/plugins/$(DEPDIR)/$(am__dirstamp)
+
+tools/plugins/async_engine.la: $(tools_plugins_async_engine_la_OBJECTS) $(tools_plugins_async_engine_la_DEPENDENCIES) $(EXTRA_tools_plugins_async_engine_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_async_engine_la_OBJECTS) $(tools_plugins_async_engine_la_LIBADD) $(LIBS)
 tools/plugins/cert_update.lo: tools/plugins/$(am__dirstamp) \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)
 
@@ -1283,11 +1406,6 @@ tools/plugins/test_log_interface.lo: tools/plugins/$(am__dirstamp) \
 
 tools/plugins/test_log_interface.la: $(tools_plugins_test_log_interface_la_OBJECTS) $(tools_plugins_test_log_interface_la_DEPENDENCIES) $(EXTRA_tools_plugins_test_log_interface_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
 	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_test_log_interface_la_OBJECTS) $(tools_plugins_test_log_interface_la_LIBADD) $(LIBS)
-tools/plugins/test_tsapi.lo: tools/plugins/$(am__dirstamp) \
-	tools/plugins/$(DEPDIR)/$(am__dirstamp)
-
-tools/plugins/test_tsapi.la: $(tools_plugins_test_tsapi_la_OBJECTS) $(tools_plugins_test_tsapi_la_DEPENDENCIES) $(EXTRA_tools_plugins_test_tsapi_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
-	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_test_tsapi_la_OBJECTS) $(tools_plugins_test_tsapi_la_LIBADD) $(LIBS)
 tools/plugins/user_args.lo: tools/plugins/$(am__dirstamp) \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)
 
@@ -1306,6 +1424,19 @@ gold_tests/chunked_encoding/smuggle-client.$(OBJEXT):  \
 gold_tests/chunked_encoding/smuggle-client$(EXEEXT): $(gold_tests_chunked_encoding_smuggle_client_OBJECTS) $(gold_tests_chunked_encoding_smuggle_client_DEPENDENCIES) $(EXTRA_gold_tests_chunked_encoding_smuggle_client_DEPENDENCIES) gold_tests/chunked_encoding/$(am__dirstamp)
 	@rm -f gold_tests/chunked_encoding/smuggle-client$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(gold_tests_chunked_encoding_smuggle_client_OBJECTS) $(gold_tests_chunked_encoding_smuggle_client_LDADD) $(LIBS)
+gold_tests/timeout/$(am__dirstamp):
+	@$(MKDIR_P) gold_tests/timeout
+	@: > gold_tests/timeout/$(am__dirstamp)
+gold_tests/timeout/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) gold_tests/timeout/$(DEPDIR)
+	@: > gold_tests/timeout/$(DEPDIR)/$(am__dirstamp)
+gold_tests/timeout/ssl-delay-server.$(OBJEXT):  \
+	gold_tests/timeout/$(am__dirstamp) \
+	gold_tests/timeout/$(DEPDIR)/$(am__dirstamp)
+
+gold_tests/timeout/ssl-delay-server$(EXEEXT): $(gold_tests_timeout_ssl_delay_server_OBJECTS) $(gold_tests_timeout_ssl_delay_server_DEPENDENCIES) $(EXTRA_gold_tests_timeout_ssl_delay_server_DEPENDENCIES) gold_tests/timeout/$(am__dirstamp)
+	@rm -f gold_tests/timeout/ssl-delay-server$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(gold_tests_timeout_ssl_delay_server_OBJECTS) $(gold_tests_timeout_ssl_delay_server_LDADD) $(LIBS)
 gold_tests/tls/$(am__dirstamp):
 	@$(MKDIR_P) gold_tests/tls
 	@: > gold_tests/tls/$(am__dirstamp)
@@ -1322,6 +1453,11 @@ gold_tests/tls/ssl-post$(EXEEXT): $(gold_tests_tls_ssl_post_OBJECTS) $(gold_test
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 	-rm -f gold_tests/chunked_encoding/*.$(OBJEXT)
+	-rm -f gold_tests/continuations/plugins/*.$(OBJEXT)
+	-rm -f gold_tests/continuations/plugins/*.lo
+	-rm -f gold_tests/pluginTest/tsapi/*.$(OBJEXT)
+	-rm -f gold_tests/pluginTest/tsapi/*.lo
+	-rm -f gold_tests/timeout/*.$(OBJEXT)
 	-rm -f gold_tests/tls/*.$(OBJEXT)
 	-rm -f tools/plugins/*.$(OBJEXT)
 	-rm -f tools/plugins/*.lo
@@ -1330,7 +1466,11 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@gold_tests/chunked_encoding/$(DEPDIR)/smuggle-client.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@gold_tests/continuations/plugins/$(DEPDIR)/session_id_verify.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@gold_tests/pluginTest/tsapi/$(DEPDIR)/test_tsapi.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@gold_tests/timeout/$(DEPDIR)/ssl-delay-server.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@gold_tests/tls/$(DEPDIR)/ssl-post.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/async_engine.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/cert_update.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/conf_remap_stripped.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/cont_schedule.Plo@am__quote@ # am--include-marker
@@ -1349,7 +1489,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/test_cppapi.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/test_hooks.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/test_log_interface.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/test_tsapi.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/user_args.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -1412,6 +1551,9 @@ mostlyclean-libtool:
 clean-libtool:
 	-rm -rf .libs _libs
 	-rm -rf gold_tests/chunked_encoding/.libs gold_tests/chunked_encoding/_libs
+	-rm -rf gold_tests/continuations/plugins/.libs gold_tests/continuations/plugins/_libs
+	-rm -rf gold_tests/pluginTest/tsapi/.libs gold_tests/pluginTest/tsapi/_libs
+	-rm -rf gold_tests/timeout/.libs gold_tests/timeout/_libs
 	-rm -rf gold_tests/tls/.libs gold_tests/tls/_libs
 	-rm -rf tools/plugins/.libs tools/plugins/_libs
 
@@ -1766,6 +1908,12 @@ distclean-generic:
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
 	-rm -f gold_tests/chunked_encoding/$(DEPDIR)/$(am__dirstamp)
 	-rm -f gold_tests/chunked_encoding/$(am__dirstamp)
+	-rm -f gold_tests/continuations/plugins/$(DEPDIR)/$(am__dirstamp)
+	-rm -f gold_tests/continuations/plugins/$(am__dirstamp)
+	-rm -f gold_tests/pluginTest/tsapi/$(DEPDIR)/$(am__dirstamp)
+	-rm -f gold_tests/pluginTest/tsapi/$(am__dirstamp)
+	-rm -f gold_tests/timeout/$(DEPDIR)/$(am__dirstamp)
+	-rm -f gold_tests/timeout/$(am__dirstamp)
 	-rm -f gold_tests/tls/$(DEPDIR)/$(am__dirstamp)
 	-rm -f gold_tests/tls/$(am__dirstamp)
 	-rm -f tools/plugins/$(DEPDIR)/$(am__dirstamp)
@@ -1785,7 +1933,11 @@ clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
 
 distclean: distclean-recursive
 		-rm -f gold_tests/chunked_encoding/$(DEPDIR)/smuggle-client.Po
+	-rm -f gold_tests/continuations/plugins/$(DEPDIR)/session_id_verify.Plo
+	-rm -f gold_tests/pluginTest/tsapi/$(DEPDIR)/test_tsapi.Plo
+	-rm -f gold_tests/timeout/$(DEPDIR)/ssl-delay-server.Po
 	-rm -f gold_tests/tls/$(DEPDIR)/ssl-post.Po
+	-rm -f tools/plugins/$(DEPDIR)/async_engine.Plo
 	-rm -f tools/plugins/$(DEPDIR)/cert_update.Plo
 	-rm -f tools/plugins/$(DEPDIR)/conf_remap_stripped.Plo
 	-rm -f tools/plugins/$(DEPDIR)/cont_schedule.Plo
@@ -1804,7 +1956,6 @@ distclean: distclean-recursive
 	-rm -f tools/plugins/$(DEPDIR)/test_cppapi.Plo
 	-rm -f tools/plugins/$(DEPDIR)/test_hooks.Plo
 	-rm -f tools/plugins/$(DEPDIR)/test_log_interface.Plo
-	-rm -f tools/plugins/$(DEPDIR)/test_tsapi.Plo
 	-rm -f tools/plugins/$(DEPDIR)/user_args.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -1852,7 +2003,11 @@ installcheck-am:
 
 maintainer-clean: maintainer-clean-recursive
 		-rm -f gold_tests/chunked_encoding/$(DEPDIR)/smuggle-client.Po
+	-rm -f gold_tests/continuations/plugins/$(DEPDIR)/session_id_verify.Plo
+	-rm -f gold_tests/pluginTest/tsapi/$(DEPDIR)/test_tsapi.Plo
+	-rm -f gold_tests/timeout/$(DEPDIR)/ssl-delay-server.Po
 	-rm -f gold_tests/tls/$(DEPDIR)/ssl-post.Po
+	-rm -f tools/plugins/$(DEPDIR)/async_engine.Plo
 	-rm -f tools/plugins/$(DEPDIR)/cert_update.Plo
 	-rm -f tools/plugins/$(DEPDIR)/conf_remap_stripped.Plo
 	-rm -f tools/plugins/$(DEPDIR)/cont_schedule.Plo
@@ -1871,7 +2026,6 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f tools/plugins/$(DEPDIR)/test_cppapi.Plo
 	-rm -f tools/plugins/$(DEPDIR)/test_hooks.Plo
 	-rm -f tools/plugins/$(DEPDIR)/test_log_interface.Plo
-	-rm -f tools/plugins/$(DEPDIR)/test_tsapi.Plo
 	-rm -f tools/plugins/$(DEPDIR)/user_args.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

@@ -183,7 +183,6 @@ typedef std::map<ts::ConstBuffer, IpAddr, CmpConstBuffferCaseInsensitive> HostsF
 struct RefCountedHostsFileMap : public RefCountObj {
   HostsFileMap hosts_file_map;
   ats_scoped_str HostFileText;
-  ink_time_t next_sync_time; // time of the next sync
 };
 
 //
@@ -370,7 +369,7 @@ HostDBRoundRobin::select_best_srv(char *target, InkRand *rand, ink_time_t now, i
   if (len == 0) { // all failed
     result = &info(current++ % good);
   } else if (weight == 0) { // srv weight is 0
-    result = &info(current++ % len);
+    result = infos[current++ % len];
   } else {
     uint32_t xx = rand->random() % weight;
     for (i = 0; i < len - 1 && xx >= infos[i]->data.srv.srv_weight; ++i)
@@ -460,7 +459,6 @@ struct HostDBContinuation : public Continuation {
   int dnsPendingEvent(int event, Event *e);
   int backgroundEvent(int event, Event *e);
   int retryEvent(int event, Event *e);
-  int removeEvent(int event, Event *e);
   int setbyEvent(int event, Event *e);
 
   /// Recompute the hash and update ancillary values.

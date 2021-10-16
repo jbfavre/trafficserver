@@ -132,7 +132,6 @@ static void mgmt_storage_device_cmd_callback(int cmd, std::string_view const &ar
 static void mgmt_lifecycle_msg_callback(ts::MemSpan<void>);
 static void init_ssl_ctx_callback(void *ctx, bool server);
 static void load_ssl_file_callback(const char *ssl_file);
-static void load_remap_file_callback(const char *remap_file);
 static void task_threads_started_callback();
 
 // We need these two to be accessible somewhere else now
@@ -282,10 +281,16 @@ public:
       signal_received[SIGUSR2] = false;
 
       Debug("log", "received SIGUSR2, reloading traffic.out");
-
       // reload output logfile (file is usually called traffic.out)
       diags->set_std_output(StdStream::STDOUT, bind_stdout);
       diags->set_std_output(StdStream::STDERR, bind_stderr);
+      if (diags->reseat_diagslog()) {
+        Note("Reseated %s", DIAGS_LOG_FILENAME);
+      } else {
+        Note("Could not reseat %s", DIAGS_LOG_FILENAME);
+      }
+      // Reload any of the other moved log files (such as the ones in logging.yaml).
+      Log::handle_log_rotation_request();
     }
 
     if (signal_received[SIGTERM] || signal_received[SIGINT]) {
@@ -1898,7 +1903,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
 #endif
 
   // setup callback for tracking remap included files
-  load_remap_file_cb = load_remap_file_callback;
+  load_remap_file_cb = load_config_file_callback;
 
   // We need to do this early so we can initialize the Machine
   // singleton, which depends on configuration values loaded in this.
@@ -2050,9 +2055,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
     HostStatus::instance().loadHostStatusFromStats();
     netProcessor.init_socks();
     ParentConfig::startup();
-#ifdef SPLIT_DNS
     SplitDNSConfig::startup();
-#endif
 
     // Initialize HTTP/2
     Http2::init();
@@ -2095,6 +2098,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
     }
     if (num_of_udp_threads) {
       udpNet.start(num_of_udp_threads, stacksize);
+      eventProcessor.thread_group[ET_UDP]._afterStartCallback = init_HttpProxyServer;
     }
 
     // Initialize Response Body Factory
@@ -2132,6 +2136,12 @@ main(int /* argc ATS_UNUSED */, const char **argv)
         proxyServerCheck.wait(lock, [] { return et_net_threads_ready; });
       }
 
+#if TS_USE_QUIC == 1
+      if (num_of_udp_threads) {
+        std::unique_lock<std::mutex> lock(etUdpMutex);
+        etUdpCheck.wait(lock, [] { return et_udp_threads_ready; });
+      }
+#endif
       // Delay only if config value set and flag value is zero
       // (-1 => cache already initialized)
       if (delay_p && ink_atomic_cas(&delay_listen_for_cache, 0, 1)) {
@@ -2275,10 +2285,10 @@ load_ssl_file_callback(const char *ssl_file)
   pmgmt->signalConfigFileChild(ts::filename::SSL_MULTICERT, ssl_file);
 }
 
-static void
-load_remap_file_callback(const char *remap_file)
+void
+load_config_file_callback(const char *parent_file, const char *remap_file)
 {
-  pmgmt->signalConfigFileChild(ts::filename::REMAP, remap_file);
+  pmgmt->signalConfigFileChild(parent_file, remap_file);
 }
 
 static void

@@ -639,28 +639,6 @@ struct RemapInstance {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// Helpers for memory management (to make sure pcre uses the TS APIs).
-//
-inline void *
-ts_malloc(size_t s)
-{
-  return TSmalloc(s);
-}
-
-inline void
-ts_free(void *s)
-{
-  return TSfree(s);
-}
-
-void
-setup_memory_allocation()
-{
-  pcre_malloc = &ts_malloc;
-  pcre_free   = &ts_free;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // Initialize the plugin.
 //
 TSReturnCode
@@ -677,7 +655,6 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
-  setup_memory_allocation();
   TSDebug(PLUGIN_NAME, "Plugin is successfully initialized");
   return TS_SUCCESS;
 }
@@ -1090,7 +1067,8 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
           const char *start = dest;
 
           // Setup the new URL
-          if (TS_PARSE_ERROR == TSUrlParse(src_url.bufp, src_url.loc, &start, start + dest_len)) {
+          if (TS_PARSE_ERROR == TSUrlParse(rri->redirect ? src_url.bufp : rri->requestBufp,
+                                           rri->redirect ? src_url.loc : rri->requestUrl, &start, start + dest_len)) {
             TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
             TSError("[%s] can't parse substituted URL string", PLUGIN_NAME);
           }

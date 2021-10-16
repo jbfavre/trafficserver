@@ -38,7 +38,7 @@
 #include <string>
 #include "tscore/ink_memory.h"
 #include "tscore/ink_inet.h"
-#include "openssl/evp.h"
+#include <openssl/evp.h>
 
 using QUICPacketNumber = uint64_t;
 using QUICVersion      = uint32_t;
@@ -373,7 +373,7 @@ public:
   bool is_valid(const IpEndpoint &src) const;
 
   const QUICConnectionId cid() const;
-  const ink_hrtime expire_time() const;
+  ink_hrtime expire_time() const;
 };
 
 class QUICRetryToken : public QUICAddressValidationToken
@@ -517,21 +517,21 @@ private:
 class QUICTPConfig
 {
 public:
-  virtual ~QUICTPConfig()                                                                          = default; // required
-  virtual uint32_t no_activity_timeout() const                                                     = 0;
-  virtual const IpEndpoint *preferred_address_ipv4() const                                         = 0;
-  virtual const IpEndpoint *preferred_address_ipv6() const                                         = 0;
-  virtual uint32_t initial_max_data() const                                                        = 0;
-  virtual uint32_t initial_max_stream_data_bidi_local() const                                      = 0;
-  virtual uint32_t initial_max_stream_data_bidi_remote() const                                     = 0;
-  virtual uint32_t initial_max_stream_data_uni() const                                             = 0;
-  virtual uint64_t initial_max_streams_bidi() const                                                = 0;
-  virtual uint64_t initial_max_streams_uni() const                                                 = 0;
-  virtual uint8_t ack_delay_exponent() const                                                       = 0;
-  virtual uint8_t max_ack_delay() const                                                            = 0;
-  virtual uint8_t active_cid_limit() const                                                         = 0;
-  virtual bool disable_active_migration() const                                                    = 0;
-  virtual std::unordered_map<uint16_t, std::pair<const uint8_t *, uint16_t>> additional_tp() const = 0;
+  virtual ~QUICTPConfig()                                                                                 = default; // required
+  virtual uint32_t no_activity_timeout() const                                                            = 0;
+  virtual const IpEndpoint *preferred_address_ipv4() const                                                = 0;
+  virtual const IpEndpoint *preferred_address_ipv6() const                                                = 0;
+  virtual uint32_t initial_max_data() const                                                               = 0;
+  virtual uint32_t initial_max_stream_data_bidi_local() const                                             = 0;
+  virtual uint32_t initial_max_stream_data_bidi_remote() const                                            = 0;
+  virtual uint32_t initial_max_stream_data_uni() const                                                    = 0;
+  virtual uint64_t initial_max_streams_bidi() const                                                       = 0;
+  virtual uint64_t initial_max_streams_uni() const                                                        = 0;
+  virtual uint8_t ack_delay_exponent() const                                                              = 0;
+  virtual uint8_t max_ack_delay() const                                                                   = 0;
+  virtual uint8_t active_cid_limit() const                                                                = 0;
+  virtual bool disable_active_migration() const                                                           = 0;
+  virtual const std::unordered_map<uint16_t, std::pair<const uint8_t *, uint16_t>> &additional_tp() const = 0;
 };
 
 class QUICLDConfig
@@ -589,6 +589,7 @@ using QUICSentPacketInfoUPtr = std::unique_ptr<QUICSentPacketInfo>;
 class QUICRTTProvider
 {
 public:
+  virtual ~QUICRTTProvider() {} // required - class has virtual methods.
   virtual ink_hrtime smoothed_rtt() const = 0;
   virtual ink_hrtime rttvar() const       = 0;
   virtual ink_hrtime latest_rtt() const   = 0;

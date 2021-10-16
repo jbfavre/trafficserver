@@ -89,8 +89,8 @@ PluginDso::load(std::string &error)
       _mtime             = fs::modification_time(fs);
       PluginDebug(_tag, "plugin '%s' modification time %ld", _configPath.c_str(), _mtime);
 
-      /* Now attemt to load the plugin DSO */
-      if ((_dlh = dlopen(_runtimePath.c_str(), RTLD_NOW)) == nullptr) {
+      /* Now attempt to load the plugin DSO */
+      if ((_dlh = dlopen(_runtimePath.c_str(), RTLD_NOW | RTLD_LOCAL)) == nullptr) {
 #if defined(freebsd) || defined(openbsd)
         char *err = (char *)dlerror();
 #else

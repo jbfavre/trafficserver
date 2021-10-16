@@ -42,23 +42,17 @@ ts.Disk.records_config.update({
 })
 
 redirect_request_header = {
-    "headers": "POST /redirect1 HTTP/1.1\r\nHost: *\r\nContent-Length: 52428800\r\n\r\n",
-    "timestamp": "5678",
-    "body": ""}
+    "headers": "POST /redirect1 HTTP/1.1\r\nHost: *\r\nContent-Length: 52428800\r\n\r\n", "timestamp": "5678", "body": ""}
 redirect_response_header = {"headers": "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{0}/redirect2\r\n\r\n".format(
     redirect_serv2.Variables.Port), "timestamp": "5678", "body": ""}
 
 redirect_request_header2 = {
-    "headers": "POST /redirect2 HTTP/1.1\r\nHost: *\r\nContent-Length: 52428800\r\n\r\n",
-    "timestamp": "5678",
-    "body": ""}
+    "headers": "POST /redirect2 HTTP/1.1\r\nHost: *\r\nContent-Length: 52428800\r\n\r\n", "timestamp": "5678", "body": ""}
 redirect_response_header2 = {"headers": "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{0}/redirectDest\r\n\r\n".format(
     dest_serv.Variables.Port), "timestamp": "5678", "body": ""}
 
 dest_request_header = {
-    "headers": "POST /redirectDest HTTP/1.1\r\nHost: *\r\nContent-Length: 52428800\r\n\r\n",
-    "timestamp": "11",
-    "body": ""}
+    "headers": "POST /redirectDest HTTP/1.1\r\nHost: *\r\nContent-Length: 52428800\r\n\r\n", "timestamp": "11", "body": ""}
 dest_response_header = {"headers": "HTTP/1.1 204 No Content\r\n\r\n", "timestamp": "22", "body": ""}
 
 redirect_serv1.addResponse("sessionfile.log", redirect_request_header, redirect_response_header)

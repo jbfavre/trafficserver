@@ -45,18 +45,6 @@
 #define LOG_ROLL_INTERVAL 86400
 #define LOG_ROLL_OFFSET 0
 
-static inline void *
-ts_malloc(size_t s)
-{
-  return TSmalloc(s);
-}
-
-static inline void
-ts_free(void *s)
-{
-  return TSfree(s);
-}
-
 typedef struct invalidate_t {
   const char *regex_text;
   pcre *regex;
@@ -454,29 +442,6 @@ main_handler(TSCont cont, TSEvent event, void *edata)
   return 0;
 }
 
-static bool
-check_ts_version()
-{
-  const char *ts_version = TSTrafficServerVersionGet();
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int micro_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &micro_ts_version) != 3) {
-      return false;
-    }
-
-    if ((TS_VERSION_MAJOR == major_ts_version) && (TS_VERSION_MINOR == minor_ts_version) &&
-        (TS_VERSION_MICRO == micro_ts_version)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -541,15 +506,6 @@ TSPluginInit(int argc, const char *argv[])
   } else {
     TSDebug(LOG_PREFIX, "Plugin registration succeeded");
   }
-
-  if (!check_ts_version()) {
-    TSError("[regex_revalidate] Plugin requires Traffic Server %d.%d.%d", TS_VERSION_MAJOR, TS_VERSION_MINOR, TS_VERSION_MICRO);
-    free_plugin_state_t(pstate);
-    return;
-  }
-
-  pcre_malloc = &ts_malloc;
-  pcre_free   = &ts_free;
 
   main_cont = TSContCreate(main_handler, NULL);
   TSContDataSet(main_cont, (void *)pstate);

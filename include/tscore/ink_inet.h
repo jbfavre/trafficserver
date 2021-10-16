@@ -45,7 +45,18 @@ IN6_IS_ADDR_UNSPECIFIED(in6_addr const *addr)
 }
 #endif
 
-// IP protocol stack tags.
+/*
+ * IP protocol stack tags.
+ *
+ * When adding support for an additional protocol, the following minimum steps
+ * should be done:
+ *
+ * 1. This set of string_views should be updated with the new tag.
+ * 2. A populate_protocol function overload should be implemented for the
+ *    appropriate VConnection or ProxySession virtual function.
+ * 3. Traffic Dump should be updated to handle the new tag in:
+ *    plugins/experimental/traffic_dump/session_data.cc
+ */
 extern const std::string_view IP_PROTO_TAG_IPV4;
 extern const std::string_view IP_PROTO_TAG_IPV6;
 extern const std::string_view IP_PROTO_TAG_UDP;
@@ -170,8 +181,10 @@ inkcoreapi uint32_t ats_inet_addr(const char *s);
 const char *ats_ip_ntop(const struct sockaddr *addr, char *dst, size_t size);
 
 // --
-/// Size in bytes of an IPv6 address.
-static size_t const TS_IP6_SIZE = sizeof(in6_addr);
+/// Size in bytes of an port and IPv4/IPv6 address.
+static constexpr size_t TS_IP4_SIZE  = sizeof(in_addr_t); ///< 4
+static constexpr size_t TS_IP6_SIZE  = sizeof(in6_addr);  ///< 16
+static constexpr size_t TS_PORT_SIZE = sizeof(in_port_t); ///< 2
 
 /// Reset an address to invalid.
 /// @note Useful for marking a member as not yet set.
@@ -1135,7 +1148,7 @@ uint32_t ats_ip_hash(sockaddr const *addr);
 
 uint64_t ats_ip_port_hash(sockaddr const *addr);
 
-/** Convert address to string as a hexidecimal value.
+/** Convert address to string as a hexadecimal value.
     The string is always nul terminated, the output string is clipped
     if @a dst is insufficient.
     @return The length of the resulting string (not including nul).

@@ -962,6 +962,54 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 #
 #  Licensed to the Apache Software Foundation (ASF) under one
 #  or more contributor license agreements.  See the NOTICE file
@@ -1088,10 +1136,17 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 	esi/vars_test$(EXEEXT) esi/gzip_test$(EXEEXT) \
 	header_rewrite/header_rewrite_test$(EXEEXT) \
 	s3_auth/test_s3auth$(EXEEXT) $(am__EXEEXT_1) $(am__EXEEXT_2)
-@BUILD_HEALTHCHECK_PLUGIN_TRUE@am__append_1 = healthchecks/healthchecks.la
-@HAS_LUAJIT_TRUE@am__append_2 = lua/tslua.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_3 = experimental/access_control/access_control.la \
+@HAS_MAXMINDDB_TRUE@am__append_1 = header_rewrite/conditions_geo_maxmind.cc
+@HAS_GEOIP_TRUE@am__append_2 = header_rewrite/conditions_geo_geoip.cc
+@HAS_GEOIP_TRUE@am__append_3 = $(GEOIP_LIBS)
+@HAS_MAXMINDDB_TRUE@am__append_4 = $(MAXMINDDB_LIBS)
+@HAS_GEOIP_TRUE@am__append_5 = $(GEOIP_LIBS)
+@HAS_MAXMINDDB_TRUE@am__append_6 = $(MAXMINDDB_LIBS)
+@BUILD_HEALTHCHECK_PLUGIN_TRUE@am__append_7 = healthchecks/healthchecks.la
+@HAS_LUAJIT_TRUE@am__append_8 = lua/tslua.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_9 = experimental/access_control/access_control.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/acme/acme.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cache_fill/cache_fill.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cert_reporting_tool/cert_reporting_tool.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/collapsed_forwarding/collapsed_forwarding.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cookie_remap/cookie_remap.la \
@@ -1100,24 +1155,26 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/geoip_acl/geoip_acl.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/header_freq/header_freq.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/hook-trace/hook-trace.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/icap/icap.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/inliner/inliner.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_4 = experimental/access_control/test_access_control \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_10 = experimental/access_control/test_access_control \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cookie_remap/test_cookiejar \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/test_content_range \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/test_range \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/test_config \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/test_sslheaders \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/traffic_dump/test_traffic_dump
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_5 = @YAMLCPP_INCLUDES@
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@am__append_6 = experimental/maxmind_acl/maxmind_acl.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@am__append_7 = @YAMLCPP_INCLUDES@
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_8 = experimental/memcache/tsmemcache.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_11 = @YAMLCPP_INCLUDES@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@am__append_12 = experimental/maxmind_acl/maxmind_acl.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@am__append_13 = @YAMLCPP_INCLUDES@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_14 = experimental/memcache/tsmemcache.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/memory_profile/memory_profile.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/metalink/metalink.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/money_trace/money_trace.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/mp4/mp4.la \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/remap_stats/remap_stats.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/rate_limit.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/redo_cache_lookup/redo_cache_lookup.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/remap_stats/remap_stats.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/slice.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/sslheaders.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/statichit/statichit.la \
@@ -1126,17 +1183,17 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/traffic_dump/traffic_dump.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/tls_bridge/tls_bridge.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/url_sig/url_sig.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_9 = experimental/sslheaders/libsslhdr.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_JA3_PLUGIN_TRUE@am__append_10 = experimental/ja3_fingerprint/ja3_fingerprint.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_11 = experimental/uri_signing/uri_signing.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_12 = experimental/uri_signing/test_uri_signing
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_15 = experimental/sslheaders/libsslhdr.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_JA3_PLUGIN_TRUE@am__append_16 = experimental/ja3_fingerprint/ja3_fingerprint.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_17 = experimental/uri_signing/uri_signing.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_18 = experimental/uri_signing/test_uri_signing
 
 # Only build if LIB_HIREDIS is set to a non-empty value
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_SSL_SESSION_REUSE_PLUGIN_TRUE@am__append_13 = experimental/ssl_session_reuse/ssl_session_reuse.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@am__append_14 = experimental/cache_key_genid/cache_key_genid.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am__append_15 = experimental/webp_transform/WebpTransform.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_SSL_SESSION_REUSE_PLUGIN_TRUE@am__append_19 = experimental/ssl_session_reuse/ssl_session_reuse.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@am__append_20 = experimental/cache_key_genid/cache_key_genid.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am__append_21 = experimental/webp_transform/webp_transform.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@	experimental/magick/magick.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@am__append_16 = experimental/mysql_remap/mysql_remap.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@am__append_22 = experimental/mysql_remap/mysql_remap.la
 subdir = plugins
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
@@ -1149,6 +1206,7 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
 	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
+	$(top_srcdir)/build/boringocsp.m4 \
 	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/cjose.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/hiredis.m4 $(top_srcdir)/build/jansson.m4 \
@@ -1283,7 +1341,6 @@ am_esi_libesicore_la_OBJECTS = esi/lib/libesicore_la-DocNode.lo \
 	esi/lib/libesicore_la-EsiParser.lo \
 	esi/lib/libesicore_la-EsiProcessor.lo \
 	esi/lib/libesicore_la-Expression.lo \
-	esi/lib/libesicore_la-FailureInfo.lo \
 	esi/lib/libesicore_la-Stats.lo esi/lib/libesicore_la-Utils.lo \
 	esi/lib/libesicore_la-Variables.lo \
 	esi/lib/libesicore_la-gzip.lo
@@ -1329,6 +1386,17 @@ am__experimental_acme_acme_la_SOURCES_DIST = experimental/acme/acme.c
 experimental_acme_acme_la_OBJECTS =  \
 	$(am_experimental_acme_acme_la_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_acme_acme_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
+experimental_cache_fill_cache_fill_la_LIBADD =
+am__experimental_cache_fill_cache_fill_la_SOURCES_DIST =  \
+	experimental/cache_fill/cache_fill.cc \
+	experimental/cache_fill/background_fetch.cc \
+	experimental/cache_fill/background_fetch.h
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_cache_fill_cache_fill_la_OBJECTS = experimental/cache_fill/cache_fill.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cache_fill/background_fetch.lo
+experimental_cache_fill_cache_fill_la_OBJECTS =  \
+	$(am_experimental_cache_fill_cache_fill_la_OBJECTS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_cache_fill_cache_fill_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
 experimental_cache_key_genid_cache_key_genid_la_LIBADD =
 am__experimental_cache_key_genid_cache_key_genid_la_SOURCES_DIST =  \
@@ -1420,6 +1488,14 @@ experimental_hook_trace_hook_trace_la_OBJECTS =  \
 	$(am_experimental_hook_trace_hook_trace_la_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_hook_trace_hook_trace_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
+experimental_icap_icap_la_LIBADD =
+am__experimental_icap_icap_la_SOURCES_DIST =  \
+	experimental/icap/icap_plugin.cc
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_icap_icap_la_OBJECTS = experimental/icap/icap_plugin.lo
+experimental_icap_icap_la_OBJECTS =  \
+	$(am_experimental_icap_icap_la_OBJECTS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_icap_icap_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
 experimental_inliner_inliner_la_LIBADD =
 am__experimental_inliner_inliner_la_SOURCES_DIST =  \
 	experimental/inliner/ats-inliner.cc \
@@ -1460,12 +1536,12 @@ experimental_magick_magick_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(experimental_magick_magick_la_LDFLAGS) $(LDFLAGS) -o $@
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am_experimental_magick_magick_la_rpath = -rpath \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@	$(pkglibdir)
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@experimental_maxmind_acl_maxmind_acl_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@experimental_maxmind_acl_maxmind_acl_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am__experimental_maxmind_acl_maxmind_acl_la_SOURCES_DIST =  \
 	experimental/maxmind_acl/maxmind_acl.cc \
 	experimental/maxmind_acl/mmdb.cc
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@am_experimental_maxmind_acl_maxmind_acl_la_OBJECTS = experimental/maxmind_acl/maxmind_acl.lo \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@	experimental/maxmind_acl/mmdb.lo
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@am_experimental_maxmind_acl_maxmind_acl_la_OBJECTS = experimental/maxmind_acl/maxmind_acl.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@	experimental/maxmind_acl/mmdb.lo
 experimental_maxmind_acl_maxmind_acl_la_OBJECTS =  \
 	$(am_experimental_maxmind_acl_maxmind_acl_la_OBJECTS)
 experimental_maxmind_acl_maxmind_acl_la_LINK = $(LIBTOOL) $(AM_V_lt) \
@@ -1473,8 +1549,9 @@ experimental_maxmind_acl_maxmind_acl_la_LINK = $(LIBTOOL) $(AM_V_lt) \
 	$(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) \
 	$(experimental_maxmind_acl_maxmind_acl_la_LDFLAGS) $(LDFLAGS) \
 	-o $@
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@am_experimental_maxmind_acl_maxmind_acl_la_rpath = -rpath \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@	$(pkglibdir)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@am_experimental_maxmind_acl_maxmind_acl_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@	-rpath \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@	$(pkglibdir)
 experimental_memcache_tsmemcache_la_LIBADD =
 am__experimental_memcache_tsmemcache_la_SOURCES_DIST =  \
 	experimental/memcache/tsmemcache.cc
@@ -1538,6 +1615,22 @@ experimental_mysql_remap_mysql_remap_la_LINK = $(LIBTOOL) $(AM_V_lt) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@am_experimental_mysql_remap_mysql_remap_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	-rpath \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	$(pkglibdir)
+experimental_rate_limit_rate_limit_la_LIBADD =
+am__experimental_rate_limit_rate_limit_la_SOURCES_DIST =  \
+	experimental/rate_limit/rate_limit.cc \
+	experimental/rate_limit/txn_limiter.cc \
+	experimental/rate_limit/sni_limiter.cc \
+	experimental/rate_limit/sni_selector.cc \
+	experimental/rate_limit/utilities.cc
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_rate_limit_rate_limit_la_OBJECTS = experimental/rate_limit/rate_limit.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/txn_limiter.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/sni_limiter.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/sni_selector.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/utilities.lo
+experimental_rate_limit_rate_limit_la_OBJECTS =  \
+	$(am_experimental_rate_limit_rate_limit_la_OBJECTS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_rate_limit_rate_limit_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_redo_cache_lookup_redo_cache_lookup_la_DEPENDENCIES = $(top_builddir)/src/tscpp/api/libtscppapi.la
 am__experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES_DIST =  \
 	experimental/redo_cache_lookup/redo_cache_lookup.cc
@@ -1722,33 +1815,56 @@ experimental_url_sig_url_sig_la_OBJECTS =  \
 	$(am_experimental_url_sig_url_sig_la_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_url_sig_url_sig_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_WebpTransform_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
-am__experimental_webp_transform_WebpTransform_la_SOURCES_DIST =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_webp_transform_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
+am__experimental_webp_transform_webp_transform_la_SOURCES_DIST =  \
 	experimental/webp_transform/ImageTransform.cc
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am_experimental_webp_transform_WebpTransform_la_OBJECTS = experimental/webp_transform/WebpTransform_la-ImageTransform.lo
-experimental_webp_transform_WebpTransform_la_OBJECTS =  \
-	$(am_experimental_webp_transform_WebpTransform_la_OBJECTS)
-experimental_webp_transform_WebpTransform_la_LINK = $(LIBTOOL) \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am_experimental_webp_transform_webp_transform_la_OBJECTS = experimental/webp_transform/webp_transform_la-ImageTransform.lo
+experimental_webp_transform_webp_transform_la_OBJECTS =  \
+	$(am_experimental_webp_transform_webp_transform_la_OBJECTS)
+experimental_webp_transform_webp_transform_la_LINK = $(LIBTOOL) \
 	$(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CXXLD) \
-	$(experimental_webp_transform_WebpTransform_la_CXXFLAGS) \
+	$(experimental_webp_transform_webp_transform_la_CXXFLAGS) \
 	$(CXXFLAGS) \
-	$(experimental_webp_transform_WebpTransform_la_LDFLAGS) \
+	$(experimental_webp_transform_webp_transform_la_LDFLAGS) \
 	$(LDFLAGS) -o $@
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am_experimental_webp_transform_WebpTransform_la_rpath = -rpath \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am_experimental_webp_transform_webp_transform_la_rpath = -rpath \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@	$(pkglibdir)
 generator_generator_la_LIBADD =
 am_generator_generator_la_OBJECTS = generator/generator.lo
 generator_generator_la_OBJECTS = $(am_generator_generator_la_OBJECTS)
+@HAS_GEOIP_TRUE@am__DEPENDENCIES_2 = $(am__DEPENDENCIES_1)
+@HAS_MAXMINDDB_TRUE@am__DEPENDENCIES_3 = $(am__DEPENDENCIES_1)
 header_rewrite_header_rewrite_la_DEPENDENCIES =  \
-	header_rewrite/parser.la $(am__DEPENDENCIES_1)
+	header_rewrite/parser.la $(am__DEPENDENCIES_2) \
+	$(am__DEPENDENCIES_3)
+am__header_rewrite_header_rewrite_la_SOURCES_DIST =  \
+	header_rewrite/condition.cc header_rewrite/condition.h \
+	header_rewrite/conditions.cc header_rewrite/conditions.h \
+	header_rewrite/factory.cc header_rewrite/factory.h \
+	header_rewrite/header_rewrite.cc header_rewrite/lulu.cc \
+	header_rewrite/lulu.h header_rewrite/matcher.h \
+	header_rewrite/operator.cc header_rewrite/operator.h \
+	header_rewrite/operators.cc header_rewrite/operators.h \
+	header_rewrite/regex_helper.cc header_rewrite/regex_helper.h \
+	header_rewrite/resources.cc header_rewrite/resources.h \
+	header_rewrite/ruleset.cc header_rewrite/ruleset.h \
+	header_rewrite/statement.cc header_rewrite/statement.h \
+	header_rewrite/value.cc header_rewrite/value.h \
+	header_rewrite/conditions_geo_maxmind.cc \
+	header_rewrite/conditions_geo_geoip.cc
+@HAS_MAXMINDDB_TRUE@am__objects_1 =  \
+@HAS_MAXMINDDB_TRUE@	header_rewrite/conditions_geo_maxmind.lo
+@HAS_GEOIP_TRUE@am__objects_2 =  \
+@HAS_GEOIP_TRUE@	header_rewrite/conditions_geo_geoip.lo
 am_header_rewrite_header_rewrite_la_OBJECTS =  \
 	header_rewrite/condition.lo header_rewrite/conditions.lo \
 	header_rewrite/factory.lo header_rewrite/header_rewrite.lo \
 	header_rewrite/lulu.lo header_rewrite/operator.lo \
 	header_rewrite/operators.lo header_rewrite/regex_helper.lo \
 	header_rewrite/resources.lo header_rewrite/ruleset.lo \
-	header_rewrite/statement.lo header_rewrite/value.lo
+	header_rewrite/statement.lo header_rewrite/value.lo \
+	$(am__objects_1) $(am__objects_2)
 header_rewrite_header_rewrite_la_OBJECTS =  \
 	$(am_header_rewrite_header_rewrite_la_OBJECTS)
 header_rewrite_parser_la_LIBADD =
@@ -1865,6 +1981,10 @@ am_stats_over_http_stats_over_http_la_OBJECTS =  \
 	stats_over_http/stats_over_http.lo
 stats_over_http_stats_over_http_la_OBJECTS =  \
 	$(am_stats_over_http_stats_over_http_la_OBJECTS)
+stats_over_http_stats_over_http_la_LINK = $(LIBTOOL) $(AM_V_lt) \
+	--tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
+	$(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(stats_over_http_stats_over_http_la_LDFLAGS) $(LDFLAGS) -o $@
 tcpinfo_tcpinfo_la_LIBADD =
 am_tcpinfo_tcpinfo_la_OBJECTS = tcpinfo/tcpinfo.lo
 tcpinfo_tcpinfo_la_OBJECTS = $(am_tcpinfo_tcpinfo_la_OBJECTS)
@@ -1930,7 +2050,8 @@ am__experimental_access_control_test_access_control_SOURCES_DIST =  \
 experimental_access_control_test_access_control_OBJECTS =  \
 	$(am_experimental_access_control_test_access_control_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_access_control_test_access_control_DEPENDENCIES =  \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(am__DEPENDENCIES_1)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(am__DEPENDENCIES_1) \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(top_builddir)/src/tscore/libtscore.la
 am__experimental_cookie_remap_test_cookiejar_SOURCES_DIST =  \
 	experimental/cookie_remap/test_cookiejar.cc \
 	experimental/cookie_remap/strip.cc \
@@ -1967,9 +2088,11 @@ experimental_slice_test_range_OBJECTS =  \
 	$(am_experimental_slice_test_range_OBJECTS)
 experimental_slice_test_range_DEPENDENCIES =
 am__experimental_sslheaders_test_sslheaders_SOURCES_DIST =  \
-	experimental/sslheaders/test_sslheaders.cc \
+	experimental/sslheaders/unit_tests/unit_test_main.cc \
+	experimental/sslheaders/unit_tests/test_sslheaders.cc \
 	experimental/sslheaders/sslheaders.h
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_sslheaders_test_sslheaders_OBJECTS = experimental/sslheaders/test_sslheaders-test_sslheaders.$(OBJEXT)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_sslheaders_test_sslheaders_OBJECTS = experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.$(OBJEXT) \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.$(OBJEXT)
 experimental_sslheaders_test_sslheaders_OBJECTS =  \
 	$(am_experimental_sslheaders_test_sslheaders_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_test_sslheaders_DEPENDENCIES = experimental/sslheaders/libsslhdr.la \
@@ -2020,7 +2143,8 @@ am_header_rewrite_header_rewrite_test_OBJECTS =  \
 header_rewrite_header_rewrite_test_OBJECTS =  \
 	$(am_header_rewrite_header_rewrite_test_OBJECTS)
 header_rewrite_header_rewrite_test_DEPENDENCIES =  \
-	header_rewrite/parser.la
+	header_rewrite/parser.la $(am__DEPENDENCIES_2) \
+	$(am__DEPENDENCIES_3)
 am_s3_auth_test_s3auth_OBJECTS =  \
 	s3_auth/unit_tests/test_s3auth-test_aws_auth_v4.$(OBJEXT) \
 	s3_auth/test_s3auth-aws_auth_v4.$(OBJEXT)
@@ -2075,7 +2199,6 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	esi/lib/$(DEPDIR)/libesicore_la-EsiParser.Plo \
 	esi/lib/$(DEPDIR)/libesicore_la-EsiProcessor.Plo \
 	esi/lib/$(DEPDIR)/libesicore_la-Expression.Plo \
-	esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Plo \
 	esi/lib/$(DEPDIR)/libesicore_la-Stats.Plo \
 	esi/lib/$(DEPDIR)/libesicore_la-Utils.Plo \
 	esi/lib/$(DEPDIR)/libesicore_la-Variables.Plo \
@@ -2103,6 +2226,8 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_access_control.Po \
 	experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_utils.Po \
 	experimental/acme/$(DEPDIR)/acme.Plo \
+	experimental/cache_fill/$(DEPDIR)/background_fetch.Plo \
+	experimental/cache_fill/$(DEPDIR)/cache_fill.Plo \
 	experimental/cache_key_genid/$(DEPDIR)/cache_key_genid.Plo \
 	experimental/cert_reporting_tool/$(DEPDIR)/cert_reporting_tool.Plo \
 	experimental/collapsed_forwarding/$(DEPDIR)/collapsed_forwarding.Plo \
@@ -2119,6 +2244,7 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo \
 	experimental/header_freq/$(DEPDIR)/header_freq.Plo \
 	experimental/hook-trace/$(DEPDIR)/hook-trace.Plo \
+	experimental/icap/$(DEPDIR)/icap_plugin.Plo \
 	experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo \
 	experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo \
 	experimental/inliner/$(DEPDIR)/inliner_la-chunk-decoder.Plo \
@@ -2139,6 +2265,11 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo \
 	experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo \
 	experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo \
+	experimental/rate_limit/$(DEPDIR)/rate_limit.Plo \
+	experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo \
+	experimental/rate_limit/$(DEPDIR)/sni_selector.Plo \
+	experimental/rate_limit/$(DEPDIR)/txn_limiter.Plo \
+	experimental/rate_limit/$(DEPDIR)/utilities.Plo \
 	experimental/redo_cache_lookup/$(DEPDIR)/redo_cache_lookup.Plo \
 	experimental/remap_stats/$(DEPDIR)/remap_stats.Plo \
 	experimental/slice/$(DEPDIR)/Config.Plo \
@@ -2173,7 +2304,8 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/sslheaders/$(DEPDIR)/libsslhdr_la-expand.Plo \
 	experimental/sslheaders/$(DEPDIR)/libsslhdr_la-util.Plo \
 	experimental/sslheaders/$(DEPDIR)/sslheaders_la-sslheaders.Plo \
-	experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Po \
+	experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po \
+	experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po \
 	experimental/statichit/$(DEPDIR)/statichit.Plo \
 	experimental/stream_editor/$(DEPDIR)/stream_editor.Plo \
 	experimental/system_stats/$(DEPDIR)/system_stats.Plo \
@@ -2205,10 +2337,12 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/uri_signing/$(DEPDIR)/uri_signing.Plo \
 	experimental/uri_signing/unit_tests/$(DEPDIR)/test_uri_signing-uri_signing_test.Po \
 	experimental/url_sig/$(DEPDIR)/url_sig.Plo \
-	experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Plo \
+	experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Plo \
 	generator/$(DEPDIR)/generator.Plo \
 	header_rewrite/$(DEPDIR)/condition.Plo \
 	header_rewrite/$(DEPDIR)/conditions.Plo \
+	header_rewrite/$(DEPDIR)/conditions_geo_geoip.Plo \
+	header_rewrite/$(DEPDIR)/conditions_geo_maxmind.Plo \
 	header_rewrite/$(DEPDIR)/factory.Plo \
 	header_rewrite/$(DEPDIR)/header_rewrite.Plo \
 	header_rewrite/$(DEPDIR)/header_rewrite_test.Po \
@@ -2325,6 +2459,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(esi_libesicore_la_SOURCES) $(esi_libtest_la_SOURCES) \
 	$(experimental_access_control_access_control_la_SOURCES) \
 	$(experimental_acme_acme_la_SOURCES) \
+	$(experimental_cache_fill_cache_fill_la_SOURCES) \
 	$(experimental_cache_key_genid_cache_key_genid_la_SOURCES) \
 	$(experimental_cert_reporting_tool_cert_reporting_tool_la_SOURCES) \
 	$(experimental_collapsed_forwarding_collapsed_forwarding_la_SOURCES) \
@@ -2334,6 +2469,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_geoip_acl_geoip_acl_la_SOURCES) \
 	$(experimental_header_freq_header_freq_la_SOURCES) \
 	$(experimental_hook_trace_hook_trace_la_SOURCES) \
+	$(experimental_icap_icap_la_SOURCES) \
 	$(experimental_inliner_inliner_la_SOURCES) \
 	$(experimental_ja3_fingerprint_ja3_fingerprint_la_SOURCES) \
 	$(experimental_magick_magick_la_SOURCES) \
@@ -2344,6 +2480,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_money_trace_money_trace_la_SOURCES) \
 	$(experimental_mp4_mp4_la_SOURCES) \
 	$(experimental_mysql_remap_mysql_remap_la_SOURCES) \
+	$(experimental_rate_limit_rate_limit_la_SOURCES) \
 	$(experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES) \
 	$(experimental_remap_stats_remap_stats_la_SOURCES) \
 	$(experimental_slice_slice_la_SOURCES) \
@@ -2357,7 +2494,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_traffic_dump_traffic_dump_la_SOURCES) \
 	$(experimental_uri_signing_uri_signing_la_SOURCES) \
 	$(experimental_url_sig_url_sig_la_SOURCES) \
-	$(experimental_webp_transform_WebpTransform_la_SOURCES) \
+	$(experimental_webp_transform_webp_transform_la_SOURCES) \
 	$(generator_generator_la_SOURCES) \
 	$(header_rewrite_header_rewrite_la_SOURCES) \
 	$(header_rewrite_parser_la_SOURCES) \
@@ -2398,6 +2535,7 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(esi_libesicore_la_SOURCES) $(esi_libtest_la_SOURCES) \
 	$(am__experimental_access_control_access_control_la_SOURCES_DIST) \
 	$(am__experimental_acme_acme_la_SOURCES_DIST) \
+	$(am__experimental_cache_fill_cache_fill_la_SOURCES_DIST) \
 	$(am__experimental_cache_key_genid_cache_key_genid_la_SOURCES_DIST) \
 	$(am__experimental_cert_reporting_tool_cert_reporting_tool_la_SOURCES_DIST) \
 	$(am__experimental_collapsed_forwarding_collapsed_forwarding_la_SOURCES_DIST) \
@@ -2407,6 +2545,7 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_geoip_acl_geoip_acl_la_SOURCES_DIST) \
 	$(am__experimental_header_freq_header_freq_la_SOURCES_DIST) \
 	$(am__experimental_hook_trace_hook_trace_la_SOURCES_DIST) \
+	$(am__experimental_icap_icap_la_SOURCES_DIST) \
 	$(am__experimental_inliner_inliner_la_SOURCES_DIST) \
 	$(am__experimental_ja3_fingerprint_ja3_fingerprint_la_SOURCES_DIST) \
 	$(am__experimental_magick_magick_la_SOURCES_DIST) \
@@ -2417,6 +2556,7 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_money_trace_money_trace_la_SOURCES_DIST) \
 	$(am__experimental_mp4_mp4_la_SOURCES_DIST) \
 	$(am__experimental_mysql_remap_mysql_remap_la_SOURCES_DIST) \
+	$(am__experimental_rate_limit_rate_limit_la_SOURCES_DIST) \
 	$(am__experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES_DIST) \
 	$(am__experimental_remap_stats_remap_stats_la_SOURCES_DIST) \
 	$(am__experimental_slice_slice_la_SOURCES_DIST) \
@@ -2430,9 +2570,9 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_traffic_dump_traffic_dump_la_SOURCES_DIST) \
 	$(am__experimental_uri_signing_uri_signing_la_SOURCES_DIST) \
 	$(am__experimental_url_sig_url_sig_la_SOURCES_DIST) \
-	$(am__experimental_webp_transform_WebpTransform_la_SOURCES_DIST) \
+	$(am__experimental_webp_transform_webp_transform_la_SOURCES_DIST) \
 	$(generator_generator_la_SOURCES) \
-	$(header_rewrite_header_rewrite_la_SOURCES) \
+	$(am__header_rewrite_header_rewrite_la_SOURCES_DIST) \
 	$(header_rewrite_parser_la_SOURCES) \
 	$(am__healthchecks_healthchecks_la_SOURCES_DIST) \
 	$(libloader_libloader_la_SOURCES) \
@@ -2689,6 +2829,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc \
 	$(srcdir)/experimental/access_control/Makefile.inc \
 	$(srcdir)/experimental/acme/Makefile.inc \
+	$(srcdir)/experimental/cache_fill/Makefile.inc \
 	$(srcdir)/experimental/cache_key_genid/Makefile.inc \
 	$(srcdir)/experimental/cert_reporting_tool/Makefile.inc \
 	$(srcdir)/experimental/collapsed_forwarding/Makefile.inc \
@@ -2698,6 +2839,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/experimental/geoip_acl/Makefile.inc \
 	$(srcdir)/experimental/header_freq/Makefile.inc \
 	$(srcdir)/experimental/hook-trace/Makefile.inc \
+	$(srcdir)/experimental/icap/Makefile.inc \
 	$(srcdir)/experimental/inliner/Makefile.inc \
 	$(srcdir)/experimental/ja3_fingerprint/Makefile.inc \
 	$(srcdir)/experimental/magick/Makefile.inc \
@@ -2708,6 +2850,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/experimental/money_trace/Makefile.inc \
 	$(srcdir)/experimental/mp4/Makefile.inc \
 	$(srcdir)/experimental/mysql_remap/Makefile.inc \
+	$(srcdir)/experimental/rate_limit/Makefile.inc \
 	$(srcdir)/experimental/redo_cache_lookup/Makefile.inc \
 	$(srcdir)/experimental/remap_stats/Makefile.inc \
 	$(srcdir)/experimental/slice/Makefile.inc \
@@ -2774,8 +2917,8 @@ AM_CFLAGS = @AM_CFLAGS@
 # throws an error if we try to do the same with AM_LDFLAGS. Hence, we provide
 # TS_PLUGIN variables that can be used to construct the necessary automake
 # syntax.
-AM_CPPFLAGS = @AM_CPPFLAGS@ $(TS_PLUGIN_CPPFLAGS) $(am__append_5) \
-	$(am__append_7)
+AM_CPPFLAGS = @AM_CPPFLAGS@ $(TS_PLUGIN_CPPFLAGS) $(am__append_11) \
+	$(am__append_13)
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AM_LDFLAGS = @AM_LDFLAGS@ $(TS_PLUGIN_LD_FLAGS)
@@ -2786,6 +2929,9 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BORINGOCSP_INCLUDES = @BORINGOCSP_INCLUDES@
+BORINGOCSP_LDFLAGS = @BORINGOCSP_LDFLAGS@
+BORINGOCSP_LIBS = @BORINGOCSP_LIBS@
 BROTLIENC_CFLAGS = @BROTLIENC_CFLAGS@
 BROTLIENC_LIB = @BROTLIENC_LIB@
 CC = @CC@
@@ -2824,7 +2970,7 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEO_LIBS = @GEO_LIBS@
+GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
@@ -2981,12 +3127,14 @@ exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_boringocsp = @has_boringocsp@
 has_expensive_tests = @has_expensive_tests@
+has_geoip = @has_geoip@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
-has_maxmind = @has_maxmind@
+has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
@@ -2994,6 +3142,7 @@ has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_session_ticket = @has_tls_session_ticket@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -3054,6 +3203,7 @@ rel_prefix = @rel_prefix@
 rel_runtimedir = @rel_runtimedir@
 rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
+runstatedir = @runstatedir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
@@ -3063,12 +3213,15 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_boringocsp = @use_boringocsp@
 use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hello_cb = @use_hello_cb@
 use_hkdf = @use_hkdf@
+use_hrw_geoip = @use_hrw_geoip@
+use_hrw_maxminddb = @use_hrw_maxminddb@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -3116,7 +3269,7 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
 noinst_LTLIBRARIES = esi/libesicore.la esi/libtest.la \
-	header_rewrite/parser.la $(am__append_9)
+	header_rewrite/parser.la $(am__append_15)
 pkglib_LTLIBRARIES = authproxy/authproxy.la \
 	background_fetch/background_fetch.la cachekey/cachekey.la \
 	cache_promote/cache_promote.la \
@@ -3124,18 +3277,18 @@ pkglib_LTLIBRARIES = authproxy/authproxy.la \
 	certifier/certifier.la conf_remap/conf_remap.la \
 	escalate/escalate.la esi/esi.la esi/combo_handler.la \
 	generator/generator.la compress/compress.la \
-	header_rewrite/header_rewrite.la $(am__append_1) \
-	libloader/libloader.la $(am__append_2) \
+	header_rewrite/header_rewrite.la $(am__append_7) \
+	libloader/libloader.la $(am__append_8) \
 	multiplexer/multiplexer.la prefetch/prefetch.la \
 	regex_remap/regex_remap.la \
 	regex_revalidate/regex_revalidate.la \
 	remap_purge/remap_purge.la s3_auth/s3_auth.la \
 	server_push_preload/server_push_preload.la \
 	stats_over_http/stats_over_http.la tcpinfo/tcpinfo.la \
-	xdebug/xdebug.la $(am__append_3) $(am__append_6) \
-	$(am__append_8) $(am__append_10) $(am__append_11) \
-	$(am__append_13) $(am__append_14) $(am__append_15) \
-	$(am__append_16)
+	xdebug/xdebug.la $(am__append_9) $(am__append_12) \
+	$(am__append_14) $(am__append_16) $(am__append_17) \
+	$(am__append_19) $(am__append_20) $(am__append_21) \
+	$(am__append_22)
 SUBDIRS = 
 authproxy_authproxy_la_SOURCES = \
 	authproxy/authproxy.cc \
@@ -3201,8 +3354,6 @@ esi_libesicore_la_SOURCES = \
 	esi/lib/EsiProcessor.h \
 	esi/lib/Expression.cc \
 	esi/lib/Expression.h \
-	esi/lib/FailureInfo.cc \
-	esi/lib/FailureInfo.h \
 	esi/lib/HandlerManager.h \
 	esi/lib/HttpHeader.h \
 	esi/lib/IncludeHandlerFactory.h \
@@ -3280,46 +3431,31 @@ compress_compress_la_LDFLAGS = \
   $(AM_LDFLAGS) $(BROTLIENC_LIB) $(LIBZ)
 
 compress_compress_la_CXXFLAGS = $(AM_CXXFLAGS) $(BROTLIENC_CFLAGS)
-header_rewrite_header_rewrite_la_SOURCES = \
-	header_rewrite/condition.cc \
-	header_rewrite/condition.h \
-	header_rewrite/conditions.cc \
-	header_rewrite/conditions.h \
-	header_rewrite/factory.cc \
-	header_rewrite/factory.h \
-	header_rewrite/header_rewrite.cc \
-	header_rewrite/lulu.cc \
-	header_rewrite/lulu.h \
-	header_rewrite/matcher.h \
-	header_rewrite/operator.cc \
-	header_rewrite/operator.h \
-	header_rewrite/operators.cc \
-	header_rewrite/operators.h \
-	header_rewrite/regex_helper.cc \
-	header_rewrite/regex_helper.h \
-	header_rewrite/resources.cc \
-	header_rewrite/resources.h \
-	header_rewrite/ruleset.cc \
-	header_rewrite/ruleset.h \
-	header_rewrite/statement.cc \
-	header_rewrite/statement.h \
-	header_rewrite/value.cc \
-	header_rewrite/value.h
-
+header_rewrite_header_rewrite_la_SOURCES =  \
+	header_rewrite/condition.cc header_rewrite/condition.h \
+	header_rewrite/conditions.cc header_rewrite/conditions.h \
+	header_rewrite/factory.cc header_rewrite/factory.h \
+	header_rewrite/header_rewrite.cc header_rewrite/lulu.cc \
+	header_rewrite/lulu.h header_rewrite/matcher.h \
+	header_rewrite/operator.cc header_rewrite/operator.h \
+	header_rewrite/operators.cc header_rewrite/operators.h \
+	header_rewrite/regex_helper.cc header_rewrite/regex_helper.h \
+	header_rewrite/resources.cc header_rewrite/resources.h \
+	header_rewrite/ruleset.cc header_rewrite/ruleset.h \
+	header_rewrite/statement.cc header_rewrite/statement.h \
+	header_rewrite/value.cc header_rewrite/value.h $(am__append_1) \
+	$(am__append_2)
 header_rewrite_parser_la_SOURCES = \
 	header_rewrite/parser.cc \
 	header_rewrite/parser.h
 
-header_rewrite_header_rewrite_la_LIBADD = \
-	header_rewrite/parser.la \
-	$(GEO_LIBS)
-
+header_rewrite_header_rewrite_la_LIBADD = header_rewrite/parser.la \
+	$(am__append_3) $(am__append_4)
 header_rewrite_header_rewrite_test_SOURCES = \
 	header_rewrite/header_rewrite_test.cc
 
-header_rewrite_header_rewrite_test_LDADD = \
-	header_rewrite/parser.la
-
+header_rewrite_header_rewrite_test_LDADD = header_rewrite/parser.la \
+	$(am__append_5) $(am__append_6)
 @BUILD_HEALTHCHECK_PLUGIN_TRUE@healthchecks_healthchecks_la_SOURCES = healthchecks/healthchecks.c
 libloader_libloader_la_SOURCES = \
 	libloader/libloader.c
@@ -3399,6 +3535,10 @@ server_push_preload_server_push_preload_la_LIBADD = \
   $(top_builddir)/src/tscpp/api/libtscppapi.la
 
 stats_over_http_stats_over_http_la_SOURCES = stats_over_http/stats_over_http.c
+stats_over_http_stats_over_http_la_LDFLAGS = \
+  $(AM_LDFLAGS) $(BROTLIENC_LIB) $(LIBZ)
+
+stats_over_http_stats_over_http_la_CXXFLAGS = $(AM_CXXFLAGS) $(BROTLIENC_CFLAGS)
 tcpinfo_tcpinfo_la_SOURCES = tcpinfo/tcpinfo.cc
 xdebug_xdebug_la_SOURCES = \
 xdebug/Cleanup.h \
@@ -3414,7 +3554,7 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/access_control/utils.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_access_control_test_access_control_CPPFLAGS = $(AM_CPPFLAGS) -I$(abs_top_srcdir)/tests/include -DACCESS_CONTROL_UNIT_TEST
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_access_control_test_access_control_LDADD = $(OPENSSL_LIBS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_access_control_test_access_control_LDADD = $(OPENSSL_LIBS) $(top_builddir)/src/tscore/libtscore.la
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_access_control_test_access_control_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@    experimental/access_control/unit_tests/test_access_control.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@    experimental/access_control/unit_tests/test_utils.cc \
@@ -3424,6 +3564,11 @@ xdebug/xdebug.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_acme_acme_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/acme/acme.c
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_cache_fill_cache_fill_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cache_fill/cache_fill.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cache_fill/background_fetch.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/cache_fill/background_fetch.h
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_cert_reporting_tool_cert_reporting_tool_la_SOURCES = experimental/cert_reporting_tool/cert_reporting_tool.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_collapsed_forwarding_collapsed_forwarding_la_SOURCES = \
@@ -3455,12 +3600,15 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/geoip_acl/acl.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/geoip_acl/geoip_acl.cc
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_geoip_acl_geoip_acl_la_LIBADD = $(GEO_LIBS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_geoip_acl_geoip_acl_la_LIBADD = $(GEOIP_LIBS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_header_freq_header_freq_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/header_freq/header_freq.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_hook_trace_hook_trace_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/hook-trace/hook-trace.cc
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_icap_icap_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/icap/icap_plugin.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_inliner_inliner_la_CPPFLAGS = $(AM_CPPFLAGS) -DPLUGIN_TAG=\"inliner\"
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_inliner_inliner_la_SOURCES = \
@@ -3472,13 +3620,13 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/inliner/inliner-handler.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/inliner/ts.cc
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@experimental_maxmind_acl_maxmind_acl_la_SOURCES = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@  experimental/maxmind_acl/maxmind_acl.cc \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@  experimental/maxmind_acl/mmdb.cc
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@experimental_maxmind_acl_maxmind_acl_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@  experimental/maxmind_acl/maxmind_acl.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@  experimental/maxmind_acl/mmdb.cc
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@experimental_maxmind_acl_maxmind_acl_la_LIBADD = $(MAXMINDDB_LIBS)
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@experimental_maxmind_acl_maxmind_acl_la_LDFLAGS = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_MAXMIND_ACL_PLUGIN_TRUE@	$(AM_LDFLAGS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@experimental_maxmind_acl_maxmind_acl_la_LIBADD = $(MAXMINDDB_LIBS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@experimental_maxmind_acl_maxmind_acl_la_LDFLAGS = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@	$(AM_LDFLAGS)
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_memcache_tsmemcache_la_CPPFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  $(AM_CPPFLAGS) \
@@ -3512,8 +3660,12 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/mp4/mp4_meta.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/mp4/mp4_meta.h
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_remap_stats_remap_stats_la_SOURCES = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/remap_stats/remap_stats.cc
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_rate_limit_rate_limit_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/rate_limit.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/txn_limiter.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/sni_limiter.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/sni_selector.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/utilities.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/redo_cache_lookup/redo_cache_lookup.cc
@@ -3523,6 +3675,9 @@ xdebug/xdebug.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_redo_cache_lookup_redo_cache_lookup_la_LIBADD = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  $(top_builddir)/src/tscpp/api/libtscppapi.la
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_remap_stats_remap_stats_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/remap_stats/remap_stats.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_slice_slice_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/client.cc \
@@ -3594,12 +3749,14 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@        experimental/sslheaders/libsslhdr.la
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_test_sslheaders_SOURCES = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/test_sslheaders.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/unit_tests/unit_test_main.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/unit_tests/test_sslheaders.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/sslheaders.h
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_test_sslheaders_CPPFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(AM_CPPFLAGS) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	@OPENSSL_INCLUDES@ \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-I$(abs_top_srcdir)/tests/include \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-I$(abs_top_srcdir)/include
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_test_sslheaders_LDFLAGS = @OPENSSL_LDFLAGS@
@@ -3662,7 +3819,12 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@  experimental/uri_signing/timing.c
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@experimental_uri_signing_uri_signing_la_LIBADD = @LIBJANSSON@ @LIBCJOSE@ @LIBPCRE@ -lm -lcrypto
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@experimental_uri_signing_test_uri_signing_CPPFLAGS = $(AM_CPPFLAGS) -I$(abs_top_srcdir)/tests/include -DURI_SIGNING_UNIT_TEST
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@experimental_uri_signing_test_uri_signing_CPPFLAGS = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@  $(AM_CPPFLAGS) \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@  -I$(abs_top_srcdir)/tests/include \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@  -DURI_SIGNING_UNIT_TEST \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@  -DSRCDIR=\"$(srcdir)\"
+
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@experimental_uri_signing_test_uri_signing_LDADD = @LIBJANSSON@ @LIBCJOSE@ @LIBPCRE@ -lm -lcrypto
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@experimental_uri_signing_test_uri_signing_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@	experimental/uri_signing/unit_tests/uri_signing_test.cc \
@@ -3696,16 +3858,16 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@experimental_cache_key_genid_cache_key_genid_la_LDFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@    $(AM_LDFLAGS) $(LIB_KYOTOCABINET)
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_WebpTransform_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBMAGICKCPP_CFLAGS)
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_WebpTransform_la_CXXFLAGS = $(AM_CXXFLAGS)
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_WebpTransform_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_webp_transform_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBMAGICKCPP_CFLAGS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_webp_transform_la_CXXFLAGS = $(AM_CXXFLAGS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_webp_transform_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@  experimental/webp_transform/ImageTransform.cc
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_WebpTransform_la_LDFLAGS = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_webp_transform_la_LDFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@  $(AM_LDFLAGS) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@  -L$(top_builddir)/src/tscpp/api
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_WebpTransform_la_LIBADD = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@experimental_webp_transform_webp_transform_la_LIBADD = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@  -ltscppapi \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@  $(LIBMAGICKCPP_LIBS)
 
@@ -3732,13 +3894,13 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@experimental_mysql_remap_mysql_remap_la_LDFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	$(AM_LDFLAGS) $(LIB_MYSQLCLIENT)
 
-TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
+TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=$(top_srcdir)/plugins/suppression.txt
 TESTS = $(check_PROGRAMS)
 all: all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cache_fill/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/icap/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/rate_limit/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -3758,7 +3920,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles);; \
 	esac;
-$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__empty):
+$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cache_fill/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/icap/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/rate_limit/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -4003,8 +4165,6 @@ esi/lib/libesicore_la-EsiProcessor.lo: esi/lib/$(am__dirstamp) \
 	esi/lib/$(DEPDIR)/$(am__dirstamp)
 esi/lib/libesicore_la-Expression.lo: esi/lib/$(am__dirstamp) \
 	esi/lib/$(DEPDIR)/$(am__dirstamp)
-esi/lib/libesicore_la-FailureInfo.lo: esi/lib/$(am__dirstamp) \
-	esi/lib/$(DEPDIR)/$(am__dirstamp)
 esi/lib/libesicore_la-Stats.lo: esi/lib/$(am__dirstamp) \
 	esi/lib/$(DEPDIR)/$(am__dirstamp)
 esi/lib/libesicore_la-Utils.lo: esi/lib/$(am__dirstamp) \
@@ -4074,6 +4234,21 @@ experimental/acme/acme.lo: experimental/acme/$(am__dirstamp) \
 
 experimental/acme/acme.la: $(experimental_acme_acme_la_OBJECTS) $(experimental_acme_acme_la_DEPENDENCIES) $(EXTRA_experimental_acme_acme_la_DEPENDENCIES) experimental/acme/$(am__dirstamp)
 	$(AM_V_CCLD)$(LINK) $(am_experimental_acme_acme_la_rpath) $(experimental_acme_acme_la_OBJECTS) $(experimental_acme_acme_la_LIBADD) $(LIBS)
+experimental/cache_fill/$(am__dirstamp):
+	@$(MKDIR_P) experimental/cache_fill
+	@: > experimental/cache_fill/$(am__dirstamp)
+experimental/cache_fill/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/cache_fill/$(DEPDIR)
+	@: > experimental/cache_fill/$(DEPDIR)/$(am__dirstamp)
+experimental/cache_fill/cache_fill.lo:  \
+	experimental/cache_fill/$(am__dirstamp) \
+	experimental/cache_fill/$(DEPDIR)/$(am__dirstamp)
+experimental/cache_fill/background_fetch.lo:  \
+	experimental/cache_fill/$(am__dirstamp) \
+	experimental/cache_fill/$(DEPDIR)/$(am__dirstamp)
+
+experimental/cache_fill/cache_fill.la: $(experimental_cache_fill_cache_fill_la_OBJECTS) $(experimental_cache_fill_cache_fill_la_DEPENDENCIES) $(EXTRA_experimental_cache_fill_cache_fill_la_DEPENDENCIES) experimental/cache_fill/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_cache_fill_cache_fill_la_rpath) $(experimental_cache_fill_cache_fill_la_OBJECTS) $(experimental_cache_fill_cache_fill_la_LIBADD) $(LIBS)
 experimental/cache_key_genid/$(am__dirstamp):
 	@$(MKDIR_P) experimental/cache_key_genid
 	@: > experimental/cache_key_genid/$(am__dirstamp)
@@ -4193,6 +4368,17 @@ experimental/hook-trace/hook-trace.lo:  \
 
 experimental/hook-trace/hook-trace.la: $(experimental_hook_trace_hook_trace_la_OBJECTS) $(experimental_hook_trace_hook_trace_la_DEPENDENCIES) $(EXTRA_experimental_hook_trace_hook_trace_la_DEPENDENCIES) experimental/hook-trace/$(am__dirstamp)
 	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_hook_trace_hook_trace_la_rpath) $(experimental_hook_trace_hook_trace_la_OBJECTS) $(experimental_hook_trace_hook_trace_la_LIBADD) $(LIBS)
+experimental/icap/$(am__dirstamp):
+	@$(MKDIR_P) experimental/icap
+	@: > experimental/icap/$(am__dirstamp)
+experimental/icap/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/icap/$(DEPDIR)
+	@: > experimental/icap/$(DEPDIR)/$(am__dirstamp)
+experimental/icap/icap_plugin.lo: experimental/icap/$(am__dirstamp) \
+	experimental/icap/$(DEPDIR)/$(am__dirstamp)
+
+experimental/icap/icap.la: $(experimental_icap_icap_la_OBJECTS) $(experimental_icap_icap_la_DEPENDENCIES) $(EXTRA_experimental_icap_icap_la_DEPENDENCIES) experimental/icap/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_icap_icap_la_rpath) $(experimental_icap_icap_la_OBJECTS) $(experimental_icap_icap_la_LIBADD) $(LIBS)
 experimental/inliner/$(am__dirstamp):
 	@$(MKDIR_P) experimental/inliner
 	@: > experimental/inliner/$(am__dirstamp)
@@ -4347,6 +4533,30 @@ experimental/mysql_remap/lib/iniparser.lo:  \
 
 experimental/mysql_remap/mysql_remap.la: $(experimental_mysql_remap_mysql_remap_la_OBJECTS) $(experimental_mysql_remap_mysql_remap_la_DEPENDENCIES) $(EXTRA_experimental_mysql_remap_mysql_remap_la_DEPENDENCIES) experimental/mysql_remap/$(am__dirstamp)
 	$(AM_V_CXXLD)$(experimental_mysql_remap_mysql_remap_la_LINK) $(am_experimental_mysql_remap_mysql_remap_la_rpath) $(experimental_mysql_remap_mysql_remap_la_OBJECTS) $(experimental_mysql_remap_mysql_remap_la_LIBADD) $(LIBS)
+experimental/rate_limit/$(am__dirstamp):
+	@$(MKDIR_P) experimental/rate_limit
+	@: > experimental/rate_limit/$(am__dirstamp)
+experimental/rate_limit/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/rate_limit/$(DEPDIR)
+	@: > experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+experimental/rate_limit/rate_limit.lo:  \
+	experimental/rate_limit/$(am__dirstamp) \
+	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+experimental/rate_limit/txn_limiter.lo:  \
+	experimental/rate_limit/$(am__dirstamp) \
+	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+experimental/rate_limit/sni_limiter.lo:  \
+	experimental/rate_limit/$(am__dirstamp) \
+	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+experimental/rate_limit/sni_selector.lo:  \
+	experimental/rate_limit/$(am__dirstamp) \
+	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+experimental/rate_limit/utilities.lo:  \
+	experimental/rate_limit/$(am__dirstamp) \
+	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+
+experimental/rate_limit/rate_limit.la: $(experimental_rate_limit_rate_limit_la_OBJECTS) $(experimental_rate_limit_rate_limit_la_DEPENDENCIES) $(EXTRA_experimental_rate_limit_rate_limit_la_DEPENDENCIES) experimental/rate_limit/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_rate_limit_rate_limit_la_rpath) $(experimental_rate_limit_rate_limit_la_OBJECTS) $(experimental_rate_limit_rate_limit_la_LIBADD) $(LIBS)
 experimental/redo_cache_lookup/$(am__dirstamp):
 	@$(MKDIR_P) experimental/redo_cache_lookup
 	@: > experimental/redo_cache_lookup/$(am__dirstamp)
@@ -4594,12 +4804,12 @@ experimental/webp_transform/$(am__dirstamp):
 experimental/webp_transform/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) experimental/webp_transform/$(DEPDIR)
 	@: > experimental/webp_transform/$(DEPDIR)/$(am__dirstamp)
-experimental/webp_transform/WebpTransform_la-ImageTransform.lo:  \
+experimental/webp_transform/webp_transform_la-ImageTransform.lo:  \
 	experimental/webp_transform/$(am__dirstamp) \
 	experimental/webp_transform/$(DEPDIR)/$(am__dirstamp)
 
-experimental/webp_transform/WebpTransform.la: $(experimental_webp_transform_WebpTransform_la_OBJECTS) $(experimental_webp_transform_WebpTransform_la_DEPENDENCIES) $(EXTRA_experimental_webp_transform_WebpTransform_la_DEPENDENCIES) experimental/webp_transform/$(am__dirstamp)
-	$(AM_V_CXXLD)$(experimental_webp_transform_WebpTransform_la_LINK) $(am_experimental_webp_transform_WebpTransform_la_rpath) $(experimental_webp_transform_WebpTransform_la_OBJECTS) $(experimental_webp_transform_WebpTransform_la_LIBADD) $(LIBS)
+experimental/webp_transform/webp_transform.la: $(experimental_webp_transform_webp_transform_la_OBJECTS) $(experimental_webp_transform_webp_transform_la_DEPENDENCIES) $(EXTRA_experimental_webp_transform_webp_transform_la_DEPENDENCIES) experimental/webp_transform/$(am__dirstamp)
+	$(AM_V_CXXLD)$(experimental_webp_transform_webp_transform_la_LINK) $(am_experimental_webp_transform_webp_transform_la_rpath) $(experimental_webp_transform_webp_transform_la_OBJECTS) $(experimental_webp_transform_webp_transform_la_LIBADD) $(LIBS)
 generator/$(am__dirstamp):
 	@$(MKDIR_P) generator
 	@: > generator/$(am__dirstamp)
@@ -4640,6 +4850,12 @@ header_rewrite/ruleset.lo: header_rewrite/$(am__dirstamp) \
 header_rewrite/statement.lo: header_rewrite/$(am__dirstamp) \
 	header_rewrite/$(DEPDIR)/$(am__dirstamp)
 header_rewrite/value.lo: header_rewrite/$(am__dirstamp) \
+	header_rewrite/$(DEPDIR)/$(am__dirstamp)
+header_rewrite/conditions_geo_maxmind.lo:  \
+	header_rewrite/$(am__dirstamp) \
+	header_rewrite/$(DEPDIR)/$(am__dirstamp)
+header_rewrite/conditions_geo_geoip.lo:  \
+	header_rewrite/$(am__dirstamp) \
 	header_rewrite/$(DEPDIR)/$(am__dirstamp)
 
 header_rewrite/header_rewrite.la: $(header_rewrite_header_rewrite_la_OBJECTS) $(header_rewrite_header_rewrite_la_DEPENDENCIES) $(EXTRA_header_rewrite_header_rewrite_la_DEPENDENCIES) header_rewrite/$(am__dirstamp)
@@ -4858,7 +5074,7 @@ stats_over_http/stats_over_http.lo: stats_over_http/$(am__dirstamp) \
 	stats_over_http/$(DEPDIR)/$(am__dirstamp)
 
 stats_over_http/stats_over_http.la: $(stats_over_http_stats_over_http_la_OBJECTS) $(stats_over_http_stats_over_http_la_DEPENDENCIES) $(EXTRA_stats_over_http_stats_over_http_la_DEPENDENCIES) stats_over_http/$(am__dirstamp)
-	$(AM_V_CCLD)$(LINK) -rpath $(pkglibdir) $(stats_over_http_stats_over_http_la_OBJECTS) $(stats_over_http_stats_over_http_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(stats_over_http_stats_over_http_la_LINK) -rpath $(pkglibdir) $(stats_over_http_stats_over_http_la_OBJECTS) $(stats_over_http_stats_over_http_la_LIBADD) $(LIBS)
 tcpinfo/$(am__dirstamp):
 	@$(MKDIR_P) tcpinfo
 	@: > tcpinfo/$(am__dirstamp)
@@ -4991,9 +5207,18 @@ experimental/slice/test_range-Range.$(OBJEXT):  \
 experimental/slice/test_range$(EXEEXT): $(experimental_slice_test_range_OBJECTS) $(experimental_slice_test_range_DEPENDENCIES) $(EXTRA_experimental_slice_test_range_DEPENDENCIES) experimental/slice/$(am__dirstamp)
 	@rm -f experimental/slice/test_range$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(experimental_slice_test_range_OBJECTS) $(experimental_slice_test_range_LDADD) $(LIBS)
-experimental/sslheaders/test_sslheaders-test_sslheaders.$(OBJEXT):  \
-	experimental/sslheaders/$(am__dirstamp) \
-	experimental/sslheaders/$(DEPDIR)/$(am__dirstamp)
+experimental/sslheaders/unit_tests/$(am__dirstamp):
+	@$(MKDIR_P) experimental/sslheaders/unit_tests
+	@: > experimental/sslheaders/unit_tests/$(am__dirstamp)
+experimental/sslheaders/unit_tests/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/sslheaders/unit_tests/$(DEPDIR)
+	@: > experimental/sslheaders/unit_tests/$(DEPDIR)/$(am__dirstamp)
+experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.$(OBJEXT):  \
+	experimental/sslheaders/unit_tests/$(am__dirstamp) \
+	experimental/sslheaders/unit_tests/$(DEPDIR)/$(am__dirstamp)
+experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.$(OBJEXT):  \
+	experimental/sslheaders/unit_tests/$(am__dirstamp) \
+	experimental/sslheaders/unit_tests/$(DEPDIR)/$(am__dirstamp)
 
 experimental/sslheaders/test_sslheaders$(EXEEXT): $(experimental_sslheaders_test_sslheaders_OBJECTS) $(experimental_sslheaders_test_sslheaders_DEPENDENCIES) $(EXTRA_experimental_sslheaders_test_sslheaders_DEPENDENCIES) experimental/sslheaders/$(am__dirstamp)
 	@rm -f experimental/sslheaders/test_sslheaders$(EXEEXT)
@@ -5113,6 +5338,8 @@ mostlyclean-compile:
 	-rm -f experimental/access_control/unit_tests/*.$(OBJEXT)
 	-rm -f experimental/acme/*.$(OBJEXT)
 	-rm -f experimental/acme/*.lo
+	-rm -f experimental/cache_fill/*.$(OBJEXT)
+	-rm -f experimental/cache_fill/*.lo
 	-rm -f experimental/cache_key_genid/*.$(OBJEXT)
 	-rm -f experimental/cache_key_genid/*.lo
 	-rm -f experimental/cert_reporting_tool/*.$(OBJEXT)
@@ -5131,6 +5358,8 @@ mostlyclean-compile:
 	-rm -f experimental/header_freq/*.lo
 	-rm -f experimental/hook-trace/*.$(OBJEXT)
 	-rm -f experimental/hook-trace/*.lo
+	-rm -f experimental/icap/*.$(OBJEXT)
+	-rm -f experimental/icap/*.lo
 	-rm -f experimental/inliner/*.$(OBJEXT)
 	-rm -f experimental/inliner/*.lo
 	-rm -f experimental/ja3_fingerprint/*.$(OBJEXT)
@@ -5153,6 +5382,8 @@ mostlyclean-compile:
 	-rm -f experimental/mysql_remap/*.lo
 	-rm -f experimental/mysql_remap/lib/*.$(OBJEXT)
 	-rm -f experimental/mysql_remap/lib/*.lo
+	-rm -f experimental/rate_limit/*.$(OBJEXT)
+	-rm -f experimental/rate_limit/*.lo
 	-rm -f experimental/redo_cache_lookup/*.$(OBJEXT)
 	-rm -f experimental/redo_cache_lookup/*.lo
 	-rm -f experimental/remap_stats/*.$(OBJEXT)
@@ -5164,6 +5395,7 @@ mostlyclean-compile:
 	-rm -f experimental/ssl_session_reuse/src/*.lo
 	-rm -f experimental/sslheaders/*.$(OBJEXT)
 	-rm -f experimental/sslheaders/*.lo
+	-rm -f experimental/sslheaders/unit_tests/*.$(OBJEXT)
 	-rm -f experimental/statichit/*.$(OBJEXT)
 	-rm -f experimental/statichit/*.lo
 	-rm -f experimental/stream_editor/*.$(OBJEXT)
@@ -5253,7 +5485,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-EsiParser.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-EsiProcessor.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-Expression.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-Stats.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-Utils.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@esi/lib/$(DEPDIR)/libesicore_la-Variables.Plo@am__quote@ # am--include-marker
@@ -5281,6 +5512,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_access_control.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_utils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/acme/$(DEPDIR)/acme.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/cache_fill/$(DEPDIR)/background_fetch.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/cache_fill/$(DEPDIR)/cache_fill.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/cache_key_genid/$(DEPDIR)/cache_key_genid.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/cert_reporting_tool/$(DEPDIR)/cert_reporting_tool.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/collapsed_forwarding/$(DEPDIR)/collapsed_forwarding.Plo@am__quote@ # am--include-marker
@@ -5297,6 +5530,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/header_freq/$(DEPDIR)/header_freq.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/hook-trace/$(DEPDIR)/hook-trace.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/icap/$(DEPDIR)/icap_plugin.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/inliner/$(DEPDIR)/inliner_la-chunk-decoder.Plo@am__quote@ # am--include-marker
@@ -5317,6 +5551,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/rate_limit.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/sni_selector.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/txn_limiter.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/utilities.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/redo_cache_lookup/$(DEPDIR)/redo_cache_lookup.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/remap_stats/$(DEPDIR)/remap_stats.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/Config.Plo@am__quote@ # am--include-marker
@@ -5351,7 +5590,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/$(DEPDIR)/libsslhdr_la-expand.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/$(DEPDIR)/libsslhdr_la-util.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/$(DEPDIR)/sslheaders_la-sslheaders.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/statichit/$(DEPDIR)/statichit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/stream_editor/$(DEPDIR)/stream_editor.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/system_stats/$(DEPDIR)/system_stats.Plo@am__quote@ # am--include-marker
@@ -5383,10 +5623,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/uri_signing/$(DEPDIR)/uri_signing.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/uri_signing/unit_tests/$(DEPDIR)/test_uri_signing-uri_signing_test.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/url_sig/$(DEPDIR)/url_sig.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@generator/$(DEPDIR)/generator.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/condition.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/conditions.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/conditions_geo_geoip.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/conditions_geo_maxmind.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/factory.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/header_rewrite.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/header_rewrite_test.Po@am__quote@ # am--include-marker
@@ -5931,13 +6173,6 @@ esi/lib/libesicore_la-Expression.lo: esi/lib/Expression.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(esi_libesicore_la_CPPFLAGS) $(CPPFLAGS) $(esi_libesicore_la_CXXFLAGS) $(CXXFLAGS) -c -o esi/lib/libesicore_la-Expression.lo `test -f 'esi/lib/Expression.cc' || echo '$(srcdir)/'`esi/lib/Expression.cc
 
-esi/lib/libesicore_la-FailureInfo.lo: esi/lib/FailureInfo.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(esi_libesicore_la_CPPFLAGS) $(CPPFLAGS) $(esi_libesicore_la_CXXFLAGS) $(CXXFLAGS) -MT esi/lib/libesicore_la-FailureInfo.lo -MD -MP -MF esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Tpo -c -o esi/lib/libesicore_la-FailureInfo.lo `test -f 'esi/lib/FailureInfo.cc' || echo '$(srcdir)/'`esi/lib/FailureInfo.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Tpo esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Plo
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='esi/lib/FailureInfo.cc' object='esi/lib/libesicore_la-FailureInfo.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(esi_libesicore_la_CPPFLAGS) $(CPPFLAGS) $(esi_libesicore_la_CXXFLAGS) $(CXXFLAGS) -c -o esi/lib/libesicore_la-FailureInfo.lo `test -f 'esi/lib/FailureInfo.cc' || echo '$(srcdir)/'`esi/lib/FailureInfo.cc
-
 esi/lib/libesicore_la-Stats.lo: esi/lib/Stats.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(esi_libesicore_la_CPPFLAGS) $(CPPFLAGS) $(esi_libesicore_la_CXXFLAGS) $(CXXFLAGS) -MT esi/lib/libesicore_la-Stats.lo -MD -MP -MF esi/lib/$(DEPDIR)/libesicore_la-Stats.Tpo -c -o esi/lib/libesicore_la-Stats.lo `test -f 'esi/lib/Stats.cc' || echo '$(srcdir)/'`esi/lib/Stats.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) esi/lib/$(DEPDIR)/libesicore_la-Stats.Tpo esi/lib/$(DEPDIR)/libesicore_la-Stats.Plo
@@ -6085,12 +6320,12 @@ experimental/sslheaders/sslheaders_la-sslheaders.lo: experimental/sslheaders/ssl
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_sslheaders_la_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/sslheaders_la-sslheaders.lo `test -f 'experimental/sslheaders/sslheaders.cc' || echo '$(srcdir)/'`experimental/sslheaders/sslheaders.cc
 
-experimental/webp_transform/WebpTransform_la-ImageTransform.lo: experimental/webp_transform/ImageTransform.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_webp_transform_WebpTransform_la_CPPFLAGS) $(CPPFLAGS) $(experimental_webp_transform_WebpTransform_la_CXXFLAGS) $(CXXFLAGS) -MT experimental/webp_transform/WebpTransform_la-ImageTransform.lo -MD -MP -MF experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Tpo -c -o experimental/webp_transform/WebpTransform_la-ImageTransform.lo `test -f 'experimental/webp_transform/ImageTransform.cc' || echo '$(srcdir)/'`experimental/webp_transform/ImageTransform.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Tpo experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Plo
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/webp_transform/ImageTransform.cc' object='experimental/webp_transform/WebpTransform_la-ImageTransform.lo' libtool=yes @AMDEPBACKSLASH@
+experimental/webp_transform/webp_transform_la-ImageTransform.lo: experimental/webp_transform/ImageTransform.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_webp_transform_webp_transform_la_CPPFLAGS) $(CPPFLAGS) $(experimental_webp_transform_webp_transform_la_CXXFLAGS) $(CXXFLAGS) -MT experimental/webp_transform/webp_transform_la-ImageTransform.lo -MD -MP -MF experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Tpo -c -o experimental/webp_transform/webp_transform_la-ImageTransform.lo `test -f 'experimental/webp_transform/ImageTransform.cc' || echo '$(srcdir)/'`experimental/webp_transform/ImageTransform.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Tpo experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/webp_transform/ImageTransform.cc' object='experimental/webp_transform/webp_transform_la-ImageTransform.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_webp_transform_WebpTransform_la_CPPFLAGS) $(CPPFLAGS) $(experimental_webp_transform_WebpTransform_la_CXXFLAGS) $(CXXFLAGS) -c -o experimental/webp_transform/WebpTransform_la-ImageTransform.lo `test -f 'experimental/webp_transform/ImageTransform.cc' || echo '$(srcdir)/'`experimental/webp_transform/ImageTransform.cc
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_webp_transform_webp_transform_la_CPPFLAGS) $(CPPFLAGS) $(experimental_webp_transform_webp_transform_la_CXXFLAGS) $(CXXFLAGS) -c -o experimental/webp_transform/webp_transform_la-ImageTransform.lo `test -f 'experimental/webp_transform/ImageTransform.cc' || echo '$(srcdir)/'`experimental/webp_transform/ImageTransform.cc
 
 multiplexer/multiplexer_la-ats-multiplexer.lo: multiplexer/ats-multiplexer.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(multiplexer_multiplexer_la_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT multiplexer/multiplexer_la-ats-multiplexer.lo -MD -MP -MF multiplexer/$(DEPDIR)/multiplexer_la-ats-multiplexer.Tpo -c -o multiplexer/multiplexer_la-ats-multiplexer.lo `test -f 'multiplexer/ats-multiplexer.cc' || echo '$(srcdir)/'`multiplexer/ats-multiplexer.cc
@@ -6421,19 +6656,33 @@ experimental/slice/test_range-Range.obj: experimental/slice/Range.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_slice_test_range_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/slice/test_range-Range.obj `if test -f 'experimental/slice/Range.cc'; then $(CYGPATH_W) 'experimental/slice/Range.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/slice/Range.cc'; fi`
 
-experimental/sslheaders/test_sslheaders-test_sslheaders.o: experimental/sslheaders/test_sslheaders.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/sslheaders/test_sslheaders-test_sslheaders.o -MD -MP -MF experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo -c -o experimental/sslheaders/test_sslheaders-test_sslheaders.o `test -f 'experimental/sslheaders/test_sslheaders.cc' || echo '$(srcdir)/'`experimental/sslheaders/test_sslheaders.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/sslheaders/test_sslheaders.cc' object='experimental/sslheaders/test_sslheaders-test_sslheaders.o' libtool=no @AMDEPBACKSLASH@
+experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.o: experimental/sslheaders/unit_tests/unit_test_main.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.o -MD -MP -MF experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Tpo -c -o experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.o `test -f 'experimental/sslheaders/unit_tests/unit_test_main.cc' || echo '$(srcdir)/'`experimental/sslheaders/unit_tests/unit_test_main.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Tpo experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/sslheaders/unit_tests/unit_test_main.cc' object='experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/test_sslheaders-test_sslheaders.o `test -f 'experimental/sslheaders/test_sslheaders.cc' || echo '$(srcdir)/'`experimental/sslheaders/test_sslheaders.cc
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.o `test -f 'experimental/sslheaders/unit_tests/unit_test_main.cc' || echo '$(srcdir)/'`experimental/sslheaders/unit_tests/unit_test_main.cc
 
-experimental/sslheaders/test_sslheaders-test_sslheaders.obj: experimental/sslheaders/test_sslheaders.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/sslheaders/test_sslheaders-test_sslheaders.obj -MD -MP -MF experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo -c -o experimental/sslheaders/test_sslheaders-test_sslheaders.obj `if test -f 'experimental/sslheaders/test_sslheaders.cc'; then $(CYGPATH_W) 'experimental/sslheaders/test_sslheaders.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/test_sslheaders.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/sslheaders/test_sslheaders.cc' object='experimental/sslheaders/test_sslheaders-test_sslheaders.obj' libtool=no @AMDEPBACKSLASH@
+experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.obj: experimental/sslheaders/unit_tests/unit_test_main.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.obj -MD -MP -MF experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Tpo -c -o experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.obj `if test -f 'experimental/sslheaders/unit_tests/unit_test_main.cc'; then $(CYGPATH_W) 'experimental/sslheaders/unit_tests/unit_test_main.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/unit_tests/unit_test_main.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Tpo experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/sslheaders/unit_tests/unit_test_main.cc' object='experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/test_sslheaders-test_sslheaders.obj `if test -f 'experimental/sslheaders/test_sslheaders.cc'; then $(CYGPATH_W) 'experimental/sslheaders/test_sslheaders.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/test_sslheaders.cc'; fi`
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/unit_tests/test_sslheaders-unit_test_main.obj `if test -f 'experimental/sslheaders/unit_tests/unit_test_main.cc'; then $(CYGPATH_W) 'experimental/sslheaders/unit_tests/unit_test_main.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/unit_tests/unit_test_main.cc'; fi`
+
+experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.o: experimental/sslheaders/unit_tests/test_sslheaders.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.o -MD -MP -MF experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo -c -o experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.o `test -f 'experimental/sslheaders/unit_tests/test_sslheaders.cc' || echo '$(srcdir)/'`experimental/sslheaders/unit_tests/test_sslheaders.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/sslheaders/unit_tests/test_sslheaders.cc' object='experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.o `test -f 'experimental/sslheaders/unit_tests/test_sslheaders.cc' || echo '$(srcdir)/'`experimental/sslheaders/unit_tests/test_sslheaders.cc
+
+experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.obj: experimental/sslheaders/unit_tests/test_sslheaders.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.obj -MD -MP -MF experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo -c -o experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.obj `if test -f 'experimental/sslheaders/unit_tests/test_sslheaders.cc'; then $(CYGPATH_W) 'experimental/sslheaders/unit_tests/test_sslheaders.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/unit_tests/test_sslheaders.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Tpo experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/sslheaders/unit_tests/test_sslheaders.cc' object='experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/unit_tests/test_sslheaders-test_sslheaders.obj `if test -f 'experimental/sslheaders/unit_tests/test_sslheaders.cc'; then $(CYGPATH_W) 'experimental/sslheaders/unit_tests/test_sslheaders.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/unit_tests/test_sslheaders.cc'; fi`
 
 experimental/traffic_dump/unit_tests/test_traffic_dump-unit_test_main.o: experimental/traffic_dump/unit_tests/unit_test_main.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_traffic_dump_test_traffic_dump_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT experimental/traffic_dump/unit_tests/test_traffic_dump-unit_test_main.o -MD -MP -MF experimental/traffic_dump/unit_tests/$(DEPDIR)/test_traffic_dump-unit_test_main.Tpo -c -o experimental/traffic_dump/unit_tests/test_traffic_dump-unit_test_main.o `test -f 'experimental/traffic_dump/unit_tests/unit_test_main.cc' || echo '$(srcdir)/'`experimental/traffic_dump/unit_tests/unit_test_main.cc
@@ -6553,6 +6802,7 @@ clean-libtool:
 	-rm -rf esi/test/.libs esi/test/_libs
 	-rm -rf experimental/access_control/.libs experimental/access_control/_libs
 	-rm -rf experimental/acme/.libs experimental/acme/_libs
+	-rm -rf experimental/cache_fill/.libs experimental/cache_fill/_libs
 	-rm -rf experimental/cache_key_genid/.libs experimental/cache_key_genid/_libs
 	-rm -rf experimental/cert_reporting_tool/.libs experimental/cert_reporting_tool/_libs
 	-rm -rf experimental/collapsed_forwarding/.libs experimental/collapsed_forwarding/_libs
@@ -6562,6 +6812,7 @@ clean-libtool:
 	-rm -rf experimental/geoip_acl/.libs experimental/geoip_acl/_libs
 	-rm -rf experimental/header_freq/.libs experimental/header_freq/_libs
 	-rm -rf experimental/hook-trace/.libs experimental/hook-trace/_libs
+	-rm -rf experimental/icap/.libs experimental/icap/_libs
 	-rm -rf experimental/inliner/.libs experimental/inliner/_libs
 	-rm -rf experimental/ja3_fingerprint/.libs experimental/ja3_fingerprint/_libs
 	-rm -rf experimental/magick/.libs experimental/magick/_libs
@@ -6573,6 +6824,7 @@ clean-libtool:
 	-rm -rf experimental/mp4/.libs experimental/mp4/_libs
 	-rm -rf experimental/mysql_remap/.libs experimental/mysql_remap/_libs
 	-rm -rf experimental/mysql_remap/lib/.libs experimental/mysql_remap/lib/_libs
+	-rm -rf experimental/rate_limit/.libs experimental/rate_limit/_libs
 	-rm -rf experimental/redo_cache_lookup/.libs experimental/redo_cache_lookup/_libs
 	-rm -rf experimental/remap_stats/.libs experimental/remap_stats/_libs
 	-rm -rf experimental/slice/.libs experimental/slice/_libs
@@ -7100,6 +7352,8 @@ distclean-generic:
 	-rm -f experimental/access_control/unit_tests/$(am__dirstamp)
 	-rm -f experimental/acme/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/acme/$(am__dirstamp)
+	-rm -f experimental/cache_fill/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/cache_fill/$(am__dirstamp)
 	-rm -f experimental/cache_key_genid/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/cache_key_genid/$(am__dirstamp)
 	-rm -f experimental/cert_reporting_tool/$(DEPDIR)/$(am__dirstamp)
@@ -7118,6 +7372,8 @@ distclean-generic:
 	-rm -f experimental/header_freq/$(am__dirstamp)
 	-rm -f experimental/hook-trace/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/hook-trace/$(am__dirstamp)
+	-rm -f experimental/icap/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/icap/$(am__dirstamp)
 	-rm -f experimental/inliner/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/inliner/$(am__dirstamp)
 	-rm -f experimental/ja3_fingerprint/$(DEPDIR)/$(am__dirstamp)
@@ -7140,6 +7396,8 @@ distclean-generic:
 	-rm -f experimental/mysql_remap/$(am__dirstamp)
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/mysql_remap/lib/$(am__dirstamp)
+	-rm -f experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/rate_limit/$(am__dirstamp)
 	-rm -f experimental/redo_cache_lookup/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/redo_cache_lookup/$(am__dirstamp)
 	-rm -f experimental/remap_stats/$(DEPDIR)/$(am__dirstamp)
@@ -7153,6 +7411,8 @@ distclean-generic:
 	-rm -f experimental/ssl_session_reuse/src/$(am__dirstamp)
 	-rm -f experimental/sslheaders/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/sslheaders/$(am__dirstamp)
+	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/sslheaders/unit_tests/$(am__dirstamp)
 	-rm -f experimental/statichit/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/statichit/$(am__dirstamp)
 	-rm -f experimental/stream_editor/$(DEPDIR)/$(am__dirstamp)
@@ -7255,7 +7515,6 @@ distclean: distclean-recursive
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-EsiParser.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-EsiProcessor.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Expression.Plo
-	-rm -f esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Stats.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Utils.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Variables.Plo
@@ -7283,6 +7542,8 @@ distclean: distclean-recursive
 	-rm -f experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_access_control.Po
 	-rm -f experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_utils.Po
 	-rm -f experimental/acme/$(DEPDIR)/acme.Plo
+	-rm -f experimental/cache_fill/$(DEPDIR)/background_fetch.Plo
+	-rm -f experimental/cache_fill/$(DEPDIR)/cache_fill.Plo
 	-rm -f experimental/cache_key_genid/$(DEPDIR)/cache_key_genid.Plo
 	-rm -f experimental/cert_reporting_tool/$(DEPDIR)/cert_reporting_tool.Plo
 	-rm -f experimental/collapsed_forwarding/$(DEPDIR)/collapsed_forwarding.Plo
@@ -7299,6 +7560,7 @@ distclean: distclean-recursive
 	-rm -f experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo
 	-rm -f experimental/header_freq/$(DEPDIR)/header_freq.Plo
 	-rm -f experimental/hook-trace/$(DEPDIR)/hook-trace.Plo
+	-rm -f experimental/icap/$(DEPDIR)/icap_plugin.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-chunk-decoder.Plo
@@ -7319,6 +7581,11 @@ distclean: distclean-recursive
 	-rm -f experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/rate_limit.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/sni_selector.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/txn_limiter.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/utilities.Plo
 	-rm -f experimental/redo_cache_lookup/$(DEPDIR)/redo_cache_lookup.Plo
 	-rm -f experimental/remap_stats/$(DEPDIR)/remap_stats.Plo
 	-rm -f experimental/slice/$(DEPDIR)/Config.Plo
@@ -7353,7 +7620,8 @@ distclean: distclean-recursive
 	-rm -f experimental/sslheaders/$(DEPDIR)/libsslhdr_la-expand.Plo
 	-rm -f experimental/sslheaders/$(DEPDIR)/libsslhdr_la-util.Plo
 	-rm -f experimental/sslheaders/$(DEPDIR)/sslheaders_la-sslheaders.Plo
-	-rm -f experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
+	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
+	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po
 	-rm -f experimental/statichit/$(DEPDIR)/statichit.Plo
 	-rm -f experimental/stream_editor/$(DEPDIR)/stream_editor.Plo
 	-rm -f experimental/system_stats/$(DEPDIR)/system_stats.Plo
@@ -7385,10 +7653,12 @@ distclean: distclean-recursive
 	-rm -f experimental/uri_signing/$(DEPDIR)/uri_signing.Plo
 	-rm -f experimental/uri_signing/unit_tests/$(DEPDIR)/test_uri_signing-uri_signing_test.Po
 	-rm -f experimental/url_sig/$(DEPDIR)/url_sig.Plo
-	-rm -f experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Plo
+	-rm -f experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Plo
 	-rm -f generator/$(DEPDIR)/generator.Plo
 	-rm -f header_rewrite/$(DEPDIR)/condition.Plo
 	-rm -f header_rewrite/$(DEPDIR)/conditions.Plo
+	-rm -f header_rewrite/$(DEPDIR)/conditions_geo_geoip.Plo
+	-rm -f header_rewrite/$(DEPDIR)/conditions_geo_maxmind.Plo
 	-rm -f header_rewrite/$(DEPDIR)/factory.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite_test.Po
@@ -7539,7 +7809,6 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-EsiParser.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-EsiProcessor.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Expression.Plo
-	-rm -f esi/lib/$(DEPDIR)/libesicore_la-FailureInfo.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Stats.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Utils.Plo
 	-rm -f esi/lib/$(DEPDIR)/libesicore_la-Variables.Plo
@@ -7567,6 +7836,8 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_access_control.Po
 	-rm -f experimental/access_control/unit_tests/$(DEPDIR)/test_access_control-test_utils.Po
 	-rm -f experimental/acme/$(DEPDIR)/acme.Plo
+	-rm -f experimental/cache_fill/$(DEPDIR)/background_fetch.Plo
+	-rm -f experimental/cache_fill/$(DEPDIR)/cache_fill.Plo
 	-rm -f experimental/cache_key_genid/$(DEPDIR)/cache_key_genid.Plo
 	-rm -f experimental/cert_reporting_tool/$(DEPDIR)/cert_reporting_tool.Plo
 	-rm -f experimental/collapsed_forwarding/$(DEPDIR)/collapsed_forwarding.Plo
@@ -7583,6 +7854,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo
 	-rm -f experimental/header_freq/$(DEPDIR)/header_freq.Plo
 	-rm -f experimental/hook-trace/$(DEPDIR)/hook-trace.Plo
+	-rm -f experimental/icap/$(DEPDIR)/icap_plugin.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-chunk-decoder.Plo
@@ -7603,6 +7875,11 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/rate_limit.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/sni_selector.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/txn_limiter.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/utilities.Plo
 	-rm -f experimental/redo_cache_lookup/$(DEPDIR)/redo_cache_lookup.Plo
 	-rm -f experimental/remap_stats/$(DEPDIR)/remap_stats.Plo
 	-rm -f experimental/slice/$(DEPDIR)/Config.Plo
@@ -7637,7 +7914,8 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/sslheaders/$(DEPDIR)/libsslhdr_la-expand.Plo
 	-rm -f experimental/sslheaders/$(DEPDIR)/libsslhdr_la-util.Plo
 	-rm -f experimental/sslheaders/$(DEPDIR)/sslheaders_la-sslheaders.Plo
-	-rm -f experimental/sslheaders/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
+	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
+	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po
 	-rm -f experimental/statichit/$(DEPDIR)/statichit.Plo
 	-rm -f experimental/stream_editor/$(DEPDIR)/stream_editor.Plo
 	-rm -f experimental/system_stats/$(DEPDIR)/system_stats.Plo
@@ -7669,10 +7947,12 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/uri_signing/$(DEPDIR)/uri_signing.Plo
 	-rm -f experimental/uri_signing/unit_tests/$(DEPDIR)/test_uri_signing-uri_signing_test.Po
 	-rm -f experimental/url_sig/$(DEPDIR)/url_sig.Plo
-	-rm -f experimental/webp_transform/$(DEPDIR)/WebpTransform_la-ImageTransform.Plo
+	-rm -f experimental/webp_transform/$(DEPDIR)/webp_transform_la-ImageTransform.Plo
 	-rm -f generator/$(DEPDIR)/generator.Plo
 	-rm -f header_rewrite/$(DEPDIR)/condition.Plo
 	-rm -f header_rewrite/$(DEPDIR)/conditions.Plo
+	-rm -f header_rewrite/$(DEPDIR)/conditions_geo_geoip.Plo
+	-rm -f header_rewrite/$(DEPDIR)/conditions_geo_maxmind.Plo
 	-rm -f header_rewrite/$(DEPDIR)/factory.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite_test.Po

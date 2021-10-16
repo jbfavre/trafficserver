@@ -34,7 +34,6 @@ from docutils.utils import punctuation_chars
 from docutils.parsers.rst import states
 from docutils import nodes
 import re
-from manpages import man_pages
 import sys
 import os
 from datetime import date
@@ -43,10 +42,8 @@ from sphinx import version_info
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-#sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('ext'))
 sys.path.insert(0, os.path.abspath('.'))
-
 
 # -- General configuration -----------------------------------------------------
 
@@ -64,7 +61,7 @@ extensions = [
 ]
 
 # Contains values that are dependent on configure.ac.
-LOCAL_CONFIG = 'ext/local-config.py'
+LOCAL_CONFIG = os.path.join(os.environ['PWD'], "ext", "local-config.py")
 with open(LOCAL_CONFIG) as f:
     exec(compile(f.read(), LOCAL_CONFIG, 'exec'))
 
@@ -140,7 +137,7 @@ else:
         import sphinx_rtd_theme
         html_theme = 'sphinx_rtd_theme'
         html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-    except BaseException:
+    except Exception:
         pass
 # End of HACK
 
@@ -175,10 +172,16 @@ pygments_style = 'default'
 #modindex_common_prefix = []
 
 nitpicky = True
-nitpick_ignore = [('c:type', 'int64_t'), ('c:type', 'bool'), ('c:type', 'sockaddr'), ('cpp:identifier', 'T')  # template arg
-                  , ('cpp:identifier', 'F')  # template arg
-                  , ('cpp:identifier', 'Args')  # variadic template arg
-                  , ('cpp:identifier', 'Rest')  # variadic template arg
+nitpick_ignore = [('c:type', 'int64_t'),
+                  ('c:type', 'bool'),
+                  ('c:type', 'sockaddr'),
+                  ('cpp:identifier', 'T'),  # template arg
+                  ('cpp:identifier', 'F'),  # template arg
+                  ('cpp:identifier', 'Args'),  # variadic template arg
+                  ('cpp:identifier', 'Rest'),  # variadic template arg
+                  ('c:type', 'uint64_t'),
+                  ('c:type', 'uint8_t'),
+                  ('c:type', 'int32_t')
                   ]
 
 # Autolink issue references.
@@ -499,7 +502,7 @@ epub_copyright = u'2013, dev@trafficserver.apache.org'
 
 # Allow duplicate toc entries.
 #epub_tocdup = True
-mathjax_path = 'https://docs.trafficserver.apache.org/__RTD/MathJax.js'
+#mathjax_path = 'https://docs.trafficserver.apache.org/__RTD/MathJax.js'
 
 # Enabling marking bit fields as 'bitfield_N`.
 # Currently parameterized fields don't work. When they do, we should change to

@@ -31,7 +31,7 @@ Test.SkipUnless(
 Test.ContinueOnFail = True
 
 # Define default ATS
-ts = Test.MakeATSProcess("ts", select_ports=False)
+ts = Test.MakeATSProcess("ts", enable_tls=True)
 server = Test.MakeOriginServer("server", options={'--load': os.path.join(Test.TestDirectory, 'via-observer.py')})
 
 testName = "VIA"
@@ -42,22 +42,14 @@ response_header = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", "t
 server.addResponse("sessionlog.json", request_header, response_header)
 
 # These should be promoted rather than other tests like this reaching around.
-ts.addSSLfile("../remap/ssl/server.pem")
-ts.addSSLfile("../remap/ssl/server.key")
+ts.addDefaultSSLFiles()
 
-ts.Variables.ssl_port = 4443
-ts.Disk.records_config.update(
-    {
-        'proxy.config.http.insert_request_via_str': 4,
-        'proxy.config.http.insert_response_via_str': 4,
-        'proxy.config.ssl.server.cert.path': '{0}'.format(
-            ts.Variables.SSLDir),
-        'proxy.config.ssl.server.private_key.path': '{0}'.format(
-            ts.Variables.SSLDir),
-        'proxy.config.http.server_ports': 'ipv4:{0} ipv4:{1}:proto=http2;http:ssl ipv6:{0} ipv6:{1}:proto=http2;http:ssl'.format(
-            ts.Variables.port,
-            ts.Variables.ssl_port),
-    })
+ts.Disk.records_config.update({
+    'proxy.config.http.insert_request_via_str': 4,
+    'proxy.config.http.insert_response_via_str': 4,
+    'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
+    'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
+})
 
 ts.Disk.remap_config.AddLine(
     'map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port)
@@ -118,14 +110,14 @@ tr.StillRunningAfter = ts
 # IPv6
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl --verbose --ipv6 --http1.1 --proxy localhost:{} http://www.example.com'.format(
-    ts.Variables.port)
+    ts.Variables.portv6)
 tr.Processes.Default.ReturnCode = 0
 tr.StillRunningAfter = server
 tr.StillRunningAfter = ts
 
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl --verbose --ipv6 --http1.1 --insecure --header "Host: www.example.com" https://localhost:{}'.format(
-    ts.Variables.ssl_port)
+    ts.Variables.ssl_portv6)
 tr.Processes.Default.ReturnCode = 0
 
 tr.StillRunningAfter = server

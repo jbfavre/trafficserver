@@ -61,7 +61,7 @@ server.addResponse("sessionlog.json",
 
 # For Test Case 6 - /postchunked
 post_body = "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
-server.addResponse("sessionlog.jason",
+server.addResponse("sessionlog.json",
                    {"headers": "POST /postchunked HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
                     "timestamp": "1469733493.993",
                     "body": post_body},
@@ -72,7 +72,7 @@ server.addResponse("sessionlog.jason",
 # For Test Case 7 - /bigpostchunked
 # Make a post body that will be split across at least two frames
 big_post_body = "0123456789" * 131070
-server.addResponse("sessionlog.jason",
+server.addResponse("sessionlog.json",
                    {"headers": "POST /bigpostchunked HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
                     "timestamp": "1469733493.993",
                     "body": big_post_body},
@@ -108,13 +108,13 @@ server.addResponse("sessionlog.json",
 ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True, enable_cache=False)
 
 # add ssl materials like key, certificates for the server
-ts.addSSLfile("ssl/server.pem")
-ts.addSSLfile("ssl/server.key")
+ts.addDefaultSSLFiles()
 
 ts.Setup.CopyAs('rules/huge_resp_hdrs.conf', Test.RunDirectory)
 ts.Disk.remap_config.AddLine(
     'map /huge_resp_hdrs http://127.0.0.1:{0}/huge_resp_hdrs @plugin=header_rewrite.so @pparam={1}/huge_resp_hdrs.conf '.format(
-        server.Variables.Port, Test.RunDirectory))
+        server.Variables.Port, Test.RunDirectory)
+)
 
 ts.Disk.remap_config.AddLine(
     'map / http://127.0.0.1:{0}'.format(server.Variables.Port)
@@ -203,7 +203,7 @@ tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.All = "gold/post_chunked.gold"
 tr.StillRunningAfter = server
 
-# Test Case 8: Huge resposne header
+# Test Case 8: Huge response header
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl -vs -k --http2 https://127.0.0.1:{0}/huge_resp_hdrs'.format(ts.Variables.ssl_port)
 tr.Processes.Default.ReturnCode = 0

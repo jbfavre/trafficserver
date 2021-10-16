@@ -567,6 +567,7 @@ Field Source                Description
 cqhv  Client Request        Client request HTTP version. Deprecated since 9.0.
                             Use ``cqpv`` instead.
 cqpv  Client Request        Client request protocol and version.
+sqpv  Proxy Request         Origin negotiated protocol and version
 csshv Cached Proxy Response Origin server's HTTP version from cached version of
                             the document in |TS| proxy cache.
 sshv  Origin Response       Origin server's response HTTP version.
@@ -604,6 +605,7 @@ SSL / Encryption
 .. _cqssv:
 .. _cqssc:
 .. _cqssu:
+.. _cqssa:
 .. _pqssl:
 .. _pscert:
 
@@ -628,6 +630,7 @@ cqssv  Client Request SSL version used to communicate with the client.
 cqssc  Client Request SSL Cipher used by |TS| to communicate with the client.
 cqssu  Client Request SSL Elliptic Curve used by |TS| to communicate with the
                       client when using an ECDHE cipher.
+cqssa  Client Request ALPN Protocol ID negotiated with the client.
 pqssl  Proxy Request  Indicates whether the connection from |TS| to the origin
                       was over SSL or not.
 pscert Proxy Request  1 if origin requested certificate from |TS| during TLS

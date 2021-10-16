@@ -255,7 +255,14 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 
       ink_assert(niov > 0);
       ink_assert(niov <= countof(tiovec));
-      r = socketManager.readv(vc->con.fd, &tiovec[0], niov);
+      struct msghdr msg;
+
+      ink_zero(msg);
+      msg.msg_name    = const_cast<sockaddr *>(vc->get_remote_addr());
+      msg.msg_namelen = ats_ip_size(vc->get_remote_addr());
+      msg.msg_iov     = &tiovec[0];
+      msg.msg_iovlen  = niov;
+      r               = socketManager.recvmsg(vc->con.fd, &msg, 0);
 
       NET_INCREMENT_DYN_STAT(net_calls_to_read_stat);
 
@@ -324,6 +331,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
       }
     }
   }
+
   // If here are is no more room, or nothing to do, disable the connection
   if (s->vio.ntodo() <= 0 || !s->enabled || !buf.writer()->write_avail()) {
     read_disable(nh, vc);
@@ -358,6 +366,12 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 
   if (!lock.is_locked() || lock.get_mutex() != s->vio.mutex.get()) {
     write_reschedule(nh, vc);
+    return;
+  }
+
+  if (vc->has_error()) {
+    vc->lerrno = vc->error;
+    write_signal_and_update(VC_EVENT_ERROR, vc);
     return;
   }
 
@@ -488,7 +502,7 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     }
 
     vc->write.triggered = 0;
-    write_signal_error(nh, vc, static_cast<int>(-total_written));
+    write_signal_error(nh, vc, static_cast<int>(-r));
     return;
   } else {                                        // Wrote data.  Finished without error
     int wbe_event = vc->write_buffer_empty_event; // save so we can clear if needed.
@@ -567,19 +581,6 @@ UnixNetVConnection::get_data(int id, void *data)
   default:
     return false;
   }
-}
-
-int64_t
-UnixNetVConnection::outstanding()
-{
-  int n;
-  int ret = ioctl(this->get_socket(), TIOCOUTQ, &n);
-  // if there was an error (such as ioctl doesn't support this call on this platform) then
-  // we return -1
-  if (ret == -1) {
-    return ret;
-  }
-  return n;
 }
 
 VIO *
@@ -896,7 +897,10 @@ UnixNetVConnection::reenable_re(VIO *vio)
   }
 }
 
-UnixNetVConnection::UnixNetVConnection() {}
+UnixNetVConnection::UnixNetVConnection()
+{
+  SET_HANDLER((NetVConnHandler)&UnixNetVConnection::startEvent);
+}
 
 // Private methods
 
@@ -972,19 +976,21 @@ UnixNetVConnection::load_buffer_and_write(int64_t towrite, MIOBufferAccessor &bu
     // If the platform doesn't support TCP Fast Open, verify that we
     // correctly disabled support in the socket option configuration.
     ink_assert(MSG_FASTOPEN != 0 || this->options.f_tcp_fastopen == false);
+    struct msghdr msg;
+
+    ink_zero(msg);
+    msg.msg_name    = const_cast<sockaddr *>(this->get_remote_addr());
+    msg.msg_namelen = ats_ip_size(this->get_remote_addr());
+    msg.msg_iov     = &tiovec[0];
+    msg.msg_iovlen  = niov;
+    int flags       = 0;
 
     if (!this->con.is_connected && this->options.f_tcp_fastopen) {
-      struct msghdr msg;
-
-      ink_zero(msg);
-      msg.msg_name    = const_cast<sockaddr *>(this->get_remote_addr());
-      msg.msg_namelen = ats_ip_size(this->get_remote_addr());
-      msg.msg_iov     = &tiovec[0];
-      msg.msg_iovlen  = niov;
-
       NET_INCREMENT_DYN_STAT(net_fastopen_attempts_stat);
-
-      r = socketManager.sendmsg(con.fd, &msg, MSG_FASTOPEN);
+      flags = MSG_FASTOPEN;
+    }
+    r = socketManager.sendmsg(con.fd, &msg, flags);
+    if (!this->con.is_connected && this->options.f_tcp_fastopen) {
       if (r < 0) {
         if (r == -EINPROGRESS || r == -EWOULDBLOCK) {
           this->con.is_connected = true;
@@ -993,9 +999,6 @@ UnixNetVConnection::load_buffer_and_write(int64_t towrite, MIOBufferAccessor &bu
         NET_INCREMENT_DYN_STAT(net_fastopen_successes_stat);
         this->con.is_connected = true;
       }
-
-    } else {
-      r = socketManager.writev(con.fd, &tiovec[0], niov);
     }
 
     if (r > 0) {
@@ -1057,6 +1060,22 @@ void
 UnixNetVConnection::netActivity(EThread *lthread)
 {
   net_activity(this, lthread);
+}
+
+int
+UnixNetVConnection::startEvent(int /* event ATS_UNUSED */, Event *e)
+{
+  MUTEX_TRY_LOCK(lock, get_NetHandler(e->ethread)->mutex, e->ethread);
+  if (!lock.is_locked()) {
+    e->schedule_in(HRTIME_MSECONDS(net_retry_delay));
+    return EVENT_CONT;
+  }
+  if (!action_.cancelled) {
+    connectUp(e->ethread, NO_FD);
+  } else {
+    get_NetHandler(e->ethread)->free_netevent(this);
+  }
+  return EVENT_DONE;
 }
 
 int
@@ -1133,8 +1152,6 @@ UnixNetVConnection::mainEvent(int event, Event *e)
   Continuation *reader_cont     = nullptr;
   Continuation *writer_cont     = nullptr;
   ink_hrtime *signal_timeout_at = nullptr;
-  Event *t                      = nullptr;
-  Event **signal_timeout        = &t;
 
   switch (event) {
   // Treating immediate as inactivity timeout for any
@@ -1155,7 +1172,6 @@ UnixNetVConnection::mainEvent(int event, Event *e)
     break;
   }
 
-  *signal_timeout    = nullptr;
   *signal_timeout_at = 0;
   writer_cont        = write.vio.cont;
 
@@ -1171,7 +1187,7 @@ UnixNetVConnection::mainEvent(int event, Event *e)
     }
   }
 
-  if (!*signal_timeout && !*signal_timeout_at && !closed && write.vio.op == VIO::WRITE && !(f.shutdown & NET_VC_SHUTDOWN_WRITE) &&
+  if (!*signal_timeout_at && !closed && write.vio.op == VIO::WRITE && !(f.shutdown & NET_VC_SHUTDOWN_WRITE) &&
       reader_cont != write.vio.cont && writer_cont == write.vio.cont) {
     if (write_signal_and_update(signal_event, this) == EVENT_DONE) {
       return EVENT_DONE;
@@ -1266,7 +1282,6 @@ UnixNetVConnection::connectUp(EThread *t, int fd)
     res = con.connect(nullptr, options);
     if (res != 0) {
       // fast stopIO
-      nh = nullptr;
       goto fail;
     }
   }
@@ -1292,7 +1307,7 @@ fail:
   if (fd != NO_FD) {
     con.fd = NO_FD;
   }
-  free(t);
+  nh->free_netevent(this);
   return CONNECT_FAILURE;
 }
 
@@ -1351,6 +1366,7 @@ UnixNetVConnection::free(EThread *t)
   con.close();
 
   clear();
+  SET_CONTINUATION_HANDLER(this, (NetVConnHandler)&UnixNetVConnection::startEvent);
   ink_assert(con.fd == NO_FD);
   ink_assert(t == this_ethread());
 
@@ -1406,14 +1422,8 @@ UnixNetVConnection::migrateToCurrentThread(Continuation *cont, EThread *t)
 
   Connection hold_con;
   hold_con.move(this->con);
-  SSLNetVConnection *sslvc = dynamic_cast<SSLNetVConnection *>(this);
 
-  SSL *save_ssl = nullptr;
-  if (sslvc) {
-    save_ssl = sslvc->ssl;
-    SSLNetVCDetach(sslvc->ssl);
-    sslvc->ssl = nullptr;
-  }
+  void *arg = this->_prepareForMigration();
 
   // Do_io_close will signal the VC to be freed on the original thread
   // Since we moved the con context, the fd will not be closed
@@ -1422,32 +1432,32 @@ UnixNetVConnection::migrateToCurrentThread(Continuation *cont, EThread *t)
   this->ep.stop();
 
   // Create new VC:
-  UnixNetVConnection *netvc = nullptr;
-  if (save_ssl) {
-    sslvc = static_cast<SSLNetVConnection *>(sslNetProcessor.allocate_vc(t));
-    if (sslvc->populate(hold_con, cont, save_ssl) != EVENT_DONE) {
-      sslvc->do_io_close();
-      sslvc = nullptr;
-    } else {
-      // Update the SSL fields
-      sslvc->set_context(get_context());
-    }
-    netvc = sslvc;
-  } else {
-    netvc = static_cast<UnixNetVConnection *>(netProcessor.allocate_vc(t));
-    if (netvc->populate(hold_con, cont, save_ssl) != EVENT_DONE) {
-      netvc->do_io_close();
-      netvc = nullptr;
-    } else {
-      netvc->set_context(get_context());
-    }
+  UnixNetVConnection *newvc = static_cast<UnixNetVConnection *>(this->_getNetProcessor()->allocate_vc(t));
+  ink_assert(newvc != nullptr);
+  if (newvc->populate(hold_con, cont, arg) != EVENT_DONE) {
+    newvc->do_io_close();
+    newvc = nullptr;
   }
-  if (netvc) {
-    netvc->options = this->options;
+  if (newvc) {
+    newvc->set_context(get_context());
+    newvc->options = this->options;
   }
+
   // Do not mark this closed until the end so it does not get freed by the other thread too soon
   this->do_io_close();
-  return netvc;
+  return newvc;
+}
+
+void *
+UnixNetVConnection::_prepareForMigration()
+{
+  return nullptr;
+}
+
+NetProcessor *
+UnixNetVConnection::_getNetProcessor()
+{
+  return &netProcessor;
 }
 
 void

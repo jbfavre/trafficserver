@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[9.0.1])
-m4_define([TS_VERSION_N],[9000001])
+m4_define([TS_VERSION_S],[9.1.0])
+m4_define([TS_VERSION_N],[9001001])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver], [https://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -151,7 +151,6 @@ AC_SUBST([build_number])
 #
 # Debug
 #
-
 AC_MSG_CHECKING([whether to enable debugging])
 AC_ARG_ENABLE([debug],
   [AS_HELP_STRING([--enable-debug],[turn on debugging])],
@@ -167,6 +166,15 @@ AC_ARG_ENABLE([mime-sanity-check],
   [enable_mime_sanity_check=no]
 )
 AC_MSG_RESULT([$enable_mime_sanity_check])
+
+AC_MSG_CHECKING([whether to enable all asserts, a cheaper debug])
+AC_ARG_ENABLE([all-asserts],
+  [AS_HELP_STRING([--enable-all-asserts],[turn on all code asserts, both debug and release])],
+  [],
+  [enable_all_asserts=no]
+)
+AC_MSG_RESULT([$enable_all_asserts])
+
 
 # Enable code coverage instrumentation only if requested by the user.
 AC_MSG_CHECKING([whether to code coverage])
@@ -432,7 +440,7 @@ AC_ARG_ENABLE([hwloc],
 AC_MSG_RESULT([$enable_hwloc])
 
 #
-# Enble ccache explicitly (it's disabled by default, because of build problems in some cases)
+# Enable ccache explicitly (it's disabled by default, because of build problems in some cases)
 #
 AC_MSG_CHECKING([whether to enable ccache])
 AC_ARG_ENABLE([ccache],
@@ -443,7 +451,7 @@ AC_ARG_ENABLE([ccache],
 AC_MSG_RESULT([$enable_ccache])
 
 #
-# Enble hardening of the executables
+# Enable hardening of the executables
 #
 AC_MSG_CHECKING([whether to enable hardening of the executables])
 AC_ARG_ENABLE([hardening],
@@ -653,7 +661,7 @@ TS_ADDTO(AM_CFLAGS, [-std=gnu99])
 ac_save_CXX="$CXX"
 CXX="$CXX -std=c++17"
 AC_LANG_PUSH(C++)
-AC_MSG_CHECKING([checking whether $CXX supports -std=c++17])
+AC_MSG_CHECKING([whether $CXX supports -std=c++17])
 AC_COMPILE_IFELSE([
     AC_LANG_PROGRAM([
 #if __cplusplus < 201703L
@@ -818,7 +826,7 @@ AX_PROG_PERL_MODULES([ExtUtils::MakeMaker], AM_CONDITIONAL([BUILD_PERL_LIB], [tr
 )
 
 # Check for GNU-style -On optimization flags
-AC_MSG_CHECKING([checking whether to auto-set compiler optimization flags])
+AC_MSG_CHECKING([whether to auto-set compiler optimization flags])
 has_optimizer_flags=`echo "$CFLAGS $CXXFLAGS" | ${AWK} '$0 !~ /-O.?/{print "no"}'`
 AS_IF([test "x${has_optimizer_flags}" = "xno"],
         [
@@ -841,7 +849,7 @@ case $host_os_def in
       #  #279 is "controlling expression is constant" (which is e.g. TSReleaseAssert(!"Unexpected Event");
       common_opt="-pipe -Wall -wd873 -wd279"
       debug_opt="-g $common_opt"
-      release_opt="-g $common_opt $optimization_flags -axsse4.2 -fno-strict-aliasing"
+      release_opt="-g $common_opt $optimizing_flags -axsse4.2 -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
     ])
 
@@ -969,12 +977,16 @@ if test "x${enable_debug}" = "xyes"; then
   TS_ADDTO(AM_CFLAGS, [${cc_oflag_dbg}])
   TS_ADDTO(AM_CXXFLAGS, [${cxx_oflag_dbg}])
   TS_ADDTO(AM_CPPFLAGS, [-DDEBUG -D_DEBUG])
-  if test "x${enable_mime_sanity_check}" = "xyes"; then
-    TS_ADDTO(AM_CPPFLAGS, [-DENABLE_MIME_SANITY_CHECK])
-  fi
 else
   TS_ADDTO(AM_CFLAGS, [${cc_oflag_opt}])
   TS_ADDTO(AM_CXXFLAGS, [${cxx_oflag_opt}])
+fi
+
+if test "x${enable_mime_sanity_check}" = "xyes"; then
+  TS_ADDTO(AM_CPPFLAGS, [-DENABLE_MIME_SANITY_CHECK])
+fi
+if test "x${enable_all_asserts}" = "xyes"; then
+  TS_ADDTO(AM_CPPFLAGS, [-DENABLE_ALL_ASSERTS])
 fi
 
 # Flags for ASAN
@@ -1113,7 +1125,7 @@ if test "x${GCC}" = "xyes"; then
   fi
 fi
 
-# Overrride detected architecture with the user suplied one
+# Override detected architecture with the user supplied one
 #
 AC_ARG_WITH(architecture, [AC_HELP_STRING([--with-architecture=ARCH],[use a specific CPU architecture])],
 [
@@ -1165,7 +1177,7 @@ AS_IF([test "x${enable_hardening}" = "xyes"], [
 
 #
 # Note:  These are site-specific macro's that do various tests
-#         on the selected compilers.  There was some tunning
+#         on the selected compilers.  There was some tuning
 #         associated with our not wanting to use GNU for _everything_.
 # Note:  This macro may set certain parameters when run.
 #
@@ -1198,7 +1210,7 @@ AC_CHECK_FUNCS([pthread_mutexattr_settype])
 dnl XXX The following check incorrectly causes the build to succeed
 dnl on Darwin. We should be using AC_SEARCH_LIBS, but rest_init is
 dnl actually present in libsystem. We are searching for the library
-dnl that contains the full Bind 9 API (which is acutally libresolv).
+dnl that contains the full Bind 9 API (which is actually libresolv).
 dnl However, the resolv API uses macros to rename it's APIs to per-version
 dnl symbols, so standard autoconf macros cannot reasonably be used to
 dnl check for it. We need to write custom macros to detect it properly.
@@ -1298,6 +1310,9 @@ TS_CHECK_CRYPTO_SET_CIPHERSUITES
 # Check for openssl early data support
 TS_CHECK_EARLY_DATA
 
+# Check for openssl session ticket support
+TS_CHECK_SESSION_TICKET
+
 saved_LIBS="$LIBS"
 TS_ADDTO([LIBS], ["$OPENSSL_LIBS"])
 
@@ -1307,6 +1322,7 @@ AC_CHECK_FUNCS([ \
   CRYPTO_set_mem_functions \
   HMAC_CTX_new \
   X509_get0_signature \
+  ERR_get_error_all \
 ])
 
 AC_CHECK_FUNC([ASN1_STRING_get0_data], [],
@@ -1359,7 +1375,7 @@ AC_EGREP_CPP(yes, [
   #endif
   ], [
     AC_MSG_RESULT(yes)
-    AS_IF([test "x${enable_experimental_plugins}" = "xyes"], [
+    AS_IF([test "x${enable_experimental_plugins}" = "xyes" && test -z "$openssl_is_boringssl"], [
       enable_ja3_plugin=yes
     ])
   ], [AC_MSG_RESULT(no)])
@@ -1414,7 +1430,7 @@ TS_CHECK_BROTLI
 TS_CHECK_LUAJIT
 
 #
-# Enable experimental/uri_singing plugin
+# Enable experimental/uri_signing plugin
 # This is here, instead of above, because it needs to know if PCRE is available.
 #
 
@@ -1437,6 +1453,9 @@ AM_CONDITIONAL([BUILD_YAML_CPP], [test x"$has_yaml_cpp" = x"no"])
 
 TS_CHECK_YAML_HEADERS_EXPORT
 AM_CONDITIONAL([EXPORT_YAML_HEADERS], [test x"$enable_yaml_headers" = x"yes"])
+
+# Check for optional boringocsp library
+TS_CHECK_BORINGOCSP
 
 # Check for optional hiredis library
 TS_CHECK_HIREDIS
@@ -1565,6 +1584,8 @@ __saved_CXXFLAGS="${CXXFLAGS}"
 __saved_CFLAGS="${CFLAGS}"
 
 has_128bit_cas=0
+# Don't add the -mcx16 flag unless needed and it compiles cleanly.
+needs_mcx16_for_cas=0
 
 TS_TRY_COMPILE_NO_WARNING([],[
     __int128_t x = 0;
@@ -1583,6 +1604,7 @@ TS_TRY_COMPILE_NO_WARNING([],[
       ], [
         AC_MSG_RESULT(yes)
         has_128bit_cas=1
+        needs_mcx16_for_cas=1
       ], [
         AC_MSG_RESULT(no)
     ])
@@ -1593,11 +1615,9 @@ CFLAGS="${__saved_CFLAGS}"
 AC_LANG_POP
 AC_SUBST(has_128bit_cas)
 
-AS_IF([test "x$has_128bit_cas" = "x1"], [
-  AS_IF([test "x$ax_cv_c_compiler_vendor" != "xintel"], [
+AS_IF([test "x$needs_mcx16_for_cas" = "x1"], [
     TS_ADDTO(AM_CFLAGS, [-mcx16])
     TS_ADDTO(AM_CXXFLAGS, [-mcx16])
-  ])
 ])
 
 # Check for POSIX capabilities library.
@@ -1692,11 +1712,15 @@ AC_SUBST(use_hwloc)
 #
 AC_CHECK_HEADERS([GeoIP.h], [
   AC_CHECK_LIB([GeoIP], [GeoIP_new], [
-    AC_SUBST([GEO_LIBS], ["-lGeoIP"])
+    AC_SUBST([GEOIP_LIBS], ["-lGeoIP"])
+    AC_SUBST(has_geoip, 1)
   ], [
-    AC_SUBST([GEO_LIBS], [""])
+    AC_SUBST([GEOIP_LIBS], [""])
+    AC_SUBST(has_geoip, 0)
   ])
 ])
+
+AM_CONDITIONAL([HAS_GEOIP], [test "x${has_geoip}" = "x1" ])
 
 #
 # Check for libmaxmind.  This is the maxmind v2 API where GeoIP is the legacy
@@ -1705,14 +1729,49 @@ AC_CHECK_HEADERS([GeoIP.h], [
 AC_CHECK_HEADERS([maxminddb.h], [
   AC_CHECK_LIB([maxminddb], [MMDB_open], [
     AC_SUBST([MAXMINDDB_LIBS], ["-lmaxminddb"])
-    AC_SUBST(has_maxmind, 1)
+    AC_SUBST(has_maxminddb, 1)
   ], [
     AC_SUBST([MAXMINDDB_LIBS], [""])
-    AC_SUBST(has_maxmind, 0)
+    AC_SUBST(has_maxminddb, 0)
   ])
 ])
 
-AM_CONDITIONAL([BUILD_MAXMIND_ACL_PLUGIN], [test "x${has_maxmind}" = "x1" ])
+AM_CONDITIONAL([HAS_MAXMINDDB], [test "x${has_maxminddb}" = "x1" ])
+
+AC_ARG_WITH([hrw-geo-provider],
+  [AS_HELP_STRING([--with-hrw-geo-provider=geoip|maxminddb],[geo provider to use with header_rewrite [default=auto] ])],
+  [geo_provider=$withval],
+  [geo_provider="auto"]
+)
+use_hrw_geoip=0
+use_hrw_maxminddb=0
+
+AS_IF([test "x$geo_provider" = "xauto"], [
+  if test "x$has_geoip" = "x1"; then
+    use_hrw_geoip=1
+    AC_MSG_NOTICE([Using GeoIP interface for header_rewrite])
+  elif test "x$has_maxminddb" = "x1"; then
+    use_hrw_maxminddb=1
+    AC_MSG_NOTICE([Using MaxMindDB interface for header_rewrite])
+  fi
+],[
+  case "x$geo_provider" in
+    xgeoip)
+      use_hrw_geoip=1
+      AC_MSG_RESULT([forced to GeoIP])
+      ;;
+    xmaxminddb)
+      use_hrw_maxminddb=1
+      AC_MSG_RESULT([forced to MaxMindDB])
+      ;;
+    *)
+      AC_MSG_RESULT([failed])
+      AC_MSG_FAILURE([unknown geo interface $geo_provider])
+  esac
+])
+
+AC_SUBST(use_hrw_geoip)
+AC_SUBST(use_hrw_maxminddb)
 
 # Right now, the healthcheck plugins requires inotify_init (and friends)
 AM_CONDITIONAL([BUILD_HEALTHCHECK_PLUGIN], [ test "$ac_cv_func_inotify_init" = "yes" ])
@@ -1989,7 +2048,7 @@ if test "x${ac_cv_member_struct_tcp_info_tcpi_data_segs_out}" = "xyes"; then
 fi
 
 if test "x${with_profiler}" = "xyes"; then
-AC_CHECK_HEADERS([google/profiler.h \
+AC_CHECK_HEADERS([gperftools/profiler.h \
                   ], [], [])
 fi
 
@@ -2173,7 +2232,7 @@ AC_SUBST([iocore_include_dirs])
 # TS_INCLUDES *not* to AM_CPPFLAGS. If you add then to AM_CPPFLAGS
 # then they are always prepended to the local AM_CPPFLAGS which risks
 # name collisions with in-tree files. We always want the in-tree files
-# to have precendence.
+# to have precedence.
 AC_SUBST([TS_INCLUDES])
 
 AS_IF([test "x$RPATH" != "x"], [

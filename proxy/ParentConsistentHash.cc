@@ -20,6 +20,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+#include <atomic>
 #include "HostStatus.h"
 #include "ParentConsistentHash.h"
 
@@ -118,7 +119,7 @@ chash_lookup(ATSConsistentHash *fhash, uint64_t path_hash, ATSConsistentHashIter
   } else {
     prtmp = (pRecord *)fhash->lookup(nullptr, chashIter, wrap_around, hash);
   }
-  // Do not set wrap_around to true until we try all the parents atleast once.
+  // Do not set wrap_around to true until we try all the parents at least once.
   bool wrapped = *wrap_around;
   *wrap_around = (*mapWrapped && *wrap_around) ? true : false;
   if (!*mapWrapped && wrapped) {
@@ -220,28 +221,33 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   }
 
   // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
-  // ignore the down status and mark it as avaialble
+  // ignore the down status and mark it as available
   if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
     if (hst->reasons == Reason::SELF_DETECT) {
       host_stat = HOST_STATUS_UP;
     }
   }
-  if (!pRec || (pRec && !pRec->available) || host_stat == HOST_STATUS_DOWN) {
+  if (!pRec || (pRec && !pRec->available.load()) || host_stat == HOST_STATUS_DOWN) {
     do {
       // check if the host is retryable.  It's retryable if the retry window has elapsed
       // and the global host status is HOST_STATUS_UP
-      if (pRec && !pRec->available && host_stat == HOST_STATUS_UP) {
-        Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u", (unsigned int)pRec->failedAt,
-              (unsigned int)retry_time, (unsigned int)request_info->xact_start);
-        if ((pRec->failedAt + retry_time) < request_info->xact_start) {
-          parentRetry = true;
-          // make sure that the proper state is recorded in the result structure
-          result->last_parent = pRec->idx;
-          result->last_lookup = last_lookup;
-          result->retry       = parentRetry;
-          result->result      = PARENT_SPECIFIED;
-          Debug("parent_select", "Down parent %s is now retryable, marked it available.", pRec->hostname);
-          break;
+      if (pRec && !pRec->available.load() && host_stat == HOST_STATUS_UP) {
+        Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u", static_cast<unsigned>(pRec->failedAt.load()),
+              static_cast<unsigned>(retry_time), static_cast<unsigned>(request_info->xact_start));
+        if ((pRec->failedAt.load() + retry_time) < request_info->xact_start) {
+          if (pRec->retriers.fetch_add(1, std::memory_order_relaxed) < max_retriers) {
+            parentRetry = true;
+            // make sure that the proper state is recorded in the result structure
+            result->last_parent = pRec->idx;
+            result->last_lookup = last_lookup;
+            result->retry       = parentRetry;
+            result->result      = PARENT_SPECIFIED;
+            Debug("parent_select", "Down parent %s is now retryable, retriers = %d, max_retriers = %d", pRec->hostname,
+                  pRec->retriers.load(), max_retriers);
+            break;
+          } else {
+            pRec->retriers--;
+          }
         }
       }
       Debug("parent_select", "wrap_around[PRIMARY]: %d, wrap_around[SECONDARY]: %d", wrap_around[PRIMARY], wrap_around[SECONDARY]);
@@ -300,13 +306,13 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
       hst       = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
       host_stat = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
       // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
-      // ignore the down status and mark it as avaialble
+      // ignore the down status and mark it as available
       if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
         if (hst->reasons == Reason::SELF_DETECT) {
           host_stat = HOST_STATUS_UP;
         }
       }
-    } while (!pRec || !pRec->available || host_stat == HOST_STATUS_DOWN);
+    } while (!pRec || !pRec->available.load() || host_stat == HOST_STATUS_DOWN);
   }
 
   Debug("parent_select", "Additional parent lookups: %d", lookups);
@@ -316,13 +322,13 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   // ----------------------------------------------------------------------------------------------------
 
   // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
-  // ignore the down status and mark it as avaialble
+  // ignore the down status and mark it as available
   if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
     if (hst->reasons == Reason::SELF_DETECT) {
       host_stat = HOST_STATUS_UP;
     }
   }
-  if (pRec && host_stat == HOST_STATUS_UP && (pRec->available || result->retry)) {
+  if (pRec && host_stat == HOST_STATUS_UP && (pRec->available.load() || result->retry)) {
     result->result      = PARENT_SPECIFIED;
     result->hostname    = pRec->hostname;
     result->port        = pRec->port;
@@ -383,12 +389,13 @@ ParentConsistentHash::markParentUp(ParentResult *result)
   }
 
   ink_assert((result->last_parent) < numParents(result));
-  pRec = parents[result->last_lookup] + result->last_parent;
-  ink_atomic_swap(&pRec->available, true);
+  pRec            = parents[result->last_lookup] + result->last_parent;
+  pRec->available = true;
   Debug("parent_select", "%s:%s(): marked %s:%d available.", __FILE__, __func__, pRec->hostname, pRec->port);
 
-  ink_atomic_swap(&pRec->failedAt, static_cast<time_t>(0));
-  int old_count = ink_atomic_swap(&pRec->failCount, 0);
+  pRec->failedAt = static_cast<time_t>(0);
+  int old_count  = pRec->failCount.exchange(0, std::memory_order_relaxed);
+  pRec->retriers = 0;
 
   if (old_count > 0) {
     Note("http parent proxy %s:%d restored", pRec->hostname, pRec->port);

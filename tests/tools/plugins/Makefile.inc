@@ -72,8 +72,9 @@ tools_plugins_test_hooks_la_SOURCES = tools/plugins/test_hooks.cc
 noinst_LTLIBRARIES += tools/plugins/test_log_interface.la
 tools_plugins_test_log_interface_la_SOURCES = tools/plugins/test_log_interface.cc
 
-noinst_LTLIBRARIES += tools/plugins/test_tsapi.la
-tools_plugins_test_tsapi_la_SOURCES = tools/plugins/test_tsapi.cc
-
 noinst_LTLIBRARIES += tools/plugins/user_args.la
 tools_plugins_user_args_la_SOURCES = tools/plugins/user_args.cc
+
+noinst_LTLIBRARIES += tools/plugins/async_engine.la
+tools_plugins_async_engine_la_SOURCES = tools/plugins/async_engine.cc
+

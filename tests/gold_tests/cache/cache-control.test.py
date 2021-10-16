@@ -30,26 +30,16 @@ server = Test.MakeOriginServer("server")
 # **testname is required**
 testName = ""
 request_header1 = {"headers": "GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
-response_header1 = {
-    "headers": "HTTP/1.1 200 OK\r\nConnection: close\r\nCache-Control: max-age=300\r\n\r\n",
-    "timestamp": "1469733493.993",
-    "body": "xxx"}
-request_header2 = {
-    "headers": "GET /no_cache_control HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
-    "timestamp": "1469733493.993",
-    "body": ""}
-response_header2 = {
-    "headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
-    "timestamp": "1469733493.993",
-    "body": "the flinstones"}
-request_header3 = {
-    "headers": "GET /max_age_10sec HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
-    "timestamp": "1469733493.993",
-    "body": ""}
-response_header3 = {
-    "headers": "HTTP/1.1 200 OK\r\nConnection: close\r\nCache-Control: max-age=10,public\r\n\r\n",
-    "timestamp": "1469733493.993",
-    "body": "yabadabadoo"}
+response_header1 = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\nCache-Control: max-age=300\r\n\r\n",
+                    "timestamp": "1469733493.993", "body": "xxx"}
+request_header2 = {"headers": "GET /no_cache_control HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
+                   "timestamp": "1469733493.993", "body": ""}
+response_header2 = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
+                    "timestamp": "1469733493.993", "body": "the flinstones"}
+request_header3 = {"headers": "GET /max_age_10sec HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
+                   "timestamp": "1469733493.993", "body": ""}
+response_header3 = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\nCache-Control: max-age=10,public\r\n\r\n",
+                    "timestamp": "1469733493.993", "body": "yabadabadoo"}
 server.addResponse("sessionlog.json", request_header1, response_header1)
 server.addResponse("sessionlog.json", request_header2, response_header2)
 server.addResponse("sessionlog.json", request_header3, response_header3)

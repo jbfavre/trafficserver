@@ -42,8 +42,7 @@ httpbin = Test.MakeHttpBinServer("httpbin")
 ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True, enable_cache=False)
 
 # add ssl materials like key, certificates for the server
-ts.addSSLfile("ssl/server.pem")
-ts.addSSLfile("ssl/server.key")
+ts.addDefaultSSLFiles()
 
 ts.Disk.remap_config.AddLine(
     'map / http://127.0.0.1:{0}'.format(httpbin.Variables.Port)
@@ -86,7 +85,7 @@ python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin), indent=2, se
 # Test Cases
 # ----
 
-# Test Case 0: Basic request and resposne
+# Test Case 0: Basic request and response
 test_run = Test.AddTestRun()
 test_run.Processes.Default.Command = "curl -vs -k --http2 https://127.0.0.1:{0}/get | {1}".format(
     ts.Variables.ssl_port, json_printer)
@@ -127,9 +126,10 @@ test_run.Processes.Default.Streams.stdout = "gold/httpbin_3_stdout.gold"
 test_run.Processes.Default.Streams.stderr = Testers.GoldFile("gold/httpbin_3_stderr.gold", case_insensitive=True)
 test_run.StillRunningAfter = httpbin
 
-
-# Check Logging
+# Wait for log file to appear, then wait one extra second to make sure TS is done writing it.
 test_run = Test.AddTestRun()
-test_run.DelayStart = 10
-test_run.Processes.Default.Command = 'echo "Delay for log flush"'
+test_run.Processes.Default.Command = (
+    os.path.join(Test.Variables.AtsTestToolsDir, 'condwait') + ' 60 1 -f ' +
+    os.path.join(ts.Variables.LOGDIR, 'access.log')
+)
 test_run.Processes.Default.ReturnCode = 0

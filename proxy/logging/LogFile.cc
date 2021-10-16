@@ -87,7 +87,7 @@ LogFile::LogFile(const char *name, const char *header, LogFileFormat format, uin
 /*-------------------------------------------------------------------------
   LogFile::LogFile
 
-  This (copy) contructor builds a LogFile object from another LogFile object.
+  This (copy) constructor builds a LogFile object from another LogFile object.
   -------------------------------------------------------------------------*/
 
 LogFile::LogFile(const LogFile &copy)
@@ -389,6 +389,35 @@ LogFile::roll(long interval_start, long interval_end, bool reopen_after_rolling)
   }
 
   return 0;
+}
+
+/*-------------------------------------------------------------------------
+  LogFile::reopen_if_moved
+
+  Check whether the file at the log's filename exists and, if not, close
+  the current file descriptor and reopen it. This function can be used to
+  facilitate external log rotation mechanisms which will move the original
+  file to a rolled filename. Logging will happen to that same file
+  descriptor until this function is called, at which point the non-existent
+  original file will be detected, the file descriptor will be closed, and
+  the log file will be re-opened.
+
+  Returns True if the file was re-opened, false otherwise.
+  -------------------------------------------------------------------------*/
+bool
+LogFile::reopen_if_moved()
+{
+  if (!m_name) {
+    return false;
+  }
+  if (LogFile::exists(m_name)) {
+    return false;
+  }
+
+  // Both of the following log if there are problems.
+  close_file();
+  open_file();
+  return true;
 }
 
 /*-------------------------------------------------------------------------

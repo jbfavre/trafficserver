@@ -16,9 +16,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
-import time
-
 Test.Summary = '''
 cache_range_requests with cachekey
 '''
@@ -194,5 +191,4 @@ tr.StillRunningAfter = ts
 ts.Disk.diags_log.Content = Testers.ContainsExpression("ERROR", "error condition hit")
 ts.Disk.diags_log.Content = Testers.ContainsExpression("failed to change the cache url", "ensure failure for misconfiguration")
 ts.Disk.diags_log.Content = Testers.ContainsExpression(
-    "Disabling cache for this transaction to avoid cache poisoning",
-    "ensure transaction caching disabled")
+    "Disabling cache for this transaction to avoid cache poisoning", "ensure transaction caching disabled")

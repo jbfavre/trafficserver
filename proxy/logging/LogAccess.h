@@ -143,6 +143,7 @@ public:
   inkcoreapi int marshal_client_req_url_scheme(char *);         // STR
   inkcoreapi int marshal_client_req_http_version(char *);       // INT
   inkcoreapi int marshal_client_req_protocol_version(char *);   // STR
+  inkcoreapi int marshal_server_req_protocol_version(char *);   // STR
   inkcoreapi int marshal_client_req_squid_len(char *);          // INT
   inkcoreapi int marshal_client_req_header_len(char *);         // INT
   inkcoreapi int marshal_client_req_content_len(char *);        // INT
@@ -154,6 +155,7 @@ public:
   inkcoreapi int marshal_client_security_protocol(char *);      // STR
   inkcoreapi int marshal_client_security_cipher_suite(char *);  // STR
   inkcoreapi int marshal_client_security_curve(char *);         // STR
+  inkcoreapi int marshal_client_security_alpn(char *);          // STR
   inkcoreapi int marshal_client_finish_status_code(char *);     // INT
   inkcoreapi int marshal_client_req_id(char *);                 // INT
   inkcoreapi int marshal_client_req_uuid(char *);               // STR
