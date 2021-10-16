@@ -39,7 +39,7 @@ httpbin = Test.MakeHttpBinServer("httpbin")
 # ----
 # Setup ATS
 # ----
-ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
+ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True, enable_cache=False)
 
 # add ssl materials like key, certificates for the server
 ts.addSSLfile("ssl/server.pem")
@@ -54,7 +54,6 @@ ts.Disk.ssl_multicert_config.AddLine(
 ts.Disk.records_config.update({
     'proxy.config.http.insert_request_via_str': 1,
     'proxy.config.http.insert_response_via_str': 1,
-    'proxy.config.http.cache.http': 0,
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.client.verify.server': 0,
@@ -95,7 +94,8 @@ test_run.Processes.Default.ReturnCode = 0
 test_run.Processes.Default.StartBefore(httpbin, ready=When.PortOpen(httpbin.Variables.Port))
 test_run.Processes.Default.StartBefore(Test.Processes.ts)
 test_run.Processes.Default.Streams.stdout = "gold/httpbin_0_stdout.gold"
-test_run.Processes.Default.Streams.stderr = "gold/httpbin_0_stderr.gold"
+# Different versions of curl will have different cases for HTTP/2 field names.
+test_run.Processes.Default.Streams.stderr = Testers.GoldFile("gold/httpbin_0_stderr.gold", case_insensitive=True)
 test_run.StillRunningAfter = httpbin
 
 # Test Case 1: Empty response body
@@ -103,7 +103,8 @@ test_run = Test.AddTestRun()
 test_run.Processes.Default.Command = 'curl -vs -k --http2 https://127.0.0.1:{0}/bytes/0'.format(ts.Variables.ssl_port)
 test_run.Processes.Default.ReturnCode = 0
 test_run.Processes.Default.Streams.stdout = "gold/httpbin_1_stdout.gold"
-test_run.Processes.Default.Streams.stderr = "gold/httpbin_1_stderr.gold"
+# Different versions of curl will have different cases for HTTP/2 field names.
+test_run.Processes.Default.Streams.stderr = Testers.GoldFile("gold/httpbin_1_stderr.gold", case_insensitive=True)
 test_run.StillRunningAfter = httpbin
 
 # Test Case 2: Chunked
@@ -112,7 +113,8 @@ test_run.Processes.Default.Command = 'curl -vs -k --http2 https://127.0.0.1:{0}/
     ts.Variables.ssl_port)
 test_run.Processes.Default.ReturnCode = 0
 test_run.Processes.Default.Streams.stdout = "gold/httpbin_2_stdout.gold"
-test_run.Processes.Default.Streams.stderr = "gold/httpbin_2_stderr.gold"
+# Different versions of curl will have different cases for HTTP/2 field names.
+test_run.Processes.Default.Streams.stderr = Testers.GoldFile("gold/httpbin_2_stderr.gold", case_insensitive=True)
 test_run.StillRunningAfter = httpbin
 
 # Test Case 3: Expect 100-Continue
@@ -121,7 +123,8 @@ test_run.Processes.Default.Command = "curl -vs -k --http2 https://127.0.0.1:{0}/
     ts.Variables.ssl_port, json_printer)
 test_run.Processes.Default.ReturnCode = 0
 test_run.Processes.Default.Streams.stdout = "gold/httpbin_3_stdout.gold"
-test_run.Processes.Default.Streams.stderr = "gold/httpbin_3_stderr.gold"
+# Different versions of curl will have different cases for HTTP/2 field names.
+test_run.Processes.Default.Streams.stderr = Testers.GoldFile("gold/httpbin_3_stderr.gold", case_insensitive=True)
 test_run.StillRunningAfter = httpbin
 
 

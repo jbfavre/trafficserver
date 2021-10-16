@@ -1,3 +1,23 @@
+trafficserver (9.0.1+ds-1) UNRELEASED; urgency=medium
+
+  * New upstream version 9.0.1+ds
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 31 May 2021 11:00:56 +0200
+
+trafficserver (9.0.0+ds-1) UNRELEASED; urgency=medium
+ 
+  * New upstream version 9.0.0+ds
+  * Update d/gbp.conf
+  * Patches refresh for 9.0.0
+  * Update d/rules to disable wccp
+  * Update d/NEWS to reflect wccp being disabled
+  * Update trafficserver plugins list
+  * Update d/control
+  * Rename d/trafficserver.tmpfile to .tmpfiles
+  * Update d/docs to remove obsolete files
+  * Update d/rules to remove some test plugins before dh_install
+  * Update d/README.Debian with ATS 9.0.0 main changes
+
 trafficserver (8.1.1+ds-1) unstable; urgency=medium
 
   * New upstream version 8.1.0+ds

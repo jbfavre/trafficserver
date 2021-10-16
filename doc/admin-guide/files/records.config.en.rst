@@ -1096,6 +1096,17 @@ mptcp
    request bodies which lack a ``Content-length`` header.
 
 .. ts:cv:: CONFIG proxy.config.http.default_buffer_water_mark INT 32768
+   :reloadable:
+   :overridable:
+
+   Number of bytes |TS| is allowed to read ahead of the client from the origin. Note that when
+   :ref:`Read While Write <admin-configuration-reducing-origin-requests>` settings are in place,
+   this setting will apply to the first client to request the object, regardless if subsequent,
+   simultaneous clients of that object can read faster. The buffered bytes will consume memory
+   while waiting for the client to consume them.
+
+   While this setting is reloadable, dramatic changes can cause bigger memory usage than expected
+   and is thus not recommended.
 
 .. ts:cv:: CONFIG proxy.config.http.request_buffer_enabled INT 0
    :overridable:
@@ -2544,6 +2555,15 @@ DNS
 .. ts:cv:: CONFIG proxy.config.dns.retries INT 5
 
    Maximum number of retries made by |TS| on a given DNS query
+
+.. ts:cv:: CONFIG proxy.config.dns.local_ipv4 STRING NULL
+
+   Local IPV4 address to bind to in order to make DNS requests
+
+.. ts:cv:: CONFIG proxy.config.dns.local_ipv6 STRING NULL
+
+   Local IPV6 address to bind to in order to make DNS requests
+
 
 HostDB
 ======

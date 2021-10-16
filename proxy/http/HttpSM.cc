@@ -901,9 +901,9 @@ HttpSM::state_watch_for_client_abort(int event, void *data)
    * client.
    */
   case VC_EVENT_EOS: {
-    // We got an early EOS.
+    // We got an early EOS. If the tunnal has cache writer, don't kill it for background fill.
     NetVConnection *netvc = ua_txn->get_netvc();
-    if (ua_txn->allow_half_open()) {
+    if (ua_txn->allow_half_open() || tunnel.has_consumer_besides_client()) {
       if (netvc) {
         netvc->do_io_shutdown(IO_SHUTDOWN_READ);
       }
@@ -1979,28 +1979,13 @@ HttpSM::state_read_server_response_header(int event, void *data)
 
     // Now that we know that we have all of the origin server
     // response headers, we can reset the client inactivity
-    // timeout.  This is unlikely to cause a recurrence of
-    // old bug because there will be no more retries now that
-    // the connection has been established.  It is possible
-    // however.  We do not need to reset the inactivity timeout
-    // if the request contains a body (noted by the
-    // request_content_length field) because it was never
-    // canceled.
-    //
-
+    // timeout.
     // we now reset the client inactivity timeout only
     // when we are ready to send the response headers. In the
     // case of transform plugin, this is after the transform
     // outputs the 1st byte, which can take a long time if the
     // plugin buffers the whole response.
-    // Also, if the request contains a body, we cancel the timeout
-    // when we read the 1st byte of the origin server response.
-    /*
-       if (ua_txn && !t_state.hdr_info.request_content_length) {
-       ua_txn->get_netvc()->set_inactivity_timeout(HRTIME_SECONDS(
-       HttpConfig::m_master.accept_no_activity_timeout));
-       }
-     */
+    ua_txn->set_inactivity_timeout(HRTIME_SECONDS(t_state.txn_conf->transaction_no_activity_timeout_in));
 
     t_state.current.state         = HttpTransact::CONNECTION_ALIVE;
     t_state.transact_return_point = HttpTransact::HandleResponse;
@@ -2951,7 +2936,13 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer *p)
 {
   STATE_ENTER(&HttpSM::tunnel_handler_server, event);
 
-  milestones[TS_MILESTONE_SERVER_CLOSE] = Thread::get_hrtime();
+  // An intercept handler may not set TS_MILESTONE_SERVER_CONNECT
+  // by default. Therefore we only set TS_MILESTONE_SERVER_CLOSE if
+  // TS_MILESTONE_SERVER_CONNECT is set (non-zero), lest certain time
+  // statistics are calculated from epoch time.
+  if (0 != milestones[TS_MILESTONE_SERVER_CONNECT]) {
+    milestones[TS_MILESTONE_SERVER_CLOSE] = Thread::get_hrtime();
+  }
 
   bool close_connection = false;
 
@@ -3021,7 +3012,7 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer *p)
       // the reason string being written to the client and a bad CL when reading from cache.
       // I didn't find anywhere this appended reason is being used, so commenting it out.
       /*
-        if (t_state.is_cacheable_and_negative_caching_is_enabled && p->bytes_read == 0) {
+        if (t_state.is_cacheable_due_to_negative_caching_configuration && p->bytes_read == 0) {
         int reason_len;
         const char *reason = t_state.hdr_info.server_response.reason_get(&reason_len);
         if (reason == NULL)
@@ -3077,8 +3068,8 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer *p)
   }
 
   // turn off negative caching in case there are multiple server contacts
-  if (t_state.is_cacheable_and_negative_caching_is_enabled) {
-    t_state.is_cacheable_and_negative_caching_is_enabled = false;
+  if (t_state.is_cacheable_due_to_negative_caching_configuration) {
+    t_state.is_cacheable_due_to_negative_caching_configuration = false;
   }
 
   // If we had a ground fill, check update our status
@@ -3482,6 +3473,10 @@ HttpSM::tunnel_handler_cache_write(int event, HttpTunnelConsumer *c)
     break;
   }
 
+  if (background_fill != BACKGROUND_FILL_NONE) {
+    server_response_body_bytes = c->bytes_written;
+  }
+
   HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
   return 0;
 }
@@ -3550,7 +3545,13 @@ HttpSM::tunnel_handler_post_ua(int event, HttpTunnelProducer *p)
       }
     }
 
-    // Initiate another read to catch aborts and timeouts.
+    // Now that we have communicated the post body, turn off the inactivity timeout
+    // until the server starts sending data back
+    if (ua_txn && t_state.hdr_info.request_content_length) {
+      ua_txn->cancel_inactivity_timeout();
+    }
+
+    // Initiate another read to catch aborts
     ua_entry->vc_handler = &HttpSM::state_watch_for_client_abort;
     ua_entry->read_vio   = p->vc->do_io_read(this, INT64_MAX, ua_buffer_reader->mbuf);
     break;
@@ -5085,11 +5086,10 @@ HttpSM::do_http_server_open(bool raw)
       } else { // queue size is 0, always block.
         ct_state.blocked();
         HTTP_INCREMENT_DYN_STAT(http_origin_connections_throttled_stat);
+        ct_state.Warn_Blocked(&t_state.txn_conf->outbound_conntrack, sm_id, ccount - 1, &t_state.current.server->dst_addr.sa,
+                              debug_on && is_debug_tag_set("http") ? "http" : nullptr);
         send_origin_throttled_response();
       }
-
-      ct_state.Warn_Blocked(&t_state.txn_conf->outbound_conntrack, sm_id, ccount - 1, &t_state.current.server->dst_addr.sa,
-                            debug_on && is_debug_tag_set("http") ? "http" : nullptr);
 
       return;
     } else {
@@ -6090,9 +6090,7 @@ HttpSM::attach_server_session(Http1ServerSession *s)
   // first tunnel was sometimes behind handled by the consumer of the
   // first tunnel instead of the producer of the second tunnel.
   // The real read is setup in setup_server_read_response_header()
-  //
-  // Keep the read disabled until setup_server_read_response_header
-  server_entry->read_vio = server_session->do_io_read(this, 0, nullptr);
+  server_entry->read_vio = server_session->do_io_read(this, 0, server_session->read_buffer);
 
   // Transfer control of the write side as well
   server_entry->write_vio = server_session->do_io_write(this, 0, nullptr);
@@ -6725,7 +6723,7 @@ HttpSM::setup_server_transfer()
 
   nbytes = server_transfer_init(buf, hdr_size);
 
-  if (t_state.is_cacheable_and_negative_caching_is_enabled &&
+  if (t_state.is_cacheable_due_to_negative_caching_configuration &&
       t_state.hdr_info.server_response.status_get() == HTTP_STATUS_NO_CONTENT) {
     int s = sizeof("No Content") - 1;
     buf->write("No Content", s);

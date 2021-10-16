@@ -1,0 +1,68 @@
+Changes with Apache Traffic Server 9.0.1
+  #3871 - Fix heap use after free in DNSProcessor::getby()
+  #6302 - Simple and miscellaneous fixes/additions for lua plugin
+  #6691 - Slice plugin: self heal when asset etag/last-modified block mismatches
+  #6780 - Use Proxy-Connection iff parent_is_proxy=true
+  #6860 - Make format specifier for time_t portable
+  #6893 - AuTest: Pipfile update to use microserver 1.0.5
+  #6919 - slice: clean up 502 header/body generation.
+  #7064 - CacheRead: clear dir entry if doc is found to be truncated
+  #7158 - Fix lua plugin mem leak problem
+  #7257 - slice: default to throttling, fixes to manufactured 416 responses.
+  #7259 - detect and fix stms log field having epoch time ms for intercept plugins.
+  #7287 - option to disable compression for range request's response
+  #7288 - Adjust to actually try a server address more than once
+  #7309 - Disable client inactivity timeout while server is processing POST request
+  #7347 - Allow for regex_remap of pristine URL.
+  #7368 - Cleanup: Remove SSL Wire Trace releated code in UnixNetVConnection
+  #7377 - Addresses some of the lock contention with HostStatus.
+  #7395 - Replace ::exit() with _exit() to avoid secondary cleanup cores
+  #7410 - Fix issue with unavailable server retry codes
+  #7414 - Remove the warning messages
+  #7415 - Fix the Proxy Verifier AuTest extension to handle cert paths correctly
+  #7416 - Enhancements for compress plugin
+  #7420 - Update documentation for TSSslSessionInsert
+  #7421 - Change comment handling for long lines in url_sig plugin
+  #7422 - Do not provide a stale negative cache
+  #7432 - Fix stall on outbound TLS handshake
+  #7435 - Slice: 9.0.x back port of self healing and throttle by default
+  #7437 - Small fix to regex_remap PR # 7347.
+  #7443 - Change squid log code for self looping
+  #7454 - Updating to Proxy Verifier v2.0.0
+  #7460 - Update to the new MicroServer 1.0.6 release
+  #7463 - Fixing compress expectation for new microserver
+  #7468 - Proxy Verifier: Making use of delay directives for caching tests.
+  #7469 - Update AuTest version update directions for pipenv
+  #7483 - Fix KA header not checking strategy
+  #7484 - traffic_ctl - Fix lookup key for run-root option.
+  #7486 - slice/server: handleFirstServerHeader exit sooner on detected requested range errors.
+  #7490 - Fix out of bounds access error in ats_base64_decode
+  #7493 - AuTest: Upgrade to Proxy Verifier 2.0.2
+  #7495 - Add zlib1g-dev to Debian dependencies in README
+  #7506 - Fixed build issues with Fedora 34
+  #7507 - Fixing DNS local_ipv* config option
+  #7515 - Replace psutil.pid() with psutil.process_iter() for safer execution
+  #7519 - Change cookie_remap plugin to allow use of pre-remap URL (and components).
+  #7526 - Fix out of bounds access error in jtest
+  #7534 - Updating to use Proxy Verifier 2.1.0
+  #7549 - Release Notes update on HTTP/2 disabling in v9.x
+  #7551 - Removes the test plugins from the .spec file / RPM
+  #7558 - Fix parent.config timeouts to return a 504 not 502 on timeout
+  #7564 - Fix compress issues with 304s, only looks at 304 headers
+  #7576 - Add thread yield to avoid busy waiting in LogObject::_checkout_write().
+  #7583 - Rollback LAZY_BUF_ALLOC remove in HttpTunnel
+  #7592 - Remove inline for detail::cache::CacheData::idAddr
+  #7596 - Remove UnixNetVConnection::startEvent - not actually called.
+  #7602 - Fix the connection limit crash while using parents
+  #7612 - Document http.default_buffer_water_mark
+  #7616 - Increase Proxy Verifier caching delay.
+  #7620 - Adding negative revalidating AuTests.
+  #7621 - Update server_response_body_bytes when background fill worked
+  #7634 - statichit: misc. fixes
+  #7641 - Do NOT kill tunnel if it has any consumer besides HT_HTTP_CLIENT
+  #7646 - Remove erroneous manager.log mesg with remap include file reload
+  #7665 - AuTest: New log and When condition for ATS initialized
+  #7672 - Add information about TSHttpArgIndexReserve name change to upgrade notes
+  #7682 - Updating to AuTest 1.10.0
+  #7683 - Make HTTP/2 Curl AuTest gold files case insensitive
+  #7685 - Fix has_consumer_besides_client to deal with no clients

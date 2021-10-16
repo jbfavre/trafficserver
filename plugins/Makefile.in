@@ -1776,10 +1776,11 @@ am__lua_tslua_la_SOURCES_DIST = lua/ts_lua.c \
 	lua/ts_lua_server_request.c lua/ts_lua_server_response.c \
 	lua/ts_lua_transform.c lua/ts_lua_util.c lua/ts_lua_remap.c \
 	lua/ts_lua_http_cntl.c lua/ts_lua_http_milestone.c \
-	lua/ts_lua_http_config.c lua/ts_lua_mgmt.c \
-	lua/ts_lua_package.c lua/ts_lua_string.c lua/ts_lua_crypto.c \
-	lua/ts_lua_stat.c lua/ts_lua_io.c lua/ts_lua_coroutine.c \
-	lua/ts_lua_fetch.c lua/ts_lua_constant.c
+	lua/ts_lua_http_txn_info.c lua/ts_lua_http_config.c \
+	lua/ts_lua_mgmt.c lua/ts_lua_package.c lua/ts_lua_string.c \
+	lua/ts_lua_crypto.c lua/ts_lua_stat.c lua/ts_lua_io.c \
+	lua/ts_lua_coroutine.c lua/ts_lua_fetch.c \
+	lua/ts_lua_constant.c
 @HAS_LUAJIT_TRUE@am_lua_tslua_la_OBJECTS = lua/tslua_la-ts_lua.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_cached_response.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_client_request.lo \
@@ -1797,6 +1798,7 @@ am__lua_tslua_la_SOURCES_DIST = lua/ts_lua.c \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_remap.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_http_cntl.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_http_milestone.lo \
+@HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_http_txn_info.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_http_config.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_mgmt.lo \
 @HAS_LUAJIT_TRUE@	lua/tslua_la-ts_lua_package.lo \
@@ -2236,6 +2238,7 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	lua/$(DEPDIR)/tslua_la-ts_lua_http_config.Plo \
 	lua/$(DEPDIR)/tslua_la-ts_lua_http_intercept.Plo \
 	lua/$(DEPDIR)/tslua_la-ts_lua_http_milestone.Plo \
+	lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Plo \
 	lua/$(DEPDIR)/tslua_la-ts_lua_io.Plo \
 	lua/$(DEPDIR)/tslua_la-ts_lua_log.Plo \
 	lua/$(DEPDIR)/tslua_la-ts_lua_mgmt.Plo \
@@ -3341,6 +3344,7 @@ libloader_libloader_la_SOURCES = \
 @HAS_LUAJIT_TRUE@  lua/ts_lua_remap.c \
 @HAS_LUAJIT_TRUE@  lua/ts_lua_http_cntl.c \
 @HAS_LUAJIT_TRUE@  lua/ts_lua_http_milestone.c \
+@HAS_LUAJIT_TRUE@  lua/ts_lua_http_txn_info.c \
 @HAS_LUAJIT_TRUE@  lua/ts_lua_http_config.c \
 @HAS_LUAJIT_TRUE@  lua/ts_lua_mgmt.c \
 @HAS_LUAJIT_TRUE@  lua/ts_lua_package.c \
@@ -4707,6 +4711,8 @@ lua/tslua_la-ts_lua_http_cntl.lo: lua/$(am__dirstamp) \
 	lua/$(DEPDIR)/$(am__dirstamp)
 lua/tslua_la-ts_lua_http_milestone.lo: lua/$(am__dirstamp) \
 	lua/$(DEPDIR)/$(am__dirstamp)
+lua/tslua_la-ts_lua_http_txn_info.lo: lua/$(am__dirstamp) \
+	lua/$(DEPDIR)/$(am__dirstamp)
 lua/tslua_la-ts_lua_http_config.lo: lua/$(am__dirstamp) \
 	lua/$(DEPDIR)/$(am__dirstamp)
 lua/tslua_la-ts_lua_mgmt.lo: lua/$(am__dirstamp) \
@@ -5410,6 +5416,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_http_config.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_http_intercept.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_http_milestone.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_io.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_log.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@lua/$(DEPDIR)/tslua_la-ts_lua_mgmt.Plo@am__quote@ # am--include-marker
@@ -5598,6 +5605,13 @@ lua/tslua_la-ts_lua_http_milestone.lo: lua/ts_lua_http_milestone.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='lua/ts_lua_http_milestone.c' object='lua/tslua_la-ts_lua_http_milestone.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(lua_tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o lua/tslua_la-ts_lua_http_milestone.lo `test -f 'lua/ts_lua_http_milestone.c' || echo '$(srcdir)/'`lua/ts_lua_http_milestone.c
+
+lua/tslua_la-ts_lua_http_txn_info.lo: lua/ts_lua_http_txn_info.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(lua_tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT lua/tslua_la-ts_lua_http_txn_info.lo -MD -MP -MF lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Tpo -c -o lua/tslua_la-ts_lua_http_txn_info.lo `test -f 'lua/ts_lua_http_txn_info.c' || echo '$(srcdir)/'`lua/ts_lua_http_txn_info.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Tpo lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='lua/ts_lua_http_txn_info.c' object='lua/tslua_la-ts_lua_http_txn_info.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(lua_tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o lua/tslua_la-ts_lua_http_txn_info.lo `test -f 'lua/ts_lua_http_txn_info.c' || echo '$(srcdir)/'`lua/ts_lua_http_txn_info.c
 
 lua/tslua_la-ts_lua_http_config.lo: lua/ts_lua_http_config.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(lua_tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT lua/tslua_la-ts_lua_http_config.lo -MD -MP -MF lua/$(DEPDIR)/tslua_la-ts_lua_http_config.Tpo -c -o lua/tslua_la-ts_lua_http_config.lo `test -f 'lua/ts_lua_http_config.c' || echo '$(srcdir)/'`lua/ts_lua_http_config.c
@@ -7404,6 +7418,7 @@ distclean: distclean-recursive
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_config.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_intercept.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_milestone.Plo
+	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_io.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_log.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_mgmt.Plo
@@ -7687,6 +7702,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_config.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_intercept.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_milestone.Plo
+	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_http_txn_info.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_io.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_log.Plo
 	-rm -f lua/$(DEPDIR)/tslua_la-ts_lua_mgmt.Plo

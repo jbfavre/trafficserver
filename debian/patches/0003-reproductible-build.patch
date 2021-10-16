@@ -7,7 +7,7 @@ Last-Update: 2016-11-18
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/configure.ac
 +++ b/configure.ac
-@@ -144,9 +144,9 @@ AC_ARG_WITH([build-number],
+@@ -137,9 +137,9 @@ AC_ARG_WITH([build-number],
  #
  # Build environment
  #
