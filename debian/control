@@ -18,7 +18,7 @@ Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
 Vcs-Browser: https://salsa.debian.org/debian/trafficserver
 
 Package: trafficserver
-Architecture: any
+Architecture: any-amd64 any-arm64 any-ppc64el any-ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser,
   ${perl:Depends}
 Pre-Depends: ${misc:Pre-Depends}
@@ -44,7 +44,7 @@ Description: fast, scalable and extensible HTTP/1.1 and HTTP/2.0 caching proxy s
      handling ESI requests to writing your own cache algorithm.
 
 Package: trafficserver-experimental-plugins
-Architecture: any
+Architecture: any-amd64 any-arm64 any-ppc64el any-ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Pre-Depends: trafficserver (= ${binary:Version})
 Breaks: trafficserver (<< 9.0.0~)
@@ -57,7 +57,7 @@ Description: experimental plugins for Apache Traffic Server
  trafficserver-experimental-plugins to trafficserver package.
 
 Package: trafficserver-dev
-Architecture: any
+Architecture: any-amd64 any-arm64 any-ppc64el any-ppc64
 Depends: ${misc:Depends}, trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
  This package provides the Apache Traffic Server Software Developers Kit, which
