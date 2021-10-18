@@ -1,3 +1,9 @@
+trafficserver (9.1.0+ds-2) unstable; urgency=medium
+
+  * Restrict architecture to 64bits (Closes: #996636)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 18 Oct 2021 16:58:03 +0200
+
 trafficserver (9.1.0+ds-1) unstable; urgency=medium
 
   * New upstream version 9.1.0+ds
