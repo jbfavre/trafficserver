@@ -362,7 +362,7 @@ AM_CPPFLAGS = @AM_CPPFLAGS@ $(iocore_include_dirs) \
 	-I$(abs_srcdir)/http3 -I$(abs_srcdir)/logging \
 	-I$(abs_srcdir)/http/remap -I$(abs_srcdir)/hdrs \
 	-I$(abs_top_srcdir)/mgmt -I$(abs_top_srcdir)/mgmt/utils \
-	-I$(abs_top_srcdir)/lib/yamlcpp/include $(TS_INCLUDES)
+	@YAMLCPP_INCLUDES@ $(TS_INCLUDES)
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AM_LDFLAGS = @AM_LDFLAGS@
