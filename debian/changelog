@@ -1,3 +1,15 @@
+trafficserver (9.1.1+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.1.1+ds
+    - CVE-2021-37147: Improper input validation
+    - CVE-2021-37148: Improper input validation
+    - CVE-2021-37149: Improper Input Validation
+    - CVE-2021-43082: Buffer Overflow
+  * Patches refresh for 9.1.1
+  * Remove broken sphinx and plantuml dependencies
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 05 Nov 2021 11:11:10 +0100
+
 trafficserver (9.1.0+ds-2) unstable; urgency=medium
 
   * Restrict architecture to 64bits (Closes: #996636)
