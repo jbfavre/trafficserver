@@ -274,7 +274,7 @@ am__test_tscore_SOURCES_DIST = unit_tests/unit_test_main.cc \
 	unit_tests/test_ArgParser.cc unit_tests/test_BufferWriter.cc \
 	unit_tests/test_BufferWriterFormat.cc \
 	unit_tests/test_Extendible.cc unit_tests/test_History.cc \
-	unit_tests/test_ink_inet.cc \
+	unit_tests/test_ink_inet.cc unit_tests/test_ink_memory.cc \
 	unit_tests/test_IntrusiveHashMap.cc \
 	unit_tests/test_IntrusivePtr.cc unit_tests/test_IpMap.cc \
 	unit_tests/test_layout.cc unit_tests/test_List.cc \
@@ -297,6 +297,7 @@ am_test_tscore_OBJECTS =  \
 	unit_tests/test_tscore-test_Extendible.$(OBJEXT) \
 	unit_tests/test_tscore-test_History.$(OBJEXT) \
 	unit_tests/test_tscore-test_ink_inet.$(OBJEXT) \
+	unit_tests/test_tscore-test_ink_memory.$(OBJEXT) \
 	unit_tests/test_tscore-test_IntrusiveHashMap.$(OBJEXT) \
 	unit_tests/test_tscore-test_IntrusivePtr.$(OBJEXT) \
 	unit_tests/test_tscore-test_IpMap.$(OBJEXT) \
@@ -400,6 +401,7 @@ am__depfiles_remade = ./$(DEPDIR)/AcidPtr.Plo ./$(DEPDIR)/Arena.Plo \
 	unit_tests/$(DEPDIR)/test_tscore-test_Version.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_arena.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_ink_inet.Po \
+	unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_layout.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_scoped_resource.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_ts_file.Po \
@@ -1052,7 +1054,7 @@ test_tscore_SOURCES = unit_tests/unit_test_main.cc \
 	unit_tests/test_ArgParser.cc unit_tests/test_BufferWriter.cc \
 	unit_tests/test_BufferWriterFormat.cc \
 	unit_tests/test_Extendible.cc unit_tests/test_History.cc \
-	unit_tests/test_ink_inet.cc \
+	unit_tests/test_ink_inet.cc unit_tests/test_ink_memory.cc \
 	unit_tests/test_IntrusiveHashMap.cc \
 	unit_tests/test_IntrusivePtr.cc unit_tests/test_IpMap.cc \
 	unit_tests/test_layout.cc unit_tests/test_List.cc \
@@ -1212,6 +1214,9 @@ unit_tests/test_tscore-test_History.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscore-test_ink_inet.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscore-test_ink_memory.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscore-test_IntrusiveHashMap.$(OBJEXT):  \
@@ -1380,6 +1385,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Version.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_arena.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_ink_inet.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_layout.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_scoped_resource.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_ts_file.Po@am__quote@ # am--include-marker
@@ -1578,6 +1584,20 @@ unit_tests/test_tscore-test_ink_inet.obj: unit_tests/test_ink_inet.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_ink_inet.cc' object='unit_tests/test_tscore-test_ink_inet.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_ink_inet.obj `if test -f 'unit_tests/test_ink_inet.cc'; then $(CYGPATH_W) 'unit_tests/test_ink_inet.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_ink_inet.cc'; fi`
+
+unit_tests/test_tscore-test_ink_memory.o: unit_tests/test_ink_memory.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_ink_memory.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Tpo -c -o unit_tests/test_tscore-test_ink_memory.o `test -f 'unit_tests/test_ink_memory.cc' || echo '$(srcdir)/'`unit_tests/test_ink_memory.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Tpo unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_ink_memory.cc' object='unit_tests/test_tscore-test_ink_memory.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_ink_memory.o `test -f 'unit_tests/test_ink_memory.cc' || echo '$(srcdir)/'`unit_tests/test_ink_memory.cc
+
+unit_tests/test_tscore-test_ink_memory.obj: unit_tests/test_ink_memory.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_ink_memory.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Tpo -c -o unit_tests/test_tscore-test_ink_memory.obj `if test -f 'unit_tests/test_ink_memory.cc'; then $(CYGPATH_W) 'unit_tests/test_ink_memory.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_ink_memory.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Tpo unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_ink_memory.cc' object='unit_tests/test_tscore-test_ink_memory.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_ink_memory.obj `if test -f 'unit_tests/test_ink_memory.cc'; then $(CYGPATH_W) 'unit_tests/test_ink_memory.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_ink_memory.cc'; fi`
 
 unit_tests/test_tscore-test_IntrusiveHashMap.o: unit_tests/test_IntrusiveHashMap.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_IntrusiveHashMap.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_IntrusiveHashMap.Tpo -c -o unit_tests/test_tscore-test_IntrusiveHashMap.o `test -f 'unit_tests/test_IntrusiveHashMap.cc' || echo '$(srcdir)/'`unit_tests/test_IntrusiveHashMap.cc
@@ -2269,6 +2289,7 @@ distclean: distclean-am
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Version.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_arena.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ink_inet.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_layout.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_scoped_resource.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ts_file.Po
@@ -2419,6 +2440,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Version.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_arena.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ink_inet.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ink_memory.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_layout.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_scoped_resource.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ts_file.Po
