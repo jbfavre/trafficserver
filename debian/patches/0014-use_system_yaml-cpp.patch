@@ -45,17 +45,6 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  install-data-local:
 -	$(MAKE) -C yamlcpp install
  endif
---- a/proxy/Makefile.am
-+++ b/proxy/Makefile.am
-@@ -39,7 +39,7 @@ AM_CPPFLAGS += \
- 	-I$(abs_srcdir)/hdrs \
- 	-I$(abs_top_srcdir)/mgmt \
- 	-I$(abs_top_srcdir)/mgmt/utils \
--	-I$(abs_top_srcdir)/lib/yamlcpp/include \
-+	@YAMLCPP_INCLUDES@ \
- 	$(TS_INCLUDES)
- 
- noinst_HEADERS = \
 --- a/mgmt/Makefile.am
 +++ b/mgmt/Makefile.am
 @@ -34,6 +34,7 @@ AM_CPPFLAGS += \
