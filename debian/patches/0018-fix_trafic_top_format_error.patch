@@ -1,5 +1,6 @@
 Description: Fix traffic_top build when using format-security
 Author: Jean Baptiste Favre <jbfavre@debian.org>
+Forwarded: https://github.com/apache/trafficserver/pull/8437
 Last-Update: 2021-10-16
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/

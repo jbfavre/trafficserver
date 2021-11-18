@@ -2,7 +2,7 @@ trafficserver (9.1.1+ds-2) unstable; urgency=medium
 
   * Fix lintian warnings
   * Update build-dep for geoip.
-  * Enable maxmind_acl experimental plugin build (Closes #999666)
+  * Enable maxmind_acl experimental plugin build (Closes: #999666)
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 18 Nov 2021 15:48:35 +0100
 
