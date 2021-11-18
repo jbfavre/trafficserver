@@ -13,6 +13,7 @@ usr/lib/trafficserver/modules/hook-trace.so
 usr/lib/trafficserver/modules/icap.so
 usr/lib/trafficserver/modules/inliner.so
 usr/lib/trafficserver/modules/ja3_fingerprint.so
+usr/lib/trafficserver/modules/maxmind_acl.so
 usr/lib/trafficserver/modules/memory_profile.so
 usr/lib/trafficserver/modules/metalink.so
 usr/lib/trafficserver/modules/money_trace.so

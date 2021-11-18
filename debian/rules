@@ -26,6 +26,7 @@ configure_flags = \
 	--enable-mime-sanity-check \
 	--with-build-version=$(DEB_VERSION) \
 	--with-yaml-cpp=/usr \
+	--with-hrw-geo-provider=maxminddb \
         $(shell dpkg-buildflags --export=configure)
 
 %:

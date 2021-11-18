@@ -4,9 +4,9 @@ etc/trafficserver/*
 usr/lib/trafficserver/lib*.so.*
 usr/lib/trafficserver/modules/authproxy.so
 usr/lib/trafficserver/modules/background_fetch.so
-usr/lib/trafficserver/modules/cachekey.so
 usr/lib/trafficserver/modules/cache_promote.so
 usr/lib/trafficserver/modules/cache_range_requests.so
+usr/lib/trafficserver/modules/cachekey.so
 usr/lib/trafficserver/modules/certifier.so
 usr/lib/trafficserver/modules/combo_handler.so
 usr/lib/trafficserver/modules/compress.so
