@@ -24,12 +24,20 @@ Verify that request following a ill-formed request is not processed
 '''
 Test.ContinueOnFail = True
 ts = Test.MakeATSProcess("ts", enable_cache=True)
-
+Test.ContinueOnFail = True
 ts.Disk.records_config.update({'proxy.config.diags.debug.tags': 'http',
                                'proxy.config.diags.debug.enabled': 0,
+                               'proxy.config.http.strict_uri_parsing': 1
                                })
 
-Test.ContinueOnFail = True
+ts2 = Test.MakeATSProcess("ts2", enable_cache=True)
+
+ts2.Disk.records_config.update({'proxy.config.diags.debug.tags': 'http',
+                                'proxy.config.diags.debug.enabled': 0,
+                                'proxy.config.http.strict_uri_parsing': 2
+                                })
+
+
 server = Test.MakeOriginServer("server")
 request_header = {"headers": "GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
 response_header = {
@@ -41,12 +49,29 @@ server.addResponse("sessionlog.json", request_header, response_header)
 ts.Disk.remap_config.AddLine(
     'map / http://127.0.0.1:{0}'.format(server.Variables.Port)
 )
+ts.Disk.remap_config.AddLine(
+    'map /bob<> http://127.0.0.1:{0}'.format(server.Variables.Port)
+)
+ts2.Disk.remap_config.AddLine(
+    'map / http://127.0.0.1:{0}'.format(server.Variables.Port)
+)
+ts2.Disk.remap_config.AddLine(
+    'map /bob<> http://127.0.0.1:{0}'.format(server.Variables.Port)
+)
+
+trace_out = Test.Disk.File("trace_curl.txt")
 
 # Make a good request to get item in the cache for later tests
 tr = Test.AddTestRun("Good control")
 tr.Processes.Default.StartBefore(server)
 tr.Processes.Default.StartBefore(Test.Processes.ts)
 tr.Processes.Default.Command = 'printf "GET / HTTP/1.1\r\nHost: bob\r\n\r\n" | nc  127.0.0.1 {}'.format(ts.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+
+tr = Test.AddTestRun("Good control")
+tr.Processes.Default.StartBefore(server)
+tr.Processes.Default.StartBefore(Test.Processes.ts2)
+tr.Processes.Default.Command = 'printf "GET / HTTP/1.1\r\nHost: bob\r\n\r\n" | nc  127.0.0.1 {}'.format(ts2.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 
 tr = Test.AddTestRun("space after header name")
@@ -81,10 +106,12 @@ tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stdout = 'gold/bad_good_request.gold'
 
 tr = Test.AddTestRun("Trace request with a chunked body via curl")
-tr.Processes.Default.Command = 'curl -v --http1.1 --header "Transfer-Encoding: chunked" -d aaa -X TRACE -k http://127.0.0.1:{}/foo'.format(
+tr.Processes.Default.Command = 'curl -v --http1.1 --header "Transfer-Encoding: chunked" -d aaa -X TRACE -o trace_curl.txt -k http://127.0.0.1:{}/foo'.format(
     ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
-tr.Processes.Default.Streams.All = 'gold/bad_good_request.gold'
+tr.Processes.Default.Streams.All = 'gold/bad_good_request_header.gold'
+trace_out.Content = Testers.ContainsExpression("<TITLE>Bad Request</TITLE>", "ATS error msg")
+trace_out.Content += Testers.ContainsExpression("Description: Could not process this request.", "ATS error msg")
 
 tr = Test.AddTestRun("Trace request via curl")
 tr.Processes.Default.Command = 'curl -v --http1.1 -X TRACE -k http://127.0.0.1:{}/bar'.format(ts.Variables.port)
@@ -99,3 +126,51 @@ tr.Processes.Default.Command = 'printf "gET / HTTP/1.1\r\nHost:bob\r\n\r\nGET / 
     ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stdout = 'gold/bad_method.gold'
+
+# mangled termination
+tr = Test.AddTestRun("mangled line termination")
+tr.Processes.Default.Command = 'printf "GET / HTTP/1.1\r\nHost:bob\r\n \r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+tr.Processes.Default.Streams.stdout = 'gold/bad_good_request.gold'
+
+tr = Test.AddTestRun("Catch bad URL characters")
+tr.Processes.Default.Command = 'printf "GET /bob<> HTTP/1.1\r\nhost: bob\r\n\r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+# Since the request line is messsed up ATS will reply with HTTP/1.0
+tr.Processes.Default.Streams.stdout = 'gold/bad_good_request_http1.gold'
+
+tr = Test.AddTestRun("Catch whitespace in URL")
+tr.Processes.Default.Command = 'printf "GET /bob foo HTTP/1.1\r\nhost: bob\r\n\r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+# Since the request line is messsed up ATS will reply with HTTP/1.0
+tr.Processes.Default.Streams.stdout = 'gold/bad_good_request_http1.gold'
+
+tr = Test.AddTestRun("Extra characters in protocol")
+tr.Processes.Default.Command = 'printf "GET / HTP/1.1\r\nhost: bob\r\n\r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+# Since the request line is messsed up ATS will reply with HTTP/1.0
+tr.Processes.Default.Streams.stdout = 'gold/bad_good_request_http1.gold'
+
+tr = Test.AddTestRun("Characters that are strict but not case 2 bad")
+tr.Processes.Default.Command = 'printf "GET /bob<> HTTP/1.1\r\nhost: bob\r\n\r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts2.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+tr.Processes.Default.Streams.All = Testers.ContainsExpression("HTTP/1.1 200 OK", "Success")
+
+tr = Test.AddTestRun("Catch whitespace in URL")
+tr.Processes.Default.Command = 'printf "GET /bob foo HTTP/1.1\r\nhost: bob\r\n\r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts2.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+# Since the request line is messsed up ATS will reply with HTTP/1.0
+tr.Processes.Default.Streams.stdout = 'gold/bad_good_request_http1.gold'
+
+tr = Test.AddTestRun("Extra characters in protocol")
+tr.Processes.Default.Command = 'printf "GET / HTP/1.1\r\nhost: bob\r\n\r\nGET / HTTP/1.1\r\nHost: boa\r\n\r\n" | nc  127.0.0.1 {}'.format(
+    ts2.Variables.port)
+tr.Processes.Default.ReturnCode = 0
+# Since the request line is messsed up ATS will reply with HTTP/1.0
+tr.Processes.Default.Streams.stdout = 'gold/bad_good_request_http1.gold'

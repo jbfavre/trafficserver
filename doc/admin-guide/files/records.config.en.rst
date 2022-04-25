@@ -1194,10 +1194,12 @@ mptcp
    An arbitrary string value that, if set, will be used to replace any request
    ``User-Agent`` header.
 
-.. ts:cv:: CONFIG proxy.config.http.strict_uri_parsing INT 0
+.. ts:cv:: CONFIG proxy.config.http.strict_uri_parsing INT 2
 
-   Enables (``1``) or disables (``0``) |TS| to return a 400 Bad Request
-   if client's request URI includes character which is not RFC 3986 compliant
+   Takes a value between 0 and 2.  ``0`` disables strict_uri_parsing.  Any character can appears
+   in the URI.  ``1`` causes |TS| to return 400 Bad Request
+   if client's request URI includes character which is not RFC 3986 compliant. ``2`` directs |TS|
+   to reject the clients request if it contains whitespace or non-printable characters.
 
 .. ts:cv:: CONFIG proxy.config.http.errors.log_error_pages INT 1
    :reloadable:
@@ -1216,11 +1218,6 @@ Parent Proxy Configuration
    :overridable:
 
    The amount of time allowed between connection retries to a parent cache that is unavailable.
-
-.. ts:cv:: CONFIG proxy.config.http.parent_proxy.max_trans_retries INT 2
-
-   Limits the number of simultaneous transactions that may retry a parent once the parents
-   ``retry_time`` has expired.
 
 .. ts:cv:: CONFIG proxy.config.http.parent_proxy.fail_threshold INT 10
    :reloadable:
@@ -3623,9 +3620,9 @@ SSL Termination
    This feature requires |TS| to be built with POSIX
    capabilities enabled.
 
-.. ts:cv:: CONFIG proxy.config.ssl.handshake_timeout_in INT 0
+.. ts:cv:: CONFIG proxy.config.ssl.handshake_timeout_in INT 30
 
-   When enabled this limits the total duration for the server side SSL
+   When enabled this limits the total duration for the incoming side SSL
    handshake.
 
    See :ref:`admin-performance-timeouts` for more discussion on |TS| timeouts.
