@@ -290,6 +290,10 @@ am_tools_plugins_async_engine_la_OBJECTS =  \
 	tools/plugins/async_engine.lo
 tools_plugins_async_engine_la_OBJECTS =  \
 	$(am_tools_plugins_async_engine_la_OBJECTS)
+tools_plugins_async_engine_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) \
+	$(tools_plugins_async_engine_la_LDFLAGS) $(LDFLAGS) -o $@
 tools_plugins_cert_update_la_LIBADD =
 am_tools_plugins_cert_update_la_OBJECTS =  \
 	tools/plugins/cert_update.lo
@@ -336,6 +340,11 @@ am_tools_plugins_missing_mangled_definition_la_OBJECTS =  \
 	tools/plugins/missing_mangled_definition_cpp.lo
 tools_plugins_missing_mangled_definition_la_OBJECTS =  \
 	$(am_tools_plugins_missing_mangled_definition_la_OBJECTS)
+tools_plugins_missing_mangled_definition_la_LINK = $(LIBTOOL) \
+	$(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=link $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) \
+	$(tools_plugins_missing_mangled_definition_la_LDFLAGS) \
+	$(LDFLAGS) -o $@
 tools_plugins_missing_ts_plugin_init_la_LIBADD =
 am_tools_plugins_missing_ts_plugin_init_la_OBJECTS =  \
 	tools/plugins/missing_ts_plugin_init.lo
@@ -1211,6 +1220,12 @@ tools_plugins_missing_mangled_definition_la_SOURCES = \
   tools/plugins/missing_mangled_definition_cpp.cc \
   tools/plugins/missing_mangled_definition.h
 
+tools_plugins_missing_mangled_definition_la_LDFLAGS = \
+  -module \
+  -shared \
+  -avoid-version \
+  -rpath $(abs_builddir)
+
 tools_plugins_missing_ts_plugin_init_la_SOURCES = tools/plugins/missing_ts_plugin_init.cc
 tools_plugins_ssl_client_verify_test_la_SOURCES = tools/plugins/ssl_client_verify_test.cc
 tools_plugins_ssl_hook_test_la_SOURCES = tools/plugins/ssl_hook_test.cc
@@ -1226,6 +1241,12 @@ tools_plugins_test_hooks_la_SOURCES = tools/plugins/test_hooks.cc
 tools_plugins_test_log_interface_la_SOURCES = tools/plugins/test_log_interface.cc
 tools_plugins_user_args_la_SOURCES = tools/plugins/user_args.cc
 tools_plugins_async_engine_la_SOURCES = tools/plugins/async_engine.cc
+tools_plugins_async_engine_la_LDFLAGS = \
+  -module \
+  -shared \
+  -avoid-version \
+  -rpath $(abs_builddir)
+
 all: all-recursive
 
 .SUFFIXES:
@@ -1314,7 +1335,7 @@ tools/plugins/async_engine.lo: tools/plugins/$(am__dirstamp) \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)
 
 tools/plugins/async_engine.la: $(tools_plugins_async_engine_la_OBJECTS) $(tools_plugins_async_engine_la_DEPENDENCIES) $(EXTRA_tools_plugins_async_engine_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
-	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_async_engine_la_OBJECTS) $(tools_plugins_async_engine_la_LIBADD) $(LIBS)
+	$(AM_V_CXXLD)$(tools_plugins_async_engine_la_LINK)  $(tools_plugins_async_engine_la_OBJECTS) $(tools_plugins_async_engine_la_LIBADD) $(LIBS)
 tools/plugins/cert_update.lo: tools/plugins/$(am__dirstamp) \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)
 
@@ -1363,7 +1384,7 @@ tools/plugins/missing_mangled_definition_cpp.lo:  \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)
 
 tools/plugins/missing_mangled_definition.la: $(tools_plugins_missing_mangled_definition_la_OBJECTS) $(tools_plugins_missing_mangled_definition_la_DEPENDENCIES) $(EXTRA_tools_plugins_missing_mangled_definition_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
-	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_missing_mangled_definition_la_OBJECTS) $(tools_plugins_missing_mangled_definition_la_LIBADD) $(LIBS)
+	$(AM_V_CXXLD)$(tools_plugins_missing_mangled_definition_la_LINK)  $(tools_plugins_missing_mangled_definition_la_OBJECTS) $(tools_plugins_missing_mangled_definition_la_LIBADD) $(LIBS)
 tools/plugins/missing_ts_plugin_init.lo:  \
 	tools/plugins/$(am__dirstamp) \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)

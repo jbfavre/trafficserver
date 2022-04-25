@@ -100,4 +100,6 @@ struct RegressionTest {
 
 int rprintf(RegressionTest *t, const char *format, ...);
 int rperf(RegressionTest *t, const char *tag, double val);
-char *regression_status_string(int status);
+const char *regression_status_string(int status);
+
+void tell_diags_regression_testing_is_on();
