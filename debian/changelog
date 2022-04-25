@@ -1,9 +1,11 @@
-trafficserver (9.1.1+ds-3) UNRELEASED; urgency=medium
+trafficserver (9.1.2+ds-1) unstable; urgency=medium
 
   * Fix typo in d/changelog
   * Update patches that have been forwarded upstream
+  * New upstream version 9.1.2+ds
+  * Patches refresh for 9.1.2
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 18 Nov 2021 16:37:37 +0100
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 25 Apr 2022 15:00:33 +0200
 
 trafficserver (9.1.1+ds-2) unstable; urgency=medium
 
