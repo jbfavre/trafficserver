@@ -1,3 +1,14 @@
+trafficserver (9.1.2+ds-2) unstable; urgency=medium
+
+  * Fix missing CVE reference in d/changelog
+  * Update build-dep to workaround luajit segfault on ppc64el (Closes: #1004511)
+  * Remove constraints unnecessary since buster:
+    + Build-Depends: Drop versioned constraint on dpkg-dev and libyaml-cpp-dev.
+    + trafficserver: Drop versioned constraint on lsb-base in Depends.
+    + Remove 9 maintscript entries from 1 files.
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 21 May 2022 09:47:05 +0200
+
 trafficserver (9.1.2+ds-1) unstable; urgency=medium
 
   * Fix typo in d/changelog
