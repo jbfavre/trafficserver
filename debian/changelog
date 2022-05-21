@@ -1,3 +1,9 @@
+trafficserver (9.1.2+ds-3) unstable; urgency=medium
+
+  * Remove unavailable plugin on ppc64el (Closes: #1004511)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 21 May 2022 13:02:41 +0200
+
 trafficserver (9.1.2+ds-2) unstable; urgency=medium
 
   * Fix missing CVE reference in d/changelog
