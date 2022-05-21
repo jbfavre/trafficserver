@@ -52,6 +52,11 @@ ifeq ($(DEB_HOST_ARCH_CPU),ppc64el)
 	sed -i '/\/tslua\.so$$/d' \
 		debian/trafficserver.install
 endif
+ifeq ($(DEB_HOST_ARCH_CPU),x32)
+	# Remove unavailable plugin on x32
+	sed -i '/\/tslua\.so$$/d' \
+		debian/trafficserver.install
+endif
 
 override_dh_install:
 	dh_install
