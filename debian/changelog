@@ -1,8 +1,20 @@
+trafficserver (9.1.2+ds-2) unstable; urgency=medium
+
+  * Fix missing CVE reference in d/changelog
+  * Update build-dep to workaround luajit segfault on ppc64el (Closes: #1004511)
+  * Remove constraints unnecessary since buster:
+    + Build-Depends: Drop versioned constraint on dpkg-dev and libyaml-cpp-dev.
+    + trafficserver: Drop versioned constraint on lsb-base in Depends.
+    + Remove 9 maintscript entries from 1 files.
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 21 May 2022 09:47:05 +0200
+
 trafficserver (9.1.2+ds-1) unstable; urgency=medium
 
   * Fix typo in d/changelog
   * Update patches that have been forwarded upstream
   * New upstream version 9.1.2+ds
+    - CVE-2021-44040: Improper Input Validation
   * Patches refresh for 9.1.2
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 25 Apr 2022 15:00:33 +0200
