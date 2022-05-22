@@ -4,3 +4,4 @@
 0013-fix-perl-interpreter-path.patch
 0014-use_system_yaml-cpp.patch
 0015-workaround-python3-sphinxcontrib.plantuml-bug
+0016-fix-manpages-generation.patch
