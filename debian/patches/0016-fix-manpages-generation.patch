@@ -1,0 +1,28 @@
+Description: Fix manpages generation
+ Default documentation build puts everything in a single file
+ which is not convenient for manpages.
+ To get separate man pages files, we need to define the
+ man_pages variable in conf.py
+ Currently, this variable is defined in manpages.py
+ but this file is never included into conf.py.
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other
+Forwarded: https://github.com/apache/trafficserver/pull/8859
+Last-Update: 2019-01-03
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: trafficserver/doc/conf.py
+===================================================================
+--- trafficserver.orig/doc/conf.py	2022-05-22 21:12:00.211787841 +0200
++++ trafficserver/doc/conf.py	2022-05-22 21:13:56.691213319 +0200
+@@ -38,6 +38,10 @@
+ import os
+ from datetime import date
+ from sphinx import version_info
++# Import man_pages from manapges.py to get the list of manpages to generate in
++# separate files. Default is to put everything in apachetraffiserver.1
++# This import is required and acctualy used.
++from manpages import man_pages
+ 
+ # If extensions (or modules to document with autodoc) are in another directory,
+ # add these directories to sys.path here. If the directory is relative to the
