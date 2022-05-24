@@ -8,20 +8,21 @@ Description: Fix manpages generation
 Author: Jean Baptiste Favre <debian@jbfavre.org>
 Origin: other
 Forwarded: https://github.com/apache/trafficserver/pull/8859
-Last-Update: 2019-01-03
+Applied-Upstream: https://github.com/apache/trafficserver/commit/77ab48143cda3061fc7a675eca17cb2528e347ff
+Last-Update: 2022-05-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/doc/conf.py
 ===================================================================
---- trafficserver.orig/doc/conf.py	2022-05-22 21:12:00.211787841 +0200
-+++ trafficserver/doc/conf.py	2022-05-22 21:13:56.691213319 +0200
+--- trafficserver.orig/doc/conf.py	2022-05-24 10:26:05.741658135 +0200
++++ trafficserver/doc/conf.py	2022-05-24 10:26:05.737658162 +0200
 @@ -38,6 +38,10 @@
  import os
  from datetime import date
  from sphinx import version_info
-+# Import man_pages from manapges.py to get the list of manpages to generate in
-+# separate files. Default is to put everything in apachetraffiserver.1
-+# This import is required and acctualy used.
++# Import man_pages from manpages.py to get the list of manpages to generate in
++# separate files. Default is to put everything in apachetrafficserver.1
++# For these reasons, despite what linting tools might say, this import is required.
 +from manpages import man_pages
  
  # If extensions (or modules to document with autodoc) are in another directory,
