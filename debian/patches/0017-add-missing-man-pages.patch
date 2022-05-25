@@ -2,6 +2,7 @@ Description: Add missing manpages
 Author: Jean Baptiste Favre <debian@jbfavre.org>
 Origin: other
 Forwarded: https://github.com/apache/trafficserver/pull/8861
+Applied-Upstream: https://github.com/apache/trafficserver/commit/0a3369173b275e335bd83c8cb31673a0ef725590
 Last-Update: 2022-05-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
