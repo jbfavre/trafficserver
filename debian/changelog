@@ -1,3 +1,15 @@
+trafficserver (9.1.2+ds-6) unstable; urgency=medium
+
+  * Add d/u/metadata
+  * Update patches which have been applied upstream
+  * Patch to add missing configuration files man pages
+  * Update d/copyright
+  * Update d/control with Rules-Requires-Root field
+  * Fix Standards-Version
+  * Update build-dep in d/control
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 24 May 2022 11:31:47 +0200
+
 trafficserver (9.1.2+ds-5) unstable; urgency=medium
 
   * Update d/copyright
