@@ -1,3 +1,15 @@
+trafficserver (8.1.1+ds-1.1+deb11u1) bullseye-security; urgency=high
+
+  * Multiple CVE fixes for 8.1.x
+    + CVE-2021-37147: Improper input validation vulnerability
+    + CVE-2021-37148: Improper input validation vulnerability
+    + CVE-2021-37149: Improper Input Validation vulnerability
+    + CVE-2021-38161: Improper Authentication vulnerability in TLS origin verification
+    + CVE-2021-44040: Improper Input Validation vulnerability in request line parsing
+    + CVE-2021-44759: Improper Authentication vulnerability in TLS origin validation
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 21 May 2022 19:28:31 +0200
+
 trafficserver (8.1.1+ds-1.1) unstable; urgency=medium
 
   * Non-maintainer upload.
