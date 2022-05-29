@@ -1,3 +1,9 @@
+trafficserver (9.1.2+ds-7) unstable; urgency=medium
+
+  * Update Standards-Version
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sun, 29 May 2022 19:13:34 +0200
+
 trafficserver (9.1.2+ds-6) unstable; urgency=medium
 
   * Add d/u/metadata
