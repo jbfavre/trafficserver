@@ -1,3 +1,9 @@
+trafficserver (9.1.2+ds-8) unstable; urgency=medium
+
+  * Update d/control to fix build-deps against luajit for ppc64el
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 09 Jun 2022 14:55:48 +0200
+
 trafficserver (9.1.2+ds-7) unstable; urgency=medium
 
   * Update Standards-Version
