@@ -1,3 +1,10 @@
+trafficserver (9.1.2+ds-9) unstable; urgency=medium
+
+  * Re-install tslua module for ppc64el arch
+  * Update d/control for missing luajit build-dep for x32 arch
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 10 Jun 2022 06:51:35 +0200
+
 trafficserver (9.1.2+ds-8) unstable; urgency=medium
 
   * Update d/control to fix build-deps against luajit for ppc64el
