@@ -47,11 +47,6 @@ ifneq ($(DEB_HOST_ARCH_OS),linux)
 	sed -i '/\/healthchecks\.so$$/d' \
 		debian/trafficserver.install
 endif
-ifeq ($(DEB_HOST_ARCH_CPU),ppc64el)
-	# Remove unavailable plugin on ppc64el (see #1004511)
-	sed -i '/\/tslua\.so$$/d' \
-		debian/trafficserver.install
-endif
 ifeq ($(DEB_HOST_ARCH_CPU),x32)
 	# Remove unavailable plugin on x32
 	sed -i '/\/tslua\.so$$/d' \
