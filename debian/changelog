@@ -1,3 +1,11 @@
+trafficserver (9.1.2+ds-10) unstable; urgency=medium
+
+  * Add patch from upstream to improve OpenSSL 3 compatibility
+  * Add patch to fix proxy_http tests
+  * Update d/rules after tests fix
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 17 Jun 2022 09:52:31 +0200
+
 trafficserver (9.1.2+ds-9) unstable; urgency=medium
 
   * Re-install tslua module for ppc64el arch

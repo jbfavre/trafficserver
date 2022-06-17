@@ -6,3 +6,5 @@
 0015-workaround-python3-sphinxcontrib.plantuml-bug
 0016-fix-manpages-generation.patch
 0017-add-missing-man-pages.patch
+0018-fix-hkdf-openssl3.patch
+0019-fix-test_http_proxy.patch
