@@ -1,3 +1,9 @@
+trafficserver (9.1.2+ds-11) unstable; urgency=medium
+
+  * Remove ppc64el architecture (Closes #1013812)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 27 Jun 2022 14:02:31 +0200
+
 trafficserver (9.1.2+ds-10) unstable; urgency=medium
 
   * Add patch from upstream to improve OpenSSL 3 compatibility
