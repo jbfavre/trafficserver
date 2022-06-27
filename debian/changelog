@@ -1,6 +1,6 @@
 trafficserver (9.1.2+ds-11) unstable; urgency=medium
 
-  * Remove ppc64el architecture (Closes #1013812)
+  * Remove ppc64el architecture (Closes: #1013812)
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 27 Jun 2022 14:02:31 +0200
 
