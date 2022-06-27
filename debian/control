@@ -20,7 +20,7 @@ Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
 Vcs-Browser: https://salsa.debian.org/debian/trafficserver
 
 Package: trafficserver
-Architecture: any-amd64 any-arm64 any-ppc64el any-ppc64
+Architecture: any-amd64 any-arm64 any-ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base, adduser,
   ${perl:Depends}
 Pre-Depends: ${misc:Pre-Depends}
