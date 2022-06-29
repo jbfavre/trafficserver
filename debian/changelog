@@ -1,3 +1,9 @@
+trafficserver (9.1.2+ds-13) unstable; urgency=medium
+
+  * Fully remove ppc64 architecture because of broken support
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 29 Jun 2022 09:33:07 +0200
+
 trafficserver (9.1.2+ds-12) unstable; urgency=medium
 
   * Fix lintian error in d/changelog
