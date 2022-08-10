@@ -863,6 +863,20 @@ HttpSM::state_read_client_request_header(int event, void *data)
       break;
     }
 
+    if (!is_internal && t_state.http_config_param->scheme_proto_mismatch_policy != 0) {
+      auto scheme = t_state.hdr_info.client_request.url_get()->scheme_get_wksidx();
+      if ((client_connection_is_ssl && (scheme == URL_WKSIDX_HTTP || scheme == URL_WKSIDX_WS)) ||
+          (!client_connection_is_ssl && (scheme == URL_WKSIDX_HTTPS || scheme == URL_WKSIDX_WSS))) {
+        Warning("scheme [%s] vs. protocol [%s] mismatch", hdrtoken_index_to_wks(scheme),
+                client_connection_is_ssl ? "tls" : "plaintext");
+        if (t_state.http_config_param->scheme_proto_mismatch_policy == 2) {
+          t_state.http_return_code = HTTP_STATUS_BAD_REQUEST;
+          call_transact_and_set_next_state(HttpTransact::BadRequest);
+          break;
+        }
+      }
+    }
+
     if (_from_early_data) {
       // Only allow early data for safe methods defined in RFC7231 Section 4.2.1.
       // https://tools.ietf.org/html/rfc7231#section-4.2.1
@@ -6193,7 +6207,8 @@ HttpSM::attach_server_session(PoolableSession *s)
   if (ua_txn->has_request_body(t_state.hdr_info.request_content_length,
                                t_state.client_info.transfer_encoding == HttpTransact::CHUNKED_ENCODING)) {
     // See if we need to insert a chunked header
-    if (!t_state.hdr_info.server_request.presence(MIME_PRESENCE_CONTENT_LENGTH)) {
+    if (!t_state.hdr_info.server_request.presence(MIME_PRESENCE_CONTENT_LENGTH) &&
+        !t_state.hdr_info.server_request.presence(MIME_PRESENCE_TRANSFER_ENCODING)) {
       // Stuff in a TE setting so we treat this as chunked, sort of.
       t_state.server_info.transfer_encoding = HttpTransact::CHUNKED_ENCODING;
       t_state.hdr_info.server_request.value_append(MIME_FIELD_TRANSFER_ENCODING, MIME_LEN_TRANSFER_ENCODING, HTTP_VALUE_CHUNKED,
