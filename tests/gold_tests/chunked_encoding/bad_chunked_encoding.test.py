@@ -132,14 +132,14 @@ class MalformedChunkHeaderTest:
         # because ATS will close the connection due to the malformed
         # chunk headers.
         self.server.Streams.stdout += Testers.ContainsExpression(
-            "Header write for key 1 failed",
+            "Unexpected chunked content for key 1: too small",
             "Verify that writing the first response failed.")
         self.server.Streams.stdout += Testers.ContainsExpression(
-            "Header write for key 2 failed",
+            "Unexpected chunked content for key 2: too small",
             "Verify that writing the second response failed.")
 
-        # ATS should close the connection before any body gets through.
-        # "abc" is the body sent for each of these chunked cases.
+        # ATS should close the connection before any body gets through. "abc"
+        # is the body sent by the client for each of these chunked cases.
         self.server.Streams.stdout += Testers.ExcludesExpression(
             "abc",
             "Verify that the body never got through.")
@@ -181,16 +181,16 @@ class MalformedChunkHeaderTest:
         # code from the verifier client.
         tr.Processes.Default.ReturnCode = 1
         tr.Processes.Default.Streams.stdout += Testers.ContainsExpression(
-            "Failed HTTP/1 transaction with key=3",
+            r"(Unexpected chunked content for key 3: too small|Failed HTTP/1 transaction with key: 3)",
             "Verify that ATS closed the third transaction.")
         tr.Processes.Default.Streams.stdout += Testers.ContainsExpression(
-            "Failed HTTP/1 transaction with key=4",
+            r"(Unexpected chunked content for key 4: too small|Failed HTTP/1 transaction with key: 4)",
             "Verify that ATS closed the fourth transaction.")
 
-        # ATS should close the connection before any body gets through.
-        # "abc" is the body sent for each of these chunked cases.
+        # ATS should close the connection before any body gets through. "def"
+        # is the body sent by the server for each of these chunked cases.
         tr.Processes.Default.Streams.stdout += Testers.ExcludesExpression(
-            "abc",
+            "def",
             "Verify that the body never got through.")
 
     def run(self):

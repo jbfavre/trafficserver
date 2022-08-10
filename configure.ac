@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[9.1.2])
-m4_define([TS_VERSION_N],[9001002])
+m4_define([TS_VERSION_S],[9.1.3])
+m4_define([TS_VERSION_N],[9001003])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver], [https://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -815,7 +815,7 @@ AM_CONDITIONAL([BUILD_TSCONFIG_GRAMMAR], [ test -n "$LEX" && test -n "$YACC" ])
 AC_PATH_PROG([DOXYGEN], [doxygen]) # needed for Doxygen
 AC_PATH_PROG([PERL], [perl],[not found])
 AS_IF([test "x$PERL" = "xnot found"],
-  [AC_MSG_ERROR([check for perl failed. Have you installed perl?])]
+  BUILD_PERL_LIB=false
 )
 AC_ARG_VAR([DOXYGEN], [full path of Doxygen executable])
 AC_ARG_VAR([PERL], [full path of Perl executable])
