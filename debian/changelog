@@ -1,3 +1,13 @@
+trafficserver (9.1.3+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.1.3+ds
+    - CVE-2021-37150 Protocol vs scheme mismatch
+    - CVE-2022-25763 Improper input validation on HTTP/2 headers
+    - CVE-2022-28129  Insufficient Validation of HTTP/1.x Headers
+    - CVE-2022-31780 HTTP/2 framing vulnerabilities
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 10 Aug 2022 09:38:21 +0200
+
 trafficserver (9.1.2+ds-13) unstable; urgency=medium
 
   * Fully remove ppc64 architecture because of broken support
