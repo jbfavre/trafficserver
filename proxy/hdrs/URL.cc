@@ -114,6 +114,36 @@ validate_host_name(std::string_view addr)
   return std::all_of(addr.begin(), addr.end(), &is_host_char);
 }
 
+/**
+   Checks if the (un-well-known) scheme is valid
+
+   RFC 3986 Section 3.1
+   These are the valid characters in a scheme:
+     scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+   return an error if there is another character in the scheme
+*/
+bool
+validate_scheme(std::string_view scheme)
+{
+  if (scheme.empty()) {
+    return false;
+  }
+
+  if (!ParseRules::is_alpha(scheme[0])) {
+    return false;
+  }
+
+  for (size_t i = 0; i < scheme.size(); ++i) {
+    const char &c = scheme[i];
+
+    if (!(ParseRules::is_alnum(c) != 0 || c == '+' || c == '-' || c == '.')) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
@@ -1140,18 +1170,8 @@ url_parse_scheme(HdrHeap *heap, URLImpl *url, const char **start, const char *en
 
         if (!(scheme_wks_idx > 0 && hdrtoken_wks_to_token_type(scheme_wks) == HDRTOKEN_TYPE_SCHEME)) {
           // Unknown scheme, validate the scheme
-
-          // RFC 3986 Section 3.1
-          // These are the valid characters in a scheme:
-          //   scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-          // return an error if there is another character in the scheme
-          if (!ParseRules::is_alpha(*scheme_start)) {
+          if (!validate_scheme({scheme_start, static_cast<size_t>(scheme_end - scheme_start)})) {
             return PARSE_RESULT_ERROR;
-          }
-          for (cur = scheme_start + 1; cur < scheme_end; ++cur) {
-            if (!(ParseRules::is_alnum(*cur) != 0 || *cur == '+' || *cur == '-' || *cur == '.')) {
-              return PARSE_RESULT_ERROR;
-            }
           }
         }
         url_scheme_set(heap, url, scheme_start, scheme_wks_idx, scheme_end - scheme_start, copy_strings_p);
@@ -1179,10 +1199,34 @@ url_is_strictly_compliant(const char *start, const char *end)
   return true;
 }
 
-ParseResult
-url_parse(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings_p, bool strict_uri_parsing)
+/**
+ *  This method will return TRUE if the uri is mostly compliant with
+ *  RFC 3986 and it will return FALSE if not. Specifically denying white
+ *  space an unprintable characters
+ */
+static bool
+url_is_mostly_compliant(const char *start, const char *end)
 {
-  if (strict_uri_parsing && !url_is_strictly_compliant(*start, end)) {
+  for (const char *i = start; i < end; ++i) {
+    if (isspace(*i)) {
+      Debug("http", "Whitespace character [0x%.2X] found in URL", (unsigned char)*i);
+      return false;
+    }
+    if (!isprint(*i)) {
+      Debug("http", "Non-printable character [0x%.2X] found in URL", (unsigned char)*i);
+      return false;
+    }
+  }
+  return true;
+}
+
+ParseResult
+url_parse(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings_p, int strict_uri_parsing)
+{
+  if (strict_uri_parsing == 1 && !url_is_strictly_compliant(*start, end)) {
+    return PARSE_RESULT_ERROR;
+  }
+  if (strict_uri_parsing == 2 && !url_is_mostly_compliant(*start, end)) {
     return PARSE_RESULT_ERROR;
   }
 

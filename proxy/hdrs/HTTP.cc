@@ -885,7 +885,7 @@ http_parser_clear(HTTPParser *parser)
 
 ParseResult
 http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const char **start, const char *end,
-                      bool must_copy_strings, bool eof, bool strict_uri_parsing)
+                      bool must_copy_strings, bool eof, int strict_uri_parsing)
 {
   if (parser->m_parsing_http) {
     MIMEScanner *scanner = &parser->m_mime_parser.m_scanner;
@@ -1201,6 +1201,17 @@ validate_hdr_content_length(HdrHeap *heap, HTTPHdrImpl *hh)
     // status code and then close the connection
     int content_length_len         = 0;
     const char *content_length_val = content_length_field->value_get(&content_length_len);
+
+    // RFC 7230 section 3.3.2
+    // Content-Length = 1*DIGIT
+    //
+    // If the content-length value contains a non-numeric value, the header is invalid
+    for (int i = 0; i < content_length_len; i++) {
+      if (!isdigit(content_length_val[i])) {
+        Debug("http", "Content-Length value contains non-digit, returning parse error");
+        return PARSE_RESULT_ERROR;
+      }
+    }
 
     while (content_length_field->has_dups()) {
       int content_length_len_2         = 0;
