@@ -52,7 +52,7 @@ ParentRoundRobin::ParentRoundRobin(ParentRecord *parent_record, ParentRR_t _roun
   }
 }
 
-ParentRoundRobin::~ParentRoundRobin() = default;
+ParentRoundRobin::~ParentRoundRobin() {}
 
 void
 ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestData *rdata, unsigned int fail_threshold,
@@ -117,7 +117,7 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
     latched_parent = cur_index = (result->last_parent + 1) % num_parents;
 
     // Check to see if we have wrapped around
-    if (static_cast<unsigned int>(cur_index) == result->start_parent) {
+    if ((unsigned int)cur_index == result->start_parent) {
       // We've wrapped around so bypass if we can
       if (result->rec->go_direct == true) {
         // Could not find a parent
@@ -139,7 +139,7 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
     HostStatRec *hst = pStatus.getHostStatus(parents[cur_index].hostname);
     host_stat        = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
     // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
-    // ignore the down status and mark it as available
+    // ignore the down status and mark it as avaialble
     if (result->rec->ignore_self_detect && (hst && hst->status == HOST_STATUS_DOWN)) {
       if (hst->reasons == Reason::SELF_DETECT) {
         host_stat = HOST_STATUS_UP;
@@ -181,7 +181,7 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
       return;
     }
     latched_parent = cur_index = (cur_index + 1) % num_parents;
-  } while (static_cast<unsigned int>(cur_index) != result->start_parent);
+  } while ((unsigned int)cur_index != result->start_parent);
 
   if (result->rec->go_direct == true && result->rec->parent_is_proxy == true) {
     result->result = PARENT_DIRECT;

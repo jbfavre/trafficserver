@@ -25,6 +25,7 @@
 #include "ts/ts.h"
 
 #include "operators.h"
+#include "expander.h"
 #include "ts/apidefs.h"
 
 // OperatorConfig
@@ -77,7 +78,7 @@ OperatorSetStatus::initialize(Parser &p)
 
   _status.set_value(p.get_arg());
 
-  if (nullptr == (_reason = TSHttpHdrReasonLookup(static_cast<TSHttpStatus>(_status.get_int_value())))) {
+  if (nullptr == (_reason = TSHttpHdrReasonLookup((TSHttpStatus)_status.get_int_value()))) {
     TSError("[%s] unknown status %d", PLUGIN_NAME, _status.get_int_value());
     _reason_len = 0;
   } else {
@@ -106,14 +107,14 @@ OperatorSetStatus::exec(const Resources &res) const
   case TS_HTTP_READ_RESPONSE_HDR_HOOK:
   case TS_HTTP_SEND_RESPONSE_HDR_HOOK:
     if (res.bufp && res.hdr_loc) {
-      TSHttpHdrStatusSet(res.bufp, res.hdr_loc, static_cast<TSHttpStatus>(_status.get_int_value()));
+      TSHttpHdrStatusSet(res.bufp, res.hdr_loc, (TSHttpStatus)_status.get_int_value());
       if (_reason && _reason_len > 0) {
         TSHttpHdrReasonSet(res.bufp, res.hdr_loc, _reason, _reason_len);
       }
     }
     break;
   default:
-    TSHttpTxnStatusSet(res.txnp, static_cast<TSHttpStatus>(_status.get_int_value()));
+    TSHttpTxnStatusSet(res.txnp, (TSHttpStatus)_status.get_int_value());
     break;
   }
 
@@ -293,13 +294,14 @@ OperatorSetRedirect::initialize(Parser &p)
 }
 
 void
-EditRedirectResponse(TSHttpTxn txnp, const std::string &location, TSHttpStatus status, TSMBuffer bufp, TSMLoc hdr_loc)
+EditRedirectResponse(TSHttpTxn txnp, std::string const &location, int const &size, TSHttpStatus status, TSMBuffer bufp,
+                     TSMLoc hdr_loc)
 {
   // Set new location.
   TSMLoc field_loc;
   static std::string header("Location");
   if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(bufp, hdr_loc, header.c_str(), header.size(), &field_loc)) {
-    if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(bufp, hdr_loc, field_loc, -1, location.c_str(), location.size())) {
+    if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(bufp, hdr_loc, field_loc, -1, location.c_str(), size)) {
       TSDebug(PLUGIN_NAME, "   Adding header %s", header.c_str());
       TSMimeHdrFieldAppend(bufp, hdr_loc, field_loc);
     }
@@ -329,10 +331,11 @@ cont_add_location(TSCont contp, TSEvent event, void *edata)
   TSHttpStatus status = osd->get_status();
   switch (event) {
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR: {
+    int size;
     TSMBuffer bufp;
     TSMLoc hdr_loc;
     if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) == TS_SUCCESS) {
-      EditRedirectResponse(txnp, osd->get_location(), status, bufp, hdr_loc);
+      EditRedirectResponse(txnp, osd->get_location(size), size, status, bufp, hdr_loc);
     } else {
       TSDebug(PLUGIN_NAME, "Could not retrieve the response header");
     }
@@ -355,6 +358,11 @@ OperatorSetRedirect::exec(const Resources &res) const
     std::string value;
 
     _location.append_value(value, res);
+
+    if (_location.need_expansion()) {
+      VariableExpander ve(value);
+      value = ve.expand(res);
+    }
 
     bool remap = false;
     if (nullptr != res._rri) {
@@ -383,7 +391,8 @@ OperatorSetRedirect::exec(const Resources &res) const
     if ((pos_path = value.find("%{PATH}")) != std::string::npos) {
       value.erase(pos_path, 7); // erase %{PATH} from the rewritten to url
       int path_len     = 0;
-      const char *path = TSUrlPathGet(bufp, url_loc, &path_len);
+      const char *path = nullptr;
+      path             = TSUrlPathGet(bufp, url_loc, &path_len);
       if (path_len > 0) {
         TSDebug(PLUGIN_NAME, "Find %%{PATH} in redirect url, replace it with: %.*s", path_len, path);
         value.insert(pos_path, path, path_len);
@@ -392,8 +401,8 @@ OperatorSetRedirect::exec(const Resources &res) const
 
     // Append the original query string
     int query_len     = 0;
-    const char *query = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
-
+    const char *query = nullptr;
+    query             = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
     if ((get_oper_modifiers() & OPER_QSA) && (query_len > 0)) {
       TSDebug(PLUGIN_NAME, "QSA mode, append original query string: %.*s", query_len, query);
       std::string connector = (value.find('?') == std::string::npos) ? "?" : "&";
@@ -406,16 +415,14 @@ OperatorSetRedirect::exec(const Resources &res) const
     const char *end   = value.size() + start;
     if (remap) {
       // Set new location.
-      if (TS_PARSE_ERROR == TSUrlParse(bufp, url_loc, &start, end)) {
-        TSDebug(PLUGIN_NAME, "Could not set Location field value to: %s", value.c_str());
-      }
+      TSUrlParse(bufp, url_loc, &start, end);
       // Set the new status.
-      TSHttpTxnStatusSet(res.txnp, static_cast<TSHttpStatus>(_status.get_int_value()));
+      TSHttpTxnStatusSet(res.txnp, (TSHttpStatus)_status.get_int_value());
       const_cast<Resources &>(res).changed_url = true;
       res._rri->redirect                       = 1;
     } else {
       // Set the new status code and reason.
-      TSHttpStatus status = static_cast<TSHttpStatus>(_status.get_int_value());
+      TSHttpStatus status = (TSHttpStatus)_status.get_int_value();
       switch (get_hook()) {
       case TS_HTTP_PRE_REMAP_HOOK: {
         TSHttpTxnStatusSet(res.txnp, status);
@@ -430,7 +437,7 @@ OperatorSetRedirect::exec(const Resources &res) const
         break;
       }
       TSHttpHdrStatusSet(res.bufp, res.hdr_loc, status);
-      EditRedirectResponse(res.txnp, value, status, res.bufp, res.hdr_loc);
+      EditRedirectResponse(res.txnp, value, value.size(), status, res.bufp, res.hdr_loc);
     }
     TSDebug(PLUGIN_NAME, "OperatorSetRedirect::exec() invoked with destination=%s and status code=%d", value.c_str(),
             _status.get_int_value());
@@ -541,6 +548,12 @@ OperatorAddHeader::exec(const Resources &res) const
 
   _value.append_value(value, res);
 
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
+
   // Never set an empty header (I don't think that ever makes sense?)
   if (value.empty()) {
     TSDebug(PLUGIN_NAME, "Would set header %s to an empty value, skipping", _header.c_str());
@@ -576,6 +589,12 @@ OperatorSetHeader::exec(const Resources &res) const
   std::string value;
 
   _value.append_value(value, res);
+
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
 
   // Never set an empty header (I don't think that ever makes sense?)
   if (value.empty()) {
@@ -704,6 +723,12 @@ OperatorAddCookie::exec(const Resources &res) const
 
   _value.append_value(value, res);
 
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
+
   if (res.bufp && res.hdr_loc) {
     TSDebug(PLUGIN_NAME, "OperatorAddCookie::exec() invoked on cookie %s", _cookie.c_str());
     TSMLoc field_loc;
@@ -748,6 +773,12 @@ OperatorSetCookie::exec(const Resources &res) const
   std::string value;
 
   _value.append_value(value, res);
+
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
 
   if (res.bufp && res.hdr_loc) {
     TSDebug(PLUGIN_NAME, "OperatorSetCookie::exec() invoked on cookie %s", _cookie.c_str());

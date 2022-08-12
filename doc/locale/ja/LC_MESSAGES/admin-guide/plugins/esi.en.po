@@ -23,7 +23,7 @@ msgstr ""
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: ja_JP\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -73,7 +73,7 @@ msgid "ESI Plugin"
 msgstr ""
 
 #: ../../admin-guide/plugins/esi.en.rst:29
-msgid "Supported ESI tags:"
+msgid "Supportted ESI tags:"
 msgstr ""
 
 #: ../../admin-guide/plugins/esi.en.rst:73

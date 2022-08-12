@@ -69,15 +69,15 @@ struct MT_ListEntry{
 template <class key_t, class data_t> class HashTableIteratorState
 {
 public:
-  HashTableIteratorState() : ppcur(NULL) {}
-  int cur_buck = -1;
+  HashTableIteratorState() : cur_buck(-1), ppcur(NULL) {}
+  int cur_buck;
   HashTableEntry<key_t, data_t> **ppcur;
 };
 
 template <class key_t, class data_t> class IMTHashTable
 {
 public:
-  IMTHashTable(int size, bool (*gc_func)(data_t) = NULL, void (*pre_gc_func)() = nullptr)
+  IMTHashTable(int size, bool (*gc_func)(data_t) = NULL, void (*pre_gc_func)(void) = nullptr)
   {
     m_gc_func     = gc_func;
     m_pre_gc_func = pre_gc_func;
@@ -136,7 +136,7 @@ public:
   data_t remove_entry(HashTableIteratorState<key_t, data_t> *s);
 
   void
-  GC()
+  GC(void)
   {
     if (m_gc_func == NULL) {
       return;
@@ -195,7 +195,7 @@ private:
   int cur_size;
   int bucket_num;
   bool (*m_gc_func)(data_t);
-  void (*m_pre_gc_func)();
+  void (*m_pre_gc_func)(void);
 
 private:
   IMTHashTable();
@@ -336,7 +336,7 @@ IMTHashTable<key_t, data_t>::remove_entry(HashTableIteratorState<key_t, data_t> 
 template <class key_t, class data_t> class MTHashTable
 {
 public:
-  MTHashTable(int size, bool (*gc_func)(data_t) = NULL, void (*pre_gc_func)() = nullptr)
+  MTHashTable(int size, bool (*gc_func)(data_t) = NULL, void (*pre_gc_func)(void) = nullptr)
   {
     for (int i = 0; i < MT_HASHTABLE_PARTITIONS; i++) {
       locks[i]      = new_ProxyMutex();
@@ -354,10 +354,10 @@ public:
     }
   }
 
-  Ptr<ProxyMutex>
+  ProxyMutex *
   lock_for_key(key_t key)
   {
-    return locks[part_num(key)];
+    return locks[part_num(key)].get();
   }
 
   int

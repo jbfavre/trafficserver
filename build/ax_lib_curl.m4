@@ -8,7 +8,7 @@
 #
 # DESCRIPTION
 #
-#   Checks for minimum curl library version VERSION. If successful executes
+#   Checks for minimum curl library version VERSION. If successfull executes
 #   ACTION-IF-SUCCESS otherwise ACTION-IF-FAILURE.
 #
 #   Defines CURL_LIBS and CURL_CFLAGS.

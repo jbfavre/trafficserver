@@ -41,7 +41,7 @@ public:
   char *
   name()
   {
-    return reinterpret_cast<char *>(this) + this->name_offset;
+    return (char *)this + this->name_offset;
   }
 
   static ExampleStruct *
@@ -63,7 +63,7 @@ public:
   {
     this->idx = -1;
     items_freed.insert(this);
-    printf("freeing: %p items_freed.size(): %zu\n", this, items_freed.size());
+    printf("freeing: %p items_freed.size(): %zd\n", this, items_freed.size());
   }
 
   static ExampleStruct *
@@ -92,7 +92,7 @@ fillCache(RefCountCache<ExampleStruct> *cache, int start, int end)
 
   for (int i = start; i < end; i++) {
     ExampleStruct *tmp = ExampleStruct::alloc(allocSize);
-    cache->put(static_cast<uint64_t>(i), tmp);
+    cache->put((uint64_t)i, tmp);
 
     tmp->idx         = i;
     tmp->name_offset = sizeof(ExampleStruct);
@@ -124,6 +124,12 @@ verifyCache(RefCountCache<ExampleStruct> *cache, int start, int end)
       printf("IDX of ExampleStruct%d incorrect! (%d)\n", i, tmp->idx);
       return 1; // TODO: spin over all?
     }
+
+    // check that the name is correct
+    // if (strcmp(tmp->name, name.c_str())){
+    //  printf("Name of ExampleStruct%d incorrect! %s %s\n", i, tmp->name, name.c_str());
+    //  exit(1);
+    //}
   }
   return 0;
 }
@@ -149,17 +155,17 @@ testRefcounting()
   ExampleStruct *tmp = ExampleStruct::alloc();
   ret |= tmp->refcount() != 0;
   printf("ret=%d ref=%d\n", ret, tmp->refcount());
-  cache->put(static_cast<uint64_t>(1), tmp);
+  cache->put((uint64_t)1, tmp);
   ret |= tmp->refcount() != 1;
   printf("ret=%d ref=%d\n", ret, tmp->refcount());
   tmp->idx = 1;
 
   // Grab a pointer to item 1
-  Ptr<ExampleStruct> ccitem = cache->get(static_cast<uint64_t>(1));
+  Ptr<ExampleStruct> ccitem = cache->get((uint64_t)1);
   ret |= tmp->refcount() != 2;
   printf("ret=%d ref=%d\n", ret, tmp->refcount());
 
-  Ptr<ExampleStruct> tmpAfter = cache->get(static_cast<uint64_t>(1));
+  Ptr<ExampleStruct> tmpAfter = cache->get((uint64_t)1);
   ret |= tmp->refcount() != 3;
   printf("ret=%d ref=%d\n", ret, tmp->refcount());
 
@@ -205,7 +211,7 @@ test()
   Layout::create();
   init_diags("", nullptr);
   RecProcessInit(mode_type);
-  ink_event_system_init(EVENT_SYSTEM_MODULE_PUBLIC_VERSION);
+  ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
 
   int ret = 0;
 
@@ -246,17 +252,17 @@ test()
   // Verify that we can alloc() with no extra space
   printf("Alloc item idx 1\n");
   ExampleStruct *tmp = ExampleStruct::alloc();
-  cache->put(static_cast<uint64_t>(1), tmp);
+  cache->put((uint64_t)1, tmp);
   tmp->idx = 1;
 
-  Ptr<ExampleStruct> tmpAfter = cache->get(static_cast<uint64_t>(1));
+  Ptr<ExampleStruct> tmpAfter = cache->get((uint64_t)1);
   printf("Item after (ret=%d) %d %d\n", ret, 1, tmpAfter->idx);
   // Verify every item in the cache
   ret |= verifyCache(cache, 0, numTestEntries);
   printf("verified entire cache ret=%d\n", ret);
 
   // Grab a pointer to item 1
-  Ptr<ExampleStruct> ccitem = cache->get(static_cast<uint64_t>(1));
+  Ptr<ExampleStruct> ccitem = cache->get((uint64_t)1);
   ccitem->idx               = 1;
   // Delete a single item
   cache->erase(1);

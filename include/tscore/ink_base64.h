@@ -25,7 +25,7 @@
 
 /*
  * Base64 encoding and decoding as according to RFC1521.  Similar to uudecode.
- * See RFC1521 for specification.
+ * See RFC1521 for specificiation.
  *
  * RFC 1521 requires inserting line breaks for long lines.  The basic web
  * authentication scheme does not require them.  This implementation is
@@ -42,16 +42,5 @@ bool ats_base64_encode(const unsigned char *inBuffer, size_t inBufferSize, char 
 bool ats_base64_decode(const char *inBuffer, size_t inBufferSize, unsigned char *outBuffer, size_t outBufSize, size_t *length);
 
 // Little helper functions to calculate minimum required output buffer for encoding/decoding.
-// These sizes include one byte for null termination, because ats_base64_encode and ats_base64_decode will always write a null
-// terminator.
-inline constexpr size_t
-ats_base64_encode_dstlen(size_t length)
-{
-  return ((length + 2) / 3) * 4 + 1;
-}
-
-inline constexpr size_t
-ats_base64_decode_dstlen(size_t length)
-{
-  return ((length + 3) / 4) * 3 + 1;
-}
+#define ATS_BASE64_ENCODE_DSTLEN(_length) ((_length * 8) / 6 + 4)
+#define ATS_BASE64_DECODE_DSTLEN(_length) (((_length + 3) / 4) * 3)

@@ -53,11 +53,11 @@ struct DiskVolBlock {
 };
 
 struct DiskVolBlockQueue {
-  DiskVolBlock *b = nullptr;
-  int new_block   = 0; /* whether an existing vol or a new one */
+  DiskVolBlock *b;
+  int new_block; /* whether an existing vol or a new one */
   LINK(DiskVolBlockQueue, link);
 
-  DiskVolBlockQueue() {}
+  DiskVolBlockQueue() : b(nullptr), new_block(0) {}
 };
 
 struct DiskVol {

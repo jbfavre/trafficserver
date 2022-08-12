@@ -25,7 +25,7 @@
 #pragma once
 
 #include <algorithm> /* transform() */
-#include <cstddef>   /* size_t */
+#include <cstddef>   /* soze_t */
 #include <string>    /* std::string */
 #include <sstream>   /* std::stringstream */
 #include <map>       /* std::map */
@@ -62,7 +62,6 @@ public:
 
 static const String X_AMZ_CONTENT_SHA256 = "x-amz-content-sha256";
 static const String X_AMX_DATE           = "x-amz-date";
-static const String X_AMZ_SECURITY_TOKEN = "x-amz-security-token";
 static const String X_AMZ                = "x-amz-";
 static const String CONTENT_TYPE         = "content-type";
 static const String HOST                 = "host";

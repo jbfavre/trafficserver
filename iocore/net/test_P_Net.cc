@@ -55,7 +55,7 @@ struct NetTesterSM : public Continuation {
       fflush(stdout);
       break;
     case VC_EVENT_READ_COMPLETE:
-    /* FALLTHROUGH */
+    /* FALLSTHROUGH */
     case VC_EVENT_EOS:
       r   = reader->read_avail();
       str = new char[r + 10];
@@ -89,7 +89,7 @@ struct NetTesterAccept : public Continuation {
 int
 main()
 {
-  ink_event_system_init(EVENT_SYSTEM_MODULE_PUBLIC_VERSION);
+  ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
   MIOBuffer *mbuf = new_MIOBuffer(5);
   eventProcessor.start(1);
   netProcessor.start();

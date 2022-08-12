@@ -21,9 +21,7 @@ TSHttpTxnInfoIntGet
 Synopsis
 --------
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. c:function:: TSReturnCode TSHttpTxnInfoIntGet(TSHttpTxn txnp, TSHttpTxnInfoKey key, TSMgmtInt * value)
 

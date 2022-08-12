@@ -44,8 +44,8 @@ struct ForceVFPTToTop {
 class RefCountObj : public ForceVFPTToTop
 {
 public:
-  RefCountObj() {}
-  RefCountObj(const RefCountObj &s)
+  RefCountObj() : m_refcount(0) {}
+  RefCountObj(const RefCountObj &s) : m_refcount(0)
   {
     (void)s;
     return;
@@ -86,7 +86,7 @@ public:
   }
 
 private:
-  int m_refcount = 0;
+  int m_refcount;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -105,16 +105,8 @@ public:
   Ptr<T> &operator=(const Ptr<T> &);
   Ptr<T> &operator=(T *);
 
-  T *
-  operator->() const
-  {
-    return (m_ptr);
-  }
-  T &
-  operator*() const
-  {
-    return (*m_ptr);
-  }
+  T *operator->() const { return (m_ptr); }
+  T &operator*() const { return (*m_ptr); }
 
   // Making this explicit avoids unwanted conversions.  See https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Safe_bool .
   explicit operator bool() const { return m_ptr != nullptr; }
@@ -151,7 +143,7 @@ public:
   }
 
   // Return the raw pointer as a RefCount object. Typically
-  // this is for keeping a collection of ogenous objects.
+  // this is for keeping a collection of heterogenous objects.
   RefCountObj *
   object() const
   {

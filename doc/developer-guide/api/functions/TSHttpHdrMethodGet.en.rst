@@ -24,9 +24,7 @@ TSHttpHdrMethodGet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: const char* TSHttpHdrMethodGet(TSMBuffer bufp, TSMLoc offset, int * length)
 

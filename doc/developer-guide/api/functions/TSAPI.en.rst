@@ -28,10 +28,8 @@ Introduction to the Apache Traffic Server API.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
-    #include <ts/remap.h>
+`#include <ts/ts.h>`
+`#include <ts/remap.h>`
 
 Description
 ===========
@@ -59,11 +57,11 @@ type.
 
 Possible uses for plugins include the following:
 
-* HTTP processing plugins can filter, denylist, authorize users or transform content.
+* HTTP processing plugins can filter, blacklist, authorize users or transform content.
 
 * Protocol plugins can enable Traffic Server to proxy-cache new protocol content.
 
-* A denylisting plugin denies attempts to access web sites that are off-limits.
+* A blacklisting plugin denies attempts to access web sites that are off-limits.
 
 * Append transform plugins add data to HTTP response content.
 

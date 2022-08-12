@@ -1098,7 +1098,7 @@ start_socket(int url_num, int cnum, struct timeval *nowP)
       r = SSL_write(connections[cnum].ssl, urls[url_num].buf, urls[url_num].buf_bytes);
     else
       r = write(connections[cnum].conn_fd, urls[url_num].buf, urls[url_num].buf_bytes);
-    if (r <= 0) {
+    if (r < 0) {
       perror(urls[url_num].url_str);
       connections[cnum].reusable = 0;
       close_connection(cnum);
@@ -1216,7 +1216,7 @@ handle_connect(int cnum, struct timeval *nowP, int double_check)
     r = SSL_write(connections[cnum].ssl, urls[url_num].buf, urls[url_num].buf_bytes);
   else
     r = write(connections[cnum].conn_fd, urls[url_num].buf, urls[url_num].buf_bytes);
-  if (r <= 0) {
+  if (r < 0) {
     perror(urls[url_num].url_str);
     connections[cnum].reusable = 0;
     close_connection(cnum);
@@ -2760,9 +2760,9 @@ idle_connection(ClientData client_data, struct timeval *nowP __attribute__((unus
   int cnum;
   struct timeval tv;
   char strTime[32];
-  struct tm localtv;
+
   gettimeofday(&tv, NULL);
-  strftime(strTime, 32, "%T", localtime_r(&tv.tv_sec, &localtv));
+  strftime(strTime, 32, "%T", localtime(&tv.tv_sec));
 
   cnum                         = client_data.i;
   connections[cnum].idle_timer = (Timer *)0;
@@ -2846,7 +2846,7 @@ close_connection(int cnum)
   url_num = connections[cnum].url_num;
 
   /* Only check to update got_bytes, byte count errors and/or checksums
-     if the request was successful (i.e. no HTTP error). */
+     if the request was succesful (i.e. no HTTP error). */
   if (connections[cnum].http_status >= 0 && connections[cnum].http_status < 400) {
     if (do_checksum) {
       if (!urls[url_num].got_checksum) {

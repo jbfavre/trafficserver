@@ -20,7 +20,6 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-
 #include "UrlMappingPathIndex.h"
 
 UrlMappingPathIndex::~UrlMappingPathIndex()
@@ -85,7 +84,7 @@ lFail:
 }
 
 void
-UrlMappingPathIndex::Print() const
+UrlMappingPathIndex::Print()
 {
   for (auto &m_trie : m_tries) {
     m_trie.second->Print();

@@ -1,6 +1,9 @@
 /** @file
     Definitions for a buffer type, to carry a reference to a chunk of memory.
 
+    @internal This is a copy of TsBuffer.h in lib/tsconfig. That should
+    eventually be replaced with this promoted file.
+
     @section license License
 
     Licensed to the Apache Software Foundation (ASF) under one
@@ -30,7 +33,6 @@
 
 // For memcmp()
 #include <memory.h>
-#include <string_view>
 
 /// Apache Traffic Server commons.
 namespace ts
@@ -47,8 +49,8 @@ struct Buffer {
   typedef Buffer self; ///< Self reference type.
   typedef bool (self::*pseudo_bool)() const;
 
-  char *_ptr   = nullptr; ///< Pointer to base of memory chunk.
-  size_t _size = 0;       ///< Size of memory chunk.
+  char *_ptr;   ///< Pointer to base of memory chunk.
+  size_t _size; ///< Size of memory chunk.
 
   /// Default constructor (empty buffer).
   Buffer();
@@ -127,8 +129,8 @@ struct ConstBuffer {
   typedef ConstBuffer self; ///< Self reference type.
   typedef bool (self::*pseudo_bool)() const;
 
-  char const *_ptr = nullptr; ///< Pointer to base of memory chunk.
-  size_t _size     = 0;       ///< Size of memory chunk.
+  char const *_ptr; ///< Pointer to base of memory chunk.
+  size_t _size;     ///< Size of memory chunk.
 
   /// Default constructor (empty buffer).
   ConstBuffer();
@@ -191,8 +193,6 @@ struct ConstBuffer {
   /// Check for non-empty buffer.
   /// @return @c true if the buffer has a non-zero pointer @b and size.
   operator pseudo_bool() const;
-
-  operator std::string_view() const { return {_ptr, _size}; }
 
   /// @name Accessors.
   //@{
@@ -286,7 +286,7 @@ struct ConstBuffer {
 // ----------------------------------------------------------
 // Inline implementations.
 
-inline Buffer::Buffer() {}
+inline Buffer::Buffer() : _ptr(nullptr), _size(0) {}
 inline Buffer::Buffer(char *ptr, size_t n) : _ptr(ptr), _size(n) {}
 inline Buffer &
 Buffer::set(char *ptr, size_t n)
@@ -323,8 +323,7 @@ Buffer::operator==(ConstBuffer const &that) const
 {
   return _size == that._size && _ptr == that._ptr;
 }
-inline bool
-Buffer::operator!() const
+inline bool Buffer::operator!() const
 {
   return !(_ptr && _size);
 }
@@ -332,8 +331,7 @@ inline Buffer::operator pseudo_bool() const
 {
   return _ptr && _size ? &self::operator! : nullptr;
 }
-inline char
-Buffer::operator*() const
+inline char Buffer::operator*() const
 {
   return *_ptr;
 }
@@ -355,7 +353,7 @@ Buffer::size() const
   return _size;
 }
 
-inline ConstBuffer::ConstBuffer() {}
+inline ConstBuffer::ConstBuffer() : _ptr(nullptr), _size(0) {}
 inline ConstBuffer::ConstBuffer(char const *ptr, size_t n) : _ptr(ptr), _size(n) {}
 inline ConstBuffer::ConstBuffer(char const *start, char const *end) : _ptr(start), _size(end - start) {}
 inline ConstBuffer::ConstBuffer(Buffer const &that) : _ptr(that._ptr), _size(that._size) {}
@@ -409,8 +407,7 @@ ConstBuffer::operator==(Buffer const &that) const
 {
   return _size == that._size && 0 == memcmp(_ptr, that._ptr, _size);
 }
-inline bool
-ConstBuffer::operator!() const
+inline bool ConstBuffer::operator!() const
 {
   return !(_ptr && _size);
 }
@@ -418,8 +415,7 @@ inline ConstBuffer::operator pseudo_bool() const
 {
   return _ptr && _size ? &self::operator! : nullptr;
 }
-inline char
-ConstBuffer::operator*() const
+inline char ConstBuffer::operator*() const
 {
   return *_ptr;
 }
@@ -442,8 +438,7 @@ ConstBuffer::data() const
 {
   return _ptr;
 }
-inline char
-ConstBuffer::operator[](int n) const
+inline char ConstBuffer::operator[](int n) const
 {
   return _ptr[n];
 }

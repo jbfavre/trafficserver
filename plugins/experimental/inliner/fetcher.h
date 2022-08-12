@@ -63,12 +63,12 @@
 namespace ats
 {
 struct HttpParser {
-  bool parsed_ = false;
+  bool parsed_;
   TSHttpParser parser_;
   TSMBuffer buffer_;
   TSMLoc location_;
 
-  void destroyParser();
+  void destroyParser(void);
 
   ~HttpParser()
   {
@@ -77,7 +77,7 @@ struct HttpParser {
     destroyParser();
   }
 
-  HttpParser() : parser_(TSHttpParserCreate()), buffer_(TSMBufferCreate()), location_(TSHttpHdrCreate(buffer_))
+  HttpParser(void) : parsed_(false), parser_(TSHttpParserCreate()), buffer_(TSMBufferCreate()), location_(TSHttpHdrCreate(buffer_))
   {
     TSHttpHdrTypeSet(buffer_, location_, TS_HTTP_TYPE_RESPONSE);
   }
@@ -85,7 +85,7 @@ struct HttpParser {
   bool parse(io::IO &);
 
   int
-  statusCode() const
+  statusCode(void) const
   {
     return static_cast<int>(TSHttpHdrStatusGet(buffer_, location_));
   }
@@ -291,7 +291,7 @@ template <class T> struct HttpTransaction {
       break;
 
     default:
-      assert(false); // UNREACHABLE.
+      assert(false); // UNRECHEABLE.
     }
     return 0;
   }

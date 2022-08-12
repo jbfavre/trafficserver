@@ -28,7 +28,7 @@
    Description:
 
    A short test program intended to be used with Purify to detect problems
-   with the arena code
+   with the arnea code
 
 
  ****************************************************************************/

@@ -18,14 +18,15 @@
 #  limitations under the License.
 
 
+import os
 Test.Summary = '''
 Test a basic null transform plugin
 '''
 
+# Need Curl
 Test.SkipUnless(
-    Condition.PluginExists('null_transform.so')
+    Condition.HasProgram("curl", "curl needs to be installed on system for this test to work")
 )
-
 Test.ContinueOnFail = True
 
 # Define default ATS
@@ -54,7 +55,7 @@ ts.Disk.remap_config.AddLine(
 )
 
 # Load plugin
-Test.PrepareInstalledPlugin('null_transform.so', ts)
+Test.PreparePlugin(os.path.join(Test.Variables.AtsTestToolsDir, 'plugins', 'null_transform.c'), ts)
 
 # www.example.com Host
 tr = Test.AddTestRun()

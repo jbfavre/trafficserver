@@ -154,12 +154,12 @@ libraries on the machine used to build |TS|:
 - gcc (>= 4.3 or clang > 3.0)
 - GNU make
 - openssl
+- tcl
 - pcre
 - libcap
 - flex (for TPROXY)
 - hwloc
 - lua
-- zlib
 - curses (for traffic_top)
 - curl (for traffic_top)
 
@@ -261,7 +261,7 @@ settings have been configured as shown below::
     This setting requires that a remap rule exist before |TS| will proxy the
     request and ensures that your proxy cannot be used to access the content of
     arbitrary websites (allowing someone of malicious intent to potentially
-    mask their identity to an unknowing third party).
+    mask their identity to an unknowning third party).
 
 :ts:cv:`proxy.config.url_remap.pristine_host_hdr`
     This setting causes |TS| to keep the ``Host:`` client request header intact

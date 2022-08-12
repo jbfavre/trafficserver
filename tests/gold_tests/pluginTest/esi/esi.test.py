@@ -207,8 +207,8 @@ echo date('l jS \of F Y h:i:s A');
         tr = Test.AddTestRun("Verify the ESI plugin can gzip a response")
         EsiTest._output_counter += 1
         unzipped_body_file = os.path.join(
-            tr.RunDirectory,
-            "non_empty_curl_output_{}".format(EsiTest._output_counter))
+                tr.RunDirectory,
+                "non_empty_curl_output_{}".format(EsiTest._output_counter))
         gzipped_body_file = unzipped_body_file + ".gz"
         tr.Processes.Default.Command = \
             ('curl http://127.0.0.1:{0}/esi.php -H"Host: www.example.com" '
@@ -234,8 +234,8 @@ echo date('l jS \of F Y h:i:s A');
         tr = Test.AddTestRun("Verify we can handle an empty response.")
         EsiTest._output_counter += 1
         empty_body_file = os.path.join(
-            tr.RunDirectory,
-            "empty_curl_output_{}".format(EsiTest._output_counter))
+                tr.RunDirectory,
+                "empty_curl_output_{}".format(EsiTest._output_counter))
         gzipped_empty_body = empty_body_file + ".gz"
         tr.Processes.Default.Command = \
             ('curl http://127.0.0.1:{0}/expect_empty_body -H"Host: www.example.com" '

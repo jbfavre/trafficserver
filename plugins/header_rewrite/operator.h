@@ -43,12 +43,7 @@ enum OperModifiers {
 class Operator : public Statement
 {
 public:
-  Operator() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Operator"); }
-
-  // noncopyable
-  Operator(const Operator &) = delete;
-  void operator=(const Operator &) = delete;
-
+  Operator() : _mods(OPER_NONE) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Operator"); }
   OperModifiers get_oper_modifiers() const;
   void initialize(Parser &p) override;
 
@@ -65,7 +60,9 @@ protected:
   virtual void exec(const Resources &res) const = 0;
 
 private:
-  OperModifiers _mods = OPER_NONE;
+  DISALLOW_COPY_AND_ASSIGN(Operator);
+
+  OperModifiers _mods;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -75,16 +72,14 @@ private:
 class OperatorHeaders : public Operator
 {
 public:
-  OperatorHeaders() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorHeaders"); }
-
-  // noncopyable
-  OperatorHeaders(const OperatorHeaders &) = delete;
-  void operator=(const OperatorHeaders &) = delete;
-
+  OperatorHeaders() : _header("") { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorHeaders"); }
   void initialize(Parser &p) override;
 
 protected:
   std::string _header;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorHeaders);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,14 +89,12 @@ protected:
 class OperatorCookies : public Operator
 {
 public:
-  OperatorCookies() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorCookies"); }
-
-  // noncopyable
-  OperatorCookies(const OperatorCookies &) = delete;
-  void operator=(const OperatorCookies &) = delete;
-
+  OperatorCookies() : _cookie("") { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorCookies"); }
   void initialize(Parser &p) override;
 
 protected:
   std::string _cookie;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorCookies);
 };

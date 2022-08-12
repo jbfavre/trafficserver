@@ -96,17 +96,37 @@ enum NetworkSessionQualifiers {
 class Statement
 {
 public:
-  Statement() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Statement"); }
+  Statement() : _next(nullptr), _pdata(nullptr), _rsrc(RSRC_NONE), _initialized(false), _hook(TS_HTTP_READ_RESPONSE_HDR_HOOK)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Statement");
+  }
 
   virtual ~Statement()
   {
     TSDebug(PLUGIN_NAME_DBG, "Calling DTOR for Statement");
+    free_pdata();
     delete _next;
   }
 
-  // noncopyable
-  Statement(const Statement &) = delete;
-  void operator=(const Statement &) = delete;
+  // Private data
+  void
+  set_pdata(void *pdata)
+  {
+    _pdata = pdata;
+  }
+
+  void *
+  get_pdata() const
+  {
+    return (_pdata);
+  }
+
+  virtual void
+  free_pdata()
+  {
+    TSfree(_pdata);
+    _pdata = nullptr;
+  }
 
   // Which hook are we adding this statement to?
   bool set_hook(TSHttpHookID hook);
@@ -153,11 +173,14 @@ protected:
     _rsrc = static_cast<ResourceIDs>(_rsrc | ids);
   }
 
-  Statement *_next = nullptr; // Linked list
+  Statement *_next; // Linked list
 
 private:
-  ResourceIDs _rsrc  = RSRC_NONE;
-  bool _initialized  = false;
-  TSHttpHookID _hook = TS_HTTP_READ_RESPONSE_HDR_HOOK;
+  DISALLOW_COPY_AND_ASSIGN(Statement);
+
+  void *_pdata;
+  ResourceIDs _rsrc;
+  bool _initialized;
   std::vector<TSHttpHookID> _allowed_hooks;
+  TSHttpHookID _hook;
 };

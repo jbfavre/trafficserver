@@ -111,9 +111,9 @@ struct DiagsConfigState {
 class Diags
 {
 public:
-  Diags(std::string_view prefix_string, const char *base_debug_tags, const char *base_action_tags, BaseLogFile *_diags_log,
+  Diags(const char *prefix_string, const char *base_debug_tags, const char *base_action_tags, BaseLogFile *_diags_log,
         int diags_log_perm = -1, int output_log_perm = -1);
-  virtual ~Diags();
+  ~Diags();
 
   BaseLogFile *diags_log;
   BaseLogFile *stdout_log;
@@ -208,7 +208,7 @@ public:
     va_end(ap);
   }
 
-  virtual void error_va(DiagsLevel level, const SourceLocation *loc, const char *fmt, va_list ap) const;
+  void error_va(DiagsLevel level, const SourceLocation *loc, const char *fmt, va_list ap) const;
 
   void dump(FILE *fp = stdout) const;
 
@@ -219,7 +219,6 @@ public:
   bool setup_diagslog(BaseLogFile *blf);
   void config_roll_diagslog(RollingEnabledValues re, int ri, int rs);
   void config_roll_outputlog(RollingEnabledValues re, int ri, int rs);
-  bool reseat_diagslog();
   bool should_roll_diagslog();
   bool should_roll_outputlog();
 
@@ -231,7 +230,7 @@ public:
   IpAddr debug_client_ip;
 
 private:
-  const std::string prefix_str;
+  const char *prefix_str;
   mutable ink_mutex tag_table_lock; // prevents reconfig/read races
   DFA *activated_tags[2];           // 1 table for debug, 1 for action
 
@@ -291,13 +290,13 @@ extern inkcoreapi Diags *diags;
     diags->error(level, &loc, fmt, ##__VA_ARGS__); \
   } while (0)
 
-#define Status(...) DiagsError(DL_Status, __VA_ARGS__)       // Log information
-#define Note(...) DiagsError(DL_Note, __VA_ARGS__)           // Log significant information
-#define Warning(...) DiagsError(DL_Warning, __VA_ARGS__)     // Log concerning information
-#define Error(...) DiagsError(DL_Error, __VA_ARGS__)         // Log operational failure, fail CI
-#define Fatal(...) DiagsError(DL_Fatal, __VA_ARGS__)         // Log recoverable crash, fail CI, exit & allow restart
-#define Alert(...) DiagsError(DL_Alert, __VA_ARGS__)         // Log recoverable crash, fail CI, exit & restart, Ops attention
-#define Emergency(...) DiagsError(DL_Emergency, __VA_ARGS__) // Log unrecoverable crash, fail CI, exit, Ops attention
+#define Status(...) DiagsError(DL_Status, __VA_ARGS__)
+#define Note(...) DiagsError(DL_Note, __VA_ARGS__)
+#define Warning(...) DiagsError(DL_Warning, __VA_ARGS__)
+#define Error(...) DiagsError(DL_Error, __VA_ARGS__)
+#define Fatal(...) DiagsError(DL_Fatal, __VA_ARGS__)
+#define Alert(...) DiagsError(DL_Alert, __VA_ARGS__)
+#define Emergency(...) DiagsError(DL_Emergency, __VA_ARGS__)
 
 #define DiagsErrorV(level, fmt, ap)                  \
   do {                                               \
@@ -313,7 +312,7 @@ extern inkcoreapi Diags *diags;
 #define AlertV(fmt, ap) DiagsErrorV(DL_Alert, fmt, ap)
 #define EmergencyV(fmt, ap) DiagsErrorV(DL_Emergency, fmt, ap)
 
-#if TS_USE_DIAGS
+#ifdef TS_USE_DIAGS
 
 #define Diag(tag, ...)                                 \
   do {                                                 \

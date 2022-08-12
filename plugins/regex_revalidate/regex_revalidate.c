@@ -19,7 +19,8 @@
   limitations under the License.
  */
 
-#include <ts/ts.h>
+#include "tscore/ink_defs.h"
+#include "tscore/ink_platform.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -31,6 +32,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <ts/ts.h>
 
 #ifdef HAVE_PCRE_PCRE_H
 #include <pcre/pcre.h>
@@ -44,6 +46,18 @@
 #define OVECTOR_SIZE 30
 #define LOG_ROLL_INTERVAL 86400
 #define LOG_ROLL_OFFSET 0
+
+static inline void *
+ts_malloc(size_t s)
+{
+  return TSmalloc(s);
+}
+
+static inline void
+ts_free(void *s)
+{
+  return TSfree(s);
+}
 
 typedef struct invalidate_t {
   const char *regex_text;
@@ -317,7 +331,7 @@ list_config(plugin_state_t *pstate, invalidate_t *i)
 }
 
 static int
-free_handler(TSCont cont, TSEvent event, void *edata)
+free_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 {
   invalidate_t *iptr;
 
@@ -329,7 +343,7 @@ free_handler(TSCont cont, TSEvent event, void *edata)
 }
 
 static int
-config_handler(TSCont cont, TSEvent event, void *edata)
+config_handler(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 {
   plugin_state_t *pstate;
   invalidate_t *i, *iptr;
@@ -354,7 +368,7 @@ config_handler(TSCont cont, TSEvent event, void *edata)
     if (iptr) {
       free_cont = TSContCreate(free_handler, TSMutexCreate());
       TSContDataSet(free_cont, (void *)iptr);
-      TSContScheduleOnPool(free_cont, FREE_TMOUT, TS_THREAD_POOL_TASK);
+      TSContSchedule(free_cont, FREE_TMOUT, TS_THREAD_POOL_TASK);
     }
   } else {
     TSDebug(LOG_PREFIX, "No Changes");
@@ -365,10 +379,7 @@ config_handler(TSCont cont, TSEvent event, void *edata)
 
   TSMutexUnlock(mutex);
 
-  // Don't reschedule for TS_EVENT_MGMT_UPDATE
-  if (event == TS_EVENT_TIMEOUT) {
-    TSContScheduleOnPool(cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
-  }
+  TSContSchedule(cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
   return 0;
 }
 
@@ -442,6 +453,29 @@ main_handler(TSCont cont, TSEvent event, void *edata)
   return 0;
 }
 
+static bool
+check_ts_version()
+{
+  const char *ts_version = TSTrafficServerVersionGet();
+
+  if (ts_version) {
+    int major_ts_version = 0;
+    int minor_ts_version = 0;
+    int micro_ts_version = 0;
+
+    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &micro_ts_version) != 3) {
+      return false;
+    }
+
+    if ((TS_VERSION_MAJOR == major_ts_version) && (TS_VERSION_MINOR == minor_ts_version) &&
+        (TS_VERSION_MICRO == micro_ts_version)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -469,6 +503,7 @@ TSPluginInit(int argc, const char *argv[])
       break;
     case 'l':
       if (TS_SUCCESS == TSTextLogObjectCreate(optarg, TS_LOG_MODE_ADD_TIMESTAMP, &pstate->log)) {
+        TSTextLogObjectRollingEnabledSet(pstate->log, 1);
         TSTextLogObjectRollingIntervalSecSet(pstate->log, LOG_ROLL_INTERVAL);
         TSTextLogObjectRollingOffsetHrSet(pstate->log, LOG_ROLL_OFFSET);
       }
@@ -507,6 +542,15 @@ TSPluginInit(int argc, const char *argv[])
     TSDebug(LOG_PREFIX, "Plugin registration succeeded");
   }
 
+  if (!check_ts_version()) {
+    TSError("[regex_revalidate] Plugin requires Traffic Server %d.%d.%d", TS_VERSION_MAJOR, TS_VERSION_MINOR, TS_VERSION_MICRO);
+    free_plugin_state_t(pstate);
+    return;
+  }
+
+  pcre_malloc = &ts_malloc;
+  pcre_free   = &ts_free;
+
   main_cont = TSContCreate(main_handler, NULL);
   TSContDataSet(main_cont, (void *)pstate);
   TSHttpHookAdd(TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, main_cont);
@@ -517,7 +561,7 @@ TSPluginInit(int argc, const char *argv[])
   TSMgmtUpdateRegister(config_cont, LOG_PREFIX);
 
   if (!disable_timed_reload) {
-    TSContScheduleOnPool(config_cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
+    TSContSchedule(config_cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
   }
 
   TSDebug(LOG_PREFIX, "Plugin Init Complete");

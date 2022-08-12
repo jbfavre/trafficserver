@@ -63,6 +63,11 @@ bool inline Url::isInitialized() const
   return state_->hdr_buf_ && state_->url_loc_;
 }
 
+void
+Url::reset()
+{
+}
+
 std::string
 Url::getUrlString() const
 {

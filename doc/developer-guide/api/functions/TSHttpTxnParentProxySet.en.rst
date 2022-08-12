@@ -26,9 +26,7 @@ Sets the parent proxy :arg:`hostname` and :arg:`port`.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSHttpTxnParentProxySet(TSHttpTxn txnp, const char * hostname, int port)
 
