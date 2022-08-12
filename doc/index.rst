@@ -27,7 +27,6 @@ Apache Traffic Server Manual
 
   preface/index.en
   getting-started/index.en
-  release-notes/index.en
   admin-guide/index.en
   developer-guide/index.en
   appendices/index.en

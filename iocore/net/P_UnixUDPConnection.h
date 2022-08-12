@@ -46,21 +46,21 @@ public:
 
   // Incoming UDP Packet Queue
   ASLL(UDPPacketInternal, alink) inQueue;
-  int onCallbackQueue    = 0;
-  Action *callbackAction = nullptr;
-  EThread *ethread       = nullptr;
+  int onCallbackQueue;
+  Action *callbackAction;
+  EThread *ethread;
   EventIO ep;
 
   UnixUDPConnection(int the_fd);
   ~UnixUDPConnection() override;
 
 private:
-  int m_errno = 0;
+  int m_errno;
   void UDPConnection_is_abstract() override{};
 };
 
 TS_INLINE
-UnixUDPConnection::UnixUDPConnection(int the_fd)
+UnixUDPConnection::UnixUDPConnection(int the_fd) : onCallbackQueue(0), callbackAction(nullptr), ethread(nullptr), m_errno(0)
 {
   fd = the_fd;
   SET_HANDLER(&UnixUDPConnection::callbackHandler);
@@ -97,8 +97,9 @@ UDPConnection::recv(Continuation *c)
   // register callback interest.
   p->continuation = c;
   ink_assert(c != nullptr);
-  mutex = c->mutex;
-  return nullptr;
+  mutex         = c->mutex;
+  p->recvActive = 1;
+  return ACTION_RESULT_NONE;
 }
 
 TS_INLINE UDPConnection *

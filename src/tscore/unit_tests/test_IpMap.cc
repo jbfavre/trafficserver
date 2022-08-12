@@ -24,7 +24,6 @@
 #include "tscore/IpMap.h"
 #include <sstream>
 #include <catch.hpp>
-#include <tscore/BufferWriter.h>
 
 std::ostream &
 operator<<(std::ostream &s, IpEndpoint const &addr)
@@ -136,7 +135,7 @@ TEST_CASE("IpMap Basic", "[libts][ipmap]")
   map.mark(ip5, ip9, markA);
   {
     INFO("Coalesce failed");
-    CHECK(map.count() == 1);
+    CHECK(map.getCount() == 1);
   }
   {
     INFO("Range max not found.");
@@ -154,7 +153,7 @@ TEST_CASE("IpMap Basic", "[libts][ipmap]")
   map.fill(ip15, ip100, markB);
   {
     INFO("Fill failed.");
-    CHECK(map.count() == 2);
+    CHECK(map.getCount() == 2);
   }
   {
     INFO("fill interior missing");
@@ -180,13 +179,13 @@ TEST_CASE("IpMap Basic", "[libts][ipmap]")
   map.clear();
   {
     INFO("Clear failed.");
-    CHECK(map.count() == 0);
+    CHECK(map.getCount() == 0);
   }
 
   map.mark(ip20, ip50, markA);
   map.mark(ip100, ip150, markB);
   map.fill(ip10, ip200, markC);
-  CHECK(map.count() == 5);
+  CHECK(map.getCount() == 5);
   {
     INFO("Left span missing");
     CHECK(map.contains(ip15, &mark));
@@ -215,7 +214,7 @@ TEST_CASE("IpMap Basic", "[libts][ipmap]")
   map.unmark(ip140, ip160);
   {
     INFO("unmark failed");
-    CHECK(map.count() == 5);
+    CHECK(map.getCount() == 5);
   }
   {
     INFO("unmark left edge still there.");
@@ -248,7 +247,7 @@ TEST_CASE("IpMap Basic", "[libts][ipmap]")
   map.mark(ip0, ipmax, markC);
   {
     INFO("IpMap: Full range fill left extra ranges.");
-    CHECK(map.count() == 1);
+    CHECK(map.getCount() == 1);
   }
 }
 
@@ -286,12 +285,12 @@ TEST_CASE("IpMap Unmark", "[libts][ipmap]")
   map.mark(&a_0, &a_max, markA);
   {
     INFO("IpMap Unmark: Full range not single.");
-    CHECK(map.count() == 1);
+    CHECK(map.getCount() == 1);
   }
   map.unmark(&a_10_28_56_0, &a_10_28_56_255);
   {
     INFO("IpMap Unmark: Range unmark failed.");
-    CHECK(map.count() == 2);
+    CHECK(map.getCount() == 2);
   }
   // Generic range check.
   {
@@ -421,7 +420,7 @@ TEST_CASE("IpMap Fill", "[libts][ipmap]")
     map.fill(&a0, &a_max, markC);
     {
       INFO("IpMap[2]: Fill failed.");
-      CHECK(map.count() == 5);
+      CHECK(map.getCount() == 5);
     }
     {
       INFO("invalid mark in range gap");
@@ -444,7 +443,7 @@ TEST_CASE("IpMap Fill", "[libts][ipmap]")
     map.fill(&a0, &a_max, deny);
     {
       INFO("range count incorrect");
-      CHECK(map.count() == 5);
+      CHECK(map.getCount() == 5);
     }
     {
       INFO("mark between ranges");
@@ -486,7 +485,7 @@ TEST_CASE("IpMap Fill", "[libts][ipmap]")
 
     {
       INFO("IpMap Fill[pre-refill]: Bad range count.");
-      CHECK(map.count() == 10);
+      CHECK(map.getCount() == 10);
     }
     // These should be ignored by the map as it is completely covered for IPv6.
     map.fill(&a_fe80_9d90, &a_fe80_9d9d, markA);
@@ -494,7 +493,7 @@ TEST_CASE("IpMap Fill", "[libts][ipmap]")
     map.fill(&a_0000_0000, &a_ffff_ffff, markB);
     {
       INFO("IpMap Fill[post-refill]: Bad range count.");
-      CHECK(map.count() == 10);
+      CHECK(map.getCount() == 10);
     }
   }
 
@@ -541,11 +540,11 @@ TEST_CASE("IpMap CloseIntersection", "[libts][ipmap]")
   void *const markB = reinterpret_cast<void *>(2);
   void *const markC = reinterpret_cast<void *>(3);
   void *const markD = reinterpret_cast<void *>(4);
+  // void *mark; // for retrieval
 
   IpEndpoint a_1_l, a_1_u, a_2_l, a_2_u, a_3_l, a_3_u, a_4_l, a_4_u, a_5_l, a_5_u, a_6_l, a_6_u, a_7_l, a_7_u;
   IpEndpoint b_1_l, b_1_u;
   IpEndpoint c_1_l, c_1_u, c_2_l, c_2_u, c_3_l, c_3_u;
-  IpEndpoint c_3_m;
   IpEndpoint d_1_l, d_1_u, d_2_l, d_2_u;
 
   IpEndpoint a_1_m;
@@ -574,7 +573,6 @@ TEST_CASE("IpMap CloseIntersection", "[libts][ipmap]")
   ats_ip_pton("123.90.112.0", &c_2_l);
   ats_ip_pton("123.90.119.255", &c_2_u);
   ats_ip_pton("123.90.132.0", &c_3_l);
-  ats_ip_pton("123.90.134.157", &c_3_m);
   ats_ip_pton("123.90.135.255", &c_3_u);
 
   ats_ip_pton("123.82.196.0", &d_1_l);
@@ -592,42 +590,16 @@ TEST_CASE("IpMap CloseIntersection", "[libts][ipmap]")
   CHECK_THAT(map, IsMarkedAt(a_1_m));
 
   map.mark(b_1_l, b_1_u, markB);
-  CHECK_THAT(map, IsMarkedWith(a_1_m, markA));
+  CHECK_THAT(map, IsMarkedAt(a_1_m));
 
   map.mark(c_1_l, c_1_u, markC);
   map.mark(c_2_l, c_2_u, markC);
   map.mark(c_3_l, c_3_u, markC);
-  CHECK_THAT(map, IsMarkedWith(a_1_m, markA));
+  CHECK_THAT(map, IsMarkedAt(a_1_m));
 
   map.mark(d_1_l, d_1_u, markD);
   map.mark(d_2_l, d_2_u, markD);
   CHECK_THAT(map, IsMarkedAt(a_1_m));
-  CHECK_THAT(map, IsMarkedWith(b_1_u, markB));
-  CHECK_THAT(map, IsMarkedWith(c_3_m, markC));
-  CHECK_THAT(map, IsMarkedWith(d_2_l, markD));
 
-  CHECK(map.count() == 13);
-
-  // Check move constructor.
-  IpMap m2{std::move(map)};
-  // Original map should be empty.
-  REQUIRE(map.count() == 0);
-  // Do all these again on the destination map.
-  CHECK_THAT(m2, IsMarkedWith(a_1_m, markA));
-  CHECK_THAT(m2, IsMarkedWith(a_1_m, markA));
-  CHECK_THAT(m2, IsMarkedWith(a_1_m, markA));
-  CHECK_THAT(m2, IsMarkedWith(a_1_m, markA));
-  CHECK_THAT(m2, IsMarkedWith(b_1_u, markB));
-  CHECK_THAT(m2, IsMarkedWith(c_3_m, markC));
-  CHECK_THAT(m2, IsMarkedWith(d_2_l, markD));
-  CHECK(m2.count() == 13);
-
-#if 0
-  ts::LocalBufferWriter<1024> w;
-  std::cout << "Basic map dump" << std::endl;
-  std::cout << w.print("{}", m2).view() << std::endl;
-  w.reset();
-  std::cout << "With tree detail" << std::endl;
-  std::cout << w.print("{::x}", m2).view() << std::endl;
-#endif
-};
+  CHECK(map.getCount() == 13);
+}

@@ -506,8 +506,8 @@ template <class C, class L = typename C::Link_link> struct SortableQueue : publi
 //
 
 template <class C, class L = typename C::Link_link> struct CountQueue : public Queue<C, L> {
-  int size = 0;
-  inline CountQueue() {}
+  int size;
+  inline CountQueue(void) : size(0) {}
   inline void push(C *e);
   inline C *pop();
   inline void enqueue(C *e);

@@ -112,7 +112,7 @@ struct PollDescriptor {
     }
     return &pfd[nfds++];
 #else
-    return nullptr;
+    return 0;
 #endif
   }
 

@@ -16,33 +16,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import subprocess
-import json
-import re
-
-
 def HasOpenSSLVersion(self, version):
-    output = subprocess.check_output(
-        os.path.join(self.Variables.BINDIR, "traffic_layout") + " info --versions --json", shell=True
-    )
-    json_data = output.decode('utf-8')
-    openssl_str = json.loads(json_data)['openssl_str']
-    exe_ver = re.search(r'\d\.\d\.\d', openssl_str).group(0)
-    if exe_ver == '':
-        raise ValueError("Error determining version of openssl library needed by traffic_server executable")
-    return self.Condition(
-        lambda: exe_ver >= version,
-        "openssl library version is " + exe_ver + ", must be at least " + version
-    )
-
-
-def HasCurlVersion(self, version):
-    return self.EnsureVersion(["curl", "--version"], min_version=version)
-
-
-def HasProxyVerifierVersion(self, version):
-    return self.EnsureVersion(["verifier-client", "--version"], min_version=version)
-
+    return self.EnsureVersion(["openssl","version"],min_version=version)
 
 def HasCurlFeature(self, feature):
 
@@ -67,45 +42,24 @@ def HasCurlFeature(self, feature):
     )
 
 
-def HasCurlOption(self, option):
-    def default(output):
-        tag = option.lower()
-        for line in output.splitlines():
-            line = line.lower()
-            tokens = line.split()
-            for t in tokens:
-                if t == tag:
-                    return True
-        return False
-
-    return self.CheckOutput(
-        ['curl', '--help', 'all'],
-        default,
-        "Curl needs to support option: {option}".format(option=option)
-    )
-
-
 def HasATSFeature(self, feature):
 
     val = self.Variables.get(feature, None)
 
     return self.Condition(
-        lambda: val,
+        lambda: val == True,
         "ATS feature not enabled: {feature}".format(feature=feature)
     )
 
-# test if a plugin exists in the libexec folder
-
-
+#test if a plugin exists in the libexec folder
 def PluginExists(self, pluginname):
 
     path = os.path.join(self.Variables.PLUGINDIR, pluginname)
-    return self.Condition(lambda: os.path.isfile(path), path + " not found.")
+    return self.Condition(lambda: os.path.isfile(path) == True, path + " not found." )
 
 
 ExtendCondition(HasOpenSSLVersion)
 ExtendCondition(HasATSFeature)
-ExtendCondition(HasCurlVersion)
 ExtendCondition(HasCurlFeature)
-ExtendCondition(HasCurlOption)
 ExtendCondition(PluginExists)
+

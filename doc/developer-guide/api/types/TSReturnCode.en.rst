@@ -22,9 +22,7 @@ TSReturnCode
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/apidefs.h>
+`#include <ts/apidefs.h>`
 
 .. c:type:: TSReturnCode
 

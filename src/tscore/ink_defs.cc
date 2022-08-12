@@ -36,7 +36,7 @@
 #endif
 #if defined(linux)
 #include <sys/utsname.h>
-#endif
+#endif /* MAGIC_EDITING_TAG */
 
 int off = 0;
 int on  = 1;

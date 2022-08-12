@@ -71,7 +71,7 @@ struct SSLNextProtocolTrampoline : public Continuation {
   ioCompletionEvent(int event, void *edata)
   {
     VIO *vio;
-
+    Continuation *plugin;
     SSLNetVConnection *netvc;
 
     vio   = static_cast<VIO *>(edata);
@@ -83,6 +83,8 @@ struct SSLNextProtocolTrampoline : public Continuation {
     case VC_EVENT_ERROR:
     case VC_EVENT_ACTIVE_TIMEOUT:
     case VC_EVENT_INACTIVITY_TIMEOUT:
+      // Cancel the read before we have a chance to delete the continuation
+      netvc->do_io_read(nullptr, 0, nullptr);
       netvc->do_io_close();
       delete this;
       return EVENT_ERROR;
@@ -97,17 +99,14 @@ struct SSLNextProtocolTrampoline : public Continuation {
     // object does not care.
     netvc->set_action(nullptr);
 
-    Continuation *endpoint_cont = netvc->endpoint();
-    if (!endpoint_cont) {
+    // Cancel the read before we have a chance to delete the continuation
+    netvc->do_io_read(nullptr, 0, nullptr);
+    plugin = netvc->endpoint();
+    if (plugin) {
+      send_plugin_event(plugin, NET_EVENT_ACCEPT, netvc);
+    } else if (npnParent->endpoint) {
       // Route to the default endpoint
-      endpoint_cont = npnParent->endpoint;
-    }
-
-    if (endpoint_cont) {
-      // disable read io, send events to endpoint
-      netvc->do_io_read(endpoint_cont, 0, nullptr);
-
-      send_plugin_event(endpoint_cont, NET_EVENT_ACCEPT, netvc);
+      send_plugin_event(npnParent->endpoint, NET_EVENT_ACCEPT, netvc);
     } else {
       // No handler, what should we do? Best to just kill the VC while we can.
       netvc->do_io_close();
@@ -136,13 +135,11 @@ SSLNextProtocolAccept::mainEvent(int event, void *edata)
     // force the SSLNetVConnection to complete the SSL handshake. Don't tell
     // the endpoint that there is an accept to handle until the read completes
     // and we know which protocol was negotiated.
-    netvc->registerNextProtocolSet(&this->protoset, this->protoenabled);
+    netvc->registerNextProtocolSet(&this->protoset);
     netvc->do_io_read(new SSLNextProtocolTrampoline(this, netvc->mutex), 0, this->buffer);
     return EVENT_CONT;
   default:
-    if (netvc) {
-      netvc->do_io_close();
-    }
+    netvc->do_io_close();
     return EVENT_DONE;
   }
 }
@@ -160,17 +157,14 @@ SSLNextProtocolAccept::registerEndpoint(const char *protocol, Continuation *hand
   return this->protoset.registerEndpoint(protocol, handler);
 }
 
-void
-SSLNextProtocolAccept::enableProtocols(const SessionProtocolSet &protos)
+bool
+SSLNextProtocolAccept::unregisterEndpoint(const char *protocol, Continuation *handler)
 {
-  this->protoenabled = protos;
+  return this->protoset.unregisterEndpoint(protocol, handler);
 }
 
 SSLNextProtocolAccept::SSLNextProtocolAccept(Continuation *ep, bool transparent_passthrough)
-  : SessionAccept(nullptr),
-    buffer(new_empty_MIOBuffer(SSLConfigParams::ssl_misc_max_iobuffer_size_index)),
-    endpoint(ep),
-    transparent_passthrough(transparent_passthrough)
+  : SessionAccept(nullptr), buffer(new_empty_MIOBuffer()), endpoint(ep), transparent_passthrough(transparent_passthrough)
 {
   SET_HANDLER(&SSLNextProtocolAccept::mainEvent);
 }
@@ -179,6 +173,12 @@ SSLNextProtocolSet *
 SSLNextProtocolAccept::getProtoSet()
 {
   return &this->protoset;
+}
+
+SSLNextProtocolSet *
+SSLNextProtocolAccept::cloneProtoSet()
+{
+  return this->protoset.clone();
 }
 
 SSLNextProtocolAccept::~SSLNextProtocolAccept()

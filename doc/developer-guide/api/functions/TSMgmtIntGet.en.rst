@@ -24,9 +24,7 @@ TSMgmtIntGet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSMgmtIntGet(const char * var_name, TSMgmtInt * result)
 

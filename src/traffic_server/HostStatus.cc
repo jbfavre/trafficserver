@@ -23,14 +23,16 @@
 #include "HostStatus.h"
 #include "ProcessManager.h"
 
+static RecRawStatBlock *host_status_rsb = nullptr;
+
 inline void
 getStatName(std::string &stat_name, const char *name)
 {
   stat_name = stat_prefix + name;
 }
 
-static void
-mgmt_host_status_up_callback(ts::MemSpan<void> span)
+static void *
+mgmt_host_status_up_callback(void *x, char *data, int len)
 {
   MgmtInt op;
   MgmtMarshallString name;
@@ -38,10 +40,8 @@ mgmt_host_status_up_callback(ts::MemSpan<void> span)
   MgmtMarshallString reason_str;
   std::string stat_name;
   char buf[1024]                         = {0};
-  char *data                             = static_cast<char *>(span.data());
-  auto len                               = span.size();
   static const MgmtMarshallType fields[] = {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT};
-  Debug("host_statuses", "%s:%s:%d - data: %s, len: %ld\n", __FILE__, __func__, __LINE__, data, len);
+  Debug("host_statuses", "%s:%s:%d - data: %s, len: %d\n", __FILE__, __func__, __LINE__, data, len);
 
   if (mgmt_message_parse(data, len, fields, countof(fields), &op, &name, &reason_str, &down_time) == -1) {
     Error("Plugin message - RPC parsing error - message discarded.");
@@ -60,21 +60,20 @@ mgmt_host_status_up_callback(ts::MemSpan<void> span)
     }
     hs.setHostStatus(name, HostStatus_t::HOST_STATUS_UP, down_time, reason);
   }
+  return nullptr;
 }
 
-static void
-mgmt_host_status_down_callback(ts::MemSpan<void> span)
+static void *
+mgmt_host_status_down_callback(void *x, char *data, int len)
 {
   MgmtInt op;
   MgmtMarshallString name;
   MgmtMarshallInt down_time;
   MgmtMarshallString reason_str;
   std::string stat_name;
-  char *data                             = static_cast<char *>(span.data());
   char buf[1024]                         = {0};
-  auto len                               = span.size();
   static const MgmtMarshallType fields[] = {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT};
-  Debug("host_statuses", "%s:%s:%d - data: %s, len: %ld\n", __FILE__, __func__, __LINE__, data, len);
+  Debug("host_statuses", "%s:%s:%d - data: %s, len: %d\n", __FILE__, __func__, __LINE__, data, len);
 
   if (mgmt_message_parse(data, len, fields, countof(fields), &op, &name, &reason_str, &down_time) == -1) {
     Error("Plugin message - RPC parsing error - message discarded.");
@@ -92,6 +91,7 @@ mgmt_host_status_down_callback(ts::MemSpan<void> span)
     }
     hs.setHostStatus(name, HostStatus_t::HOST_STATUS_DOWN, down_time, reason);
   }
+  return nullptr;
 }
 
 HostStatRec::HostStatRec()
@@ -206,6 +206,7 @@ HostStatus::HostStatus()
   ink_rwlock_init(&host_status_rwlock);
   pmgmt->registerMgmtCallback(MGMT_EVENT_HOST_STATUS_UP, &mgmt_host_status_up_callback);
   pmgmt->registerMgmtCallback(MGMT_EVENT_HOST_STATUS_DOWN, &mgmt_host_status_down_callback);
+  host_status_rsb = RecAllocateRawStatBlock((int)TS_MAX_API_STATS);
 }
 
 HostStatus::~HostStatus()
@@ -257,7 +258,7 @@ HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned 
     createHostStat(name);
   }
 
-  RecErrT result = getHostStat(stat_name, buf, 1024);
+  int result = getHostStat(stat_name, buf, 1024);
 
   // update / insert status.
   // using the hash table pointer to store the HostStatus_t value.
@@ -341,7 +342,7 @@ HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned 
   if (result == REC_ERR_OKAY) {
     std::stringstream status_rec;
     status_rec << *host_stat;
-    RecSetRecordString(stat_name.c_str(), const_cast<char *>(status_rec.str().c_str()), REC_SOURCE_EXPLICIT, true);
+    RecSetRecordString(stat_name.c_str(), const_cast<char *>(status_rec.str().c_str()), REC_SOURCE_EXPLICIT, true, false);
     if (status == HostStatus_t::HOST_STATUS_UP) {
       Debug("host_statuses", "set status up for name: %s, status: %d, stat_name: %s", name, status, stat_name.c_str());
     } else {
@@ -364,15 +365,6 @@ HostStatus::getHostStatus(const char *name)
   HostStatRec *_status = nullptr;
   time_t now           = time(0);
   bool lookup          = false;
-
-  // if host_statuses is empty, just return
-  // a nullptr as there is no need to lock
-  // and search.  A return of nullptr indicates
-  // to the caller that the host is available,
-  // HOST_STATUS_UP.
-  if (hosts_statuses.empty()) {
-    return _status;
-  }
 
   // the hash table value pointer has the HostStatus_t value.
   ink_rwlock_rdlock(&host_status_rwlock);
@@ -439,7 +431,7 @@ HostStatus::createHostStat(const char *name, const char *data)
   }
 }
 
-RecErrT
+int
 HostStatus::getHostStat(std::string &stat_name, char *buf, unsigned int buf_len)
 {
   return RecGetRecordString(stat_name.c_str(), buf, buf_len, true);

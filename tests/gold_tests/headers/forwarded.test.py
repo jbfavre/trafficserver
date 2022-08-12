@@ -18,12 +18,14 @@ Test the Forwarded header and related configuration..
 #  limitations under the License.
 
 import os
+import subprocess
 
 Test.Summary = '''
 Test FORWARDED header.
 '''
 
 Test.SkipUnless(
+    Condition.HasATSFeature('TS_USE_TLS_ALPN'),
     Condition.HasCurlFeature('http2'),
     Condition.HasCurlFeature('IPv6'),
 )
@@ -77,16 +79,23 @@ forwarded_log_id = Test.Disk.File("forwarded.log")
 forwarded_log_id.Content = "forwarded.gold"
 
 
-def baselineTsSetup(ts):
+def baselineTsSetup(ts, sslPort):
 
-    ts.addDefaultSSLFiles()
+    ts.addSSLfile("../remap/ssl/server.pem")
+    ts.addSSLfile("../remap/ssl/server.key")
+
+    ts.Variables.ssl_port = sslPort
 
     ts.Disk.records_config.update({
         # 'proxy.config.diags.debug.enabled': 1,
         'proxy.config.url_remap.pristine_host_hdr': 1,  # Retain Host header in original incoming client request.
+        'proxy.config.http.cache.http': 0,  # Make sure each request is forwarded to the origin server.
         'proxy.config.proxy_name': 'Poxy_Proxy',  # This will be the server name.
         'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
-        'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir)
+        'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
+        'proxy.config.http.server_ports': (
+            'ipv4:{0} ipv4:{1}:proto=http2;http:ssl ipv6:{0} ipv6:{1}:proto=http2;http:ssl'
+            .format(ts.Variables.port, ts.Variables.ssl_port))
     })
 
     ts.Disk.ssl_multicert_config.AddLine(
@@ -98,11 +107,9 @@ def baselineTsSetup(ts):
     )
 
 
-# Disable the cache to make sure each request is forwarded to the origin
-# server.
-ts = Test.MakeATSProcess("ts", enable_tls=True, enable_cache=False)
+ts = Test.MakeATSProcess("ts", select_ports=False)
 
-baselineTsSetup(ts)
+baselineTsSetup(ts, 4443)
 
 ts.Disk.remap_config.AddLine(
     'map http://www.forwarded-none.com http://127.0.0.1:{0}'.format(server.Variables.Port) +
@@ -154,7 +161,7 @@ tr = Test.AddTestRun()
 # Wait for the micro server
 tr.Processes.Default.StartBefore(server, ready=When.PortOpen(server.Variables.Port))
 # Delay on readiness of our ssl ports
-tr.Processes.Default.StartBefore(Test.Processes.ts)
+tr.Processes.Default.StartBefore(Test.Processes.ts, ready=When.PortOpen(ts.Variables.ssl_port))
 #
 tr.Processes.Default.Command = (
     'curl --verbose --ipv4 --http1.1 --proxy localhost:{} http://www.no-oride.com'.format(ts.Variables.port)
@@ -192,9 +199,11 @@ TestHttp1_1('www.forwarded-connection-compact.com')
 TestHttp1_1('www.forwarded-connection-std.com')
 TestHttp1_1('www.forwarded-connection-full.com')
 
-ts2 = Test.MakeATSProcess("ts2", command="traffic_manager", enable_tls=True)
+ts2 = Test.MakeATSProcess("ts2", command="traffic_manager", select_ports=False)
 
-baselineTsSetup(ts2)
+ts2.Variables.port += 1
+
+baselineTsSetup(ts2, 4444)
 
 ts2.Disk.records_config.update({
     'proxy.config.url_remap.pristine_host_hdr': 1,  # Retain Host header in original incoming client request.
@@ -207,7 +216,7 @@ ts2.Disk.remap_config.AddLine(
 # Forwarded header with UUID of 2nd ATS.
 tr = Test.AddTestRun()
 # Delay on readiness of our ssl ports
-tr.Processes.Default.StartBefore(Test.Processes.ts2)
+tr.Processes.Default.StartBefore(Test.Processes.ts2, ready=When.PortOpen(ts2.Variables.ssl_port))
 #
 tr.Processes.Default.Command = (
     'curl --verbose --ipv4 --http1.1 --proxy localhost:{} http://www.no-oride.com'.format(ts2.Variables.port)
@@ -268,13 +277,13 @@ tr.Processes.Default.ReturnCode = 0
 
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = (
-    'curl --verbose --ipv6 --http1.1 --proxy localhost:{} http://www.no-oride.com'.format(ts2.Variables.portv6)
+    'curl --verbose --ipv6 --http1.1 --proxy localhost:{} http://www.no-oride.com'.format(ts2.Variables.port)
 )
 tr.Processes.Default.ReturnCode = 0
 
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = (
     'curl --verbose --ipv6 --http1.1 --insecure --header "Host: www.no-oride.com" https://localhost:{}'.format(
-        ts2.Variables.ssl_portv6)
+        ts2.Variables.ssl_port)
 )
 tr.Processes.Default.ReturnCode = 0

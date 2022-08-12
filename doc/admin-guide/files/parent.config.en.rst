@@ -143,8 +143,8 @@ The following list shows the possible actions and their allowed values.
 
     If ``round_robin`` is set to ``consistent_hash``, you may add a unique ``hash string``
     following the ``weight`` for each parent.  The ``hash string`` must start with ``&``
-    and is used to build both the primary and secondary rings using the ``hash string``
-    for each parent instead of the parents ``hostname`` or ``ip address``. This can be
+	  and is used to build both the primary and secondary rings using the ``hash string``
+    for each parent insted of the parents ``hostname`` or ``ip address``. This can be
     useful so that two different hosts may be used to cache the same requests.  Example::
 
         parent="p1.x.com:80|1.0&abcdef, p2.x.com:80|1.0&xyzl, p3.x.com:80|1.0&ldffg" round_robin=consistent_hash
@@ -185,13 +185,7 @@ The following list shows the possible actions and their allowed values.
       - If the chosen parent is marked down then another parent will
         be chosen from the ``secondary_parent`` list. The
         ``secondary_parent`` list will be exhausted before attempting
-        to choose another parent in the ``parent`` list. This depends
-        on taking a parent down from a particular EDGE using traffic_ctl
-        like ``traffic_ctl host down sample.server.com``. This will be
-        useful during maintenance window or as a debugging aid when a
-        user wants to take down specific parents. Taking parents down
-        using ``traffic_ctl`` will cause the EDGE to ignore those parent
-        immediately from parent selection logic.
+        to choose another parent in the ``parent`` list.
 
       - If the chosen parent is unavailable but not marked down then
         another parent will be chosen from the ``parent`` list. The
@@ -213,22 +207,14 @@ The following list shows the possible actions and their allowed values.
 .. _parent-config-format-parent-retry:
 
 ``parent_retry``
-    - ``simple_retry`` - If the parent returns a 404 response or if the response matches
-      a list of http 4xx responses defined in ``simple_server_retry_responses`` on a request
+    - ``simple_retry`` - If the parent origin server returns a 404 response on a request
       a new parent is selected and the request is retried.  The number of retries is controlled
       by ``max_simple_retries`` which is set to 1 by default.
-    - ``unavailable_server_retry`` - If the parent returns a 503 response or if the response matches
+    - ``unavailable_server_retry`` - If the parent returns a 503 response or if the reponse matches
       a list of http 5xx responses defined in ``unavailable_server_retry_responses``, the currently selected
       parent is marked down and a new parent is selected to retry the request.  The number of
       retries is controlled by ``max_unavailable_server_retries`` which is set to 1 by default.
     - ``both`` - This enables both ``simple_retry`` and ``unavailable_server_retry`` as described above.
-
-.. _parent-config-format-simple-server-retry-responses:
-
-``simple_server_retry_responses``
-   If ``parent_retry`` is set to either ``simple_retry`` or ``both``, this parameter is a comma separated list of
-   http 4xx response codes that will invoke the ``simple_retry`` described in the ``parent_retry`` section. By
-   default, ``simple_server_retry_responses`` is set to 404.
 
 .. _parent-config-format-unavailable-server-retry-responses:
 
@@ -242,7 +228,7 @@ The following list shows the possible actions and their allowed values.
 
 ``max_simple_retries``
   By default the value for ``max_simple_retries`` is 1.  It may be set to any value in the range 1 to 5.
-  If ``parent_retry`` is set to ``simple_retry`` or ``both`` a 404 response
+  If ``parent_retry`` is set to ``simple_retry`` or ``both`` a 404 reponse
   from a parent origin server will cause the request to be retried using a new parent at most 1 to 5
   times as configured by ``max_simple_retries``.
 
@@ -250,7 +236,7 @@ The following list shows the possible actions and their allowed values.
 
 ``max_unavailable_server_retries``
   By default the value for ``max_unavailable_server_retries`` is 1.  It may be set to any value in the range 1 to 5.
-  If ``parent_retry`` is set to ``unavailable_server_retries`` or ``both`` a 503 response
+  If ``parent_retry`` is set to ``unavailable_server_retries`` or ``both`` a 503 reponse
   by default or any http 5xx response listed in the list ``unavailable_server_retry_responses`` from a parent origin server will
   cause the request to be retried using a new parent after first marking the current parent down.  The request
   will be retried at most 1 to 5 times as configured by ``max_unavailable_server_retries``.

@@ -32,6 +32,7 @@ const int OVECCOUNT = 30; // We support $1 - $9 only, and this needs to be 3x th
 class regexHelper
 {
 public:
+  regexHelper() : regex(nullptr), regexExtra(nullptr), regexCcount(0) {}
   ~regexHelper()
   {
     pcre_free(regex);
@@ -42,8 +43,8 @@ public:
   int regexMatch(const char *, int, int ovector[]) const;
 
 private:
+  pcre *regex;
+  pcre_extra *regexExtra;
   std::string regexString;
-  pcre *regex            = nullptr;
-  pcre_extra *regexExtra = nullptr;
-  int regexCcount        = 0;
+  int regexCcount;
 };

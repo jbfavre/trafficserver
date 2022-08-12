@@ -119,10 +119,18 @@ public:
 
   /**
    * Set the port portion of the url.
-   * @param port this is a uint16_t which represents the port (in host order, there is no need to convert to network order). You
+   * @param port this is a uint16_t which represents the port (in host order, there is no need to conver to network order). You
    * might use a value such as 80 or 8080.
    */
   void setPort(const uint16_t);
+
+  /**
+   * This method allows you to reset the url, this will force the Url to fully re-read all cached values.
+   * If this method is used on a Detached Requests' Url object it will completely destroy the values.
+   *
+   * \note This method should rarely be used.
+   */
+  void reset();
 
 private:
   bool isInitialized() const;

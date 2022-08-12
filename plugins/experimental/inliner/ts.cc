@@ -123,7 +123,7 @@ namespace io
     assert(vio_ != nullptr);
 
     if (timeout_ > 0) {
-      action_ = TSContScheduleOnPool(continuation_, timeout_, TS_THREAD_POOL_NET);
+      action_ = TSContSchedule(continuation_, timeout_, TS_THREAD_POOL_DEFAULT);
       assert(action_ != nullptr);
     }
   }
@@ -190,7 +190,7 @@ namespace io
 
     default:
       TSError("[" PLUGIN_TAG "] Unknown event: %i", e);
-      assert(false); // UNREACHABLE
+      assert(false); // UNREACHEABLE
       break;
     }
 

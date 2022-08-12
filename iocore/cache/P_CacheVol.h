@@ -76,7 +76,7 @@ struct CacheVol;
 
 struct VolHeaderFooter {
   unsigned int magic;
-  ts::VersionNumber version;
+  VersionNumber version;
   time_t create_time;
   off_t write_pos;
   off_t last_write_pos;
@@ -269,7 +269,7 @@ struct Vol : public Continuation {
     SET_HANDLER(&Vol::aggWrite);
   }
 
-  ~Vol() override { ats_free(agg_buffer); }
+  ~Vol() override { ats_memalign_free(agg_buffer); }
 };
 
 struct AIO_Callback_handler : public Continuation {
@@ -279,18 +279,17 @@ struct AIO_Callback_handler : public Continuation {
 };
 
 struct CacheVol {
-  int vol_number        = -1;
-  int scheme            = 0;
-  off_t size            = 0;
-  int num_vols          = 0;
-  bool ramcache_enabled = true;
-  Vol **vols            = nullptr;
-  DiskVol **disk_vols   = nullptr;
+  int vol_number;
+  int scheme;
+  off_t size;
+  int num_vols;
+  Vol **vols;
+  DiskVol **disk_vols;
   LINK(CacheVol, link);
   // per volume stats
-  RecRawStatBlock *vol_rsb = nullptr;
+  RecRawStatBlock *vol_rsb;
 
-  CacheVol() {}
+  CacheVol() : vol_number(-1), scheme(0), size(0), num_vols(0), vols(nullptr), disk_vols(nullptr), vol_rsb(nullptr) {}
 };
 
 // Note : hdr() needs to be 8 byte aligned.

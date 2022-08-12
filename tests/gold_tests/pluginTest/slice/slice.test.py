@@ -88,6 +88,8 @@ ts.Disk.remap_config.AddLines([
 ])
 
 ts.Disk.records_config.update({
+    'proxy.config.http.wait_for_cache': 1,
+    'proxy.config.http.cache.http': 1,
     'proxy.config.diags.debug.enabled': 0,
     'proxy.config.diags.debug.tags': 'slice',
 })

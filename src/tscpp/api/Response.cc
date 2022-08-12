@@ -32,10 +32,10 @@ namespace atscppapi
  * @private
  */
 struct ResponseState : noncopyable {
-  TSMBuffer hdr_buf_ = nullptr;
-  TSMLoc hdr_loc_    = nullptr;
+  TSMBuffer hdr_buf_;
+  TSMLoc hdr_loc_;
   Headers headers_;
-  ResponseState() = default;
+  ResponseState() : hdr_buf_(nullptr), hdr_loc_(nullptr) {}
 };
 } // namespace atscppapi
 

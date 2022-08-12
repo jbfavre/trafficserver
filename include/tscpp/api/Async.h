@@ -23,10 +23,9 @@
 
 #pragma once
 
+#include <list>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
-#include <utility>
 
 #include "tscpp/api/noncopyable.h"
 
@@ -92,7 +91,7 @@ public:
     }
   }
 
-  virtual ~AsyncProvider() { this->cancel(); }
+  virtual ~AsyncProvider() {}
 
 protected:
   std::shared_ptr<AsyncDispatchControllerBase>
@@ -106,7 +105,7 @@ private:
   void
   doRun(std::shared_ptr<AsyncDispatchControllerBase> dispatch_controller)
   {
-    dispatch_controller_ = std::move(dispatch_controller);
+    dispatch_controller_ = dispatch_controller;
     run();
   }
   friend class Async;
@@ -138,10 +137,7 @@ public:
   disable() override
   {
     std::lock_guard<Mutex> scopedLock(*dispatch_mutex_);
-    if (event_receiver_ != nullptr) {
-      event_receiver_->revokePromise(this);
-      event_receiver_ = nullptr;
-    }
+    event_receiver_ = nullptr;
   }
 
   bool
@@ -158,7 +154,7 @@ public:
    * @param mutex Mutex of the receiver that is locked during the dispatch
    */
   AsyncDispatchController(AsyncEventReceiverType *event_receiver, AsyncProviderType *provider, std::shared_ptr<Mutex> mutex)
-    : event_receiver_(event_receiver), dispatch_mutex_(std::move(mutex)), provider_(provider)
+    : event_receiver_(event_receiver), dispatch_mutex_(mutex), provider_(provider)
   {
   }
 
@@ -213,20 +209,13 @@ public:
    */
   virtual void handleAsyncComplete(AsyncProviderType &provider) = 0;
   virtual ~AsyncReceiver() {}
-  void
-  revokePromise(AsyncDispatchController<AsyncReceiver<AsyncProviderType>, AsyncProviderType> *dispatch_controller_ptr)
-  {
-    receiver_promises_.erase(dispatch_controller_ptr);
-  }
 
 protected:
   AsyncReceiver() {}
   friend class Async;
 
 private:
-  mutable std::unordered_map<AsyncDispatchController<AsyncReceiver<AsyncProviderType>, AsyncProviderType> *,
-                             std::shared_ptr<AsyncReceiverPromise<AsyncReceiver<AsyncProviderType>, AsyncProviderType>>>
-    receiver_promises_;
+  mutable std::list<std::shared_ptr<AsyncReceiverPromise<AsyncReceiver<AsyncProviderType>, AsyncProviderType>>> receiver_promises_;
 };
 
 /**
@@ -257,7 +246,7 @@ public:
       new AsyncDispatchController<AsyncReceiver<AsyncProviderType>, AsyncProviderType>(event_receiver, provider, mutex));
     std::shared_ptr<AsyncReceiverPromise<AsyncReceiver<AsyncProviderType>, AsyncProviderType>> receiver_promise(
       new AsyncReceiverPromise<AsyncReceiver<AsyncProviderType>, AsyncProviderType>(dispatcher));
-    event_receiver->receiver_promises_[dispatcher.get()] = receiver_promise;
+    event_receiver->receiver_promises_.push_back(receiver_promise); // now if the event receiver dies, we're safe.
     provider->doRun(dispatcher);
   }
 };

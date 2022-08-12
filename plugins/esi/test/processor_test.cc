@@ -37,15 +37,18 @@ using std::endl;
 using std::string;
 using namespace EsiLib;
 
+pthread_key_t threadKey;
+
 static const int FETCHER_STATIC_DATA_SIZE = 30;
 
 int
 main()
 {
-  Utils::HeaderValueList allowlistCookies;
-  Variables esi_vars("vars", &Debug, &Error, allowlistCookies);
+  Utils::HeaderValueList whitelistCookies;
+  Variables esi_vars("vars", &Debug, &Error, whitelistCookies);
   HandlerManager handler_mgr("handler_mgr", &Debug, &Error);
 
+  pthread_key_create(&threadKey, nullptr);
   Utils::init(&Debug, &Error);
 
   {

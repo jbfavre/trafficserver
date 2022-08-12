@@ -35,20 +35,20 @@
 class OperatorSetConfig : public Operator
 {
 public:
-  OperatorSetConfig() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetConfig"); }
-
-  // noncopyable
-  OperatorSetConfig(const OperatorSetConfig &) = delete;
-  void operator=(const OperatorSetConfig &) = delete;
-
+  OperatorSetConfig() : _key(TS_CONFIG_NULL), _type(TS_RECORDDATATYPE_NULL)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetConfig");
+  }
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
-  TSOverridableConfigKey _key = TS_CONFIG_NULL;
-  TSRecordDataType _type      = TS_RECORDDATATYPE_NULL;
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetConfig);
+
+  TSOverridableConfigKey _key;
+  TSRecordDataType _type;
 
   std::string _config;
   Value _value;
@@ -57,12 +57,7 @@ private:
 class OperatorSetStatus : public Operator
 {
 public:
-  OperatorSetStatus() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetStatus"); }
-
-  // noncopyable
-  OperatorSetStatus(const OperatorSetStatus &) = delete;
-  void operator=(const OperatorSetStatus &) = delete;
-
+  OperatorSetStatus() : _reason(nullptr), _reason_len(0) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetStatus"); }
   void initialize(Parser &p) override;
 
 protected:
@@ -70,20 +65,17 @@ protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetStatus);
+
   Value _status;
-  const char *_reason = nullptr;
-  int _reason_len     = 0;
+  const char *_reason;
+  int _reason_len;
 };
 
 class OperatorSetStatusReason : public Operator
 {
 public:
   OperatorSetStatusReason() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetStatusReason"); }
-
-  // noncopyable
-  OperatorSetStatusReason(const OperatorSetStatusReason &) = delete;
-  void operator=(const OperatorSetStatusReason &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
@@ -91,25 +83,24 @@ protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetStatusReason);
+
   Value _reason;
 };
 
 class OperatorSetDestination : public Operator
 {
 public:
-  OperatorSetDestination() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetDestination"); }
-
-  // noncopyable
-  OperatorSetDestination(const OperatorSetDestination &) = delete;
-  void operator=(const OperatorSetDestination &) = delete;
-
+  OperatorSetDestination() : _url_qual(URL_QUAL_NONE) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetDestination"); }
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
-  UrlQualifiers _url_qual = URL_QUAL_NONE;
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetDestination);
+
+  UrlQualifiers _url_qual;
   Value _value;
 };
 
@@ -117,29 +108,25 @@ class OperatorSetRedirect : public Operator
 {
 public:
   OperatorSetRedirect() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetRedirect"); }
-
-  // noncopyable
-  OperatorSetRedirect(const OperatorSetRedirect &) = delete;
-  void operator=(const OperatorSetRedirect &) = delete;
-
   void initialize(Parser &p) override;
-
   TSHttpStatus
-  get_status() const
+  get_status()
   {
     return static_cast<TSHttpStatus>(_status.get_int_value());
   }
-
-  const std::string &
-  get_location() const
+  std::string
+  get_location(int &size)
   {
-    return _location.get_value();
+    size = (int)_location.size();
+    return static_cast<std::string>(_location.get_value());
   }
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetRedirect);
+
   Value _status;
   Value _location;
 };
@@ -149,29 +136,25 @@ class OperatorNoOp : public Operator
 public:
   OperatorNoOp() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorNoOp"); }
 
-  // noncopyable
-  OperatorNoOp(const OperatorNoOp &) = delete;
-  void operator=(const OperatorNoOp &) = delete;
-
 protected:
   void exec(const Resources & /* res ATS_UNUSED */) const override{};
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorNoOp);
 };
 
 class OperatorSetTimeoutOut : public Operator
 {
 public:
-  OperatorSetTimeoutOut() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetTimeoutOut"); }
-
-  // noncopyable
-  OperatorSetTimeoutOut(const OperatorSetTimeoutOut &) = delete;
-  void operator=(const OperatorSetTimeoutOut &) = delete;
-
+  OperatorSetTimeoutOut() : _type(TO_OUT_UNDEFINED) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetTimeoutOut"); }
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetTimeoutOut);
+
   enum TimeoutOutType {
     TO_OUT_UNDEFINED,
     TO_OUT_ACTIVE,
@@ -180,26 +163,23 @@ private:
     TO_OUT_DNS,
   };
 
-  TimeoutOutType _type = TO_OUT_UNDEFINED;
+  TimeoutOutType _type;
   Value _timeout;
 };
 
 class OperatorSkipRemap : public Operator
 {
 public:
-  OperatorSkipRemap() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSkipRemap"); }
-
-  // noncopyable
-  OperatorSkipRemap(const OperatorSkipRemap &) = delete;
-  void operator=(const OperatorSkipRemap &) = delete;
-
+  OperatorSkipRemap() : _skip_remap(false) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSkipRemap"); }
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
-  bool _skip_remap = false;
+  DISALLOW_COPY_AND_ASSIGN(OperatorSkipRemap);
+
+  bool _skip_remap;
 };
 
 // All the header operators share a base class
@@ -208,29 +188,25 @@ class OperatorRMHeader : public OperatorHeaders
 public:
   OperatorRMHeader() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorRMHeader"); }
 
-  // noncopyable
-  OperatorRMHeader(const OperatorRMHeader &) = delete;
-  void operator=(const OperatorRMHeader &) = delete;
-
 protected:
   void exec(const Resources &res) const override;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorRMHeader);
 };
 
 class OperatorAddHeader : public OperatorHeaders
 {
 public:
   OperatorAddHeader() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorAddHeader"); }
-
-  // noncopyable
-  OperatorAddHeader(const OperatorAddHeader &) = delete;
-  void operator=(const OperatorAddHeader &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorAddHeader);
+
   Value _value;
 };
 
@@ -238,37 +214,31 @@ class OperatorSetHeader : public OperatorHeaders
 {
 public:
   OperatorSetHeader() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetHeader"); }
-
-  // noncopyable
-  OperatorSetHeader(const OperatorSetHeader &) = delete;
-  void operator=(const OperatorSetHeader &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetHeader);
+
   Value _value;
 };
 
 class OperatorCounter : public Operator
 {
 public:
-  OperatorCounter() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorCounter"); }
-
-  // noncopyable
-  OperatorCounter(const OperatorCounter &) = delete;
-  void operator=(const OperatorCounter &) = delete;
-
+  OperatorCounter() : _counter_name(""), _counter(TS_ERROR) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorCounter"); }
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorCounter);
+
   std::string _counter_name;
-  int _counter = TS_ERROR;
+  int _counter;
 };
 
 class OperatorRMCookie : public OperatorCookies
@@ -276,29 +246,25 @@ class OperatorRMCookie : public OperatorCookies
 public:
   OperatorRMCookie() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorRMCookie"); }
 
-  // noncopyable
-  OperatorRMCookie(const OperatorRMCookie &) = delete;
-  void operator=(const OperatorRMCookie &) = delete;
-
 protected:
   void exec(const Resources &res) const override;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorRMCookie);
 };
 
 class OperatorAddCookie : public OperatorCookies
 {
 public:
   OperatorAddCookie() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorAddCookie"); }
-
-  // noncopyable
-  OperatorAddCookie(const OperatorAddCookie &) = delete;
-  void operator=(const OperatorAddCookie &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorAddCookie);
+
   Value _value;
 };
 
@@ -306,17 +272,14 @@ class OperatorSetCookie : public OperatorCookies
 {
 public:
   OperatorSetCookie() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetCookie"); }
-
-  // noncopyable
-  OperatorSetCookie(const OperatorSetCookie &) = delete;
-  void operator=(const OperatorSetCookie &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetCookie);
+
   Value _value;
 };
 
@@ -336,11 +299,6 @@ class OperatorSetConnDSCP : public Operator
 {
 public:
   OperatorSetConnDSCP() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetConnDSCP"); }
-
-  // noncopyable
-  OperatorSetConnDSCP(const OperatorSetConnDSCP &) = delete;
-  void operator=(const OperatorSetConnDSCP &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
@@ -348,6 +306,8 @@ protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetConnDSCP);
+
   Value _ds_value;
 };
 
@@ -355,11 +315,6 @@ class OperatorSetConnMark : public Operator
 {
 public:
   OperatorSetConnMark() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetConnMark"); }
-
-  // noncopyable
-  OperatorSetConnMark(const OperatorSetConnMark &) = delete;
-  void operator=(const OperatorSetConnMark &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
@@ -367,6 +322,8 @@ protected:
   void exec(const Resources &res) const override;
 
 private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetConnMark);
+
   Value _ds_value;
 };
 
@@ -374,14 +331,12 @@ class OperatorSetDebug : public Operator
 {
 public:
   OperatorSetDebug() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetDebug"); }
-
-  // noncopyable
-  OperatorSetDebug(const OperatorSetDebug &) = delete;
-  void operator=(const OperatorSetDebug &) = delete;
-
   void initialize(Parser &p) override;
 
 protected:
   void initialize_hooks() override;
   void exec(const Resources &res) const override;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSetDebug);
 };

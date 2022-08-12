@@ -21,8 +21,6 @@
   limitations under the License.
  */
 
-#include <array>
-
 #include "tscore/ink_platform.h"
 #include "tscore/ink_thread.h"
 #include "tscore/ink_memory.h"
@@ -30,7 +28,7 @@
 
 #if defined(PCRE_CONFIG_JIT) && !defined(darwin) // issue with macOS Catalina and pcre 8.43
 struct RegexThreadKey {
-  RegexThreadKey() { ink_thread_key_create(&this->key, reinterpret_cast<void (*)(void *)>(&pcre_jit_stack_free)); }
+  RegexThreadKey() { ink_thread_key_create(&this->key, (void (*)(void *)) & pcre_jit_stack_free); }
   ink_thread_key key;
 };
 
@@ -41,7 +39,7 @@ get_jit_stack(void *data ATS_UNUSED)
 {
   pcre_jit_stack *jit_stack;
 
-  if ((jit_stack = static_cast<pcre_jit_stack *>(ink_thread_getspecific(k.key))) == nullptr) {
+  if ((jit_stack = (pcre_jit_stack *)ink_thread_getspecific(k.key)) == nullptr) {
     jit_stack = pcre_jit_stack_alloc(ats_pagesize(), 1024 * 1024); // 1 page min and 1MB max
     ink_thread_setspecific(k.key, (void *)jit_stack);
   }
@@ -49,12 +47,6 @@ get_jit_stack(void *data ATS_UNUSED)
   return jit_stack;
 }
 #endif
-
-Regex::Regex(Regex &&that) noexcept : regex(that.regex), regex_extra(that.regex_extra)
-{
-  that.regex       = nullptr;
-  that.regex_extra = nullptr;
-}
 
 bool
 Regex::compile(const char *pattern, const unsigned flags)
@@ -109,19 +101,25 @@ Regex::get_capture_count()
 }
 
 bool
-Regex::exec(std::string_view const &str) const
+Regex::exec(const char *str)
 {
-  std::array<int, DEFAULT_GROUP_COUNT * 3> ovector = {{0}};
-  return this->exec(str, ovector.data(), ovector.size());
+  return exec(str, strlen(str));
 }
 
 bool
-Regex::exec(std::string_view const &str, int *ovector, int ovecsize) const
+Regex::exec(const char *str, int length)
+{
+  int ovector[30];
+  return exec(str, length, ovector, countof(ovector));
+}
+
+bool
+Regex::exec(const char *str, int length, int *ovector, int ovecsize)
 {
   int rv;
 
-  rv = pcre_exec(regex, regex_extra, str.data(), int(str.size()), 0, 0, ovector, ovecsize);
-  return rv > 0;
+  rv = pcre_exec(regex, regex_extra, str, length, 0, 0, ovector, ovecsize);
+  return rv > 0 ? true : false;
 }
 
 Regex::~Regex()
@@ -138,60 +136,113 @@ Regex::~Regex()
   }
 }
 
-DFA::~DFA() {}
-
-bool
-DFA::build(std::string_view const &pattern, unsigned flags)
+DFA::~DFA()
 {
-  Regex rxp;
-  std::string string{pattern};
+  dfa_pattern *p = _my_patterns;
+  dfa_pattern *t;
+
+  while (p) {
+    if (p->_re) {
+      delete p->_re;
+    }
+    if (p->_p) {
+      ats_free(p->_p);
+    }
+    t = p->_next;
+    ats_free(p);
+    p = t;
+  }
+}
+
+dfa_pattern *
+DFA::build(const char *pattern, unsigned flags)
+{
+  dfa_pattern *ret;
+  int rv;
 
   if (!(flags & RE_UNANCHORED)) {
     flags |= RE_ANCHORED;
   }
 
-  if (!rxp.compile(string.c_str(), flags)) {
-    return false;
+  ret     = (dfa_pattern *)ats_malloc(sizeof(dfa_pattern));
+  ret->_p = nullptr;
+
+  ret->_re = new Regex();
+  rv       = ret->_re->compile(pattern, flags);
+  if (rv == -1) {
+    delete ret->_re;
+    ats_free(ret);
+    return nullptr;
   }
-  _patterns.emplace_back(std::move(rxp), std::move(string));
-  return true;
+
+  ret->_idx  = 0;
+  ret->_p    = ats_strndup(pattern, strlen(pattern));
+  ret->_next = nullptr;
+  return ret;
 }
 
 int
-DFA::compile(std::string_view const &pattern, unsigned flags)
+DFA::compile(const char *pattern, unsigned flags)
 {
-  ink_assert(_patterns.empty());
-  this->build(pattern, flags);
-  return _patterns.size();
-}
-
-int
-DFA::compile(std::string_view *patterns, int npatterns, unsigned flags)
-{
-  _patterns.reserve(npatterns); // try to pre-allocate.
-  for (int i = 0; i < npatterns; ++i) {
-    this->build(patterns[i], flags);
+  ink_assert(_my_patterns == nullptr);
+  _my_patterns = build(pattern, flags);
+  if (_my_patterns) {
+    return 0;
+  } else {
+    return -1;
   }
-  return _patterns.size();
 }
 
 int
 DFA::compile(const char **patterns, int npatterns, unsigned flags)
 {
-  _patterns.reserve(npatterns); // try to pre-allocate.
-  for (int i = 0; i < npatterns; ++i) {
-    this->build(patterns[i], flags);
+  const char *pattern;
+  dfa_pattern *ret = nullptr;
+  dfa_pattern *end = nullptr;
+  int i;
+
+  for (i = 0; i < npatterns; i++) {
+    pattern = patterns[i];
+    ret     = build(pattern, flags);
+    if (!ret) {
+      continue;
+    }
+
+    if (!_my_patterns) {
+      _my_patterns        = ret;
+      _my_patterns->_next = nullptr;
+      _my_patterns->_idx  = i;
+    } else {
+      end = _my_patterns;
+      while (end->_next) {
+        end = end->_next;
+      }
+      end->_next = ret; // add to end
+      ret->_idx  = i;
+    }
   }
-  return _patterns.size();
+
+  return 0;
 }
 
 int
-DFA::match(std::string_view const &str) const
+DFA::match(const char *str) const
 {
-  for (auto spot = _patterns.begin(), limit = _patterns.end(); spot != limit; ++spot) {
-    if (spot->_re.exec(str)) {
-      return spot - _patterns.begin();
+  return match(str, strlen(str));
+}
+
+int
+DFA::match(const char *str, int length) const
+{
+  int rc;
+  dfa_pattern *p = _my_patterns;
+
+  while (p) {
+    rc = p->_re->exec(str, length);
+    if (rc > 0) {
+      return p->_idx;
     }
+    p = p->_next;
   }
 
   return -1;

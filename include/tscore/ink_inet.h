@@ -45,23 +45,11 @@ IN6_IS_ADDR_UNSPECIFIED(in6_addr const *addr)
 }
 #endif
 
-/*
- * IP protocol stack tags.
- *
- * When adding support for an additional protocol, the following minimum steps
- * should be done:
- *
- * 1. This set of string_views should be updated with the new tag.
- * 2. A populate_protocol function overload should be implemented for the
- *    appropriate VConnection or ProxySession virtual function.
- * 3. Traffic Dump should be updated to handle the new tag in:
- *    plugins/experimental/traffic_dump/session_data.cc
- */
+// IP protocol stack tags.
 extern const std::string_view IP_PROTO_TAG_IPV4;
 extern const std::string_view IP_PROTO_TAG_IPV6;
 extern const std::string_view IP_PROTO_TAG_UDP;
 extern const std::string_view IP_PROTO_TAG_TCP;
-extern const std::string_view IP_PROTO_TAG_QUIC;
 extern const std::string_view IP_PROTO_TAG_TLS_1_0;
 extern const std::string_view IP_PROTO_TAG_TLS_1_1;
 extern const std::string_view IP_PROTO_TAG_TLS_1_2;
@@ -70,10 +58,6 @@ extern const std::string_view IP_PROTO_TAG_HTTP_0_9;
 extern const std::string_view IP_PROTO_TAG_HTTP_1_0;
 extern const std::string_view IP_PROTO_TAG_HTTP_1_1;
 extern const std::string_view IP_PROTO_TAG_HTTP_2_0;
-extern const std::string_view IP_PROTO_TAG_HTTP_QUIC;
-extern const std::string_view IP_PROTO_TAG_HTTP_3;
-extern const std::string_view IP_PROTO_TAG_HTTP_QUIC_D27;
-extern const std::string_view IP_PROTO_TAG_HTTP_3_D27;
 
 struct IpAddr; // forward declare.
 
@@ -133,7 +117,7 @@ union IpEndpoint {
   in_port_t &port();
   /// Port in network order.
   in_port_t port() const;
-  /// Port in host order.
+  /// Port in host horder.
   in_port_t host_order_port() const;
 
   operator sockaddr *() { return &sa; }
@@ -181,10 +165,8 @@ inkcoreapi uint32_t ats_inet_addr(const char *s);
 const char *ats_ip_ntop(const struct sockaddr *addr, char *dst, size_t size);
 
 // --
-/// Size in bytes of an port and IPv4/IPv6 address.
-static constexpr size_t TS_IP4_SIZE  = sizeof(in_addr_t); ///< 4
-static constexpr size_t TS_IP6_SIZE  = sizeof(in6_addr);  ///< 16
-static constexpr size_t TS_PORT_SIZE = sizeof(in_port_t); ///< 2
+/// Size in bytes of an IPv6 address.
+static size_t const TS_IP6_SIZE = sizeof(in6_addr);
 
 /// Reset an address to invalid.
 /// @note Useful for marking a member as not yet set.
@@ -1148,7 +1130,7 @@ uint32_t ats_ip_hash(sockaddr const *addr);
 
 uint64_t ats_ip_port_hash(sockaddr const *addr);
 
-/** Convert address to string as a hexadecimal value.
+/** Convert address to string as a hexidecimal value.
     The string is always nul terminated, the output string is clipped
     if @a dst is insufficient.
     @return The length of the resulting string (not including nul).
@@ -1167,20 +1149,21 @@ struct IpAddr {
   typedef IpAddr self; ///< Self reference type.
 
   /// Default construct (invalid address).
-  IpAddr() {}
-
-  /** Construct from IPv4 address.
-   *
-   * @param addr Source address.
-   */
-  explicit constexpr IpAddr(in_addr_t addr) : _family(AF_INET), _addr(addr) {}
-
-  /** Construct from IPv6 address.
-   *
-   * @param addr Source address.
-   */
-  explicit constexpr IpAddr(in6_addr const &addr) : _family(AF_INET6), _addr(addr) {}
-
+  IpAddr() : _family(AF_UNSPEC) {}
+  /// Construct as IPv4 @a addr.
+  explicit IpAddr(in_addr_t addr ///< Address to assign.
+                  )
+    : _family(AF_INET)
+  {
+    _addr._ip4 = addr;
+  }
+  /// Construct as IPv6 @a addr.
+  explicit IpAddr(in6_addr const &addr ///< Address to assign.
+                  )
+    : _family(AF_INET6)
+  {
+    _addr._ip6 = addr;
+  }
   /// Construct from @c sockaddr.
   explicit IpAddr(sockaddr const *addr) { this->assign(addr); }
   /// Construct from @c sockaddr_in6.
@@ -1229,7 +1212,7 @@ struct IpAddr {
   */
   char *toString(char *dest, ///< [out] Destination string buffer.
                  size_t len  ///< [in] Size of buffer.
-  ) const;
+                 ) const;
 
   /// Equality.
   bool
@@ -1299,22 +1282,14 @@ struct IpAddr {
   /// Test for loopback
   bool isLoopback() const;
 
-  /// Test for any addr
-  bool isAnyAddr() const;
-
-  uint16_t _family = AF_UNSPEC; ///< Protocol family.
+  uint16_t _family; ///< Protocol family.
   /// Address data.
-  union Addr {
+  union {
     in_addr_t _ip4;                                                    ///< IPv4 address storage.
     in6_addr _ip6;                                                     ///< IPv6 address storage.
     uint8_t _byte[TS_IP6_SIZE];                                        ///< As raw bytes.
     uint32_t _u32[TS_IP6_SIZE / (sizeof(uint32_t) / sizeof(uint8_t))]; ///< As 32 bit chunks.
     uint64_t _u64[TS_IP6_SIZE / (sizeof(uint64_t) / sizeof(uint8_t))]; ///< As 64 bit chunks.
-
-    // This is required by the @c constexpr constructor.
-    constexpr Addr() : _ip4(0) {}
-    constexpr Addr(in_addr_t addr) : _ip4(addr) {}
-    constexpr Addr(in6_addr const &addr) : _ip6(addr) {}
   } _addr;
 
   ///< Pre-constructed invalid instance.
@@ -1364,12 +1339,6 @@ inline bool
 IpAddr::isLoopback() const
 {
   return (AF_INET == _family && 0x7F == _addr._byte[0]) || (AF_INET6 == _family && IN6_IS_ADDR_LOOPBACK(&_addr._ip6));
-}
-
-inline bool
-IpAddr::isAnyAddr() const
-{
-  return (AF_INET == _family && INADDR_ANY == _addr._ip4) || (AF_INET6 == _family && IN6_IS_ADDR_UNSPECIFIED(&_addr._ip6));
 }
 
 /// Assign sockaddr storage.
@@ -1589,14 +1558,4 @@ bwformat(BufferWriter &w, BWFSpec const &spec, IpEndpoint const &addr)
 {
   return bwformat(w, spec, &addr.sa);
 }
-
-namespace bwf
-{
-  namespace detail
-  {
-    struct MemDump;
-  } // namespace detail
-
-  detail::MemDump Hex_Dump(IpEndpoint const &addr);
-} // namespace bwf
 } // namespace ts

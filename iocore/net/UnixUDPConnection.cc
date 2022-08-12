@@ -121,7 +121,7 @@ UDPConnection::send(Continuation *c, UDPPacket *xp)
   if (shouldDestroy()) {
     ink_assert(!"freeing packet sent on dead connection");
     p->free();
-    return nullptr;
+    return ACTION_RESULT_NONE;
   }
 
   ink_assert(mutex == c->mutex);
@@ -132,7 +132,7 @@ UDPConnection::send(Continuation *c, UDPPacket *xp)
   mutex               = c->mutex;
   p->reqGenerationNum = conn->sendGenerationNum;
   get_UDPNetHandler(conn->ethread)->udpOutQueue.send(p);
-  return nullptr;
+  return ACTION_RESULT_NONE;
 }
 
 void

@@ -54,7 +54,7 @@ error status.
 2) asString(IntType key, char *buf, size_t bufLen, size_t *numChars=0)
 
 This method takes an IntType key and writes its equivalent string to a
-buffer buf of length bufLen. It sets the number of written characters
+bufer buf of length bufLen. It sets the number of written characters
 numChars (if numChars is not NULL), and returns an error status.
 
 The IntType to string conversion is used when unmarshaling data prior to
@@ -103,11 +103,11 @@ table->init(3, 1, "one", 2, "two", 7, "seven")
  *****************************************************************************/
 
 struct LogFieldAliasTableEntry {
-  bool valid    = false;   // entry in table is valid
-  char *name    = nullptr; // the string equivalent
-  size_t length = 0;       // the length of the string
+  bool valid;    // entry in table is valid
+  char *name;    // the string equivalent
+  size_t length; // the length of the string
 
-  LogFieldAliasTableEntry() {}
+  LogFieldAliasTableEntry() : valid(false), name(nullptr), length(0) {}
   ~LogFieldAliasTableEntry()
   {
     if (name) {
@@ -119,13 +119,13 @@ struct LogFieldAliasTableEntry {
 class LogFieldAliasTable : public LogFieldAliasMap
 {
 private:
-  IntType m_min                    = 0;       // minimum numeric value
-  IntType m_max                    = 0;       // maximum numeric value
-  IntType m_entries                = 0;       // number of entries in table
-  LogFieldAliasTableEntry *m_table = nullptr; // array of table entries
+  IntType m_min;                    // minimum numeric value
+  IntType m_max;                    // maximum numeric value
+  IntType m_entries;                // number of entries in table
+  LogFieldAliasTableEntry *m_table; // array of table entries
 
 public:
-  LogFieldAliasTable() {}
+  LogFieldAliasTable() : m_min(0), m_max(0), m_entries(0), m_table(nullptr) {}
   ~LogFieldAliasTable() override { delete[] m_table; }
   void init(size_t numPairs, ...);
 
@@ -180,6 +180,36 @@ public:
       *numCharsPtr = numChars;
     }
     return retVal;
+  }
+};
+
+/*****************************************************************************
+
+The LogFieldAliasTimehex class implements a LogFieldAliasMap that converts time
+from their integer value to the "hex" notation and back.
+
+ *****************************************************************************/
+
+class LogFieldAliasTimeHex : public LogFieldAliasMap
+{
+public:
+  int
+  asInt(char *str, IntType *time, bool /* case_sensitive ATS_UNUSED */) const override
+  {
+    unsigned long a;
+    // coverity[secure_coding]
+    if (sscanf(str, "%lx", (unsigned long *)&a) == 1) {
+      *time = (IntType)a;
+      return ALL_OK;
+    } else {
+      return INVALID_STRING;
+    }
+  }
+
+  int
+  asString(IntType time, char *buf, size_t bufLen, size_t *numCharsPtr = nullptr) const override
+  {
+    return (LogUtils::timestamp_to_hex_str(time, buf, bufLen, numCharsPtr) ? BUFFER_TOO_SMALL : ALL_OK);
   }
 };
 

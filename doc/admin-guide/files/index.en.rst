@@ -27,7 +27,7 @@ Configuration Files
 
    cache.config.en
    hosting.config.en
-   ip_allow.yaml.en
+   ip_allow.config.en
    logging.yaml.en
    parent.config.en
    plugin.config.en
@@ -35,9 +35,8 @@ Configuration Files
    remap.config.en
    splitdns.config.en
    ssl_multicert.config.en
-   sni.yaml.en
+   ssl_server_name.yaml.en
    storage.config.en
-   strategies.yaml.en
    volume.config.en
 
 :doc:`cache.config.en`
@@ -48,7 +47,7 @@ Configuration Files
    Allows |TS| administrators to assign cache volumes to specific origin
    servers or domains.
 
-:doc:`ip_allow.yaml.en`
+:doc:`ip_allow.config.en`
    Controls access to the |TS| cache based on source IP addresses and networks
    including limiting individual HTTP methods.
 
@@ -75,20 +74,11 @@ Configuration Files
    Configures |TS| to use different server certificates for SSL termination
    when listening on multiple addresses or when clients employ SNI.
 
-:doc:`sni.yaml.en`
+:doc:`ssl_server_name.yaml.en`
    Configures SNI based Layer 4 routing.
 
 :doc:`storage.config.en`
    Configures all storage devices and paths to be used for the |TS| cache.
 
-:doc:`strategies.yaml.en`
-   Configures NextHop strategies used with `remap.config`
-
 :doc:`volume.config.en`
     Defines cache space usage by individual protocols.
-
-.. note::
-
-   Currently the YAML parsing library has a bug where line number counting
-   (for error messages) ignores comment lines that start with **#**.  A
-   work-around is to put a space before the **#**.

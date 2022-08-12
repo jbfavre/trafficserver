@@ -57,7 +57,7 @@ NetVCOptions::toString(addr_bind_style s)
   return ANY_ADDR == s ? "any" : INTF_ADDR == s ? "interface" : "foreign";
 }
 
-Connection::Connection() : fd(NO_FD)
+Connection::Connection() : fd(NO_FD), is_bound(false), is_connected(false), sock_type(0)
 {
   memset(&addr, 0, sizeof(addr));
 }
@@ -136,13 +136,11 @@ add_http_filter(int fd ATS_UNUSED)
 int
 Server::setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions &opt)
 {
-  int res               = 0;
-  int listen_per_thread = 0;
+  int res = 0;
 
   ink_assert(fd != NO_FD);
 
-  if (opt.etype == ET_NET && opt.defer_accept > 0) {
-    http_accept_filter = true;
+  if (http_accept_filter) {
     add_http_filter(fd);
   }
 
@@ -201,7 +199,7 @@ Server::setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions
     l.l_onoff  = 0;
     l.l_linger = 0;
     if ((opt.sockopt_flags & NetVCOptions::SOCK_OPT_LINGER_ON) &&
-        safe_setsockopt(fd, SOL_SOCKET, SO_LINGER, reinterpret_cast<char *>(&l), sizeof(l)) < 0) {
+        safe_setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *)&l, sizeof(l)) < 0) {
       goto Lerror;
     }
   }
@@ -212,17 +210,6 @@ Server::setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions
 
   if (safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, SOCKOPT_ON, sizeof(int)) < 0) {
     goto Lerror;
-  }
-  REC_ReadConfigInteger(listen_per_thread, "proxy.config.exec_thread.listen");
-  if (listen_per_thread == 1) {
-    if (safe_setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, SOCKOPT_ON, sizeof(int)) < 0) {
-      goto Lerror;
-    }
-#ifdef SO_REUSEPORT_LB
-    if (safe_setsockopt(fd, SOL_SOCKET, SO_REUSEPORT_LB, SOCKOPT_ON, sizeof(int)) < 0) {
-      goto Lerror;
-    }
-#endif
   }
 
   if ((opt.sockopt_flags & NetVCOptions::SOCK_OPT_NO_DELAY) &&
@@ -260,30 +247,9 @@ Server::setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions
 
 #if defined(TCP_MAXSEG)
   if (NetProcessor::accept_mss > 0) {
-    if (safe_setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, reinterpret_cast<char *>(&NetProcessor::accept_mss), sizeof(int)) < 0) {
+    if (safe_setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, (char *)&NetProcessor::accept_mss, sizeof(int)) < 0) {
       goto Lerror;
     }
-  }
-#endif
-
-  if (opt.f_mptcp) {
-#if MPTCP_ENABLED
-    if (safe_setsockopt(fd, IPPROTO_TCP, MPTCP_ENABLED, SOCKOPT_ON, sizeof(int)) < 0) {
-      Error("[Server::listen] Unable to enable MPTCP socket-option [%d] %s\n", errno, strerror(errno));
-      goto Lerror;
-    }
-#else
-    Error("[Server::listen] Multipath TCP requested but not configured on this host\n");
-#endif
-  }
-
-#ifdef TCP_DEFER_ACCEPT
-  // set tcp defer accept timeout if it is configured, this will not trigger an accept until there is
-  // data on the socket ready to be read
-  if (opt.defer_accept > 0 && setsockopt(fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &opt.defer_accept, sizeof(int)) < 0) {
-    // FIXME: should we go to the error
-    // goto error;
-    Error("[Server::listen] Defer accept is configured but set failed: %d", errno);
   }
 #endif
 

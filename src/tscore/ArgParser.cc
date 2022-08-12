@@ -22,22 +22,14 @@
  */
 
 #include "tscore/ArgParser.h"
-#include "tscore/ink_file.h"
-#include "tscore/I_Version.h"
 
 #include <iostream>
 #include <set>
 #include <sstream>
-#include <utility>
-#include <sysexits.h>
 
 std::string global_usage;
 std::string parser_program_name;
 std::string default_command;
-
-// by default return EX_USAGE(64) when usage is called.
-// if -h or --help is called specifically, return 0
-int usage_return_code = EX_USAGE;
 
 namespace ts
 {
@@ -84,7 +76,7 @@ ArgParser::add_global_usage(std::string const &usage)
 void
 ArgParser::help_message(std::string_view err) const
 {
-  _top_level_command.help_message(err);
+  return _top_level_command.help_message(err);
 }
 
 // a graceful way to output help message
@@ -111,17 +103,6 @@ ArgParser::Command::help_message(std::string_view err) const
   if (!_example_usage.empty()) {
     std::cout << "\nExample Usage: " << _example_usage << std::endl;
   }
-  // standard return code
-  exit(usage_return_code);
-}
-
-void
-ArgParser::Command::version_message() const
-{
-  // unified version message of ATS
-  AppVersionInfo appVersionInfo;
-  appVersionInfo.setup(PACKAGE_NAME, _name.c_str(), PACKAGE_VERSION, __DATE__, __TIME__, BUILD_MACHINE, BUILD_PERSON, "");
-  ink_fputln(stdout, appVersionInfo.FullVersionInfoStr);
   exit(0);
 }
 
@@ -162,7 +143,7 @@ ArgParser::parse(const char **argv)
   parser_program_name      = _argv[0];
   Arguments ret; // the parsed arg object to return
   AP_StrVec args = _argv;
-  // call the recursive parse method in Command
+  // call the recrusive parse method in Command
   if (!_top_level_command.parse(ret, args)) {
     // deal with default command
     if (!default_command.empty()) {
@@ -173,20 +154,11 @@ ArgParser::parse(const char **argv)
   };
   // if there is anything left, then output usage
   if (!args.empty()) {
-    std::string msg = "Unknown command, option or args:";
-    for (const auto &it : args) {
+    std::string msg = "Unkown command, option or args:";
+    for (auto it : args) {
       msg = msg + " '" + it + "'";
     }
-    // find the correct level to output help message
-    ArgParser::Command *command = &_top_level_command;
-    for (unsigned i = 1; i < _argv.size(); i++) {
-      auto it = command->_subcommand_list.find(_argv[i]);
-      if (it == command->_subcommand_list.end()) {
-        break;
-      }
-      command = &it->second;
-    }
-    command->help_message(msg);
+    _top_level_command.help_message(msg);
   }
   return ret;
 }
@@ -200,7 +172,7 @@ ArgParser::require_commands()
 void
 ArgParser::set_error(std::string e)
 {
-  _error_msg = std::move(e);
+  _error_msg = e;
 }
 
 std::string
@@ -310,9 +282,9 @@ void
 ArgParser::Command::output_command(std::ostream &out, std::string const &prefix) const
 {
   if (_name != parser_program_name) {
-    // a nicely formatted way to output command usage
+    // a nicely formated way to output command usage
     std::string msg = prefix + _name;
-    // nicely formatted output
+    // nicely formated output
     if (!_description.empty()) {
       if (INDENT_ONE - static_cast<int>(msg.size()) < 0) {
         // if the command msg is too long
@@ -323,7 +295,7 @@ ArgParser::Command::output_command(std::ostream &out, std::string const &prefix)
     }
   }
   // recursive call
-  for (const auto &it : _subcommand_list) {
+  for (auto it : _subcommand_list) {
     it.second.output_command(out, "  " + prefix);
   }
 }
@@ -332,7 +304,7 @@ ArgParser::Command::output_command(std::ostream &out, std::string const &prefix)
 void
 ArgParser::Command::output_option() const
 {
-  for (const auto &it : _option_list) {
+  for (auto it : _option_list) {
     std::string msg;
     if (!it.second.short_option.empty()) {
       msg = it.second.short_option + ", ";
@@ -426,14 +398,10 @@ ArgParser::Command::append_option_data(Arguments &ret, AP_StrVec &args, int inde
         i -= 1;
       }
     } else {
-      // output version message
-      if ((args[i] == "--version" || args[i] == "-V") && _option_list.find("--version") != _option_list.end()) {
-        version_message();
-      }
       // output help message
-      if ((args[i] == "--help" || args[i] == "-h") && _option_list.find("--help") != _option_list.end()) {
+      if (args[i] == "--help" || args[i] == "-h") {
         ArgParser::Command *command = this;
-        // find the correct level to output help message
+        // find the correct level to output help messsage
         for (unsigned i = 1; i < args.size(); i++) {
           auto it = command->_subcommand_list.find(args[i]);
           if (it == command->_subcommand_list.end()) {
@@ -441,7 +409,6 @@ ArgParser::Command::append_option_data(Arguments &ret, AP_StrVec &args, int inde
           }
           command = &it->second;
         }
-        usage_return_code = 0;
         command->help_message();
       }
       // deal with normal --arg val1 val2 ...
@@ -468,14 +435,14 @@ ArgParser::Command::append_option_data(Arguments &ret, AP_StrVec &args, int inde
     }
   }
   // check for wrong number of arguments for --arg=...
-  for (const auto &it : check_map) {
+  for (auto it : check_map) {
     unsigned num = _option_list.at(it.first).arg_num;
     if (num != it.second && num < MORE_THAN_ONE_ARG_N) {
       help_message(std::to_string(_option_list.at(it.first).arg_num) + " arguments expected by " + it.first);
     }
   }
   // put in the default value of options
-  for (const auto &it : _option_list) {
+  for (auto it : _option_list) {
     if (!it.second.default_value.empty() && ret.get(it.second.key).empty()) {
       std::istringstream ss(it.second.default_value);
       std::string token;
@@ -515,7 +482,7 @@ ArgParser::Command::parse(Arguments &ret, AP_StrVec &args)
   if (command_called) {
     bool flag = false;
     // recursively call subcommand
-    for (auto &it : _subcommand_list) {
+    for (auto it : _subcommand_list) {
       if (it.second.parse(ret, args)) {
         flag = true;
         break;
@@ -585,11 +552,11 @@ Arguments::set_env(std::string const &key, std::string const &value)
 void
 Arguments::show_all_configuration() const
 {
-  for (const auto &it : _data_map) {
+  for (auto it : _data_map) {
     std::cout << "name: " + it.first << std::endl;
     std::string msg;
     msg = "args value:";
-    for (const auto &it_data : it.second._values) {
+    for (auto it_data : it.second._values) {
       msg += " " + it_data;
     }
     std::cout << msg << std::endl;
@@ -627,7 +594,7 @@ std::string const &
 ArgumentData::at(unsigned index) const
 {
   if (index >= _values.size()) {
-    throw std::out_of_range("argument not found at index: " + std::to_string(index));
+    throw std::out_of_range("argument not fonud at index: " + std::to_string(index));
   }
   return _values.at(index);
 }

@@ -42,31 +42,29 @@ struct Layout {
   ~Layout();
 
   /**
-   Setup the runroot for layout class
-   Return true if runroot is setup successfully and false if runroot is not used
-   */
-  bool runroot_setup();
-
-  /**
    Return file path relative to Layout->prefix
+
   */
   std::string relative(std::string_view file);
 
   /**
    update the sysconfdir to a test conf dir
+
    */
   void update_sysconfdir(std::string_view dir);
 
   /**
    Return file path relative to dir
    Example usage: Layout::relative_to(default_layout()->sysconfdir, "foo.bar");
+
   */
   static std::string relative_to(std::string_view dir, std::string_view file);
 
   /**
    Return file path relative to dir
-   Store the path to buf. The buf should be large enough to store
+   Store the path to buf. The buf should be large eough to store
    Example usage: Layout::relative_to(default_layout()->sysconfdir, "foo.bar");
+
   */
   static void relative_to(char *buf, size_t bufsz, std::string_view dir, std::string_view file);
 
@@ -74,11 +72,13 @@ struct Layout {
    Creates a Layout Object with the given prefix.  If no
    prefix is given, the prefix defaults to the one specified
    at the compile time.
+
   */
   static void create(std::string_view const prefix = {});
 
   /**
    Returns the Layout object created by create_default_layout().
+
   */
   static Layout *get();
 
