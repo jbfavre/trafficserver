@@ -1,3 +1,9 @@
+trafficserver (9.1.3+ds-3) unstable; urgency=medium
+
+  * Replace deprecated /var/run references with /run
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 24 Oct 2022 09:31:37 +0200
+
 trafficserver (9.1.3+ds-2) unstable; urgency=medium
 
   * Update build-dep to ensure /etc/hosts is available. (Closes: #1019553)
