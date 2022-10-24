@@ -59,7 +59,7 @@ eval TS_BASE="`echo $TS_ROOT | ${ESED} -e 's;/usr$;;'`"
 # in /etc/default/trafficserver instead.
 # See there for a documentation as well 
 
-RUNDIR=${RUNDIR:-$TS_BASE/var/run/trafficserver}
+RUNDIR=${RUNDIR:-$TS_BASE/run/trafficserver}
 
 TM_START=${TM_START:-no}
 TM_NAME=${TM_NAME:-traffic_manager}

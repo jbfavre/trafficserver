@@ -22,7 +22,7 @@ set -e
 
 USER='trafficserver'
 GROUP='trafficserver'
-USER_HOME='/var/run/trafficserver'
+USER_HOME='/run/trafficserver'
 OWNER=$(env stat -c '%U' /etc/trafficserver)
 OWNER_CACHE_DIR=$(env stat -c '%U' /var/cache/trafficserver)
 

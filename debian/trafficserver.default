@@ -7,10 +7,10 @@
 ##
 
 ## Variable: RUNDIR
-## Default: /var/run/trafficserver
+## Default: /run/trafficserver
 ## Description: Set this to the directory where runtime data is stored. The
 ##              default value should work fine for almost all users.
-# RUNDIR=/var/run/trafficserver
+# RUNDIR=/run/trafficserver
 
 
 ## Configuration for `traffic_manager'.
