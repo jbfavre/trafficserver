@@ -32,7 +32,7 @@
 #include <string_view>
 
 #include "tscpp/util/TextView.h"
-#include "tscore/MemSpan.h"
+#include "tscpp/util/MemSpan.h"
 #include "tscore/BufferWriterForward.h"
 
 namespace ts
@@ -105,7 +105,7 @@ public:
       invalidate the current auxiliary buffer (contents and address).
 
       Care must be taken to not write to data beyond this plus @c remaining bytes. Usually the
-      safest mechanism is to create a @c FixedBufferWriter on the auxillary buffer and write to that.
+      safest mechanism is to create a @c FixedBufferWriter on the auxiliary buffer and write to that.
 
       @code
       ts::FixedBufferWriter subw(w.auxBuffer(), w.remaining());
@@ -124,7 +124,7 @@ public:
   /** Advance the buffer position @a n bytes.
 
       This treats the next @a n bytes as being written without changing the content. This is useful
-      only in conjuction with @a auxBuffer to indicate that @a n bytes of the auxillary buffer has
+      only in conjunction with @a auxBuffer to indicate that @a n bytes of the auxiliary buffer has
       been written by some other mechanism.
 
       @internal Concrete subclasses @b must override this to advance in a way consistent with the
@@ -155,7 +155,7 @@ public:
   }
 
   /// Get the remaining buffer space.
-  /// @return Number of additional characters that can be written without causing an error condidtion.
+  /// @return Number of additional characters that can be written without causing an error condition.
   size_t
   remaining() const
   {
@@ -178,12 +178,12 @@ public:
   /** BufferWriter print.
 
       This prints its arguments to the @c BufferWriter @a w according to the format @a fmt. The format
-      string is based on Python style formating, each argument substitution marked by braces, {}. Each
-      specification has three parts, a @a name, a @a specifier, and an @a extention. These are
+      string is based on Python style formatting, each argument substitution marked by braces, {}. Each
+      specification has three parts, a @a name, a @a specifier, and an @a extension. These are
       separated by colons. The name should be either omitted or a number, the index of the argument to
       use. If omitted the place in the format string is used as the argument index. E.g. "{} {} {}",
       "{} {1} {}", and "{0} {1} {2}" are equivalent. Using an explicit index does not reset the
-      position of subsequent substiations, therefore "{} {0} {}" is equivalent to "{0} {0} {2}".
+      position of subsequent substitutions, therefore "{} {0} {}" is equivalent to "{0} {0} {2}".
   */
   template <typename... Rest> BufferWriter &print(TextView fmt, Rest &&... rest);
   /** Print overload to take arguments as a tuple instead of explicitly.
@@ -237,7 +237,7 @@ public:
   FixedBufferWriter(FixedBufferWriter &&)                 = delete;
   FixedBufferWriter &operator=(FixedBufferWriter &&) = delete;
 
-  FixedBufferWriter(MemSpan &span) : _buf(span.begin()), _capacity(static_cast<size_t>(span.size())) {}
+  FixedBufferWriter(MemSpan<char> &span) : _buf(span.begin()), _capacity(static_cast<size_t>(span.size())) {}
 
   /// Write a single character @a c to the buffer.
   FixedBufferWriter &
@@ -378,9 +378,9 @@ public:
 
   /** Get a @c FixedBufferWriter for the unused output buffer.
 
-      If @a reserve is non-zero then the buffer size for the auxillary writer will be @a reserve bytes
+      If @a reserve is non-zero then the buffer size for the auxiliary writer will be @a reserve bytes
       smaller than the remaining buffer. This "reserves" space for additional output after writing
-      to the auxillary buffer, in a manner similar to @c clip / @c extend.
+      to the auxiliary buffer, in a manner similar to @c clip / @c extend.
    */
   FixedBufferWriter
   auxWriter(size_t reserve = 0)
@@ -392,6 +392,12 @@ public:
   std::ostream &operator>>(std::ostream &stream) const override;
   /// Output the buffer contents to the file for file descriptor @a fd.
   ssize_t operator>>(int fd) const override;
+
+  // Overrides for co-variance
+  template <typename... Rest> self_type &print(TextView fmt, Rest &&... rest);
+  template <typename... Args> self_type &printv(TextView fmt, std::tuple<Args...> const &args);
+  template <typename... Args> self_type &print(BWFormat const &fmt, Args &&... args);
+  template <typename... Args> self_type &printv(BWFormat const &fmt, std::tuple<Args...> const &args);
 
 protected:
   char *const _buf;      ///< Output buffer.
@@ -409,6 +415,9 @@ private:
 */
 template <size_t N> class LocalBufferWriter : public FixedBufferWriter
 {
+  using self_type  = LocalBufferWriter;
+  using super_type = FixedBufferWriter;
+
 public:
   /// Construct an empty writer.
   LocalBufferWriter() : FixedBufferWriter(_arr, N) {}
@@ -506,7 +515,7 @@ namespace bw_fmt
   // MSVC will expand the parameter pack inside a lambda but not gcc, so this indirection is required.
 
   /// This selects the @a I th argument in the @a TUPLE arg pack and calls the formatter on it. This
-  /// (or the equivalent lambda) is needed because the array of formatters must have a homogenous
+  /// (or the equivalent lambda) is needed because the array of formatters must have a homogeneous
   /// signature, not vary per argument. Effectively this indirection erases the type of the specific
   /// argument being formatted. Instances of this have the signature @c ArgFormatterSignature.
   template <typename TUPLE, size_t I>
@@ -517,12 +526,10 @@ namespace bw_fmt
   }
 
   /// This exists only to expand the index sequence into an array of formatters for the tuple type
-  /// @a TUPLE.  Due to langauge limitations it cannot be done directly. The formatters can be
-  /// accessed via standard array access in constrast to templated tuple access. The actual array is
+  /// @a TUPLE.  Due to language limitations it cannot be done directly. The formatters can be
+  /// accessed via standard array access in contrast to templated tuple access. The actual array is
   /// static and therefore at run time the only operation is loading the address of the array.
-  template <typename TUPLE, size_t... N>
-  ArgFormatterSignature<TUPLE> *
-  Get_Arg_Formatter_Array(std::index_sequence<N...>)
+  template <typename TUPLE, size_t... N> ArgFormatterSignature<TUPLE> *Get_Arg_Formatter_Array(std::index_sequence<N...>)
   {
     static ArgFormatterSignature<TUPLE> fa[sizeof...(N)] = {&bw_fmt::Arg_Formatter<TUPLE, N>...};
     return fa;
@@ -616,7 +623,7 @@ BufferWriter::printv(TextView fmt, std::tuple<Args...> const &args)
   int arg_idx            = 0; // the next argument index to be processed.
 
   while (fmt.size()) {
-    // Next string piece of interest is an (optional) literal and then an (optinal) format specifier.
+    // Next string piece of interest is an (optional) literal and then an (optional) format specifier.
     // There will always be a specifier except for the possible trailing literal.
     std::string_view lit_v;
     std::string_view spec_v;
@@ -696,12 +703,26 @@ BufferWriter::printv(BWFormat const &fmt, std::tuple<Args...> const &args)
   return *this;
 }
 
+// Must be first so that other inline formatters can use it.
+BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, std::string_view sv);
+
 // Pointers that are not specialized.
 inline BufferWriter &
 bwformat(BufferWriter &w, BWFSpec const &spec, const void *ptr)
 {
   BWFSpec ptr_spec{spec};
   ptr_spec._radix_lead_p = true;
+
+  if (ptr == nullptr) {
+    if (spec._type == 's' || spec._type == 'S') {
+      ptr_spec._type = BWFSpec::DEFAULT_TYPE;
+      ptr_spec._ext  = ""_sv; // clear any extension.
+      return bwformat(w, spec, spec._type == 's' ? "null"_sv : "NULL"_sv);
+    } else if (spec._type == BWFSpec::DEFAULT_TYPE) {
+      return w; // print nothing if there is no format character override.
+    }
+  }
+
   if (ptr_spec._type == BWFSpec::DEFAULT_TYPE || ptr_spec._type == 'p') {
     ptr_spec._type = 'x'; // if default or 'p;, switch to lower hex.
   } else if (ptr_spec._type == 'P') {
@@ -711,11 +732,16 @@ bwformat(BufferWriter &w, BWFSpec const &spec, const void *ptr)
 }
 
 // MemSpan
-BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, MemSpan const &span);
+BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, MemSpan<void> const &span);
 
 // -- Common formatters --
 
-BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, std::string_view sv);
+// Capture this explicitly so it doesn't go to any other pointer type.
+inline BufferWriter &
+bwformat(BufferWriter &w, BWFSpec const &spec, std::nullptr_t)
+{
+  return bwformat(w, spec, static_cast<void *>(nullptr));
+}
 
 template <size_t N>
 BufferWriter &
@@ -727,10 +753,12 @@ bwformat(BufferWriter &w, BWFSpec const &spec, const char (&a)[N])
 inline BufferWriter &
 bwformat(BufferWriter &w, BWFSpec const &spec, const char *v)
 {
-  if (spec._type == 'x' || spec._type == 'X') {
+  if (spec._type == 'x' || spec._type == 'X' || spec._type == 'p') {
     bwformat(w, spec, static_cast<const void *>(v));
-  } else {
+  } else if (v != nullptr) {
     bwformat(w, spec, std::string_view(v));
+  } else {
+    bwformat(w, spec, nullptr);
   }
   return w;
 }
@@ -842,12 +870,85 @@ bwprint(std::string &s, ts::TextView fmt, Args &&... args)
 }
 
 // -- FixedBufferWriter --
+inline FixedBufferWriter::FixedBufferWriter(std::nullptr_t) : _buf(nullptr), _capacity(0) {}
+
 inline FixedBufferWriter::FixedBufferWriter(char *buffer, size_t capacity) : _buf(buffer), _capacity(capacity)
 {
   ink_assert(_capacity == 0 || buffer != nullptr);
 }
 
-inline FixedBufferWriter::FixedBufferWriter(std::nullptr_t) : _buf(nullptr), _capacity(0) {}
+template <typename... Args>
+inline auto
+FixedBufferWriter::print(TextView fmt, Args &&... args) -> self_type &
+{
+  return static_cast<self_type &>(this->super_type::printv(fmt, std::forward_as_tuple(args...)));
+}
+
+template <typename... Args>
+inline auto
+FixedBufferWriter::printv(TextView fmt, std::tuple<Args...> const &args) -> self_type &
+{
+  return static_cast<self_type &>(this->super_type::printv(fmt, args));
+}
+
+template <typename... Args>
+inline auto
+FixedBufferWriter::print(BWFormat const &fmt, Args &&... args) -> self_type &
+{
+  return static_cast<self_type &>(this->super_type::printv(fmt, std::forward_as_tuple(args...)));
+}
+
+template <typename... Args>
+inline auto
+FixedBufferWriter::printv(BWFormat const &fmt, std::tuple<Args...> const &args) -> self_type &
+{
+  return static_cast<self_type &>(this->super_type::printv(fmt, args));
+}
+
+// Basic format wrappers - these are here because they're used internally.
+namespace bwf
+{
+  namespace detail
+  {
+    /** Write out raw memory in hexadecimal wrapper.
+     *
+     * This wrapper indicates the contained view should be dumped as raw memory in hexadecimal format.
+     * This is intended primarily for internal use by other formatting logic.
+     *
+     * @see Hex_Dump
+     */
+    struct MemDump {
+      std::string_view _view;
+
+      /** Dump @a n bytes starting at @a mem as hex.
+       *
+       * @param mem First byte of memory to dump.
+       * @param n Number of bytes.
+       */
+      MemDump(void const *mem, size_t n) : _view(static_cast<char const *>(mem), n) {}
+    };
+  } // namespace detail
+
+  /** Treat @a t as raw memory and dump the memory as hexadecimal.
+   *
+   * @tparam T Type of argument.
+   * @param t Object to dump.
+   * @return @a A wrapper to do a hex dump.
+   *
+   * This is the standard way to do a hexadecimal memory dump of an object.
+   *
+   * @internal This function exists so that other types can overload it for special processing,
+   * which would not be possible with just @c HexDump.
+   */
+  template <typename T>
+  detail::MemDump
+  Hex_Dump(T const &t)
+  {
+    return {&t, sizeof(T)};
+  }
+} // namespace bwf
+
+BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, bwf::detail::MemDump const &hex);
 
 } // end namespace ts
 

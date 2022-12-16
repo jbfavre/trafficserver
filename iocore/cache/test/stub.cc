@@ -39,7 +39,7 @@ APIHooks::append(INKContInternal *cont)
 }
 
 int
-APIHook::invoke(int, void *)
+APIHook::invoke(int, void *) const
 {
   ink_assert(false);
   return 0;
@@ -53,19 +53,27 @@ APIHook::next() const
 }
 
 APIHook *
-APIHooks::get() const
+APIHooks::head() const
 {
   return nullptr;
 }
 
 void
-APIHooks::prepend(INKContInternal *cont)
+APIHooks::clear()
 {
 }
 
+HttpHookState::HttpHookState() {}
+
 void
-APIHooks::clear()
+HttpHookState::init(TSHttpHookID id, HttpAPIHooks const *global, HttpAPIHooks const *ssn, HttpAPIHooks const *txn)
 {
+}
+
+APIHook const *
+HttpHookState::getNext()
+{
+  return nullptr;
 }
 
 void
@@ -240,7 +248,7 @@ INKVConnInternal::retry(unsigned int delay)
 {
 }
 
-INKContInternal::INKContInternal(TSEventFunc funcp, TSMutex mutexp) : DummyVConnection((ProxyMutex *)mutexp) {}
+INKContInternal::INKContInternal(TSEventFunc funcp, TSMutex mutexp) : DummyVConnection(reinterpret_cast<ProxyMutex *>(mutexp)) {}
 
 INKContInternal::INKContInternal() : DummyVConnection(nullptr) {}
 

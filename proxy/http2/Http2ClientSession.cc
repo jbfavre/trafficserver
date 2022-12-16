@@ -45,7 +45,7 @@
     this->session_handler = (handler);     \
   } while (0)
 
-ClassAllocator<Http2ClientSession> http2ClientSessionAllocator("http2ClientSessionAllocator");
+ClassAllocator<Http2ClientSession, true> http2ClientSessionAllocator("http2ClientSessionAllocator");
 
 // memcpy the requested bytes from the IOBufferReader, returning how many were
 // actually copied.
@@ -55,7 +55,7 @@ copy_from_buffer_reader(void *dst, IOBufferReader *reader, unsigned nbytes)
   char *end;
 
   end = reader->memcpy(dst, nbytes, 0 /* offset */);
-  return end - (char *)dst;
+  return end - static_cast<char *>(dst);
 }
 
 static int
@@ -65,7 +65,7 @@ send_connection_event(Continuation *cont, int event, void *edata)
   return cont->handleEvent(event, edata);
 }
 
-Http2ClientSession::Http2ClientSession() {}
+Http2ClientSession::Http2ClientSession() : super() {}
 
 void
 Http2ClientSession::destroy()
@@ -82,13 +82,9 @@ Http2ClientSession::destroy()
 void
 Http2ClientSession::free()
 {
-  if (h2_pushed_urls) {
-    this->h2_pushed_urls = ink_hash_table_destroy(this->h2_pushed_urls);
-  }
-
-  if (client_vc) {
-    client_vc->do_io_close();
-    client_vc = nullptr;
+  if (_vc) {
+    _vc->do_io_close();
+    _vc = nullptr;
   }
 
   // Make sure the we are at the bottom of the stack
@@ -158,11 +154,10 @@ Http2ClientSession::free()
     }
   }
 
-  ink_release_assert(this->client_vc == nullptr);
+  ink_release_assert(this->_vc == nullptr);
 
+  delete _h2_pushed_urls;
   this->connection_state.destroy();
-
-  super::free();
 
   free_MIOBuffer(this->read_buffer);
   free_MIOBuffer(this->write_buffer);
@@ -178,109 +173,57 @@ Http2ClientSession::start()
   HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_read_connection_preface);
 
   VIO *read_vio = this->do_io_read(this, INT64_MAX, this->read_buffer);
-  write_vio     = this->do_io_write(this, INT64_MAX, this->sm_writer);
+  write_vio     = this->do_io_write(this, INT64_MAX, this->_write_buffer_reader);
 
   this->connection_state.init();
   send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_INIT, this);
 
-  if (this->sm_reader->is_read_avail_more_than(0)) {
+  if (this->_read_buffer_reader->is_read_avail_more_than(0)) {
     this->handleEvent(VC_EVENT_READ_READY, read_vio);
   }
 }
 
 void
-Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor)
+Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader)
 {
   ink_assert(new_vc->mutex->thread_holding == this_ethread());
   HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, new_vc->mutex->thread_holding);
   HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_TOTAL_CLIENT_CONNECTION_COUNT, new_vc->mutex->thread_holding);
   this->_milestones.mark(Http2SsnMilestone::OPEN);
 
-  // HTTP/2 for the backdoor connections? Let's not deal woth that yet.
-  ink_release_assert(backdoor == false);
-
   // Unique client session identifier.
-  this->con_id    = ProxyClientSession::next_connection_id();
-  this->client_vc = new_vc;
-  client_vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::accept_no_activity_timeout));
+  this->con_id = ProxySession::next_connection_id();
+  this->_vc    = new_vc;
+  _vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::accept_no_activity_timeout));
   this->schedule_event = nullptr;
   this->mutex          = new_vc->mutex;
   this->in_destroy     = false;
 
   this->connection_state.mutex = this->mutex;
 
-  Http2SsnDebug("session born, netvc %p", this->client_vc);
+  SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(new_vc);
+  if (ssl_vc != nullptr) {
+    this->read_from_early_data = ssl_vc->read_from_early_data;
+    Debug("ssl_early_data", "read_from_early_data = %" PRId64, this->read_from_early_data);
+  }
 
-  this->client_vc->set_tcp_congestion_control(CLIENT_SIDE);
+  Http2SsnDebug("session born, netvc %p", this->_vc);
+
+  this->_vc->set_tcp_congestion_control(CLIENT_SIDE);
 
   this->read_buffer             = iobuf ? iobuf : new_MIOBuffer(HTTP2_HEADER_BUFFER_SIZE_INDEX);
   this->read_buffer->water_mark = connection_state.server_settings.get(HTTP2_SETTINGS_MAX_FRAME_SIZE);
-  this->sm_reader               = reader ? reader : this->read_buffer->alloc_reader();
-  this->h2_pushed_urls          = ink_hash_table_create(InkHashTableKeyType_String);
-  this->h2_pushed_urls_size     = 0;
+  this->_read_buffer_reader     = reader ? reader : this->read_buffer->alloc_reader();
 
-  // Set write buffer size to max size of TLS record (16KB)
-  this->write_buffer = new_MIOBuffer(BUFFER_SIZE_INDEX_16K);
-  this->sm_writer    = this->write_buffer->alloc_reader();
+  // This block size is the buffer size that we pass to SSLWriteBuffer
+  auto buffer_block_size_index = iobuffer_size_to_index(Http2::write_buffer_block_size, MAX_BUFFER_SIZE_INDEX);
+  this->write_buffer           = new_MIOBuffer(buffer_block_size_index);
+  this->_write_buffer_reader   = this->write_buffer->alloc_reader();
+  this->_write_size_threshold  = index_to_buffer_size(buffer_block_size_index) * Http2::write_size_threshold;
+
+  this->_handle_if_ssl(new_vc);
 
   do_api_callout(TS_HTTP_SSN_START_HOOK);
-}
-
-void
-Http2ClientSession::set_upgrade_context(HTTPHdr *h)
-{
-  upgrade_context.req_header = new HTTPHdr();
-  upgrade_context.req_header->copy(h);
-
-  MIMEField *settings = upgrade_context.req_header->field_find(MIME_FIELD_HTTP2_SETTINGS, MIME_LEN_HTTP2_SETTINGS);
-  ink_release_assert(settings != nullptr);
-  int svlen;
-  const char *sv = settings->value_get(&svlen);
-
-  // Maybe size of data decoded by Base64URL is lower than size of encoded data.
-  unsigned char out_buf[svlen];
-  if (sv && svlen > 0) {
-    size_t decoded_len;
-    ats_base64_decode(sv, svlen, out_buf, svlen, &decoded_len);
-    for (size_t nbytes = 0; nbytes < decoded_len; nbytes += HTTP2_SETTINGS_PARAMETER_LEN) {
-      Http2SettingsParameter param;
-      if (!http2_parse_settings_parameter(make_iovec(out_buf + nbytes, HTTP2_SETTINGS_PARAMETER_LEN), param) ||
-          !http2_settings_parameter_is_valid(param)) {
-        // TODO ignore incoming invalid parameters and send suitable SETTINGS
-        // frame.
-      }
-      upgrade_context.client_settings.set(static_cast<Http2SettingsIdentifier>(param.id), param.value);
-    }
-  }
-
-  // Such intermediaries SHOULD also remove other connection-
-  // specific header fields, such as Keep-Alive, Proxy-Connection,
-  // Transfer-Encoding and Upgrade, even if they are not nominated by
-  // Connection.
-  upgrade_context.req_header->field_delete(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
-  upgrade_context.req_header->field_delete(MIME_FIELD_KEEP_ALIVE, MIME_LEN_KEEP_ALIVE);
-  upgrade_context.req_header->field_delete(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
-  upgrade_context.req_header->field_delete(MIME_FIELD_TRANSFER_ENCODING, MIME_LEN_TRANSFER_ENCODING);
-  upgrade_context.req_header->field_delete(MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE);
-  upgrade_context.req_header->field_delete(MIME_FIELD_HTTP2_SETTINGS, MIME_LEN_HTTP2_SETTINGS);
-}
-
-VIO *
-Http2ClientSession::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
-{
-  return this->client_vc->do_io_read(c, nbytes, buf);
-}
-
-VIO *
-Http2ClientSession::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner)
-{
-  return this->client_vc->do_io_write(c, nbytes, buf, owner);
-}
-
-void
-Http2ClientSession::do_io_shutdown(ShutdownHowTo_t howto)
-{
-  this->client_vc->do_io_shutdown(howto);
 }
 
 // XXX Currently, we don't have a half-closed state, but we will need to
@@ -296,28 +239,15 @@ Http2ClientSession::do_io_close(int alerrno)
   ink_assert(this->mutex->thread_holding == this_ethread());
   send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_FINI, this);
 
-  // Don't send the SSN_CLOSE_HOOK until we got rid of all the streams
-  // And handled all the TXN_CLOSE_HOOK's
-  if (client_vc) {
-    // Copy aside the client address before releasing the vc
-    cached_client_addr.assign(client_vc->get_remote_addr());
-    cached_local_addr.assign(client_vc->get_local_addr());
-    client_vc->do_io_close();
-    client_vc = nullptr;
-  }
-
   {
     SCOPED_MUTEX_LOCK(lock, this->connection_state.mutex, this_ethread());
-    this->connection_state.release_stream(nullptr);
+    this->connection_state.release_stream();
   }
 
   this->clear_session_active();
-}
 
-void
-Http2ClientSession::reenable(VIO *vio)
-{
-  this->client_vc->reenable(vio);
+  // Clean up the write VIO in case of inactivity timeout
+  this->do_io_write(this, 0, nullptr);
 }
 
 void
@@ -330,16 +260,34 @@ Http2ClientSession::set_half_close_local_flag(bool flag)
 }
 
 int64_t
-Http2ClientSession::xmit(const Http2TxFrame &frame)
+Http2ClientSession::xmit(const Http2TxFrame &frame, bool flush)
 {
   int64_t len = frame.write_to(this->write_buffer);
+  this->_pending_sending_data_size += len;
+  // Force flush for some cases
+  if (!flush) {
+    // Flush if we already use half of the buffer to avoid adding a new block to the chain.
+    // A frame size can be 16MB at maximum so blocks can be added, but that's fine.
+    if (this->_pending_sending_data_size >= this->_write_size_threshold) {
+      flush = true;
+    }
+  }
 
-  if (len > 0) {
-    total_write_len += len;
-    write_reenable();
+  if (flush) {
+    this->flush();
   }
 
   return len;
+}
+
+void
+Http2ClientSession::flush()
+{
+  if (this->_pending_sending_data_size > 0) {
+    this->_pending_sending_data_size = 0;
+    this->_write_buffer_last_flush   = Thread::get_hrtime();
+    write_reenable();
+  }
 }
 
 int
@@ -377,6 +325,7 @@ Http2ClientSession::main_event_handler(int event, void *edata)
   case VC_EVENT_INACTIVITY_TIMEOUT:
   case VC_EVENT_ERROR:
   case VC_EVENT_EOS:
+    Http2SsnDebug("Closing event %d", event);
     this->set_dying_event(event);
     this->do_io_close();
     retval = 0;
@@ -385,7 +334,9 @@ Http2ClientSession::main_event_handler(int event, void *edata)
   case VC_EVENT_WRITE_READY:
   case VC_EVENT_WRITE_COMPLETE:
     this->connection_state.restart_streams();
-
+    if ((Thread::get_hrtime() >= this->_write_buffer_last_flush + HRTIME_MSECONDS(this->_write_time_threshold))) {
+      this->flush();
+    }
     retval = 0;
     break;
 
@@ -408,7 +359,7 @@ Http2ClientSession::main_event_handler(int event, void *edata)
     } else if (this->connection_state.get_stream_error_rate() >
                Http2::stream_error_rate_threshold) { // For a case many stream errors happened
       ip_port_text_buffer ipb;
-      const char *client_ip = ats_ip_ntop(get_client_addr(), ipb, sizeof(ipb));
+      const char *client_ip = ats_ip_ntop(get_remote_addr(), ipb, sizeof(ipb));
       Warning("HTTP/2 session error client_ip=%s session_id=%" PRId64
               " closing a connection, because its stream error rate (%f) exceeded the threshold (%f)",
               client_ip, connection_id(), this->connection_state.get_stream_error_rate(), Http2::stream_error_rate_threshold);
@@ -432,16 +383,16 @@ Http2ClientSession::main_event_handler(int event, void *edata)
 int
 Http2ClientSession::state_read_connection_preface(int event, void *edata)
 {
-  VIO *vio = (VIO *)edata;
+  VIO *vio = static_cast<VIO *>(edata);
 
   STATE_ENTER(&Http2ClientSession::state_read_connection_preface, event);
   ink_assert(event == VC_EVENT_READ_COMPLETE || event == VC_EVENT_READ_READY);
 
-  if (this->sm_reader->read_avail() >= (int64_t)HTTP2_CONNECTION_PREFACE_LEN) {
+  if (this->_read_buffer_reader->read_avail() >= static_cast<int64_t>(HTTP2_CONNECTION_PREFACE_LEN)) {
     char buf[HTTP2_CONNECTION_PREFACE_LEN];
     unsigned nbytes;
 
-    nbytes = copy_from_buffer_reader(buf, this->sm_reader, sizeof(buf));
+    nbytes = copy_from_buffer_reader(buf, this->_read_buffer_reader, sizeof(buf));
     ink_release_assert(nbytes == HTTP2_CONNECTION_PREFACE_LEN);
 
     if (memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) != 0) {
@@ -450,17 +401,22 @@ Http2ClientSession::state_read_connection_preface(int event, void *edata)
       return 0;
     }
 
+    // Check whether data is read from early data
+    if (this->read_from_early_data > 0) {
+      this->read_from_early_data -= this->read_from_early_data > nbytes ? nbytes : this->read_from_early_data;
+    }
+
     Http2SsnDebug("received connection preface");
-    this->sm_reader->consume(nbytes);
+    this->_read_buffer_reader->consume(nbytes);
     HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_start_frame_read);
 
-    client_vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::no_activity_timeout_in));
-    client_vc->set_active_timeout(HRTIME_SECONDS(Http2::active_timeout_in));
+    _vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::no_activity_timeout_in));
+    _vc->set_active_timeout(HRTIME_SECONDS(Http2::active_timeout_in));
 
     // XXX start the write VIO ...
 
     // If we have unconsumed data, start tranferring frames now.
-    if (this->sm_reader->is_read_avail_more_than(0)) {
+    if (this->_read_buffer_reader->is_read_avail_more_than(0)) {
       return this->handleEvent(VC_EVENT_READ_READY, vio);
     }
   }
@@ -477,7 +433,7 @@ Http2ClientSession::state_read_connection_preface(int event, void *edata)
 int
 Http2ClientSession::state_start_frame_read(int event, void *edata)
 {
-  VIO *vio = (VIO *)edata;
+  VIO *vio = static_cast<VIO *>(edata);
 
   STATE_ENTER(&Http2ClientSession::state_start_frame_read, event);
   ink_assert(event == VC_EVENT_READ_COMPLETE || event == VC_EVENT_READ_READY);
@@ -488,24 +444,31 @@ int
 Http2ClientSession::do_start_frame_read(Http2ErrorCode &ret_error)
 {
   ret_error = Http2ErrorCode::HTTP2_ERROR_NO_ERROR;
-  ink_release_assert(this->sm_reader->read_avail() >= (int64_t)HTTP2_FRAME_HEADER_LEN);
+  ink_release_assert(this->_read_buffer_reader->read_avail() >= (int64_t)HTTP2_FRAME_HEADER_LEN);
 
   uint8_t buf[HTTP2_FRAME_HEADER_LEN];
   unsigned nbytes;
 
   Http2SsnDebug("receiving frame header");
-  nbytes = copy_from_buffer_reader(buf, this->sm_reader, sizeof(buf));
+  nbytes = copy_from_buffer_reader(buf, this->_read_buffer_reader, sizeof(buf));
 
+  this->cur_frame_from_early_data = false;
   if (!http2_parse_frame_header(make_iovec(buf), this->current_hdr)) {
     Http2SsnDebug("frame header parse failure");
     this->do_io_close();
     return -1;
   }
 
+  // Check whether data is read from early data
+  if (this->read_from_early_data > 0) {
+    this->read_from_early_data -= this->read_from_early_data > nbytes ? nbytes : this->read_from_early_data;
+    this->cur_frame_from_early_data = true;
+  }
+
   Http2SsnDebug("frame header length=%u, type=%u, flags=0x%x, streamid=%u", (unsigned)this->current_hdr.length,
                 (unsigned)this->current_hdr.type, (unsigned)this->current_hdr.flags, this->current_hdr.streamid);
 
-  this->sm_reader->consume(nbytes);
+  this->_read_buffer_reader->consume(nbytes);
 
   if (!http2_frame_header_is_valid(this->current_hdr, this->connection_state.server_settings.get(HTTP2_SETTINGS_MAX_FRAME_SIZE))) {
     ret_error = Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR;
@@ -532,10 +495,10 @@ Http2ClientSession::do_start_frame_read(Http2ErrorCode &ret_error)
 int
 Http2ClientSession::state_complete_frame_read(int event, void *edata)
 {
-  VIO *vio = (VIO *)edata;
+  VIO *vio = static_cast<VIO *>(edata);
   STATE_ENTER(&Http2ClientSession::state_complete_frame_read, event);
   ink_assert(event == VC_EVENT_READ_COMPLETE || event == VC_EVENT_READ_READY);
-  if (this->sm_reader->read_avail() < this->current_hdr.length) {
+  if (this->_read_buffer_reader->read_avail() < this->current_hdr.length) {
     if (this->_should_do_something_else()) {
       if (this->_reenable_event == nullptr) {
         vio->disable();
@@ -548,7 +511,7 @@ Http2ClientSession::state_complete_frame_read(int event, void *edata)
     }
     return 0;
   }
-  Http2SsnDebug("completed frame read, %" PRId64 " bytes available", this->sm_reader->read_avail());
+  Http2SsnDebug("completed frame read, %" PRId64 " bytes available", this->_read_buffer_reader->read_avail());
 
   return state_process_frame_read(event, vio, true);
 }
@@ -557,11 +520,16 @@ int
 Http2ClientSession::do_complete_frame_read()
 {
   // XXX parse the frame and handle it ...
-  ink_release_assert(this->sm_reader->read_avail() >= this->current_hdr.length);
+  ink_release_assert(this->_read_buffer_reader->read_avail() >= this->current_hdr.length);
 
-  Http2Frame frame(this->current_hdr, this->sm_reader);
+  Http2Frame frame(this->current_hdr, this->_read_buffer_reader, this->cur_frame_from_early_data);
   send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_RECV, &frame);
-  this->sm_reader->consume(this->current_hdr.length);
+  // Check whether data is read from early data
+  if (this->read_from_early_data > 0) {
+    this->read_from_early_data -=
+      this->read_from_early_data > this->current_hdr.length ? this->current_hdr.length : this->read_from_early_data;
+  }
+  this->_read_buffer_reader->consume(this->current_hdr.length);
   ++(this->_n_frame_read);
 
   // Set the event handler if there is no more data to process a new frame
@@ -577,7 +545,7 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
     do_complete_frame_read();
   }
 
-  while (this->sm_reader->read_avail() >= (int64_t)HTTP2_FRAME_HEADER_LEN) {
+  while (this->_read_buffer_reader->read_avail() >= static_cast<int64_t>(HTTP2_FRAME_HEADER_LEN)) {
     // Cancel reading if there was an error or connection is closed
     if (connection_state.tx_error_code.code != static_cast<uint32_t>(Http2ErrorCode::HTTP2_ERROR_NO_ERROR) ||
         connection_state.is_state_closed()) {
@@ -588,7 +556,7 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
     Http2ErrorCode err = Http2ErrorCode::HTTP2_ERROR_NO_ERROR;
     if (this->connection_state.get_stream_error_rate() > std::min(1.0, Http2::stream_error_rate_threshold * 2.0)) {
       ip_port_text_buffer ipb;
-      const char *client_ip = ats_ip_ntop(get_client_addr(), ipb, sizeof(ipb));
+      const char *client_ip = ats_ip_ntop(get_remote_addr(), ipb, sizeof(ipb));
       Warning("HTTP/2 session error client_ip=%s session_id=%" PRId64
               " closing a connection, because its stream error rate (%f) exceeded the threshold (%f)",
               client_ip, connection_id(), this->connection_state.get_stream_error_rate(), Http2::stream_error_rate_threshold);
@@ -603,14 +571,13 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
         if (!this->connection_state.is_state_closed()) {
           this->connection_state.send_goaway_frame(this->connection_state.get_latest_stream_id_in(), err);
           this->set_half_close_local_flag(true);
-          this->do_io_close();
         }
       }
       return 0;
     }
 
     // If there is no more data to finish the frame, set up the event handler and reenable
-    if (this->sm_reader->read_avail() < this->current_hdr.length) {
+    if (this->_read_buffer_reader->read_avail() < this->current_hdr.length) {
       HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_complete_frame_read);
       break;
     }
@@ -633,13 +600,13 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
 }
 
 void
-Http2ClientSession::increment_current_active_client_connections_stat()
+Http2ClientSession::increment_current_active_connections_stat()
 {
   HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_ACTIVE_CLIENT_CONNECTION_COUNT, this_ethread());
 }
 
 void
-Http2ClientSession::decrement_current_active_client_connections_stat()
+Http2ClientSession::decrement_current_active_connections_stat()
 {
   HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_ACTIVE_CLIENT_CONNECTION_COUNT, this_ethread());
 }
@@ -657,28 +624,22 @@ Http2ClientSession::_should_do_something_else()
   return (this->_n_frame_read & 0x7F) == 0 && !connection_state.is_state_closed();
 }
 
-int64_t
-Http2ClientSession::write_avail()
-{
-  return this->write_buffer->write_avail();
-}
-
-NetVConnection *
-Http2ClientSession::get_netvc() const
-{
-  return client_vc;
-}
-
 sockaddr const *
-Http2ClientSession::get_client_addr()
+Http2ClientSession::get_remote_addr() const
 {
-  return client_vc ? client_vc->get_remote_addr() : &cached_client_addr.sa;
+  return _vc ? _vc->get_remote_addr() : &cached_client_addr.sa;
 }
 
 sockaddr const *
 Http2ClientSession::get_local_addr()
 {
-  return client_vc ? client_vc->get_local_addr() : &cached_local_addr.sa;
+  return _vc ? _vc->get_local_addr() : &cached_local_addr.sa;
+}
+
+int64_t
+Http2ClientSession::write_avail()
+{
+  return this->write_buffer->write_avail();
 }
 
 void
@@ -694,7 +655,7 @@ Http2ClientSession::get_transact_count() const
 }
 
 void
-Http2ClientSession::release(ProxyClientTransaction *trans)
+Http2ClientSession::release(ProxyTransaction *trans)
 {
 }
 
@@ -733,10 +694,13 @@ Http2ClientSession::protocol_contains(std::string_view prefix) const
 void
 Http2ClientSession::add_url_to_pushed_table(const char *url, int url_len)
 {
-  if (h2_pushed_urls_size < Http2::push_diary_size) {
-    char *dup_url = ats_strndup(url, url_len);
-    ink_hash_table_insert(h2_pushed_urls, dup_url, nullptr);
-    h2_pushed_urls_size++;
-    ats_free(dup_url);
+  // Delay std::unordered_set allocation until when it used
+  if (_h2_pushed_urls == nullptr) {
+    this->_h2_pushed_urls = new std::unordered_set<std::string>();
+    this->_h2_pushed_urls->reserve(Http2::push_diary_size);
+  }
+
+  if (_h2_pushed_urls->size() < Http2::push_diary_size) {
+    _h2_pushed_urls->emplace(url);
   }
 }

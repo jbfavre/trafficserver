@@ -23,6 +23,7 @@
 
 #include "operators.h"
 #include "conditions.h"
+#include "conditions_geo.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // "Factory" functions, processing the parsed lines
@@ -105,12 +106,8 @@ condition_factory(const std::string &cond)
     c = new ConditionCookie();
   } else if (c_name == "HEADER") { // This condition adapts to the hook
     c = new ConditionHeader();
-  } else if (c_name == "PATH") {
-    c = new ConditionPath();
   } else if (c_name == "CLIENT-HEADER") {
     c = new ConditionHeader(true);
-  } else if (c_name == "QUERY") {
-    c = new ConditionQuery();
   } else if (c_name == "CLIENT-URL") { // This condition adapts to the hook
     c = new ConditionUrl(ConditionUrl::CLIENT);
   } else if (c_name == "URL") {
@@ -127,8 +124,6 @@ condition_factory(const std::string &cond)
     c = new ConditionInternalTxn();
   } else if (c_name == "IP") {
     c = new ConditionIp();
-  } else if (c_name == "INCOMING-PORT") {
-    c = new ConditionIncomingPort();
   } else if (c_name == "METHOD") {
     c = new ConditionMethod();
   } else if (c_name == "TXN-COUNT") {
@@ -136,7 +131,13 @@ condition_factory(const std::string &cond)
   } else if (c_name == "NOW") {
     c = new ConditionNow();
   } else if (c_name == "GEO") {
+#if TS_USE_HRW_GEOIP
+    c = new GeoIPConditionGeo();
+#elif TS_USE_HRW_MAXMINDDB
+    c = new MMConditionGeo();
+#else
     c = new ConditionGeo();
+#endif
   } else if (c_name == "ID") {
     c = new ConditionId();
   } else if (c_name == "CIDR") {

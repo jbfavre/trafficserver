@@ -30,42 +30,103 @@
  ****************************************************************************/
 #pragma once
 
+#include <vector>
+#include <string_view>
+#include <strings.h>
+#include <memory>
+
 #include "ProxyConfig.h"
-#include "tscore/Map.h"
 #include "P_SNIActionPerformer.h"
 #include "tscore/MatcherUtils.h"
-#include "openssl/ossl_typ.h"
-#include <vector>
-#include <strings.h>
 #include "YamlSNIConfig.h"
 
 // Properties for the next hop server
 struct NextHopProperty {
-  const char *name   = nullptr; // name of the server
-  int8_t verifyLevel = 0;       // whether to verify the next hop
-  SSL_CTX *ctx       = nullptr; // ctx generated off the certificate to present to this server
-  NextHopProperty();
+  std::string client_cert_file;                                                    // full path to client cert file for lookup
+  std::string client_key_file;                                                     // full path to client key file for lookup
+  YamlSNIConfig::Policy verifyServerPolicy       = YamlSNIConfig::Policy::UNSET;   // whether to verify the next hop
+  YamlSNIConfig::Property verifyServerProperties = YamlSNIConfig::Property::UNSET; // what to verify on the next hop
+
+  NextHopProperty() {}
 };
 
-typedef std::vector<ActionItem *> actionVector;
-typedef HashMap<cchar *, StringHashFns, actionVector *> SNIMap;
-typedef HashMap<cchar *, StringHashFns, NextHopProperty *> NextHopPropertyTable;
+using actionVector = std::vector<std::unique_ptr<ActionItem>>;
+
+struct pcreFreer {
+  void
+  operator()(void *p)
+  {
+    pcre_free(p);
+  }
+};
+
+struct namedElement {
+public:
+  namedElement() {}
+
+  namedElement &
+  operator=(namedElement &&other)
+  {
+    if (this != &other) {
+      match = std::move(other.match);
+    }
+    return *this;
+  }
+  namedElement(namedElement &&other) { *this = std::move(other); }
+
+  void
+  setGlobName(std::string name)
+  {
+    std::string::size_type pos = 0;
+    while ((pos = name.find('.', pos)) != std::string::npos) {
+      name.replace(pos, 1, "\\.");
+      pos += 2;
+    }
+    pos = 0;
+    while ((pos = name.find('*', pos)) != std::string::npos) {
+      name.replace(pos, 1, "(.{0,})");
+    }
+    Debug("ssl_sni", "Regexed fqdn=%s", name.c_str());
+    setRegexName(name);
+  }
+
+  void
+  setRegexName(const std::string &regexName)
+  {
+    const char *err_ptr;
+    int err_offset = 0;
+    if (!regexName.empty()) {
+      match.reset(pcre_compile(regexName.c_str(), PCRE_ANCHORED, &err_ptr, &err_offset, nullptr));
+    }
+  }
+
+  std::unique_ptr<pcre, pcreFreer> match;
+};
+
+struct actionElement : public namedElement {
+public:
+  actionVector actions;
+};
+
+struct NextHopItem : public namedElement {
+public:
+  NextHopProperty prop;
+};
+
+typedef std::vector<actionElement> SNIList;
+typedef std::vector<NextHopItem> NextHopPropertyList;
 
 struct SNIConfigParams : public ConfigInfo {
-  char *sni_filename = nullptr;
-  SNIMap sni_action_map;
-  SNIMap wild_sni_action_map;
-  NextHopPropertyTable next_hop_table;
-  NextHopPropertyTable wild_next_hop_table;
+  SNIList sni_action_list;
+  NextHopPropertyList next_hop_list;
   YamlSNIConfig Y_sni;
-  NextHopProperty *getPropertyConfig(cchar *servername) const;
+  const NextHopProperty *getPropertyConfig(const std::string &servername) const;
   SNIConfigParams();
   ~SNIConfigParams() override;
   void cleanup();
   int Initialize();
   void loadSNIConfig();
-  actionVector *get(cchar *servername) const;
-  void printSNImap() const;
+  std::pair<const actionVector *, ActionItem::Context> get(std::string_view servername) const;
 };
 
 struct SNIConfig {
@@ -73,9 +134,10 @@ struct SNIConfig {
   static void reconfigure();
   static SNIConfigParams *acquire();
   static void release(SNIConfigParams *params);
-  static void cloneProtoSet(); // clones the protoset of all the netaccept objects created and unregisters h2
 
   typedef ConfigProcessor::scoped_config<SNIConfig, SNIConfigParams> scoped_config;
+
+  static bool TestClientAction(const char *servername, const IpEndpoint &ep, int &enforcement_policy);
 
 private:
   static int configid;

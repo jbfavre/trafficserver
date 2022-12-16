@@ -16,8 +16,8 @@
   limitations under the License.
 */
 
-#include "tscore/ink_platform.h"
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include "ts_lua_util.h"
 
 #define TS_LUA_CHECK_SERVER_REQUEST_HDR(http_ctx)                                                                                \
@@ -80,6 +80,7 @@ static int ts_lua_server_request_server_addr_set_addr(lua_State *L);
 static int ts_lua_server_request_server_addr_get_outgoing_port(lua_State *L);
 static int ts_lua_server_request_server_addr_set_outgoing_addr(lua_State *L);
 static int ts_lua_server_request_server_addr_get_nexthop_addr(lua_State *L);
+static int ts_lua_server_request_server_addr_get_nexthop_name(lua_State *L);
 
 void
 ts_lua_inject_server_request_api(lua_State *L)
@@ -132,6 +133,9 @@ ts_lua_inject_server_request_server_addr_api(lua_State *L)
 
   lua_pushcfunction(L, ts_lua_server_request_server_addr_get_nexthop_addr);
   lua_setfield(L, -2, "get_nexthop_addr");
+
+  lua_pushcfunction(L, ts_lua_server_request_server_addr_get_nexthop_name);
+  lua_setfield(L, -2, "get_nexthop_name");
 
   lua_setfield(L, -2, "server_addr");
 
@@ -193,7 +197,7 @@ ts_lua_server_request_header_get(lua_State *L)
         next_field_loc = TSMimeHdrFieldNextDup(http_ctx->server_request_bufp, http_ctx->server_request_hdrp, field_loc);
         lua_pushlstring(L, val, val_len);
         count++;
-        // multiple headers with the same name must be semantically the same as one value which is comma seperated
+        // multiple headers with the same name must be semantically the same as one value which is comma separated
         if (next_field_loc != TS_NULL_MLOC) {
           lua_pushlstring(L, ",", 1);
           count++;
@@ -695,7 +699,7 @@ ts_lua_server_request_set_version(lua_State *L)
 {
   const char *version;
   size_t len;
-  int major, minor;
+  unsigned int major, minor;
 
   ts_lua_http_ctx *http_ctx;
 
@@ -867,6 +871,25 @@ ts_lua_server_request_server_addr_get_nexthop_addr(lua_State *L)
   }
 
   return 3;
+}
+
+static int
+ts_lua_server_request_server_addr_get_nexthop_name(lua_State *L)
+{
+  ts_lua_http_ctx *http_ctx;
+  const char *name;
+
+  GET_HTTP_CONTEXT(http_ctx, L);
+
+  name = TSHttpTxnNextHopNameGet(http_ctx->txnp);
+
+  if (name == NULL) {
+    lua_pushnil(L);
+  } else {
+    lua_pushstring(L, name);
+  }
+
+  return 1;
 }
 
 static int

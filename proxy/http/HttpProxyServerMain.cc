@@ -23,12 +23,10 @@
 
 #include "tscore/ink_config.h"
 #include "P_Net.h"
-#include "Main.h"
 #include "HttpConfig.h"
 #include "HttpSessionAccept.h"
 #include "ReverseProxy.h"
 #include "HttpSessionManager.h"
-#include "HttpUpdateSM.h"
 #ifdef USE_HTTP_DEBUG_LISTS
 #include "Http1ClientSession.h"
 #endif
@@ -40,6 +38,11 @@
 #include "http2/Http2SessionAccept.h"
 #include "HttpConnectionCount.h"
 #include "HttpProxyServerMain.h"
+#if TS_USE_QUIC == 1
+#include "P_QUICNetProcessor.h"
+#include "P_QUICNextProtocolAccept.h"
+#include "http3/Http3SessionAccept.h"
+#endif
 
 #include <vector>
 
@@ -52,6 +55,10 @@ static Ptr<ProxyMutex> ssl_plugin_mutex;
 std::mutex proxyServerMutex;
 std::condition_variable proxyServerCheck;
 bool et_net_threads_ready = false;
+
+std::mutex etUdpMutex;
+std::condition_variable etUdpCheck;
+bool et_udp_threads_ready = false;
 
 extern int num_of_net_threads;
 extern int num_accept_threads;
@@ -92,20 +99,6 @@ ssl_register_protocol(const char *protocol, Continuation *contp)
   return true;
 }
 
-bool
-ssl_unregister_protocol(const char *protocol, Continuation *contp)
-{
-  SCOPED_MUTEX_LOCK(lock, ssl_plugin_mutex, this_ethread());
-
-  for (SSLNextProtocolAccept *ssl = ssl_plugin_acceptors.head; ssl; ssl = ssl_plugin_acceptors.next(ssl)) {
-    // Ignore possible failure because we want to try to unregister
-    // from all SSL ports.
-    ssl->unregisterEndpoint(protocol, contp);
-  }
-
-  return true;
-}
-
 /////////////////////////////////////////////////////////////////
 //
 //  main()
@@ -120,12 +113,12 @@ ssl_unregister_protocol(const char *protocol, Continuation *contp)
 */
 struct HttpProxyAcceptor {
   /// Accept continuation.
-  Continuation *_accept;
+  Continuation *_accept = nullptr;
   /// Options for @c NetProcessor.
   NetProcessor::AcceptOptions _net_opt;
 
   /// Default constructor.
-  HttpProxyAcceptor() : _accept(nullptr) {}
+  HttpProxyAcceptor() {}
 };
 
 /** Global acceptors.
@@ -152,6 +145,7 @@ make_net_accept_options(const HttpProxyPort *port, unsigned nthreads)
   REC_ReadConfigInteger(net.recv_bufsize, "proxy.config.net.sock_recv_buffer_size_in");
   REC_ReadConfigInteger(net.send_bufsize, "proxy.config.net.sock_send_buffer_size_in");
   REC_ReadConfigInteger(net.sockopt_flags, "proxy.config.net.sock_option_flag_in");
+  REC_ReadConfigInteger(net.defer_accept, "proxy.config.net.defer_accept");
 
 #ifdef TCP_FASTOPEN
   REC_ReadConfigInteger(net.tfo_queue_length, "proxy.config.net.sock_option_tfo_queue_size_in");
@@ -232,26 +226,36 @@ MakeHttpProxyAcceptor(HttpProxyAcceptor &acceptor, HttpProxyPort &port, unsigned
     // the least important protocol first:
     // http/1.0, http/1.1, h2
 
-    // HTTP
-    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_HTTP_1_0)) {
-      ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_1_0, http);
-    }
-
-    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_HTTP_1_1)) {
-      ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_1_1, http);
-    }
-
-    // HTTP2
-    if (port.m_session_protocol_preference.contains(TS_ALPN_PROTOCOL_INDEX_HTTP_2_0)) {
-      Http2SessionAccept *acc = new Http2SessionAccept(accept_opt);
-
-      ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_2_0, acc);
-    }
+    ssl->enableProtocols(port.m_session_protocol_preference);
+    ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_1_0, http);
+    ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_1_1, http);
+    ssl->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_2_0, new Http2SessionAccept(accept_opt));
 
     SCOPED_MUTEX_LOCK(lock, ssl_plugin_mutex, this_ethread());
     ssl_plugin_acceptors.push(ssl);
     ssl->proxyPort   = &port;
     acceptor._accept = ssl;
+#if TS_USE_QUIC == 1
+  } else if (port.isQUIC()) {
+    QUICNextProtocolAccept *quic = new QUICNextProtocolAccept();
+
+    quic->enableProtocols(port.m_session_protocol_preference);
+
+    // HTTP/0.9 over QUIC draft-27 (for interop only, will be removed)
+    quic->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_QUIC_D27, new Http3SessionAccept(accept_opt));
+
+    // HTTP/3 draft-27
+    quic->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_3_D27, new Http3SessionAccept(accept_opt));
+
+    // HTTP/0.9 over QUIC (for interop only, will be removed)
+    quic->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_QUIC, new Http3SessionAccept(accept_opt));
+
+    // HTTP/3
+    quic->registerEndpoint(TS_ALPN_PROTOCOL_HTTP_3, new Http3SessionAccept(accept_opt));
+
+    quic->proxyPort  = &port;
+    acceptor._accept = quic;
+#endif
   } else {
     acceptor._accept = probe;
   }
@@ -314,14 +318,23 @@ init_accept_HttpProxyServer(int n_accept_threads)
  *  start_HttpProxyServer().
  */
 void
-init_HttpProxyServer(EThread *)
+init_HttpProxyServer()
 {
-  if (eventProcessor.thread_group[ET_NET]._started == num_of_net_threads) {
+  if (eventProcessor.has_tg_started(ET_NET)) {
     std::unique_lock<std::mutex> lock(proxyServerMutex);
     et_net_threads_ready = true;
     lock.unlock();
     proxyServerCheck.notify_one();
   }
+
+#if TS_USE_QUIC == 1
+  if (eventProcessor.has_tg_started(ET_UDP)) {
+    std::unique_lock<std::mutex> lock(etUdpMutex);
+    et_udp_threads_ready = true;
+    lock.unlock();
+    etUdpCheck.notify_one();
+  }
+#endif
 }
 
 void
@@ -344,6 +357,12 @@ start_HttpProxyServer()
       if (nullptr == sslNetProcessor.main_accept(acceptor._accept, port.m_fd, acceptor._net_opt)) {
         return;
       }
+#if TS_USE_QUIC == 1
+    } else if (port.isQUIC()) {
+      if (nullptr == quic_NetProcessor.main_accept(acceptor._accept, port.m_fd, acceptor._net_opt)) {
+        return;
+      }
+#endif
     } else if (!port.isPlugin()) {
       if (nullptr == netProcessor.main_accept(acceptor._accept, port.m_fd, acceptor._net_opt)) {
         return;
@@ -352,12 +371,6 @@ start_HttpProxyServer()
     // XXX although we make a good pretence here, I don't believe that NetProcessor::main_accept() ever actually returns
     // NULL. It would be useful to be able to detect errors and spew them here though.
   }
-
-#if TS_HAS_TESTS
-  if (is_action_tag_set("http_update_test")) {
-    init_http_update_test();
-  }
-#endif
 
   // Set up stat page for http connection count
   statPagesManager.register_http("connection_count", register_ShowConnectionCount);
@@ -368,22 +381,6 @@ start_HttpProxyServer()
     hook->invoke(TS_EVENT_LIFECYCLE_PORTS_READY, nullptr);
     hook = hook->next();
   }
-}
-
-void
-start_HttpProxyServerBackDoor(int port, int accept_threads)
-{
-  NetProcessor::AcceptOptions opt;
-  HttpSessionAccept::Options ha_opt;
-
-  opt.local_port     = port;
-  opt.accept_threads = accept_threads;
-  opt.localhost_only = true;
-  ha_opt.backdoor    = true;
-  opt.backdoor       = true;
-
-  // The backdoor only binds the loopback interface
-  netProcessor.main_accept(new HttpSessionAccept(ha_opt), NO_FD, opt);
 }
 
 void

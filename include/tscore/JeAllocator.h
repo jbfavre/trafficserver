@@ -23,11 +23,19 @@
 #include "tscore/ink_queue.h"
 #include <sys/mman.h>
 #include <cstddef>
+#include <unordered_map>
+#include <mutex>
+#include <shared_mutex>
 
 #if TS_HAS_JEMALLOC
 #include <jemalloc/jemalloc.h>
+#if (JEMALLOC_VERSION_MAJOR == 0)
+#error jemalloc has bogus version
+#endif
 #if (JEMALLOC_VERSION_MAJOR == 5) && defined(MADV_DONTDUMP)
 #define JEMALLOC_NODUMP_ALLOCATOR_SUPPORTED 1
+#else
+#define JEMALLOC_NODUMP_ALLOCATOR_SUPPORTED 0
 #endif /* MADV_DONTDUMP */
 #endif /* TS_HAS_JEMALLOC */
 
@@ -58,23 +66,18 @@ namespace jearena
 class JemallocNodumpAllocator
 {
 public:
-  explicit JemallocNodumpAllocator();
-
   void *allocate(InkFreeList *f);
-  void deallocate(InkFreeList *f, void *ptr);
 
 private:
 #if JEMALLOC_NODUMP_ALLOCATOR_SUPPORTED
-  static extent_hooks_t extent_hooks_;
-  static extent_alloc_t *original_alloc_;
+  thread_local static extent_alloc_t *original_alloc;
+  thread_local static extent_hooks_t extent_hooks;
+  thread_local static int arena_flags;
+
   static void *alloc(extent_hooks_t *extent, void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit,
-                     unsigned arena_ind);
-
-  unsigned arena_index_{0};
-  int flags_{0};
+                     unsigned int arena_id);
+  int extend_and_setup_arena();
 #endif /* JEMALLOC_NODUMP_ALLOCATOR_SUPPORTED */
-
-  bool extend_and_setup_arena();
 };
 
 /**

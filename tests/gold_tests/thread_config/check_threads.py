@@ -23,12 +23,11 @@ import sys
 
 def count_threads(ts_path, etnet_threads, accept_threads):
 
-    for pid in psutil.pids():
+    for p in psutil.process_iter(['name', 'cwd', 'threads']):
 
         # Find the pid corresponding to the ats process we started in autest.
         # It needs to match the process name and the binary path.
         # If autest can expose the pid of the process this is not needed anymore.
-        p = psutil.Process(pid)
         if p.name() == '[TS_MAIN]' and p.cwd() == ts_path:
 
             etnet_check = set()
@@ -79,8 +78,10 @@ def count_threads(ts_path, etnet_threads, accept_threads):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--ts-path', type=str, dest='ts_path', help='path to traffic_server binary', required=True)
-    parser.add_argument('-e', '--etnet-threads', type=int, dest='etnet_threads', help='expected number of ET_NET threads', required=True)
-    parser.add_argument('-a', '--accept-threads', type=int, dest='accept_threads', help='expected number of accept threads', required=True)
+    parser.add_argument('-e', '--etnet-threads', type=int, dest='etnet_threads',
+                        help='expected number of ET_NET threads', required=True)
+    parser.add_argument('-a', '--accept-threads', type=int, dest='accept_threads',
+                        help='expected number of accept threads', required=True)
     args = parser.parse_args()
     exit(count_threads(args.ts_path, args.etnet_threads, args.accept_threads))
 

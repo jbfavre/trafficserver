@@ -47,6 +47,7 @@ libinkevent_a_SOURCES = \
 	I_VIO.h \
 	Inline.cc \
 	Lock.cc \
+	MIOBufferWriter.cc \
 	PQ-List.cc \
 	P_EventSystem.h \
 	P_Freer.h \
@@ -97,7 +98,7 @@ test_LD_ADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	@LIBTCL@ @HWLOC_LIBS@
+	@HWLOC_LIBS@
 
 test_EventSystem_SOURCES = unit_tests/test_EventSystem.cc
 test_EventSystem_CPPFLAGS = $(test_CPP_FLAGS)
@@ -112,7 +113,6 @@ test_IOBuffer_LDADD = $(test_LD_ADD)
 test_MIOBufferWriter_SOURCES = unit_tests/test_MIOBufferWriter.cc
 test_MIOBufferWriter_CPPFLAGS = $(test_CPP_FLAGS)
 test_MIOBufferWriter_LDFLAGS = $(test_LD_FLAGS)
-test_MIOBufferWriter_LDADD = $(test_LD_ADD)
 
 include $(top_srcdir)/build/tidy.mk
 

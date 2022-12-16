@@ -27,7 +27,9 @@ Intercept origin server requests.
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 .. function:: void TSHttpTxnServerIntercept(TSCont contp, TSHttpTxn txnp)
 
@@ -53,7 +55,7 @@ The response from the plugin is cached subject to standard and configured HTTP
 caching rules. Should the plugin wish the response not be cached, the plugin
 must use appropriate HTTP response headers to prevent caching. The primary
 purpose of :func:`TSHttpTxnServerIntercept` is allow plugins to provide gateways
-to other protocols or to allow to plugin to its own transport for the next hop
+to other protocols or to allow one to plugin to its own transport for the next hop
 to the server. :func:`TSHttpTxnServerIntercept` overrides parent cache
 configuration.
 

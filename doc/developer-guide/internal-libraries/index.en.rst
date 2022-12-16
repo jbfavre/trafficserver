@@ -32,5 +32,9 @@ development team.
    MemSpan.en
    scalar.en
    buffer-writer.en
+   intrusive-list.en
+   intrusive-hash-map.en
    MemArena.en
+   AcidPtr.en
+   Extendible.en
    ArgParser.en

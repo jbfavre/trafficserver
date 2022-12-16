@@ -327,3 +327,36 @@ tr.StillRunningAfter = ts
 
 curl_and_args = 'curl -s -D /dev/stdout -o /dev/stderr -x localhost:{} -H "x-debug: x-parentselection-key"'.format(
     ts.Variables.port)
+
+# 9 Test - cache_key_url request
+tr = Test.AddTestRun("cache_key_url request")
+ps = tr.Processes.Default
+ps.Command = curl_and_args + ' http://parentselect/path -r {} -H "uuid: pselect"'.format(pselect_str)
+ps.ReturnCode = 0
+ps.Streams.stdout.Content = Testers.ContainsExpression(
+    "X-ParentSelection-Key: .*-bytes=",
+    "expected bytes in parent selection key",
+)
+tr.StillRunningAfter = ts
+tr.StillRunningAfter = server
+
+# 10 Test - non cache_key_url request ... no X-ParentSelection-Key
+tr = Test.AddTestRun("non cache_key_url request")
+ps = tr.Processes.Default
+ps.Command = curl_and_args + ' http://www.example.com/path -r {} -H "uuid: inner"'.format(inner_str)
+ps.ReturnCode = 0
+ps.Streams.stdout.Content = Testers.ExcludesExpression("X-ParentSelection-Key", "parent select key shouldn't show up")
+tr.StillRunningAfter = ts
+tr.StillRunningAfter = server
+
+# 11 Test - cache_key_url request -- deprecated
+tr = Test.AddTestRun("cache_key_url request - dprecated")
+ps = tr.Processes.Default
+ps.Command = curl_and_args + ' http://psd/path -r {} -H "uuid: pselect"'.format(pselect_str)
+ps.ReturnCode = 0
+ps.Streams.stdout.Content = Testers.ContainsExpression(
+    "X-ParentSelection-Key: .*-bytes=",
+    "expected bytes in parent selection key",
+)
+tr.StillRunningAfter = ts
+tr.StillRunningAfter = server

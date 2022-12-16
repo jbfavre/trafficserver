@@ -30,10 +30,9 @@ struct DiagsConfig {
   void reconfigure_diags();
   void config_diags_norecords();
   void parse_output_string(char *s, DiagsModeOutput *o);
-  void RegisterDiagConfig();
   void register_diags_callbacks();
 
-  DiagsConfig(const char *prefix_string, const char *filename, const char *tags, const char *actions, bool use_records = true);
+  DiagsConfig(std::string_view prefix_string, const char *filename, const char *tags, const char *actions, bool use_records = true);
   ~DiagsConfig();
 
 private:
