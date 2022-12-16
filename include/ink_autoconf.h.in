@@ -1,8 +1,7 @@
 /* include/ink_autoconf.h.in.  Generated from configure.ac by autoheader.  */
 
 
-#ifndef _ink_autoconf_h
-#define _ink_autoconf_h
+#pragma once
 
 
 /* Added in OpenSSL 1.1 */
@@ -56,6 +55,9 @@
 /* Define to 1 if you have the `ASYNC_init_thread' function. */
 #undef HAVE_ASYNC_INIT_THREAD
 
+/* Define to 1 if you have '__atomic' functions. */
+#undef HAVE_ATOMIC
+
 /* Define to 1 if you have the `BIO_meth_new' function. */
 #undef HAVE_BIO_METH_NEW
 
@@ -98,9 +100,6 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
-/* Define to 1 if you have the `EC_KEY_new_by_curve_name' function. */
-#undef HAVE_EC_KEY_NEW_BY_CURVE_NAME
-
 /* Define to 1 if you have the <editline/readline.h> header file. */
 #undef HAVE_EDITLINE_READLINE_H
 
@@ -109,6 +108,9 @@
 
 /* Define to 1 if you have the `epoll_ctl' function. */
 #undef HAVE_EPOLL_CTL
+
+/* Define to 1 if you have the `ERR_get_error_all' function. */
+#undef HAVE_ERR_GET_ERROR_ALL
 
 /* Define to 1 if you have the `eventfd' function. */
 #undef HAVE_EVENTFD
@@ -140,11 +142,14 @@
 /* Define to 1 if you have the `getreuid' function. */
 #undef HAVE_GETREUID
 
-/* Define to 1 if you have the <google/profiler.h> header file. */
-#undef HAVE_GOOGLE_PROFILER_H
+/* Define to 1 if you have the <gperftools/profiler.h> header file. */
+#undef HAVE_GPERFTOOLS_PROFILER_H
 
 /* Define to 1 if you have the `hcreate_r' function. */
 #undef HAVE_HCREATE_R
+
+/* Define to 1 if you have the <hiredis/hiredis.h> header file. */
+#undef HAVE_HIREDIS_HIREDIS_H
 
 /* Define to 1 if you have the <history.h> header file. */
 #undef HAVE_HISTORY_H
@@ -200,9 +205,6 @@
 /* Define to 1 if you have the <linux/major.h> header file. */
 #undef HAVE_LINUX_MAJOR_H
 
-/* Define to 1 if you have the `lrand48_r' function. */
-#undef HAVE_LRAND48_R
-
 /* Define to 1 if you have the <luajit.h> header file. */
 #undef HAVE_LUAJIT_H
 
@@ -218,14 +220,14 @@
 /* Define to 1 if you have the `malloc_usable_size' function. */
 #undef HAVE_MALLOC_USABLE_SIZE
 
+/* Define to 1 if you have the <maxminddb.h> header file. */
+#undef HAVE_MAXMINDDB_H
+
 /* Define to 1 if you have the <mcheck.h> header file. */
 #undef HAVE_MCHECK_H
 
 /* Define to 1 if you have the `mcheck_pedantic' function. */
 #undef HAVE_MCHECK_PEDANTIC
-
-/* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
 
 /* Define to 1 if you have the <mysql/mysql.h> header file. */
 #undef HAVE_MYSQL_MYSQL_H
@@ -277,9 +279,6 @@
 
 /* Define to 1 if you have the `OCSP_sendreq_new' function. */
 #undef HAVE_OCSP_SENDREQ_NEW
-
-/* Define to 1 if you have the <openssl/ec.h> header file. */
-#undef HAVE_OPENSSL_EC_H
 
 /* Define to 1 if you have the <openssl/ocsp.h> header file. */
 #undef HAVE_OPENSSL_OCSP_H
@@ -368,42 +367,33 @@
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H
 
-/* Define to 1 if you have the `srand48_r' function. */
-#undef HAVE_SRAND48_R
-
-/* Define to 1 if you have the `SSL_CTX_set_alpn_protos' function. */
-#undef HAVE_SSL_CTX_SET_ALPN_PROTOS
-
-/* Define to 1 if you have the `SSL_CTX_set_alpn_select_cb' function. */
-#undef HAVE_SSL_CTX_SET_ALPN_SELECT_CB
-
 /* Define to 1 if you have the `SSL_CTX_set_ciphersuites' function. */
 #undef HAVE_SSL_CTX_SET_CIPHERSUITES
 
-/* Define to 1 if you have the `SSL_CTX_set_next_protos_advertised_cb'
+/* Define to 1 if you have the `SSL_CTX_set_tlsext_ticket_key_cb' function. */
+#undef HAVE_SSL_CTX_SET_TLSEXT_TICKET_KEY_CB
+
+/* Define to 1 if you have the `SSL_CTX_set_tlsext_ticket_key_evp_cb'
    function. */
-#undef HAVE_SSL_CTX_SET_NEXT_PROTOS_ADVERTISED_CB
-
-/* Define to 1 if you have the `SSL_CTX_set_next_proto_select_cb' function. */
-#undef HAVE_SSL_CTX_SET_NEXT_PROTO_SELECT_CB
-
-/* Define to 1 if you have the `SSL_get0_alpn_selected' function. */
-#undef HAVE_SSL_GET0_ALPN_SELECTED
-
-/* Define to 1 if you have the `SSL_get0_next_proto_negotiated' function. */
-#undef HAVE_SSL_GET0_NEXT_PROTO_NEGOTIATED
+#undef HAVE_SSL_CTX_SET_TLSEXT_TICKET_KEY_EVP_CB
 
 /* Define to 1 if you have the `SSL_get_all_async_fds' function. */
 #undef HAVE_SSL_GET_ALL_ASYNC_FDS
 
-/* Define to 1 if you have the `SSL_select_next_proto' function. */
-#undef HAVE_SSL_SELECT_NEXT_PROTO
+/* Define to 1 if you have the `SSL_set_max_early_data' function. */
+#undef HAVE_SSL_SET_MAX_EARLY_DATA
+
+/* Define to 1 if you have the `SSL_set_quic_early_data_enabled' function. */
+#undef HAVE_SSL_SET_QUIC_EARLY_DATA_ENABLED
 
 /* Define to 1 if you have the <stdbool.h> header file. */
 #undef HAVE_STDBOOL_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#undef HAVE_STDIO_H
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
@@ -425,6 +415,9 @@
 
 /* Define to 1 if you have the `strsignal' function. */
 #undef HAVE_STRSIGNAL
+
+/* Whether struct tcp_info have the tcpi_data_segs_{in,out} member */
+#undef HAVE_STRUCT_LINUX_TCP_INFO
 
 /* Whether struct sockaddr_in6 has the sin6_len member */
 #undef HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN
@@ -452,6 +445,9 @@
 
 /* Define to 1 if you have the <sysexits.h> header file. */
 #undef HAVE_SYSEXITS_H
+
+/* Define to 1 if using probes. */
+#undef HAVE_SYSTEMTAP
 
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 #undef HAVE_SYS_BYTEORDER_H
@@ -570,7 +566,9 @@
 /* The size of `void*', as computed by sizeof. */
 #undef SIZEOF_VOIDP
 
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
 
 /* Version number of package */
@@ -579,8 +577,3 @@
 /* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
    `char[]'. */
 #undef YYTEXT_POINTER
-
-
-
-#endif /* _ink_autoconf_h */
-

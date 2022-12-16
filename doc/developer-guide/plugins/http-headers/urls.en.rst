@@ -121,9 +121,10 @@ one of the known values. If it is, then it stores a pointer into a
 global table (instead of storing the known value in the marshal buffer).
 The scheme values listed above are also pointers into this table. This
 allows simple pointer comparison of the value returned from
-``TSUrlSchemeGet`` with one of the values listed above. You should use
-the Traffic Server-defined values when referring to one of the known
-schemes, since doing so can prevent the possibility of spelling errors.
+``TSUrlSchemeGet`` or ``TSUrlRawSchemeGet`` with one of the values
+listed above. You should use the Traffic Server-defined values when
+referring to one of the known schemes, since doing so can prevent the
+possibility of spelling errors.
 
 Traffic Server **URL functions** are listed below:
 
@@ -148,6 +149,7 @@ Traffic Server **URL functions** are listed below:
 :c:func:`TSUrlPathGet`
 :c:func:`TSUrlPathSet`
 :c:func:`TSUrlPortGet`
+:c:func:`TSUrlRawPortGet`
 :c:func:`TSUrlPortSet`
 :c:func:`TSUrlSchemeGet`
 :c:func:`TSUrlSchemeSet`

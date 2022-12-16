@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  URL rewriting.
 
   @section license License
 
@@ -19,14 +19,20 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
+
  */
 
 #pragma once
 
 #include "tscore/ink_config.h"
 #include "UrlMapping.h"
+#include "UrlMappingPathIndex.h"
 #include "HttpTransact.h"
 #include "tscore/Regex.h"
+#include "PluginFactory.h"
+#include "NextHopStrategyFactory.h"
+
+#include <memory>
 
 #define URL_REMAP_FILTER_NONE 0x00000000
 #define URL_REMAP_FILTER_REFERER 0x00000001      /* enable "referer" header validation */
@@ -53,14 +59,29 @@ enum mapping_type {
 class UrlRewrite : public RefCountObj
 {
 public:
-  UrlRewrite();
+  using URLTable = std::unordered_map<std::string, UrlMappingPathIndex *>;
+  UrlRewrite()   = default;
   ~UrlRewrite() override;
 
+  /** Load the configuration.
+   *
+   * This access data in librecords to obtain the information needed for loading the configuration.
+   *
+   * @return @c true if the instance state is valid, @c false if not.
+   */
+  bool load();
+
+  /** Build the internal url write tables.
+   *
+   * @param path Path to configuration file.
+   * @return 0 on success, non-zero error code on failure.
+   */
   int BuildTable(const char *path);
+
   mapping_type Remap_redirect(HTTPHdr *request_header, URL *redirect_url);
   bool ReverseMap(HTTPHdr *response_header);
   void SetReverseFlag(int flag);
-  void Print();
+  void Print() const;
 
   // The UrlRewrite object is-a RefCountObj, but this is a convenience to make it clear that we
   // don't delete() these objects directly, but via the release() method only.
@@ -87,7 +108,7 @@ public:
     return _valid;
   };
 
-  static const int MAX_REGEX_SUBS = 10;
+  static constexpr int MAX_REGEX_SUBS = 10;
 
   struct RegexMapping {
     url_mapping *url_map;
@@ -114,7 +135,7 @@ public:
   typedef Queue<RegexMapping> RegexMappingList;
 
   struct MappingsStore {
-    InkHashTable *hash_lookup;
+    std::unique_ptr<URLTable> hash_lookup;
     RegexMappingList regex_list;
     bool
     empty()
@@ -124,8 +145,7 @@ public:
   };
 
   void PerformACLFiltering(HttpTransact::State *s, url_mapping *mapping);
-  url_mapping *SetupBackdoorMapping();
-  void PrintStore(MappingsStore &store);
+  void PrintStore(const MappingsStore &store) const;
 
   void
   DestroyStore(MappingsStore &store)
@@ -138,7 +158,7 @@ public:
   bool InsertMapping(mapping_type maptype, url_mapping *new_mapping, RegexMapping *reg_map, const char *src_host,
                      bool is_cur_mapping_regex);
 
-  bool TableInsert(InkHashTable *h_table, url_mapping *mapping, const char *src_host);
+  bool TableInsert(std::unique_ptr<URLTable> &h_table, url_mapping *mapping, const char *src_host);
 
   MappingsStore forward_mappings;
   MappingsStore reverse_mappings;
@@ -178,29 +198,33 @@ public:
                           mapping_container);
   }
 
-  int nohost_rules;
-  int reverse_proxy;
+  int nohost_rules  = 0;
+  int reverse_proxy = 0;
 
-  char *ts_name; // Used to send redirects when no host info
+  char *ts_name = nullptr; // Used to send redirects when no host info
 
-  char *http_default_redirect_url; // Used if redirect in "referer" filtering was not defined properly
-  int num_rules_forward;
-  int num_rules_reverse;
-  int num_rules_redirect_permanent;
-  int num_rules_redirect_temporary;
-  int num_rules_forward_with_recv_port;
+  char *http_default_redirect_url      = nullptr; // Used if redirect in "referer" filtering was not defined properly
+  int num_rules_forward                = 0;
+  int num_rules_reverse                = 0;
+  int num_rules_redirect_permanent     = 0;
+  int num_rules_redirect_temporary     = 0;
+  int num_rules_forward_with_recv_port = 0;
+
+  PluginFactory pluginFactory;
+  NextHopStrategyFactory *strategyFactory = nullptr;
 
 private:
-  bool _valid;
+  bool _valid = false;
 
   bool _mappingLookup(MappingsStore &mappings, URL *request_url, int request_port, const char *request_host, int request_host_len,
                       UrlMappingContainer &mapping_container);
-  url_mapping *_tableLookup(InkHashTable *h_table, URL *request_url, int request_port, char *request_host, int request_host_len);
+  url_mapping *_tableLookup(std::unique_ptr<URLTable> &h_table, URL *request_url, int request_port, char *request_host,
+                            int request_host_len);
   bool _regexMappingLookup(RegexMappingList &regex_mappings, URL *request_url, int request_port, const char *request_host,
                            int request_host_len, int rank_ceiling, UrlMappingContainer &mapping_container);
   int _expandSubstitutions(int *matches_info, const RegexMapping *reg_map, const char *matched_string, char *dest_buf,
                            int dest_buf_size);
-  void _destroyTable(InkHashTable *h_table);
+  void _destroyTable(std::unique_ptr<URLTable> &h_table);
   void _destroyList(RegexMappingList &regexes);
   inline bool _addToStore(MappingsStore &store, url_mapping *new_mapping, RegexMapping *reg_map, const char *src_host,
                           bool is_cur_mapping_regex, int &count);

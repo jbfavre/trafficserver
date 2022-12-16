@@ -23,7 +23,7 @@
 
 #include "tscore/ink_platform.h"
 #include "HttpCompat.h"
-#include "HdrUtils.h" /* MAGIC_EDITING_TAG */
+#include "HdrUtils.h"
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -46,7 +46,7 @@ HttpCompat::parse_tok_list(StrList *list, int trim_quotes, const char *string, c
   if (string == nullptr) {
     return;
   }
-  HttpCompat::parse_tok_list(list, trim_quotes, string, (int)strlen(string), sep);
+  HttpCompat::parse_tok_list(list, trim_quotes, string, static_cast<int>(strlen(string)), sep);
 }
 
 void
@@ -152,7 +152,7 @@ HttpCompat::parse_tok_list(StrList *list, int trim_quotes, const char *string, i
     // after the last char in the string.                              //
     /////////////////////////////////////////////////////////////////////
 
-    byte_length = (int)(e - s);
+    byte_length = static_cast<int>(e - s);
     ink_assert(byte_length >= 0);
 
     ///////////////////////////////////////////
@@ -407,7 +407,7 @@ HttpCompat::parse_mime_type_with_len(const char *mime_string, int mime_string_le
 
 //////////////////////////////////////////////////////////////////////////////
 //
-//      bool HttpCompat::do_header_values_match(MIMEField *hv1, MIMEField *hv2)
+//      bool HttpCompat::do_vary_header_values_match(MIMEField *hv1, MIMEField *hv2)
 //
 //      This routine takes two HTTP header fields and determines
 //      if their values "match", as in section 14.43 of RFC2068:
@@ -430,7 +430,7 @@ HttpCompat::parse_mime_type_with_len(const char *mime_string, int mime_string_le
 //
 //////////////////////////////////////////////////////////////////////////////
 bool
-HttpCompat::do_header_values_rfc2068_14_43_match(MIMEField *hdr1, MIMEField *hdr2)
+HttpCompat::do_vary_header_values_match(MIMEField *hdr1, MIMEField *hdr2)
 {
   // If both headers are missing, the headers match.
   if (!hdr1 && !hdr2) {
@@ -573,20 +573,20 @@ HttpCompat::match_accept_language(const char *lang_str, int lang_len, StrList *a
     // now rip the Accept-Language tag into head and Q parts //
     ///////////////////////////////////////////////////////////
     StrList a_param_list(false);
-    HttpCompat::parse_semicolon_list(&a_param_list, a_value->str, (int)a_value->len);
+    HttpCompat::parse_semicolon_list(&a_param_list, a_value->str, static_cast<int>(a_value->len));
     if (!a_param_list.head) {
       continue;
     }
 
     /////////////////////////////////////////////////////////////////////
-    // This algorithm is a bit wierd --- the resulting Q factor is     //
+    // This algorithm is a bit weird --- the resulting Q factor is     //
     // the Q value corresponding to the LONGEST range field that       //
     // matched, or if none matched, then the Q value of any asterisk.  //
     // Also, if the lang value is "", meaning that no Content-Language //
     // was specified, this document matches all accept headers.        //
     /////////////////////////////////////////////////////////////////////
     const char *atag_str = a_param_list.head->str;
-    int atag_len         = (int)a_param_list.head->len;
+    int atag_len         = static_cast<int>(a_param_list.head->len);
 
     float tq = HttpCompat::find_Q_param_in_strlist(&a_param_list);
 
@@ -688,7 +688,7 @@ HttpCompat::match_accept_charset(const char *charset_str, int charset_len, StrLi
     // now rip the Accept-Charset tag into head and Q parts //
     //////////////////////////////////////////////////////////
     StrList a_param_list(false);
-    HttpCompat::parse_semicolon_list(&a_param_list, a_value->str, (int)a_value->len);
+    HttpCompat::parse_semicolon_list(&a_param_list, a_value->str, static_cast<int>(a_value->len));
     if (!a_param_list.head) {
       continue;
     }
@@ -697,7 +697,7 @@ HttpCompat::match_accept_charset(const char *charset_str, int charset_len, StrLi
     // see if the Accept-Charset tag matches the current charset //
     ///////////////////////////////////////////////////////////////
     const char *atag_str = a_param_list.head->str;
-    int atag_len         = (int)a_param_list.head->len;
+    int atag_len         = static_cast<int>(a_param_list.head->len);
     float tq             = HttpCompat::find_Q_param_in_strlist(&a_param_list);
 
     if ((atag_len == 1) && (atag_str[0] == '*')) // wildcard
@@ -728,172 +728,4 @@ HttpCompat::match_accept_charset(const char *charset_str, int charset_len, StrLi
     *matching_index = 0;
     return (0.0);
   }
-}
-
-const char *
-HttpCompat::determine_set_by_language(RawHashTable *table_of_sets, StrList *acpt_language_list, StrList *acpt_charset_list,
-                                      float *Q_best_ptr, int *La_best_ptr, int *Lc_best_ptr, int *I_best_ptr)
-{
-  float Q, Ql, Qc, Q_best;
-  int I, Idummy, I_best;
-  int La, Lc, La_best, Lc_best;
-  int is_the_default_set;
-  const char *set_best;
-
-  RawHashTable_Key k1;
-  RawHashTable_Value v1;
-  RawHashTable_Binding *b1;
-  RawHashTable_IteratorState i1;
-  RawHashTable *table_of_pages;
-  HttpBodySetRawData *body_set;
-
-  set_best = "default";
-  Q_best   = 0.00001;
-  La_best  = 0;
-  Lc_best  = INT_MAX;
-  I_best   = INT_MAX;
-
-  Debug("body_factory_determine_set", "  INITIAL: [ set_best='%s', Q=%g, La=%d, Lc=%d, I=%d ]", set_best, Q_best, La_best, Lc_best,
-        I_best);
-
-  // FIX: eliminate this special case (which doesn't work anyway), by properly
-  //      handling empty lists and empty pieces in match_accept_XXX
-
-  // if no Accept-Language or Accept-Charset, just return default
-  if ((acpt_language_list->count == 0) && (acpt_charset_list->count == 0)) {
-    Q_best = 1;
-    Debug("body_factory_determine_set", "  no constraints => returning '%s'", set_best);
-    goto done;
-  }
-
-  if (table_of_sets != nullptr) {
-    ///////////////////////////////////////////
-    // loop over set->body-types hash table //
-    ///////////////////////////////////////////
-
-    for (b1 = table_of_sets->firstBinding(&i1); b1 != nullptr; b1 = table_of_sets->nextBinding(&i1)) {
-      k1                   = table_of_sets->getKeyFromBinding(b1);
-      v1                   = table_of_sets->getValueFromBinding(b1);
-      const char *set_name = (const char *)k1;
-
-      body_set       = (HttpBodySetRawData *)v1;
-      table_of_pages = body_set->table_of_pages;
-
-      if ((set_name == nullptr) || (table_of_pages == nullptr)) {
-        continue;
-      }
-
-      //////////////////////////////////////////////////////////////////////
-      // Take this error page language and match it against the           //
-      // Accept-Language string passed in, to evaluate the match          //
-      // quality.  Disable wildcard processing so we use "default"        //
-      // if no set explicitly matches.  We also get back the index        //
-      // of the match and the length of the match.                        //
-      //                                                                  //
-      // We optimize the match in a couple of ways:                       //
-      //   (a) if Q is better ==> wins, else if tie,                      //
-      //   (b) if accept tag length La is bigger ==> wins, else if tie,   //
-      //   (c) if content tag length Lc is smaller ==> wins, else if tie, //
-      //   (d) if index position I is smaller ==> wins                    //
-      //////////////////////////////////////////////////////////////////////
-
-      is_the_default_set = (strcmp(set_name, "default") == 0);
-
-      Debug("body_factory_determine_set", "  --- SET: %-8s (Content-Language '%s', Content-Charset '%s')", set_name,
-            body_set->content_language, body_set->content_charset);
-
-      // if no Accept-Language hdr at all, treat as a wildcard that
-      // slightly prefers "default".
-      if (acpt_language_list->count == 0) {
-        Ql = (is_the_default_set ? 1.0001 : 1.000);
-        La = 0;
-        Lc = INT_MAX;
-        I  = 1;
-        Debug("body_factory_determine_set", "      SET: [%-8s] A-L not present => [ Ql=%g, La=%d, Lc=%d, I=%d ]", set_name, Ql, La,
-              Lc, I);
-      } else {
-        Lc = strlen(body_set->content_language);
-        Ql = HttpCompat::match_accept_language(body_set->content_language, Lc, acpt_language_list, &La, &I, true);
-        Debug("body_factory_determine_set", "      SET: [%-8s] A-L match value => [ Ql=%g, La=%d, Lc=%d, I=%d ]", set_name, Ql, La,
-              Lc, I);
-      }
-
-      /////////////////////////////////////////////////////////////
-      // Take this error page language and match it against the  //
-      // Accept-Charset string passed in, to evaluate the match  //
-      // quality.  Disable wildcard processing so that only      //
-      // explicit values match.  (Many browsers will send along  //
-      // "*" with all lists, and we really don't want to send    //
-      // strange character sets for these people --- we'd rather //
-      // use a more portable "default" set.  The index value we  //
-      // get back isn't used, because it's a little hard to know //
-      // how to tradeoff language indices vs. charset indices.   //
-      // If someone cares, we could surely work charset indices  //
-      // into the sorting computation below.                     //
-      /////////////////////////////////////////////////////////////
-
-      // if no Accept-Charset hdr at all, treat as a wildcard that
-      // slightly prefers "default".
-      if (acpt_charset_list->count == 0) {
-        Qc     = (is_the_default_set ? 1.0001 : 1.000);
-        Idummy = 1;
-        Debug("body_factory_determine_set", "      SET: [%-8s] A-C not present => [ Qc=%g ]", set_name, Qc);
-      } else {
-        Qc = HttpCompat::match_accept_charset(body_set->content_charset, strlen(body_set->content_charset), acpt_charset_list,
-                                              &Idummy, true);
-        Debug("body_factory_determine_set", "      SET: [%-8s] A-C match value => [ Qc=%g ]", set_name, Qc);
-      }
-
-      /////////////////////////////////////////////////////////////////
-      // We get back the Q value, the matching field length, and the //
-      // matching field index.  We sort by largest Q value, but if   //
-      // there is a Q tie, we sub sort on longer matching length,    //
-      // and if there is a tie on Q and L, we sub sort on position   //
-      // index, preferring values earlier in Accept-Language list.   //
-      /////////////////////////////////////////////////////////////////
-
-      Q = std::min(Ql, Qc);
-
-      //////////////////////////////////////////////////////////
-      // normally the Q for default pages should be slightly  //
-      // less than for normal pages, but default pages should //
-      // always match to a slight level, in case everything   //
-      // else doesn't match (matches with Q=0).               //
-      //////////////////////////////////////////////////////////
-
-      if (is_the_default_set) {
-        Q = Q + -0.00005;
-        if (Q < 0.00001) {
-          Q = 0.00001;
-        }
-      }
-
-      Debug("body_factory_determine_set", "      NEW: [ set='%s', Q=%g, La=%d, Lc=%d, I=%d ]", set_name, Q, La, Lc, I);
-      Debug("body_factory_determine_set", "      OLD: [ set='%s', Q=%g, La=%d, Lc=%d, I=%d ]", set_best, Q_best, La_best, Lc_best,
-            I_best);
-
-      if (((Q > Q_best)) || ((Q == Q_best) && (La > La_best)) || ((Q == Q_best) && (La == La_best) && (Lc < Lc_best)) ||
-          ((Q == Q_best) && (La == La_best) && (Lc == Lc_best) && (I < I_best))) {
-        Q_best   = Q;
-        La_best  = La;
-        Lc_best  = Lc;
-        I_best   = I;
-        set_best = set_name;
-
-        Debug("body_factory_determine_set", "   WINNER: [ set_best='%s', Q=%g, La=%d, Lc=%d, I=%d ]", set_best, Q_best, La_best,
-              Lc_best, I_best);
-      } else {
-        Debug("body_factory_determine_set", "    LOSER: [ set_best='%s', Q=%g, La=%d, Lc=%d, I=%d ]", set_best, Q_best, La_best,
-              Lc_best, I_best);
-      }
-    }
-  }
-
-done:
-
-  *Q_best_ptr  = Q_best;
-  *La_best_ptr = La_best;
-  *Lc_best_ptr = Lc_best;
-  *I_best_ptr  = I_best;
-  return (set_best);
 }

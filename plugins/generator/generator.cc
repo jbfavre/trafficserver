@@ -80,7 +80,7 @@ static uint8_t GeneratorData[32 * 1024];
 static int StatCountBytes     = -1;
 static int StatCountResponses = -1;
 
-static int GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata);
+static int GeneratorInterceptHook(TSCont contp, TSEvent event, void *edata);
 static int GeneratorTxnHook(TSCont contp, TSEvent event, void *edata);
 
 struct GeneratorRequest;
@@ -109,11 +109,11 @@ lengthof(const char (&)[N])
 // for each TSVConn; one to push data into the TSVConn and one to pull
 // data out.
 struct IOChannel {
-  TSVIO vio;
+  TSVIO vio = nullptr;
   TSIOBuffer iobuf;
   TSIOBufferReader reader;
 
-  IOChannel() : vio(nullptr), iobuf(TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K)), reader(TSIOBufferReaderAlloc(iobuf)) {}
+  IOChannel() : iobuf(TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K)), reader(TSIOBufferReaderAlloc(iobuf)) {}
   ~IOChannel()
   {
     if (this->reader) {
@@ -163,10 +163,10 @@ struct GeneratorHttpHeader {
 };
 
 struct GeneratorRequest {
-  off_t nbytes; // Number of bytes to generate.
-  unsigned flags;
-  unsigned delay;  // Milliseconds to delay before sending a response.
-  unsigned maxage; // Max age for cache responses.
+  off_t nbytes   = 0; // Number of bytes to generate.
+  unsigned flags = 0;
+  unsigned delay = 0; // Milliseconds to delay before sending a response.
+  unsigned maxage;    // Max age for cache responses.
   IOChannel readio;
   IOChannel writeio;
   GeneratorHttpHeader rqheader;
@@ -176,11 +176,11 @@ struct GeneratorRequest {
     ISHEAD    = 0x0002,
   };
 
-  GeneratorRequest() : nbytes(0), flags(0), delay(0), maxage(60 * 60 * 24) {}
-  ~GeneratorRequest() {}
+  GeneratorRequest() : maxage(60 * 60 * 24) {}
+  ~GeneratorRequest() = default;
 };
 
-// Destroy a generator request, iincluding the per-txn continuation.
+// Destroy a generator request, including the per-txn continuation.
 static void
 GeneratorRequestDestroy(GeneratorRequest *grq, TSVIO vio, TSCont contp)
 {
@@ -284,17 +284,26 @@ GeneratorGetRequestHeader(GeneratorHttpHeader &request, const char *field_name, 
   return default_value;
 }
 
-static void
+static TSReturnCode
 GeneratorWriteResponseHeader(GeneratorRequest *grq, TSCont contp)
 {
   GeneratorHttpHeader response;
 
   VDEBUG("writing response header");
 
-  TSReleaseAssert(TSHttpHdrTypeSet(response.buffer, response.header, TS_HTTP_TYPE_RESPONSE) == TS_SUCCESS);
-  TSReleaseAssert(TSHttpHdrVersionSet(response.buffer, response.header, TS_HTTP_VERSION(1, 1)) == TS_SUCCESS);
+  if (TSHttpHdrTypeSet(response.buffer, response.header, TS_HTTP_TYPE_RESPONSE) != TS_SUCCESS) {
+    VERROR("failed to set type");
+    return TS_ERROR;
+  }
+  if (TSHttpHdrVersionSet(response.buffer, response.header, TS_HTTP_VERSION(1, 1)) != TS_SUCCESS) {
+    VERROR("failed to set HTTP version");
+    return TS_ERROR;
+  }
+  if (TSHttpHdrStatusSet(response.buffer, response.header, TS_HTTP_STATUS_OK) != TS_SUCCESS) {
+    VERROR("failed to set HTTP status");
+    return TS_ERROR;
+  }
 
-  TSReleaseAssert(TSHttpHdrStatusSet(response.buffer, response.header, TS_HTTP_STATUS_OK) == TS_SUCCESS);
   TSHttpHdrReasonSet(response.buffer, response.header, TSHttpHdrReasonLookup(TS_HTTP_STATUS_OK), -1);
 
   // Set the Content-Length header.
@@ -320,6 +329,8 @@ GeneratorWriteResponseHeader(GeneratorRequest *grq, TSCont contp)
   TSVIOReenable(grq->writeio.vio);
 
   TSStatIntIncrement(StatCountBytes, hdrlen);
+
+  return TS_SUCCESS;
 }
 
 static bool
@@ -346,8 +357,16 @@ GeneratorParseRequest(GeneratorRequest *grq)
   grq->maxage = GeneratorGetRequestHeader(grq->rqheader, "Generator-MaxAge", lengthof("Generator-MaxAge"), grq->maxage);
 
   // Next, parse our parameters out of the URL.
-  TSReleaseAssert(TSHttpHdrUrlGet(grq->rqheader.buffer, grq->rqheader.header, &url) == TS_SUCCESS);
-  TSReleaseAssert(path = TSUrlPathGet(grq->rqheader.buffer, url, &pathsz));
+  if (TSHttpHdrUrlGet(grq->rqheader.buffer, grq->rqheader.header, &url) != TS_SUCCESS) {
+    VERROR("failed to get URI handle");
+    return false;
+  }
+
+  path = TSUrlPathGet(grq->rqheader.buffer, url, &pathsz);
+  if (!path) {
+    VDEBUG("empty path");
+    return false;
+  }
 
   VDEBUG("requested path is %.*s", pathsz, path);
 
@@ -406,7 +425,7 @@ fail:
 // starts with TS_EVENT_NET_ACCEPT, and then continues with
 // TSVConn events.
 static int
-GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata)
+GeneratorInterceptHook(TSCont contp, TSEvent event, void *edata)
 {
   argument_type arg(edata);
 
@@ -456,7 +475,6 @@ GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata)
     VDEBUG("reading vio=%p vc=%p, grq=%p", arg.vio, TSVIOVConnGet(arg.vio), cdata.grq);
 
     TSIOBufferBlock blk;
-    ssize_t consumed     = 0;
     TSParseResult result = TS_PARSE_CONT;
 
     for (blk = TSIOBufferReaderStart(cdata.grq->readio.reader); blk; blk = TSIOBufferBlockNext(blk)) {
@@ -500,16 +518,18 @@ GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata)
 
         if (cdata.grq->delay > 0) {
           VDEBUG("delaying response by %ums", cdata.grq->delay);
-          TSContSchedule(contp, cdata.grq->delay, TS_THREAD_POOL_NET);
+          TSContScheduleOnPool(contp, cdata.grq->delay, TS_THREAD_POOL_NET);
           return TS_EVENT_NONE;
         }
 
-        GeneratorWriteResponseHeader(cdata.grq, contp);
+        if (GeneratorWriteResponseHeader(cdata.grq, contp) != TS_SUCCESS) {
+          VERROR("failure writing response");
+          return TS_EVENT_ERROR;
+        }
         return TS_EVENT_NONE;
 
       case TS_PARSE_CONT:
-        // We consumed the buffer we got minus the remainder.
-        consumed += (nbytes - std::distance(ptr, end));
+        break;
       }
     }
 
@@ -526,7 +546,7 @@ GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata)
     if (cdata.grq->nbytes) {
       int64_t nbytes;
 
-      if (cdata.grq->nbytes >= (ssize_t)sizeof(GeneratorData)) {
+      if (cdata.grq->nbytes >= static_cast<ssize_t>(sizeof(GeneratorData))) {
         nbytes = sizeof(GeneratorData);
       } else {
         nbytes = cdata.grq->nbytes % sizeof(GeneratorData);
@@ -580,7 +600,10 @@ GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata)
     // Our response delay expired, so write the headers now, which
     // will also trigger the read+write event flow.
     argument_type cdata = TSContDataGet(contp);
-    GeneratorWriteResponseHeader(cdata.grq, contp);
+    if (GeneratorWriteResponseHeader(cdata.grq, contp) != TS_SUCCESS) {
+      VERROR("failure writing response");
+      return TS_EVENT_ERROR;
+    }
     return TS_EVENT_NONE;
   }
 
@@ -594,6 +617,21 @@ GeneratorInterceptionHook(TSCont contp, TSEvent event, void *edata)
   }
 }
 
+// Little helper function, to turn off the cache on requests which aren't cacheable to begin with.
+// This helps performance, a lot.
+static void
+CheckCacheable(TSHttpTxn txnp, TSMLoc url, TSMBuffer bufp)
+{
+  int pathsz       = 0;
+  const char *path = TSUrlPathGet(bufp, url, &pathsz);
+
+  if (path && (pathsz >= 8) && (0 == memcmp(path, "nocache/", 8))) {
+    // It's not cacheable, so, turn off the cache. This avoids major serialization and performance issues.
+    VDEBUG("turning off the cache, uncacehable");
+    TSHttpTxnConfigIntSet(txnp, TS_CONFIG_HTTP_CACHE_HTTP, 0);
+  }
+}
+
 // Handle events that occur on the TSHttpTxn.
 static int
 GeneratorTxnHook(TSCont contp, TSEvent event, void *edata)
@@ -603,16 +641,33 @@ GeneratorTxnHook(TSCont contp, TSEvent event, void *edata)
   VDEBUG("contp=%p, event=%s (%d), edata=%p", contp, TSHttpEventNameLookup(event), event, edata);
 
   switch (event) {
+  case TS_EVENT_HTTP_READ_REQUEST_HDR: {
+    TSMBuffer recp;
+    TSMLoc url_loc;
+    TSMLoc hdr_loc;
+
+    if (TSHttpTxnClientReqGet(arg.txn, &recp, &hdr_loc) != TS_SUCCESS) {
+      VERROR("failed to get client request handle");
+      break;
+    }
+    if (TSHttpHdrUrlGet(recp, hdr_loc, &url_loc) != TS_SUCCESS) {
+      VERROR("failed to get URI handle");
+      break;
+    }
+    CheckCacheable(arg.txn, url_loc, recp);
+    TSHandleMLocRelease(recp, hdr_loc, url_loc);
+    TSHandleMLocRelease(recp, TS_NULL_MLOC, hdr_loc);
+    break;
+  }
+
   case TS_EVENT_HTTP_CACHE_LOOKUP_COMPLETE: {
     int status;
 
-    TSReleaseAssert(TSHttpTxnCacheLookupStatusGet(arg.txn, &status) == TS_SUCCESS);
-    if (status != TS_CACHE_LOOKUP_HIT_FRESH) {
+    if (TSHttpTxnCacheLookupStatusGet(arg.txn, &status) == TS_SUCCESS && status != TS_CACHE_LOOKUP_HIT_FRESH) {
       // This transaction is going to be a cache miss, so intercept it.
-      VDEBUG("intercepting orgin server request for txn=%p", arg.txn);
-      TSHttpTxnServerIntercept(TSContCreate(GeneratorInterceptionHook, TSMutexCreate()), arg.txn);
+      VDEBUG("intercepting origin server request for txn=%p", arg.txn);
+      TSHttpTxnServerIntercept(TSContCreate(GeneratorInterceptHook, TSMutexCreate()), arg.txn);
     }
-
     break;
   }
 
@@ -642,7 +697,7 @@ GeneratorInitialize()
 }
 
 void
-TSPluginInit(int /* argc */, const char * /* argv */ [])
+TSPluginInit(int /* argc */, const char * /* argv */[])
 {
   TSPluginRegistrationInfo info;
 
@@ -655,6 +710,10 @@ TSPluginInit(int /* argc */, const char * /* argv */ [])
   }
 
   GeneratorInitialize();
+
+  // We want to check early on if the request is cacheable or not, and if it's not cacheable,
+  // we benefit signifciantly from turning off the cache completely.
+  TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, TxnHook);
 
   // Wait until after the cache lookup to decide whether to
   // intercept a request. For cache hits we will never intercept.
@@ -669,15 +728,22 @@ TSRemapInit(TSRemapInterface * /* api_info */, char * /* errbuf */, int /* errbu
 }
 
 TSRemapStatus
-TSRemapDoRemap(void * /* ih */, TSHttpTxn txn, TSRemapRequestInfo * /* rri ATS_UNUSED */)
+TSRemapDoRemap(void * /* ih */, TSHttpTxn txn, TSRemapRequestInfo *rri)
 {
+  const TSHttpStatus txnstat = TSHttpTxnStatusGet(txn);
+  if (txnstat != TS_HTTP_STATUS_NONE && txnstat != TS_HTTP_STATUS_OK) {
+    VDEBUG("transaction status_code=%d already set; skipping processing", static_cast<int>(txnstat));
+    return TSREMAP_NO_REMAP;
+  }
+
+  // Check if we should turn off the cache before doing anything else ...
+  CheckCacheable(txn, rri->requestUrl, rri->requestBufp);
   TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, TxnHook);
   return TSREMAP_NO_REMAP; // This plugin never rewrites anything.
 }
 
 TSReturnCode
-TSRemapNewInstance(int /* argc */, char * /* argv */ [], void **ih, char * /* errbuf ATS_UNUSED */,
-                   int /* errbuf_size ATS_UNUSED */)
+TSRemapNewInstance(int /* argc */, char * /* argv */[], void **ih, char * /* errbuf ATS_UNUSED */, int /* errbuf_size ATS_UNUSED */)
 {
   *ih = nullptr;
   return TS_SUCCESS;

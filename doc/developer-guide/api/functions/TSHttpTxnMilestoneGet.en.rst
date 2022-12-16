@@ -27,7 +27,9 @@ Get a specified :arg:`milestone` timer value for the current transaction.
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 .. function:: TSReturnCode TSHttpTxnMilestoneGet(TSHttpTxn txnp, TSMilestonesType milestone, TSHRTime * time)
 
@@ -82,7 +84,7 @@ is successful.
 
 	.. macro:: TS_MILESTONE_SERVER_FIRST_CONNECT
 
-		First time origin server connect attempted or shared shared session attached.
+		First time origin server connect attempted or shared session attached.
 
 	.. macro:: TS_MILESTONE_SERVER_CONNECT
 
@@ -138,7 +140,7 @@ is successful.
 
 	.. macro:: TS_MILESTONE_LAST_ENTRY
 
-		A psuedo index which is set to be one more than the last valid index. This is useful for looping over the data.
+		A pseudo index which is set to be one more than the last valid index. This is useful for looping over the data.
 
 
 *  The server connect times predate the transmission of the :literal:`SYN`

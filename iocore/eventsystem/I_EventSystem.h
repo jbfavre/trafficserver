@@ -26,6 +26,7 @@
 #define _I_EventSystem_h
 
 #include "tscore/ink_platform.h"
+#include "ts/apidefs.h"
 
 #include "I_IOBuffer.h"
 #include "I_Action.h"
@@ -44,9 +45,6 @@
 #include "records/I_RecProcess.h"
 #include "I_SocketManager.h"
 
-#define EVENT_SYSTEM_MODULE_MAJOR_VERSION 1
-#define EVENT_SYSTEM_MODULE_MINOR_VERSION 0
-#define EVENT_SYSTEM_MODULE_VERSION \
-  makeModuleVersion(EVENT_SYSTEM_MODULE_MAJOR_VERSION, EVENT_SYSTEM_MODULE_MINOR_VERSION, PUBLIC_MODULE_HEADER)
+static constexpr ts::ModuleVersion EVENT_SYSTEM_MODULE_PUBLIC_VERSION(1, 0, ts::ModuleVersion::PUBLIC);
 
-void ink_event_system_init(ModuleVersion version);
+void ink_event_system_init(ts::ModuleVersion version);

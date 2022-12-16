@@ -34,6 +34,7 @@
 #include "I_EventProcessor.h"
 
 const ink_hrtime DELAY_FOR_RETRY = HRTIME_MSECONDS(10);
+extern ink_thread_key ethread_key;
 
 TS_INLINE Event *
 EThread::schedule_imm(Continuation *cont, int callback_event, void *cookie)
@@ -42,15 +43,6 @@ EThread::schedule_imm(Continuation *cont, int callback_event, void *cookie)
   e->callback_event = callback_event;
   e->cookie         = cookie;
   return schedule(e->init(cont, 0, 0));
-}
-
-TS_INLINE Event *
-EThread::schedule_imm_signal(Continuation *cont, int callback_event, void *cookie)
-{
-  Event *e          = ::eventAllocator.alloc();
-  e->callback_event = callback_event;
-  e->cookie         = cookie;
-  return schedule(e->init(cont, 0, 0), true);
 }
 
 TS_INLINE Event *
@@ -85,17 +77,31 @@ EThread::schedule_every(Continuation *cont, ink_hrtime t, int callback_event, vo
 }
 
 TS_INLINE Event *
-EThread::schedule(Event *e, bool fast_signal)
+EThread::schedule(Event *e)
 {
   e->ethread = this;
-  ink_assert(tt == REGULAR);
+  if (tt != REGULAR) {
+    ink_assert(tt == DEDICATED);
+    return eventProcessor.schedule(e, ET_CALL);
+  }
   if (e->continuation->mutex) {
     e->mutex = e->continuation->mutex;
   } else {
     e->mutex = e->continuation->mutex = e->ethread->mutex;
   }
   ink_assert(e->mutex.get());
-  EventQueueExternal.enqueue(e, fast_signal);
+
+  // Make sure client IP debugging works consistently
+  // The continuation that gets scheduled later is not always the
+  // client VC, it can be HttpCacheSM etc. so save the flags
+  e->continuation->control_flags.set_flags(get_cont_flags().get_flags());
+
+  if (e->ethread == this_ethread()) {
+    EventQueueExternal.enqueue_local(e);
+  } else {
+    EventQueueExternal.enqueue(e);
+  }
+
   return e;
 }
 
@@ -153,6 +159,11 @@ EThread::schedule_local(Event *e)
     ink_assert(e->ethread == this);
   }
   e->globally_allocated = false;
+
+  // Make sure client IP debugging works consistently
+  // The continuation that gets scheduled later is not always the
+  // client VC, it can be HttpCacheSM etc. so save the flags
+  e->continuation->control_flags.set_flags(get_cont_flags().get_flags());
   EventQueueExternal.enqueue_local(e);
   return e;
 }
@@ -176,7 +187,20 @@ EThread::schedule_spawn(Continuation *c, int ev, void *cookie)
 TS_INLINE EThread *
 this_ethread()
 {
-  return (EThread *)this_thread();
+  // The `dynamic_cast` has a significant performance impact (~6%).
+  // Reported by masaori and create PR #6281 to fix it.
+  return static_cast<EThread *>(ink_thread_getspecific(ethread_key));
+}
+
+TS_INLINE EThread *
+this_event_thread()
+{
+  EThread *ethread = this_ethread();
+  if (ethread != nullptr && ethread->tt == REGULAR) {
+    return ethread;
+  } else {
+    return nullptr;
+  }
 }
 
 TS_INLINE void

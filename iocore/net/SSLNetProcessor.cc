@@ -26,7 +26,8 @@
 #include "records/I_RecHttp.h"
 #include "P_SSLUtils.h"
 #include "P_OCSPStapling.h"
-#include "P_SSLSNI.h"
+#include "SSLStats.h"
+#include "P_SSLClientCoordinator.h"
 
 //
 // Global Data
@@ -34,7 +35,6 @@
 
 SSLNetProcessor ssl_NetProcessor;
 NetProcessor &sslNetProcessor = ssl_NetProcessor;
-SNIActionPerformer sni_action_performer;
 
 #if TS_USE_TLS_OCSP
 struct OCSPContinuation : public Continuation {
@@ -60,9 +60,8 @@ SSLNetProcessor::start(int, size_t stacksize)
 {
   // This initialization order matters ...
   SSLInitializeLibrary();
-  SSLConfig::startup();
+  SSLClientCoordinator::startup();
   SSLPostConfigInitialize();
-  SNIConfig::startup();
 
   if (!SSLCertificateConfig::startup()) {
     return -1;

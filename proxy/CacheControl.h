@@ -23,14 +23,13 @@
 
 /*****************************************************************************
  *
- *  CacheControl.h - Interface to Cache Control systtem
+ *  CacheControl.h - Interface to Cache Control system
  *
  *
  ****************************************************************************/
 
 #pragma once
 
-#include "Main.h"
 #include "P_EventSystem.h"
 #include "ControlBase.h"
 #include "tscore/Result.h"
@@ -64,7 +63,7 @@ class CacheControlResult
 {
 public:
   inkcoreapi CacheControlResult();
-  void Print();
+  void Print() const;
 
   // Data for external use
   //
@@ -73,43 +72,31 @@ public:
   int revalidate_after;
   int pin_in_cache_for;
   int ttl_in_cache;
-  bool never_cache;
-  bool ignore_client_no_cache;
-  bool ignore_server_no_cache;
-  bool ignore_client_cc_max_age;
-  int cache_responses_to_cookies; ///< Override for caching cookied responses.
+  bool never_cache               = false;
+  bool ignore_client_no_cache    = false;
+  bool ignore_server_no_cache    = false;
+  bool ignore_client_cc_max_age  = true;
+  int cache_responses_to_cookies = -1; ///< Override for caching cookied responses.
 
   // Data for internal use only
   //
   //   Keeps track of the last line number
   //    on which a parameter was set
   //   Used to tell if a parameter needs to
-  //    be overriden by something that appeared
+  //    be overridden by something that appeared
   //    earlier in the the config file
   //
-  int reval_line;
-  int never_line;
-  int pin_line;
-  int ttl_line;
-  int ignore_client_line;
-  int ignore_server_line;
+  int reval_line         = -1;
+  int never_line         = -1;
+  int pin_line           = -1;
+  int ttl_line           = -1;
+  int ignore_client_line = -1;
+  int ignore_server_line = -1;
 };
 
 inline CacheControlResult::CacheControlResult()
-  : revalidate_after(CC_UNSET_TIME),
-    pin_in_cache_for(CC_UNSET_TIME),
-    ttl_in_cache(CC_UNSET_TIME),
-    never_cache(false),
-    ignore_client_no_cache(false),
-    ignore_server_no_cache(false),
-    ignore_client_cc_max_age(true),
-    cache_responses_to_cookies(-1), // do not change value
-    reval_line(-1),
-    never_line(-1),
-    pin_line(-1),
-    ttl_line(-1),
-    ignore_client_line(-1),
-    ignore_server_line(-1)
+  : revalidate_after(CC_UNSET_TIME), pin_in_cache_for(CC_UNSET_TIME), ttl_in_cache(CC_UNSET_TIME)
+
 {
 }
 
@@ -117,17 +104,15 @@ class CacheControlRecord : public ControlBase
 {
 public:
   CacheControlRecord();
-  CacheControlType directive;
-  int time_arg;
-  int cache_responses_to_cookies;
+  CacheControlType directive     = CC_INVALID;
+  int time_arg                   = 0;
+  int cache_responses_to_cookies = -1;
   Result Init(matcher_line *line_info);
   inkcoreapi void UpdateMatch(CacheControlResult *result, RequestData *rdata);
-  void Print();
+  void Print() const;
 };
 
-inline CacheControlRecord::CacheControlRecord() : ControlBase(), directive(CC_INVALID), time_arg(0), cache_responses_to_cookies(-1)
-{
-}
+inline CacheControlRecord::CacheControlRecord() : ControlBase() {}
 
 //
 // API to outside world
@@ -136,7 +121,7 @@ class URL;
 struct HttpConfigParams;
 struct OverridableHttpConfigParams;
 
-inkcoreapi void getCacheControl(CacheControlResult *result, HttpRequestData *rdata, OverridableHttpConfigParams *h_txn_conf,
+inkcoreapi void getCacheControl(CacheControlResult *result, HttpRequestData *rdata, const OverridableHttpConfigParams *h_txn_conf,
                                 char *tag = nullptr);
 inkcoreapi bool host_rule_in_CacheControlTable();
 inkcoreapi bool ip_rule_in_CacheControlTable();

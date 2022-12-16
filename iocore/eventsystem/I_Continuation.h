@@ -23,7 +23,7 @@
   @section details Details
 
   Continuations have a handleEvent() method to invoke them. Users
-  can determine the behavior of a Continuation by suppling a
+  can determine the behavior of a Continuation by supplying a
   "ContinuationHandler" (member function name) which is invoked
   when events arrive. This function can be changed with the
   "setHandler" method.
@@ -45,6 +45,10 @@ class ContinuationQueue;
 class Processor;
 class ProxyMutex;
 class EThread;
+class Event;
+
+extern EThread *this_ethread();
+extern EThread *this_event_thread();
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -58,6 +62,35 @@ class EThread;
 #define CONTINUATION_CONT 1
 
 typedef int (Continuation::*ContinuationHandler)(int event, void *data);
+
+// Convert event handler pointer fp to type ContinuationHandler, but with a compiler error if class C is not
+// derived from the class Continuation.
+//
+template <class C, typename T>
+constexpr ContinuationHandler
+continuation_handler_void_ptr(int (C::*fp)(int, T *))
+{
+  auto fp2 = reinterpret_cast<int (C::*)(int, void *)>(fp);
+  return static_cast<ContinuationHandler>(fp2);
+}
+
+// Overload for nullptr.
+//
+constexpr ContinuationHandler continuation_handler_void_ptr(std::nullptr_t)
+{
+#undef X
+#if !defined(__GNUC__)
+#define X 1
+#else
+#define X (__GNUC__ > 7)
+#endif
+#if X
+  static_assert(!static_cast<ContinuationHandler>(nullptr));
+#endif
+#undef X
+
+  return static_cast<ContinuationHandler>(nullptr);
+}
 
 class force_VFPT_to_top
 {
@@ -141,22 +174,48 @@ public:
   */
   ContFlags control_flags;
 
+  EThread *thread_affinity = nullptr;
+
+  bool
+  setThreadAffinity(EThread *ethread)
+  {
+    if (ethread != nullptr) {
+      thread_affinity = ethread;
+      return true;
+    }
+    return false;
+  }
+
+  EThread *
+  getThreadAffinity()
+  {
+    return thread_affinity;
+  }
+
+  void
+  clearThreadAffinity()
+  {
+    thread_affinity = nullptr;
+  }
+
   /**
     Receives the event code and data for an Event.
 
     This function receives the event code and data for an event and
     forwards them to the current continuation handler. The processor
     calling back the continuation is responsible for acquiring its
-    lock.
+    lock.  If the lock is present and not held, this method will assert.
 
     @param event Event code to be passed at callback (Processor specific).
     @param data General purpose data related to the event code (Processor specific).
     @return State machine and processor specific return code.
 
   */
-  int
+  TS_INLINE int
   handleEvent(int event = CONTINUATION_EVENT_NONE, void *data = nullptr)
   {
+    // If there is a lock, we must be holding it on entry
+    ink_release_assert(!mutex || mutex->thread_holding == this_ethread());
     return (this->*handler)(event, data);
   }
 
@@ -168,8 +227,8 @@ protected:
     @param amutex Lock to be set for this Continuation.
 
   */
-  Continuation(ProxyMutex *amutex = nullptr);
-  Continuation(Ptr<ProxyMutex> &amutex);
+  explicit Continuation(ProxyMutex *amutex = nullptr);
+  explicit Continuation(Ptr<ProxyMutex> &amutex);
 };
 
 /**
@@ -180,9 +239,9 @@ protected:
 
 */
 #ifdef DEBUG
-#define SET_HANDLER(_h) (handler = ((ContinuationHandler)_h), handler_name = #_h)
+#define SET_HANDLER(_h) (handler = continuation_handler_void_ptr(_h), handler_name = #_h)
 #else
-#define SET_HANDLER(_h) (handler = ((ContinuationHandler)_h))
+#define SET_HANDLER(_h) (handler = continuation_handler_void_ptr(_h))
 #endif
 
 /**
@@ -195,9 +254,9 @@ protected:
 
 */
 #ifdef DEBUG
-#define SET_CONTINUATION_HANDLER(_c, _h) (_c->handler = ((ContinuationHandler)_h), _c->handler_name = #_h)
+#define SET_CONTINUATION_HANDLER(_c, _h) (_c->handler = continuation_handler_void_ptr(_h), _c->handler_name = #_h)
 #else
-#define SET_CONTINUATION_HANDLER(_c, _h) (_c->handler = ((ContinuationHandler)_h))
+#define SET_CONTINUATION_HANDLER(_c, _h) (_c->handler = continuation_handler_void_ptr(_h))
 #endif
 
 inline Continuation::Continuation(Ptr<ProxyMutex> &amutex) : mutex(amutex)

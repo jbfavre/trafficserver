@@ -27,7 +27,9 @@ TSHttpOverridableConfig
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 
 .. function:: TSReturnCode TSHttpTxnConfigIntSet(TSHttpTxn txnp, TSOverridableConfigKey key, TSMgmtInt value)
@@ -43,7 +45,7 @@ Description
 
 Some of the values that are set in :file:`records.config` can be changed for a
 specific transaction. It is important to note that these functions change the
-configuration values stored for the transation, which is not quite the same as
+configuration values stored for the transaction, which is not quite the same as
 changing the actual operating values of the transaction. The critical effect is
 the value must be changed before it is used by the transaction - after that,
 changes will not have any effect.
@@ -80,7 +82,6 @@ TSOverridableConfigKey Value                                        Configuratio
 :c:macro:`TS_CONFIG_HTTP_BACKGROUND_FILL_COMPLETED_THRESHOLD`       :ts:cv:`proxy.config.http.background_fill_completed_threshold`
 :c:macro:`TS_CONFIG_HTTP_CACHE_CACHE_RESPONSES_TO_COOKIES`          :ts:cv:`proxy.config.http.cache.cache_responses_to_cookies`
 :c:macro:`TS_CONFIG_HTTP_CACHE_CACHE_URLS_THAT_LOOK_DYNAMIC`        :ts:cv:`proxy.config.http.cache.cache_urls_that_look_dynamic`
-:c:macro:`TS_CONFIG_HTTP_CACHE_ENABLE_DEFAULT_VARY_HEADER`          :ts:cv:`proxy.config.http.cache.enable_default_vary_headers`
 :c:macro:`TS_CONFIG_HTTP_CACHE_GENERATION`                          :ts:cv:`proxy.config.http.cache.generation`
 :c:macro:`TS_CONFIG_HTTP_CACHE_GUARANTEED_MAX_LIFETIME`             :ts:cv:`proxy.config.http.cache.guaranteed_max_lifetime`
 :c:macro:`TS_CONFIG_HTTP_CACHE_GUARANTEED_MIN_LIFETIME`             :ts:cv:`proxy.config.http.cache.guaranteed_min_lifetime`
@@ -105,9 +106,6 @@ TSOverridableConfigKey Value                                        Configuratio
 :c:macro:`TS_CONFIG_HTTP_CACHE_RANGE_LOOKUP`                        :ts:cv:`proxy.config.http.cache.range.lookup`
 :c:macro:`TS_CONFIG_HTTP_CACHE_RANGE_WRITE`                         :ts:cv:`proxy.config.http.cache.range.write`
 :c:macro:`TS_CONFIG_HTTP_CACHE_REQUIRED_HEADERS`                    :ts:cv:`proxy.config.http.cache.required_headers`
-:c:macro:`TS_CONFIG_HTTP_CACHE_VARY_DEFAULT_IMAGES`                 :ts:cv:`proxy.config.http.cache.vary_default_images`
-:c:macro:`TS_CONFIG_HTTP_CACHE_VARY_DEFAULT_OTHER`                  :ts:cv:`proxy.config.http.cache.vary_default_other`
-:c:macro:`TS_CONFIG_HTTP_CACHE_VARY_DEFAULT_TEXT`                   :ts:cv:`proxy.config.http.cache.vary_default_text`
 :c:macro:`TS_CONFIG_HTTP_CACHE_WHEN_TO_REVALIDATE`                  :ts:cv:`proxy.config.http.cache.when_to_revalidate`
 :c:macro:`TS_CONFIG_HTTP_CHUNKING_ENABLED`                          :ts:cv:`proxy.config.http.chunking_enabled`
 :c:macro:`TS_CONFIG_HTTP_CHUNKING_SIZE`                             :ts:cv:`proxy.config.http.chunking.size`
@@ -118,7 +116,6 @@ TSOverridableConfigKey Value                                        Configuratio
 :c:macro:`TS_CONFIG_HTTP_DEFAULT_BUFFER_SIZE`                       :ts:cv:`proxy.config.http.default_buffer_size`
 :c:macro:`TS_CONFIG_HTTP_DEFAULT_BUFFER_WATER_MARK`                 :ts:cv:`proxy.config.http.default_buffer_water_mark`
 :c:macro:`TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS`                     :ts:cv:`proxy.config.http.doc_in_cache_skip_dns`
-:c:macro:`TS_CONFIG_HTTP_DOWN_SERVER_ABORT_THRESHOLD`               :ts:cv:`proxy.config.http.down_server.abort_threshold`
 :c:macro:`TS_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME`                    :ts:cv:`proxy.config.http.down_server.cache_time`
 :c:macro:`TS_CONFIG_HTTP_FLOW_CONTROL_ENABLED`                      :ts:cv:`proxy.config.http.flow_control.enabled`
 :c:macro:`TS_CONFIG_HTTP_FLOW_CONTROL_HIGH_WATER_MARK`              :ts:cv:`proxy.config.http.flow_control.high_water`
@@ -142,8 +139,6 @@ TSOverridableConfigKey Value                                        Configuratio
 :c:macro:`TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_LIFETIME`            :ts:cv:`proxy.config.http.negative_revalidating_lifetime`
 :c:macro:`TS_CONFIG_HTTP_NORMALIZE_AE`                              :ts:cv:`proxy.config.http.normalize_ae`
 :c:macro:`TS_CONFIG_HTTP_NUMBER_OF_REDIRECTIONS`                    :ts:cv:`proxy.config.http.number_of_redirections`
-:c:macro:`TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS`                    :ts:cv:`proxy.config.http.origin_max_connections`
-:c:macro:`TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS_QUEUE`              :ts:cv:`proxy.config.http.origin_max_connections_queue`
 :c:macro:`TS_CONFIG_HTTP_PARENT_CONNECT_ATTEMPT_TIMEOUT`            :ts:cv:`proxy.config.http.parent_proxy.connect_attempts_timeout`
 :c:macro:`TS_CONFIG_HTTP_PARENT_PROXY_FAIL_THRESHOLD`               :ts:cv:`proxy.config.http.parent_proxy.fail_threshold`
 :c:macro:`TS_CONFIG_HTTP_PARENT_PROXY_RETRY_TIME`                   :ts:cv:`proxy.config.http.parent_proxy.retry_time`
@@ -154,14 +149,13 @@ TSOverridableConfigKey Value                                        Configuratio
 :c:macro:`TS_CONFIG_HTTP_POST_CHECK_CONTENT_LENGTH_ENABLED`         :ts:cv:`proxy.config.http.post.check.content_length.enabled`
 :c:macro:`TS_CONFIG_HTTP_POST_CONNECT_ATTEMPTS_TIMEOUT`             :ts:cv:`proxy.config.http.post_connect_attempts_timeout`
 :c:macro:`TS_CONFIG_HTTP_REDIRECT_USE_ORIG_CACHE_KEY`               :ts:cv:`proxy.config.http.redirect_use_orig_cache_key`
-TS_CONFIG_HTTP_REQUEST_BUFFER_ENABLED                               proxy.config.http.request_buffer_enabled
+:c:macro:`TS_CONFIG_HTTP_REQUEST_BUFFER_ENABLED`                    :ts:cv:`proxy.config.http.request_buffer_enabled`
 :c:macro:`TS_CONFIG_HTTP_REQUEST_HEADER_MAX_SIZE`                   :ts:cv:`proxy.config.http.request_header_max_size`
 :c:macro:`TS_CONFIG_HTTP_RESPONSE_HEADER_MAX_SIZE`                  :ts:cv:`proxy.config.http.response_header_max_size`
 :c:macro:`TS_CONFIG_HTTP_RESPONSE_SERVER_ENABLED`                   :ts:cv:`proxy.config.http.response_server_enabled`
 :c:macro:`TS_CONFIG_HTTP_RESPONSE_SERVER_STR`                       :ts:cv:`proxy.config.http.response_server_str`
 :c:macro:`TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS`                      :ts:cv:`proxy.config.http.send_http11_requests`
 :c:macro:`TS_CONFIG_HTTP_SERVER_SESSION_SHARING_MATCH`              :ts:cv:`proxy.config.http.server_session_sharing.match`
-:c:macro:`TS_CONFIG_HTTP_SERVER_TCP_INIT_CWND`                      :ts:cv:`proxy.config.http.server_tcp_init_cwnd`
 :c:macro:`TS_CONFIG_HTTP_SLOW_LOG_THRESHOLD`                        :ts:cv:`proxy.config.http.slow.log.threshold`
 :c:macro:`TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_IN`             :ts:cv:`proxy.config.http.transaction_active_timeout_in`
 :c:macro:`TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT`            :ts:cv:`proxy.config.http.transaction_active_timeout_out`
@@ -175,14 +169,20 @@ TS_CONFIG_HTTP_REQUEST_BUFFER_ENABLED                               proxy.config
 :c:macro:`TS_CONFIG_NET_SOCK_SEND_BUFFER_SIZE_OUT`                  :ts:cv:`proxy.config.net.sock_send_buffer_size_out`
 :c:macro:`TS_CONFIG_PARENT_FAILURES_UPDATE_HOSTDB`                  :ts:cv:`proxy.config.http.parent_proxy.mark_down_hostdb`
 :c:macro:`TS_CONFIG_SRV_ENABLED`                                    :ts:cv:`proxy.config.srv_enabled`
-:c:macro:`TS_CONFIG_SSL_CERT_FILENAME`                              :ts:cv:`proxy.config.ssl.client.cert.filename`
+:c:macro:`TS_CONFIG_SSL_CLIENT_CERT_FILENAME`                       :ts:cv:`proxy.config.ssl.client.cert.filename`
 :c:macro:`TS_CONFIG_SSL_CERT_FILEPATH`                              :ts:cv:`proxy.config.ssl.client.cert.path`
-TS_CONFIG_SSL_CLIENT_VERIFY_SERVER                                  :ts:cv:`proxy.config.ssl.client.verify.server`
+:c:macro:`TS_CONFIG_SSL_CLIENT_VERIFY_SERVER_PROPERTIES`            :ts:cv:`proxy.config.ssl.client.verify.server.properties`
+:c:macro:`TS_CONFIG_SSL_CLIENT_VERIFY_SERVER_POLICY`                :ts:cv:`proxy.config.ssl.client.verify.server.policy`
+:c:macro:`TS_CONFIG_SSL_CLIENT_SNI_POLICY`                          :ts:cv:`proxy.config.ssl.client.sni_policy`
 :c:macro:`TS_CONFIG_SSL_HSTS_INCLUDE_SUBDOMAINS`                    :ts:cv:`proxy.config.ssl.hsts_include_subdomains`
 :c:macro:`TS_CONFIG_SSL_HSTS_MAX_AGE`                               :ts:cv:`proxy.config.ssl.hsts_max_age`
 :c:macro:`TS_CONFIG_URL_REMAP_PRISTINE_HOST_HDR`                    :ts:cv:`proxy.config.url_remap.pristine_host_hdr`
 :c:macro:`TS_CONFIG_WEBSOCKET_ACTIVE_TIMEOUT`                       :ts:cv:`proxy.config.websocket.active_timeout`
 :c:macro:`TS_CONFIG_WEBSOCKET_NO_ACTIVITY_TIMEOUT`                  :ts:cv:`proxy.config.websocket.no_activity_timeout`
+:c:macro:`TS_CONFIG_SSL_CLIENT_CERT_FILENAME`                       :ts:cv:`proxy.config.ssl.client.cert.filename`
+:c:macro:`TS_CONFIG_SSL_CLIENT_PRIVATE_KEY_FILENAME`                :ts:cv:`proxy.config.ssl.client.private_key.filename`
+:c:macro:`TS_CONFIG_SSL_CLIENT_CA_CERT_FILENAME`                    :ts:cv:`proxy.config.ssl.client.CA.cert.filename`
+:c:macro:`TS_CONFIG_HTTP_HOST_RESOLUTION_PREFERENCE`                :ts:cv:`proxy.config.hostdb.ip_resolve`
 ==================================================================  ====================================================================
 
 Examples

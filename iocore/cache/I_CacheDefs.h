@@ -37,7 +37,7 @@ static const uint8_t CACHE_DB_MINOR_VERSION = 2;
 // This is used in various comparisons because otherwise if the minor version is 0,
 // the compile fails because the condition is always true or false. Running it through
 // VersionNumber prevents that.
-extern const VersionNumber CACHE_DB_VERSION;
+extern const ts::VersionNumber CACHE_DB_VERSION;
 
 static const uint8_t CACHE_DIR_MAJOR_VERSION = 18;
 static const uint8_t CACHE_DIR_MINOR_VERSION = 0;
@@ -113,11 +113,11 @@ enum CacheDataType {
 };
 
 enum CacheFragType {
-  CACHE_FRAG_TYPE_NONE,
-  CACHE_FRAG_TYPE_HTTP_V23, ///< DB version 23 or prior.
-  CACHE_FRAG_TYPE_RTSP,     ///< Should be removed once Cache Toolkit is implemented.
-  CACHE_FRAG_TYPE_HTTP,
-  NUM_CACHE_FRAG_TYPES
+  CACHE_FRAG_TYPE_NONE     = 0,
+  CACHE_FRAG_TYPE_UNUSED_1 = 1, //. Because of the history we need to occupy a space
+  CACHE_FRAG_TYPE_RTSP     = 2, ///< Should be removed once Cache Toolkit is implemented.
+  CACHE_FRAG_TYPE_HTTP     = 3,
+  NUM_CACHE_FRAG_TYPES     = 4
 };
 
 typedef CryptoHash CacheKey;

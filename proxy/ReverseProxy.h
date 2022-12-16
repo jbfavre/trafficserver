@@ -34,7 +34,6 @@
 
 #include "records/P_RecProcess.h"
 
-#include "tscore/ink_hash_table.h"
 #include "tscore/ink_defs.h"
 #include "HttpTransact.h"
 #include "RemapPluginInfo.h"
@@ -47,7 +46,6 @@ class url_mapping;
 struct host_hdr_info;
 
 extern UrlRewrite *rewrite_table;
-extern remap_plugin_info *remap_pi_list;
 
 // API Functions
 int init_reverse_proxy();
@@ -57,5 +55,6 @@ bool response_url_remap(HTTPHdr *response_header, UrlRewrite *table);
 
 // Reload Functions
 bool reloadUrlRewrite();
+bool urlRewriteVerify();
 
 int url_rewrite_CB(const char *name, RecDataT data_type, RecData data, void *cookie);

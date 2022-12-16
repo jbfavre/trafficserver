@@ -58,6 +58,8 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.current_client_transactions integer
    :type: gauge
 
+   Represents the current number of HTTP/1.0 and HTTP/1.1 transactions from client to the |TS|.
+
 .. ts:stat:: global proxy.process.http.current_server_connections integer
    :type: gauge
 
@@ -134,8 +136,18 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.origin_connections_throttled_out integer
    :type: counter
 
-This tracks the number of origin connections denied due to being over the :ts:cv:`proxy.config.http.origin_max_connections` limit.
+   This tracks the number of origin connections denied due to being over the :ts:cv:`proxy.config.http.per_server.connection.max` limit.
 
+.. ts:stat:: global proxy.process.http.pooled_server_connections integer
+   :type: counter
+
+   This metric tracks the number of server connections currently in the server session sharing pools. The server session sharing is
+   controlled by settings :ts:cv:`proxy.config.http.server_session_sharing.pool` and :ts:cv:`proxy.config.http.server_session_sharing.match`.
+
+.. ts:stat:: global proxy.process.http.dead_server.no_requests integer
+   :type: counter
+
+   Tracks the number of client requests that did not have a request sent to the origin server because the origin server was marked dead.
 
 HTTP/2
 ------

@@ -19,7 +19,7 @@
 import time
 
 Test.Summary = '''
-cache_range_requests X-Crr-Ims plugin test
+cache_range_requests X-CRR-IMS plugin test
 '''
 
 # Test description:
@@ -98,8 +98,6 @@ ts.Disk.plugin_config.AddLine('xdebug.so')
 
 # minimal configuration
 ts.Disk.records_config.update({
-    'proxy.config.http.cache.http': 1,
-    'proxy.config.http.wait_for_cache': 1,
     'proxy.config.diags.debug.enabled': 1,
     'proxy.config.diags.debug.tags': 'cache_range_requests',
 })
@@ -130,10 +128,10 @@ ps.ReturnCode = 0
 ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: hit", "expected cache hit")
 tr.StillRunningAfter = ts
 
-# 2 Test - Ensure X-Crr-Ims header results in hit-stale
-tr = Test.AddTestRun("0- range X-Crr-Ims check")
+# 2 Test - Ensure X-CRR-IMS header results in hit-stale
+tr = Test.AddTestRun("0- range X-CRR-IMS check")
 ps = tr.Processes.Default
-ps.Command = curl_and_args + ' http://www.example.com/path -r 0- -H "X-Crr-Ims: {}"'.format(futurestr)
+ps.Command = curl_and_args + ' http://www.example.com/path -r 0- -H "X-CRR-IMS: {}"'.format(futurestr)
 ps.ReturnCode = 0
 ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: hit-stale", "expected cache hit-stale")
 tr.StillRunningAfter = ts

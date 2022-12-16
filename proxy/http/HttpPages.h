@@ -26,7 +26,7 @@
    HttpPages.h
 
    Description:
-       Data structurs and stat page generators for http info
+       Data structures and stat page generators for http info
 
 
  ****************************************************************************/
@@ -35,7 +35,6 @@
 
 #include "tscore/ink_platform.h"
 #include "P_EventSystem.h"
-#include "tscore/DynArray.h"
 #include "HTTP.h"
 #include "StatPages.h"
 #include "HttpSM.h"
