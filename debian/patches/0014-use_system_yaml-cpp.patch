@@ -17,7 +17,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
          proxy/http
 --- a/configure.ac
 +++ b/configure.ac
-@@ -2278,7 +2278,6 @@ AC_CONFIG_FILES([
+@@ -2282,7 +2282,6 @@ AC_CONFIG_FILES([
    include/ts/apidefs.h
    include/tscore/ink_config.h
    src/wccp/Makefile

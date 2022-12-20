@@ -6,11 +6,9 @@ Applied-Upstream: https://github.com/apache/trafficserver/commit/0a3369173b275e3
 Last-Update: 2022-05-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
-Index: trafficserver/doc/manpages.py
-===================================================================
---- trafficserver.orig/doc/manpages.py	2022-05-24 10:26:00.641693248 +0200
-+++ trafficserver/doc/manpages.py	2022-05-24 10:26:26.965519780 +0200
-@@ -19,36 +19,71 @@
+--- a/doc/manpages.py
++++ b/doc/manpages.py
+@@ -19,36 +19,71 @@ import os
  man_pages = [
      # Add all files in the reference/api directory to the list of manual
      # pages
