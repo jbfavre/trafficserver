@@ -12,11 +12,9 @@ Applied-Upstream: https://github.com/apache/trafficserver/commit/77ab48143cda306
 Last-Update: 2022-05-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
-Index: trafficserver/doc/conf.py
-===================================================================
---- trafficserver.orig/doc/conf.py	2022-05-24 10:26:05.741658135 +0200
-+++ trafficserver/doc/conf.py	2022-05-24 10:26:05.737658162 +0200
-@@ -38,6 +38,10 @@
+--- a/doc/conf.py
++++ b/doc/conf.py
+@@ -38,6 +38,10 @@ import sys
  import os
  from datetime import date
  from sphinx import version_info

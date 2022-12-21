@@ -1,3 +1,13 @@
+trafficserver (9.1.4+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.1.4+ds
+    - CVE-2022-32749 Improper Check for Unusual or Exceptional Conditions
+    - CVE-2022-37392 Improper Check for Unusual or Exceptional Conditions
+    - CVE-2022-40743 Improper Input Validation
+  * Patches refresh for 9.1.4
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 20 Dec 2022 15:15:32 +0100
+
 trafficserver (9.1.3+ds-3) unstable; urgency=medium
 
   * Replace deprecated /var/run references with /run

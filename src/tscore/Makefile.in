@@ -120,7 +120,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-noinst_PROGRAMS = mkdfa$(EXEEXT) CompileParseRules$(EXEEXT)
+noinst_PROGRAMS = CompileParseRules$(EXEEXT)
 check_PROGRAMS = test_geometry$(EXEEXT) \
 	test_X509HostnameValidator$(EXEEXT) test_tscore$(EXEEXT) \
 	$(am__EXEEXT_1)
@@ -214,9 +214,10 @@ am__libtscore_la_SOURCES_DIST = AcidPtr.cc Arena.cc ArgParser.cc \
 	MatcherUtils.cc MemArena.cc MMH.cc ParseRules.cc RbTree.cc \
 	Regex.cc Regression.cc runroot.cc signals.cc SourceLocation.cc \
 	TextBuffer.cc Tokenizer.cc ts_file.cc Version.cc \
-	X509HostnameValidator.cc HKDF_openssl.cc HKDF_boringssl.cc
-@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@am__objects_1 =  \
-@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@	HKDF_openssl.lo
+	X509HostnameValidator.cc HKDF_openssl.cc HKDF_openssl3.cc \
+	HKDF_boringssl.cc
+@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_FALSE@am__objects_1 = HKDF_openssl.lo
+@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_TRUE@am__objects_1 = HKDF_openssl3.lo
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_TRUE@am__objects_1 =  \
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_TRUE@	HKDF_boringssl.lo
 @HAS_HKDF_TRUE@am__objects_2 = $(am__objects_1)
@@ -248,9 +249,6 @@ libtscore_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am_CompileParseRules_OBJECTS = CompileParseRules.$(OBJEXT)
 CompileParseRules_OBJECTS = $(am_CompileParseRules_OBJECTS)
 CompileParseRules_LDADD = $(LDADD)
-am_mkdfa_OBJECTS = mkdfa.$(OBJEXT)
-mkdfa_OBJECTS = $(am_mkdfa_OBJECTS)
-mkdfa_LDADD = $(LDADD)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_test_X509HostnameValidator_OBJECTS = unit_tests/test_X509HostnameValidator-test_X509HostnameValidator.$(OBJEXT)
 test_X509HostnameValidator_OBJECTS =  \
@@ -345,35 +343,35 @@ am__depfiles_remade = ./$(DEPDIR)/AcidPtr.Plo ./$(DEPDIR)/Arena.Plo \
 	./$(DEPDIR)/CryptoHash.Plo ./$(DEPDIR)/Diags.Plo \
 	./$(DEPDIR)/Errata.Plo ./$(DEPDIR)/EventNotify.Plo \
 	./$(DEPDIR)/Extendible.Plo ./$(DEPDIR)/HKDF_boringssl.Plo \
-	./$(DEPDIR)/HKDF_openssl.Plo ./$(DEPDIR)/Hash.Plo \
-	./$(DEPDIR)/HashFNV.Plo ./$(DEPDIR)/HashMD5.Plo \
-	./$(DEPDIR)/HashSip.Plo ./$(DEPDIR)/HostLookup.Plo \
-	./$(DEPDIR)/InkErrno.Plo ./$(DEPDIR)/IpMap.Plo \
-	./$(DEPDIR)/IpMapConf.Plo ./$(DEPDIR)/JeAllocator.Plo \
-	./$(DEPDIR)/Layout.Plo ./$(DEPDIR)/MMH.Plo \
-	./$(DEPDIR)/MatcherUtils.Plo ./$(DEPDIR)/MemArena.Plo \
-	./$(DEPDIR)/ParseRules.Plo ./$(DEPDIR)/RbTree.Plo \
-	./$(DEPDIR)/Regex.Plo ./$(DEPDIR)/Regression.Plo \
-	./$(DEPDIR)/SourceLocation.Plo ./$(DEPDIR)/TextBuffer.Plo \
-	./$(DEPDIR)/Tokenizer.Plo ./$(DEPDIR)/Version.Plo \
-	./$(DEPDIR)/X509HostnameValidator.Plo ./$(DEPDIR)/fastlz.Plo \
-	./$(DEPDIR)/hugepages.Plo ./$(DEPDIR)/ink_args.Plo \
-	./$(DEPDIR)/ink_assert.Plo ./$(DEPDIR)/ink_base64.Plo \
-	./$(DEPDIR)/ink_cap.Plo ./$(DEPDIR)/ink_code.Plo \
-	./$(DEPDIR)/ink_defs.Plo ./$(DEPDIR)/ink_error.Plo \
-	./$(DEPDIR)/ink_file.Plo ./$(DEPDIR)/ink_hrtime.Plo \
-	./$(DEPDIR)/ink_inet.Plo ./$(DEPDIR)/ink_memory.Plo \
-	./$(DEPDIR)/ink_mutex.Plo ./$(DEPDIR)/ink_queue.Plo \
-	./$(DEPDIR)/ink_queue_utils.Plo ./$(DEPDIR)/ink_rand.Plo \
-	./$(DEPDIR)/ink_res_init.Plo ./$(DEPDIR)/ink_res_mkquery.Plo \
-	./$(DEPDIR)/ink_resource.Plo ./$(DEPDIR)/ink_rwlock.Plo \
-	./$(DEPDIR)/ink_sock.Plo ./$(DEPDIR)/ink_sprintf.Plo \
-	./$(DEPDIR)/ink_stack_trace.Plo ./$(DEPDIR)/ink_string++.Plo \
-	./$(DEPDIR)/ink_string.Plo ./$(DEPDIR)/ink_sys_control.Plo \
-	./$(DEPDIR)/ink_syslog.Plo ./$(DEPDIR)/ink_thread.Plo \
-	./$(DEPDIR)/ink_time.Plo ./$(DEPDIR)/ink_uuid.Plo \
-	./$(DEPDIR)/llqueue.Plo ./$(DEPDIR)/lockfile.Plo \
-	./$(DEPDIR)/mkdfa.Po ./$(DEPDIR)/runroot.Plo \
+	./$(DEPDIR)/HKDF_openssl.Plo ./$(DEPDIR)/HKDF_openssl3.Plo \
+	./$(DEPDIR)/Hash.Plo ./$(DEPDIR)/HashFNV.Plo \
+	./$(DEPDIR)/HashMD5.Plo ./$(DEPDIR)/HashSip.Plo \
+	./$(DEPDIR)/HostLookup.Plo ./$(DEPDIR)/InkErrno.Plo \
+	./$(DEPDIR)/IpMap.Plo ./$(DEPDIR)/IpMapConf.Plo \
+	./$(DEPDIR)/JeAllocator.Plo ./$(DEPDIR)/Layout.Plo \
+	./$(DEPDIR)/MMH.Plo ./$(DEPDIR)/MatcherUtils.Plo \
+	./$(DEPDIR)/MemArena.Plo ./$(DEPDIR)/ParseRules.Plo \
+	./$(DEPDIR)/RbTree.Plo ./$(DEPDIR)/Regex.Plo \
+	./$(DEPDIR)/Regression.Plo ./$(DEPDIR)/SourceLocation.Plo \
+	./$(DEPDIR)/TextBuffer.Plo ./$(DEPDIR)/Tokenizer.Plo \
+	./$(DEPDIR)/Version.Plo ./$(DEPDIR)/X509HostnameValidator.Plo \
+	./$(DEPDIR)/fastlz.Plo ./$(DEPDIR)/hugepages.Plo \
+	./$(DEPDIR)/ink_args.Plo ./$(DEPDIR)/ink_assert.Plo \
+	./$(DEPDIR)/ink_base64.Plo ./$(DEPDIR)/ink_cap.Plo \
+	./$(DEPDIR)/ink_code.Plo ./$(DEPDIR)/ink_defs.Plo \
+	./$(DEPDIR)/ink_error.Plo ./$(DEPDIR)/ink_file.Plo \
+	./$(DEPDIR)/ink_hrtime.Plo ./$(DEPDIR)/ink_inet.Plo \
+	./$(DEPDIR)/ink_memory.Plo ./$(DEPDIR)/ink_mutex.Plo \
+	./$(DEPDIR)/ink_queue.Plo ./$(DEPDIR)/ink_queue_utils.Plo \
+	./$(DEPDIR)/ink_rand.Plo ./$(DEPDIR)/ink_res_init.Plo \
+	./$(DEPDIR)/ink_res_mkquery.Plo ./$(DEPDIR)/ink_resource.Plo \
+	./$(DEPDIR)/ink_rwlock.Plo ./$(DEPDIR)/ink_sock.Plo \
+	./$(DEPDIR)/ink_sprintf.Plo ./$(DEPDIR)/ink_stack_trace.Plo \
+	./$(DEPDIR)/ink_string++.Plo ./$(DEPDIR)/ink_string.Plo \
+	./$(DEPDIR)/ink_sys_control.Plo ./$(DEPDIR)/ink_syslog.Plo \
+	./$(DEPDIR)/ink_thread.Plo ./$(DEPDIR)/ink_time.Plo \
+	./$(DEPDIR)/ink_uuid.Plo ./$(DEPDIR)/llqueue.Plo \
+	./$(DEPDIR)/lockfile.Plo ./$(DEPDIR)/runroot.Plo \
 	./$(DEPDIR)/signals.Plo ./$(DEPDIR)/test_atomic.Po \
 	./$(DEPDIR)/test_freelist.Po ./$(DEPDIR)/test_geometry.Po \
 	./$(DEPDIR)/ts_file.Plo \
@@ -444,11 +442,11 @@ am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
 SOURCES = $(libtscore_la_SOURCES) $(CompileParseRules_SOURCES) \
-	$(mkdfa_SOURCES) $(test_X509HostnameValidator_SOURCES) \
-	$(test_atomic_SOURCES) $(test_freelist_SOURCES) \
-	$(test_geometry_SOURCES) $(test_tscore_SOURCES)
+	$(test_X509HostnameValidator_SOURCES) $(test_atomic_SOURCES) \
+	$(test_freelist_SOURCES) $(test_geometry_SOURCES) \
+	$(test_tscore_SOURCES)
 DIST_SOURCES = $(am__libtscore_la_SOURCES_DIST) \
-	$(CompileParseRules_SOURCES) $(mkdfa_SOURCES) \
+	$(CompileParseRules_SOURCES) \
 	$(test_X509HostnameValidator_SOURCES) $(test_atomic_SOURCES) \
 	$(test_freelist_SOURCES) $(test_geometry_SOURCES) \
 	$(am__test_tscore_SOURCES_DIST)
@@ -1035,9 +1033,9 @@ libtscore_la_SOURCES = AcidPtr.cc Arena.cc ArgParser.cc BaseLogFile.cc \
 	Regex.cc Regression.cc runroot.cc signals.cc SourceLocation.cc \
 	TextBuffer.cc Tokenizer.cc ts_file.cc Version.cc \
 	X509HostnameValidator.cc $(am__append_2)
-@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@HKDF_impl = HKDF_openssl.cc
+@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_FALSE@HKDF_impl = HKDF_openssl.cc
+@HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_TRUE@HKDF_impl = HKDF_openssl3.cc
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_TRUE@HKDF_impl = HKDF_boringssl.cc
-mkdfa_SOURCES = mkdfa.c
 test_atomic_SOURCES = test_atomic.cc
 test_atomic_LDADD = libtscore.la $(top_builddir)/src/tscpp/util/libtscpputil.la @LIBPCRE@
 test_freelist_SOURCES = test_freelist.cc
@@ -1163,10 +1161,6 @@ libtscore.la: $(libtscore_la_OBJECTS) $(libtscore_la_DEPENDENCIES) $(EXTRA_libts
 CompileParseRules$(EXEEXT): $(CompileParseRules_OBJECTS) $(CompileParseRules_DEPENDENCIES) $(EXTRA_CompileParseRules_DEPENDENCIES) 
 	@rm -f CompileParseRules$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(CompileParseRules_OBJECTS) $(CompileParseRules_LDADD) $(LIBS)
-
-mkdfa$(EXEEXT): $(mkdfa_OBJECTS) $(mkdfa_DEPENDENCIES) $(EXTRA_mkdfa_DEPENDENCIES) 
-	@rm -f mkdfa$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(mkdfa_OBJECTS) $(mkdfa_LDADD) $(LIBS)
 unit_tests/$(am__dirstamp):
 	@$(MKDIR_P) unit_tests
 	@: > unit_tests/$(am__dirstamp)
@@ -1302,6 +1296,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Extendible.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HKDF_boringssl.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HKDF_openssl.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HKDF_openssl3.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Hash.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashFNV.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashMD5.Plo@am__quote@ # am--include-marker
@@ -1357,7 +1352,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_uuid.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/llqueue.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lockfile.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdfa.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/runroot.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/signals.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_atomic.Po@am__quote@ # am--include-marker
@@ -2207,6 +2201,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/Extendible.Plo
 	-rm -f ./$(DEPDIR)/HKDF_boringssl.Plo
 	-rm -f ./$(DEPDIR)/HKDF_openssl.Plo
+	-rm -f ./$(DEPDIR)/HKDF_openssl3.Plo
 	-rm -f ./$(DEPDIR)/Hash.Plo
 	-rm -f ./$(DEPDIR)/HashFNV.Plo
 	-rm -f ./$(DEPDIR)/HashMD5.Plo
@@ -2262,7 +2257,6 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/ink_uuid.Plo
 	-rm -f ./$(DEPDIR)/llqueue.Plo
 	-rm -f ./$(DEPDIR)/lockfile.Plo
-	-rm -f ./$(DEPDIR)/mkdfa.Po
 	-rm -f ./$(DEPDIR)/runroot.Plo
 	-rm -f ./$(DEPDIR)/signals.Plo
 	-rm -f ./$(DEPDIR)/test_atomic.Po
@@ -2358,6 +2352,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/Extendible.Plo
 	-rm -f ./$(DEPDIR)/HKDF_boringssl.Plo
 	-rm -f ./$(DEPDIR)/HKDF_openssl.Plo
+	-rm -f ./$(DEPDIR)/HKDF_openssl3.Plo
 	-rm -f ./$(DEPDIR)/Hash.Plo
 	-rm -f ./$(DEPDIR)/HashFNV.Plo
 	-rm -f ./$(DEPDIR)/HashMD5.Plo
@@ -2413,7 +2408,6 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/ink_uuid.Plo
 	-rm -f ./$(DEPDIR)/llqueue.Plo
 	-rm -f ./$(DEPDIR)/lockfile.Plo
-	-rm -f ./$(DEPDIR)/mkdfa.Po
 	-rm -f ./$(DEPDIR)/runroot.Plo
 	-rm -f ./$(DEPDIR)/signals.Plo
 	-rm -f ./$(DEPDIR)/test_atomic.Po

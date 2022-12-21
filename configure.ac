@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[9.1.3])
-m4_define([TS_VERSION_N],[9001003])
+m4_define([TS_VERSION_S],[9.1.4])
+m4_define([TS_VERSION_N],[9001004])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver], [https://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -1248,6 +1248,10 @@ TS_CHECK_CRYPTO
 
 # Check for OpenSSL Version
 TS_CHECK_CRYPTO_VERSION
+
+# Check for OpenSSL Version 3 and add compatiblity define if needed
+TS_CHECK_OPENSSL3
+AM_CONDITIONAL([OPENSSL_IS_OPENSSL3], [test -n "$openssl_is_openssl3"])
 
 # Check for openssl ASYNC jobs
 TS_CHECK_CRYPTO_ASYNC
