@@ -1,3 +1,13 @@
+trafficserver (8.1.6+ds-1~deb11u1) bullseye-security; urgency=high
+
+  * Update d/u/signing-key for 8.1.x serie
+  * New upstream version 8.1.6+ds
+  * Multiple CVE fixes for 8.1.x
+    + CVE-2022-32749: Improper Check for Unusual or Exceptional Conditions vulnerability
+    + CVE-2022-37392: Improper Check for Unusual or Exceptional Conditions vulnerability
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 04 Jan 2023 09:22:58 +0100
+
 trafficserver (8.1.5+ds-1~deb11u1) bullseye-security; urgency=high
 
   * Update d/watch to stick to 8.1.X serie
