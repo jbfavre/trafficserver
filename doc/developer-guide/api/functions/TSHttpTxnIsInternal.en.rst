@@ -24,9 +24,7 @@ Test whether a request is internally-generated.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int TSHttpTxnIsInternal(TSHttpTxn txnp)
 .. function:: int TSHttpSsnIsInternal(TSHttpSsn ssnp)

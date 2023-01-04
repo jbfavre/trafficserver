@@ -9,7 +9,7 @@
 
       http://www.apache.org/licenses/LICENSE-2.0
 
-  Unless required by applicable law or agreed to in writing, software
+  Unless required by applicable law or ageed to in writing, software
   distributed under the License is distributed on an "AS IS" BASIS,
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
@@ -169,7 +169,7 @@ struct EVPContext {
     EVP_MD_CTX_destroy(context);
   }
 
-  EVPContext() : context(EVP_MD_CTX_create()) { assert(nullptr != context); }
+  EVPContext(void) : context(EVP_MD_CTX_create()) { assert(nullptr != context); }
 };
 
 struct EVPKey {
@@ -181,7 +181,7 @@ struct EVPKey {
     EVP_PKEY_free(key);
   }
 
-  EVPKey() : key(EVP_PKEY_new()) { assert(nullptr != key); }
+  EVPKey(void) : key(EVP_PKEY_new()) { assert(nullptr != key); }
 
   bool
   assign(char *k) const
@@ -250,7 +250,7 @@ struct Exception {
     info = DestroyExceptionInfo(info);
   }
 
-  Exception() : info(AcquireExceptionInfo()) { assert(nullptr != info); }
+  Exception(void) : info(AcquireExceptionInfo()) { assert(nullptr != info); }
 };
 
 struct Image {
@@ -262,12 +262,12 @@ struct Image {
     info = DestroyImageInfo(info);
   }
 
-  Image() : info(AcquireImageInfo()) { assert(nullptr != info); }
+  Image(void) : info(AcquireImageInfo()) { assert(nullptr != info); }
 };
 
 struct Wand {
   MagickWand *wand;
-  void *blob = nullptr;
+  void *blob;
 
   ~Wand()
   {
@@ -278,17 +278,17 @@ struct Wand {
     }
   }
 
-  Wand() : wand(NewMagickWand()) { assert(nullptr != wand); }
+  Wand(void) : wand(NewMagickWand()), blob(nullptr) { assert(nullptr != wand); }
 
   void
-  clear() const
+  clear(void) const
   {
     assert(nullptr != wand);
     ClearMagickWand(wand);
   }
 
   std::string_view
-  get()
+  get(void)
   {
     assert(nullptr != wand);
     std::size_t length = 0;
@@ -336,7 +336,7 @@ struct Wand {
 struct Core {
   ~Core() { MagickCoreTerminus(); }
 
-  Core() { MagickCoreGenesis("/tmp", MagickFalse); }
+  Core(void) { MagickCoreGenesis("/tmp", MagickFalse); }
 };
 
 } // namespace magick
@@ -352,9 +352,7 @@ struct QueryMap {
 
   QueryMap(std::string &&s) : content_(s) { parse(); }
 
-  template <typename T>
-  const Vector &
-  operator[](T &&k) const
+  template <typename T> const Vector &operator[](T &&k) const
   {
     const auto iterator = map_.find(k);
     if (iterator != map_.end()) {
@@ -364,7 +362,7 @@ struct QueryMap {
   }
 
   void
-  parse()
+  parse(void)
   {
     std::string_view key;
     std::size_t i = 0, j = 0;
@@ -456,7 +454,7 @@ QueryParameterToArguments(CharVector &v)
 }
 
 struct ImageTransform : TransformationPlugin {
-  ~ImageTransform() override = default;
+  ~ImageTransform() override {}
 
   ImageTransform(Transaction &t, CharVector &&a, CharPointerVector &&m, ThreadPool &p)
     : TransformationPlugin(t, TransformationPlugin::RESPONSE_TRANSFORMATION),
@@ -475,11 +473,11 @@ struct ImageTransform : TransformationPlugin {
   }
 
   void
-  handleInputComplete() override
+  handleInputComplete(void) override
   {
     TSDebug(PLUGIN_TAG, "handleInputComplete");
 
-    threadPool_.emplace_back([this]() {
+    threadPool_.emplace_back([this](void) {
       magick::Image image;
       magick::Exception exception;
       magick::Wand wand;
@@ -514,10 +512,10 @@ struct ImageTransform : TransformationPlugin {
 
 struct GlobalHookPlugin : GlobalPlugin {
   magick::Core core_;
-  magick::EVPKey *key_ = nullptr;
+  magick::EVPKey *key_;
   ThreadPool threadPool_;
 
-  ~GlobalHookPlugin() override
+  ~GlobalHookPlugin()
   {
     if (nullptr != key_) {
       delete key_;
@@ -525,7 +523,7 @@ struct GlobalHookPlugin : GlobalPlugin {
     }
   }
 
-  GlobalHookPlugin(const char *const f = nullptr) : threadPool_(2)
+  GlobalHookPlugin(const char *const f = nullptr) : key_(nullptr), threadPool_(2)
   {
     if (nullptr != f) {
       assert(0 < strlen(f));

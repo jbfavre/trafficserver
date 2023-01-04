@@ -24,9 +24,7 @@ TSfopen
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSFile TSfopen(const char * filename, const char * mode)
 

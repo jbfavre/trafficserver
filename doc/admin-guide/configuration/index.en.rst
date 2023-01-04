@@ -31,5 +31,5 @@ Proxy Cache Configuration
    explicit-forward-proxying.en
    transparent-proxy.en
    transparent-forward-proxying.en
-   hierarchical-caching.en
+   hierachical-caching.en
    proxy-protocol.en

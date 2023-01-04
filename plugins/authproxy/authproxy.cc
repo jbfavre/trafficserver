@@ -38,6 +38,8 @@
 #include <sys/param.h>
 #include <ts/remap.h>
 
+#include "tscore/ink_config.h"
+
 using std::strlen;
 
 struct AuthRequestContext;
@@ -55,12 +57,12 @@ static TSCont AuthOsDnsContinuation;
 
 struct AuthOptions {
   std::string hostname;
-  int hostport                   = -1;
-  AuthRequestTransform transform = nullptr;
-  bool force                     = false;
+  int hostport;
+  AuthRequestTransform transform;
+  bool force;
 
-  AuthOptions()  = default;
-  ~AuthOptions() = default;
+  AuthOptions() : hostport(-1), transform(nullptr), force(false) {}
+  ~AuthOptions() {}
 };
 
 // Global options; used when we are in global authorization mode.
@@ -139,21 +141,29 @@ static const StateTransition StateTableInit[] = {{TS_EVENT_HTTP_POST_REMAP, Stat
                                                  {TS_EVENT_NONE, nullptr, nullptr}};
 
 struct AuthRequestContext {
-  TSHttpTxn txn = nullptr; // Original client transaction we are authorizing.
-  TSCont cont   = nullptr; // Continuation for this state machine.
-  TSVConn vconn = nullptr; // Virtual connection to the auth proxy.
-  TSHttpParser hparser;    // HTTP response header parser.
-  HttpHeader rheader;      // HTTP response header.
+  TSHttpTxn txn;        // Original client transaction we are authorizing.
+  TSCont cont;          // Continuation for this state machine.
+  TSVConn vconn;        // Virtual connection to the auth proxy.
+  TSHttpParser hparser; // HTTP response header parser.
+  HttpHeader rheader;   // HTTP response header.
   HttpIoBuffer iobuf;
-  const char *method = nullptr; // Client request method (e.g. GET)
-  bool read_body     = true;
+  const char *method; // Client request method (e.g. GET)
+  bool read_body;
 
-  const StateTransition *state = nullptr;
+  const StateTransition *state;
 
   AuthRequestContext()
-    : cont(TSContCreate(dispatch, TSMutexCreate())), hparser(TSHttpParserCreate()), rheader(), iobuf(TS_IOBUFFER_SIZE_INDEX_4K)
-
+    : txn(nullptr),
+      cont(nullptr),
+      vconn(nullptr),
+      hparser(TSHttpParserCreate()),
+      rheader(),
+      iobuf(TS_IOBUFFER_SIZE_INDEX_4K),
+      method(nullptr),
+      read_body(true),
+      state(nullptr)
   {
+    this->cont = TSContCreate(dispatch, TSMutexCreate());
     TSContDataSet(this->cont, this);
   }
 
@@ -172,7 +182,7 @@ struct AuthRequestContext {
   {
     AuthOptions *opt;
 
-    opt = static_cast<AuthOptions *>(TSUserArgGet(this->txn, AuthTaggedRequestArg));
+    opt = (AuthOptions *)TSHttpTxnArgGet(this->txn, AuthTaggedRequestArg);
     return opt ? opt : AuthGlobalOptions;
   }
 
@@ -200,7 +210,7 @@ AuthRequestContext::destroy(AuthRequestContext *auth)
 int
 AuthRequestContext::dispatch(TSCont cont, TSEvent event, void *edata)
 {
-  AuthRequestContext *auth = static_cast<AuthRequestContext *>(TSContDataGet(cont));
+  AuthRequestContext *auth = (AuthRequestContext *)TSContDataGet(cont);
   const StateTransition *s;
 
 pump:
@@ -417,6 +427,7 @@ static TSEvent
 StateAuthProxyCompleteHeaders(AuthRequestContext *auth, void * /* edata ATS_UNUSED */)
 {
   TSHttpStatus status;
+  unsigned nbytes;
 
   HttpDebugHeader(auth->rheader.buffer, auth->rheader.header);
 
@@ -437,7 +448,7 @@ StateAuthProxyCompleteHeaders(AuthRequestContext *auth, void * /* edata ATS_UNUS
     } else {
       // OK, we have a non-chunked response. If there's any content, let's go and
       // buffer it so that we can send it on to the client.
-      unsigned nbytes = HttpGetContentLength(auth->rheader.buffer, auth->rheader.header);
+      nbytes = HttpGetContentLength(auth->rheader.buffer, auth->rheader.header);
       if (nbytes > 0) {
         AuthLogDebug("content length is %u", nbytes);
         return TS_EVENT_HTTP_CONTINUE;
@@ -474,7 +485,7 @@ StateAuthProxySendResponse(AuthRequestContext *auth, void * /* edata ATS_UNUSED 
 
   // We must not whack the content length for HEAD responses, since the
   // client already knows that there is no body. Forcing content length to
-  // zero breaks hdiutil(1) on macOS
+  // zero breaks hdiutil(1) on Mac OS X.
   if (TS_HTTP_METHOD_HEAD != auth->method) {
     HttpSetMimeHeader(mbuf, mhdr, TS_MIME_FIELD_CONTENT_LENGTH, 0u);
   }
@@ -630,13 +641,14 @@ StateAuthorized(AuthRequestContext *auth, void *)
 static bool
 AuthRequestIsTagged(TSHttpTxn txn)
 {
-  return AuthTaggedRequestArg != -1 && TSUserArgGet(txn, AuthTaggedRequestArg) != nullptr;
+  return AuthTaggedRequestArg != -1 && TSHttpTxnArgGet(txn, AuthTaggedRequestArg) != nullptr;
 }
 
 static int
 AuthProxyGlobalHook(TSCont /* cont ATS_UNUSED */, TSEvent event, void *edata)
 {
-  TSHttpTxn txn = static_cast<TSHttpTxn>(edata);
+  AuthRequestContext *auth;
+  TSHttpTxn txn = (TSHttpTxn)edata;
 
   AuthLogDebug("handling event=%d edata=%p", (int)event, edata);
 
@@ -660,12 +672,12 @@ AuthProxyGlobalHook(TSCont /* cont ATS_UNUSED */, TSEvent event, void *edata)
     // Hook this request if we are in global authorization mode or if a
     // remap rule tagged it.
     if (AuthGlobalOptions != nullptr || AuthRequestIsTagged(txn)) {
-      AuthRequestContext *auth = AuthRequestContext::allocate();
-      auth->state              = StateTableInit;
-      auth->txn                = txn;
+      auth        = AuthRequestContext::allocate();
+      auth->state = StateTableInit;
+      auth->txn   = txn;
       return AuthRequestContext::dispatch(auth->cont, event, edata);
     }
-    // fallthrough
+    // fallthru
 
   default:
     return TS_EVENT_NONE;
@@ -693,7 +705,7 @@ AuthParseOptions(int argc, const char **argv)
   for (;;) {
     int opt;
 
-    opt = getopt_long(argc, const_cast<char *const *>(argv), "", longopt, nullptr);
+    opt = getopt_long(argc, (char *const *)argv, "", longopt, nullptr);
     switch (opt) {
     case 'h':
       options->hostname = optarg;
@@ -745,8 +757,7 @@ TSPluginInit(int argc, const char *argv[])
     AuthLogError("plugin registration failed");
   }
 
-  TSReleaseAssert(TSUserArgIndexReserve(TS_USER_ARGS_TXN, "AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) ==
-                  TS_SUCCESS);
+  TSReleaseAssert(TSHttpTxnArgIndexReserve("AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) == TS_SUCCESS);
 
   AuthOsDnsContinuation = TSContCreate(AuthProxyGlobalHook, nullptr);
   AuthGlobalOptions     = AuthParseOptions(argc, argv);
@@ -759,8 +770,7 @@ TSPluginInit(int argc, const char *argv[])
 TSReturnCode
 TSRemapInit(TSRemapInterface * /* api ATS_UNUSED */, char * /* err ATS_UNUSED */, int /* errsz ATS_UNUSED */)
 {
-  TSReleaseAssert(TSUserArgIndexReserve(TS_USER_ARGS_TXN, "AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) ==
-                  TS_SUCCESS);
+  TSReleaseAssert(TSHttpTxnArgIndexReserve("AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) == TS_SUCCESS);
 
   AuthOsDnsContinuation = TSContCreate(AuthProxyGlobalHook, nullptr);
   return TS_SUCCESS;
@@ -787,16 +797,16 @@ TSRemapNewInstance(int argc, char *argv[], void **instance, char * /* err ATS_UN
 void
 TSRemapDeleteInstance(void *instance)
 {
-  AuthOptions *options = static_cast<AuthOptions *>(instance);
+  AuthOptions *options = (AuthOptions *)instance;
   AuthDelete(options);
 }
 
 TSRemapStatus
 TSRemapDoRemap(void *instance, TSHttpTxn txn, TSRemapRequestInfo * /* rri ATS_UNUSED */)
 {
-  AuthOptions *options = static_cast<AuthOptions *>(instance);
+  AuthOptions *options = (AuthOptions *)instance;
 
-  TSUserArgSet(txn, AuthTaggedRequestArg, options);
+  TSHttpTxnArgSet(txn, AuthTaggedRequestArg, options);
   TSHttpTxnHookAdd(txn, TS_HTTP_POST_REMAP_HOOK, AuthOsDnsContinuation);
 
   return TSREMAP_NO_REMAP;

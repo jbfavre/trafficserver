@@ -44,6 +44,19 @@ OneWayMultiTunnel::OneWayMultiTunnel() : OneWayTunnel()
   ink_zero(vioTargets);
 }
 
+OneWayMultiTunnel *
+OneWayMultiTunnel::OneWayMultiTunnel_alloc()
+{
+  return OneWayMultiTunnelAllocator.alloc();
+}
+
+void
+OneWayMultiTunnel::OneWayMultiTunnel_free(OneWayMultiTunnel *pOWT)
+{
+  pOWT->mutex = nullptr;
+  OneWayMultiTunnelAllocator.free(pOWT);
+}
+
 void
 OneWayMultiTunnel::init(VConnection *vcSource, VConnection **vcTargets, int n_vcTargets, Continuation *aCont, int size_estimate,
                         int64_t nbytes, bool asingle_buffer, /* = true */
@@ -64,9 +77,9 @@ OneWayMultiTunnel::init(VConnection *vcSource, VConnection **vcTargets, int n_vc
 
   int64_t size_index = 0;
   if (size_estimate) {
-    size_index = buffer_size_to_index(size_estimate, BUFFER_SIZE_INDEX_32K);
+    size_index = buffer_size_to_index(size_estimate, default_large_iobuffer_size);
   } else {
-    size_index = BUFFER_SIZE_INDEX_32K;
+    size_index = default_large_iobuffer_size;
   }
 
   tunnel_till_done = (nbytes == TUNNEL_TILL_DONE);
@@ -137,7 +150,7 @@ OneWayMultiTunnel::init(Continuation *aCont, VIO *SourceVio, VIO **TargetVios, i
 int
 OneWayMultiTunnel::startEvent(int event, void *data)
 {
-  VIO *vio   = static_cast<VIO *>(data);
+  VIO *vio   = (VIO *)data;
   int ret    = VC_EVENT_DONE;
   int result = 0;
 
@@ -196,7 +209,7 @@ OneWayMultiTunnel::startEvent(int event, void *data)
 
   Lwrite_complete:
   case VC_EVENT_WRITE_COMPLETE:
-    close_target_vio(0, static_cast<VIO *>(data));
+    close_target_vio(0, (VIO *)data);
     if ((n_connections == 0) || (n_connections == 1 && source_read_previously_completed)) {
       goto Ldone;
     } else if (vioSource) {

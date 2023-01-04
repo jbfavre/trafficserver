@@ -24,9 +24,7 @@ TSMimeHdrFieldFind
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSMLoc TSMimeHdrFieldFind(TSMBuffer bufp, TSMLoc hdr, const char * name, int length)
 

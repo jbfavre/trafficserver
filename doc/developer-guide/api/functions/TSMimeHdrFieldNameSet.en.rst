@@ -24,9 +24,7 @@ TSMimeHdrFieldNameSet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSMimeHdrFieldNameSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, const char * name, int length)
 

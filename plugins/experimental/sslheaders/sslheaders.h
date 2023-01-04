@@ -16,8 +16,6 @@
  * limitations under the License.
  */
 
-#pragma once
-
 #include <ts/ts.h>
 #include <ts/remap.h>
 #include <cstring>
@@ -64,12 +62,12 @@ enum ExpansionField {
 };
 
 struct SslHdrExpansion {
-  SslHdrExpansion() : name() {}
+  SslHdrExpansion() : name(), scope(SSL_HEADERS_SCOPE_NONE), field(SSL_HEADERS_FIELD_NONE) {}
   std::string name; // HTTP header name
-  ExpansionScope scope = SSL_HEADERS_SCOPE_NONE;
-  ExpansionField field = SSL_HEADERS_FIELD_NONE;
+  ExpansionScope scope;
+  ExpansionField field;
 
-  // noncopyable but movable
+  // noncopyable but moveable
   SslHdrExpansion(const SslHdrExpansion &) = delete;
   SslHdrExpansion &operator=(const SslHdrExpansion &) = delete;
   SslHdrExpansion(SslHdrExpansion &&)                 = default;
@@ -83,8 +81,10 @@ struct SslHdrInstance {
   ~SslHdrInstance();
 
   expansion_list expansions;
-  AttachOptions attach = SSL_HEADERS_ATTACH_SERVER;
+  AttachOptions attach;
   TSCont cont;
+
+  void register_hooks();
 
   // noncopyable
   SslHdrInstance(const SslHdrInstance &) = delete;

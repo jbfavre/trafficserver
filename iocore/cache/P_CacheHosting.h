@@ -37,10 +37,8 @@ struct Cache;
 struct CacheHostRecord {
   int Init(CacheType typ);
   int Init(matcher_line *line_info, CacheType typ);
-
   void UpdateMatch(CacheHostResult *r, char *rd);
-  void Print() const;
-
+  void Print();
   ~CacheHostRecord()
   {
     ats_free(vols);
@@ -48,24 +46,34 @@ struct CacheHostRecord {
     ats_free(cp);
   }
 
-  CacheType type                 = CACHE_NONE_TYPE;
-  Vol **vols                     = nullptr;
-  int good_num_vols              = 0;
-  int num_vols                   = 0;
-  int num_initialized            = 0;
-  unsigned short *vol_hash_table = nullptr;
-  CacheVol **cp                  = nullptr;
-  int num_cachevols              = 0;
+  CacheType type;
+  Vol **vols;
+  int good_num_vols;
+  int num_vols;
+  int num_initialized;
+  unsigned short *vol_hash_table;
+  CacheVol **cp;
+  int num_cachevols;
 
-  CacheHostRecord() {}
+  CacheHostRecord()
+    : type(CACHE_NONE_TYPE),
+      vols(nullptr),
+      good_num_vols(0),
+      num_vols(0),
+      num_initialized(0),
+      vol_hash_table(nullptr),
+      cp(nullptr),
+      num_cachevols(0)
+  {
+  }
 };
 
 void build_vol_hash_table(CacheHostRecord *cp);
 
 struct CacheHostResult {
-  CacheHostRecord *record = nullptr;
+  CacheHostRecord *record;
 
-  CacheHostResult() {}
+  CacheHostResult() : record(nullptr) {}
 };
 
 class CacheHostMatcher
@@ -74,11 +82,10 @@ public:
   CacheHostMatcher(const char *name, CacheType typ);
   ~CacheHostMatcher();
 
+  void Match(const char *rdata, int rlen, CacheHostResult *result);
   void AllocateSpace(int num_entries);
   void NewEntry(matcher_line *line_info);
-
-  void Match(const char *rdata, int rlen, CacheHostResult *result) const;
-  void Print() const;
+  void Print();
 
   int
   getNumElements() const
@@ -101,7 +108,7 @@ private:
   HostLookup *host_lookup;     // Data structure to do the lookups
   CacheHostRecord *data_array; // array of all data items
   int array_len;               // the length of the arrays
-  int num_el;                  // the number of items in the tree
+  int num_el;                  // the number of itmems in the tree
   CacheType type;
 };
 
@@ -112,12 +119,10 @@ public:
   //  object is
   CacheHostTable(Cache *c, CacheType typ);
   ~CacheHostTable();
-
   int BuildTable(const char *config_file_path);
   int BuildTableFromString(const char *config_file_path, char *str);
-
-  void Match(const char *rdata, int rlen, CacheHostResult *result) const;
-  void Print() const;
+  void Match(const char *rdata, int rlen, CacheHostResult *result);
+  void Print();
 
   int
   getEntryCount() const
@@ -176,7 +181,6 @@ struct ConfigVol {
   CacheType scheme;
   off_t size;
   bool in_percent;
-  bool ramcache_enabled;
   int percent;
   CacheVol *cachep;
   LINK(ConfigVol, link);
@@ -190,7 +194,7 @@ struct ConfigVolumes {
   void BuildListFromString(char *config_file_path, char *file_buf);
 
   void
-  clear_all()
+  clear_all(void)
   {
     // remove all the volumes from the queue
     for (int i = 0; i < num_volumes; i++) {

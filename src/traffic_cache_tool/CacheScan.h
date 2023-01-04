@@ -43,9 +43,9 @@ class CacheScan
   url_matcher *u_matcher;
 
 public:
-  CacheScan(Stripe *str, ts::file::path const &path) : stripe(str)
+  CacheScan(Stripe *str, ts::FilePath const &path) : stripe(str)
   {
-    if (!path.empty()) {
+    if (path.has_path()) {
       u_matcher = new url_matcher(path);
     }
   };
@@ -58,6 +58,6 @@ public:
   Errata unmarshal(URLImpl *obj, intptr_t offset);
   Errata unmarshal(MIMEFieldBlockImpl *mf, intptr_t offset);
   Errata unmarshal(MIMEHdrImpl *obj, intptr_t offset);
-  bool check_url(ts::MemSpan<char> &mem, URLImpl *url);
+  bool check_url(ts::MemSpan &mem, URLImpl *url);
 };
 } // namespace ct

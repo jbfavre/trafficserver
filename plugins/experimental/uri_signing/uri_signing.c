@@ -80,7 +80,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
   }
 
   TSDebug(PLUGIN_NAME, "config file name: %s", config_file);
-  struct config *cfg = read_config_from_path(config_file);
+  struct config *cfg = read_config(config_file);
   if (!cfg) {
     snprintf(errbuf, errbuf_size, "Unable to open config file: \"%s\"", config_file);
     free(config_file);
@@ -355,10 +355,11 @@ check_auth:
   }
   return status;
 fail:
+  PluginDebug("Invalid JWT for %.*s", url_ct, url);
   TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_FORBIDDEN);
+  PluginDebug("Spent %" PRId64 " ns uri_signing verification of %.*s.", mark_timer(&t), url_ct, url);
+
   if (url != NULL) {
-    PluginDebug("Invalid JWT for %.*s", url_ct, url);
-    PluginDebug("Spent %" PRId64 " ns uri_signing verification of %.*s.", mark_timer(&t), url_ct, url);
     TSfree((void *)url);
   }
   if (strip_uri != NULL) {

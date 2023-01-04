@@ -27,9 +27,7 @@ Traffic Server memory allocation API.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void * TSmalloc(size_t size)
 .. function:: void * TSrealloc(void * ptr , size_t size)

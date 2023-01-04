@@ -39,13 +39,12 @@
 class Value : Statement
 {
 public:
-  Value() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Value"); }
+  Value() : _need_expander(false), _value(""), _int_value(0), _float_value(0.0)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Value");
+  }
 
-  ~Value() override;
-
-  // noncopyable
-  Value(const Value &) = delete;
-  void operator=(const Value &) = delete;
+  virtual ~Value();
 
   void set_value(const std::string &val);
 
@@ -53,8 +52,8 @@ public:
   append_value(std::string &s, const Resources &res) const
   {
     if (!_cond_vals.empty()) {
-      for (auto _cond_val : _cond_vals) {
-        _cond_val->append_value(s, res);
+      for (auto it = _cond_vals.begin(); it != _cond_vals.end(); it++) {
+        (*it)->append_value(s, res);
       }
     } else {
       s += _value;
@@ -91,9 +90,18 @@ public:
     return _value.empty();
   }
 
+  bool
+  need_expansion() const
+  {
+    return _need_expander;
+  }
+
 private:
-  int _int_value      = 0;
-  double _float_value = 0.0;
+  DISALLOW_COPY_AND_ASSIGN(Value);
+
+  bool _need_expander;
   std::string _value;
+  int _int_value;
+  double _float_value;
   std::vector<Condition *> _cond_vals;
 };

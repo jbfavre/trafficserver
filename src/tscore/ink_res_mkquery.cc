@@ -88,15 +88,14 @@
  * Form all types of queries.
  * Returns the size of the result or -1.
  */
-int
-ink_res_mkquery(ink_res_state statp, int op,               /*!< opcode of query  */
-                const char *dname,                         /*!< domain name  */
-                int _class, int type,                      /*!< _class and type of query  */
-                const u_char *data,                        /*!< resource record data  */
-                int datalen,                               /*!< length of data  */
-                const u_char * /* newrr_in  ATS_UNUSED */, /*!< new rr for modify or append  */
-                u_char *buf,                               /*!< buffer to put query  */
-                int buflen)                                /*!< size of buffer  */
+int ink_res_mkquery(ink_res_state statp, int op,               /*!< opcode of query  */
+                    const char *dname,                         /*!< domain name  */
+                    int _class, int type,                      /*!< _class and type of query  */
+                    const u_char *data,                        /*!< resource record data  */
+                    int datalen,                               /*!< length of data  */
+                    const u_char * /* newrr_in  ATS_UNUSED */, /*!< new rr for modify or append  */
+                    u_char *buf,                               /*!< buffer to put query  */
+                    int buflen)                                /*!< size of buffer  */
 {
   HEADER *hp;
   u_char *cp, *ep;
@@ -110,7 +109,7 @@ ink_res_mkquery(ink_res_state statp, int op,               /*!< opcode of query 
     return (-1);
   }
   memset(buf, 0, HFIXEDSZ);
-  hp         = reinterpret_cast<HEADER *>(buf);
+  hp         = (HEADER *)buf;
   hp->id     = htons(++statp->id);
   hp->opcode = op;
   hp->rd     = (statp->options & INK_RES_RECURSE) != 0U;
@@ -146,7 +145,7 @@ ink_res_mkquery(ink_res_state statp, int op,               /*!< opcode of query 
     if ((ep - cp) < RRFIXEDSZ) {
       return (-1);
     }
-    n = dn_comp(reinterpret_cast<const char *>(data), cp, ep - cp - RRFIXEDSZ, dnptrs, lastdnptr);
+    n = dn_comp((const char *)data, cp, ep - cp - RRFIXEDSZ, dnptrs, lastdnptr);
     if (n < 0) {
       return (-1);
     }
@@ -218,7 +217,7 @@ labellen(const u_char *lp)
       }
       return ((bitlen + 7) / 8 + 1);
     }
-    return (-1); /*%< unknown ELT */
+    return (-1); /*%< unknwon ELT */
   }
   return (l);
 }
@@ -279,7 +278,7 @@ decode_bitstring(const unsigned char **cpp, char *dn, const char *eom)
 
 /*%
  *	Thinking in noninternationalized USASCII (per the DNS spec),
- *	is this character special ("in need of quoting") ?
+ *	is this characted special ("in need of quoting") ?
  *
  * return:
  *\li	boolean.
@@ -370,7 +369,7 @@ ink_ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
           return (-1);
         }
         *dn++ = '\\';
-        *dn++ = static_cast<char>(c);
+        *dn++ = (char)c;
       } else if (!printable(c)) {
         if (dn + 3 >= eom) {
           errno = EMSGSIZE;
@@ -385,7 +384,7 @@ ink_ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
           errno = EMSGSIZE;
           return (-1);
         }
-        *dn++ = static_cast<char>(c);
+        *dn++ = (char)c;
       }
     }
   }
@@ -476,7 +475,7 @@ ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
           return (-1);
         }
         *dn++ = '\\';
-        *dn++ = static_cast<char>(c);
+        *dn++ = (char)c;
       } else if (!printable(c)) {
         if (dn + 3 >= eom) {
           errno = EMSGSIZE;
@@ -491,7 +490,7 @@ ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
           errno = EMSGSIZE;
           return (-1);
         }
-        *dn++ = static_cast<char>(c);
+        *dn++ = (char)c;
       }
     }
   }
@@ -511,12 +510,13 @@ ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
 }
 
 HostResStyle
-ats_host_res_from(int family, HostResPreferenceOrder const &order)
+ats_host_res_from(int family, HostResPreferenceOrder order)
 {
   bool v4 = false, v6 = false;
   HostResPreference client = AF_INET6 == family ? HOST_RES_PREFER_IPV6 : HOST_RES_PREFER_IPV4;
 
-  for (auto p : order) {
+  for (int i = 0; i < N_HOST_RES_PREFERENCE_ORDER; ++i) {
+    HostResPreference p = order[i];
     if (HOST_RES_PREFER_CLIENT == p) {
       p = client; // CLIENT -> actual value
     }
@@ -544,16 +544,14 @@ ats_host_res_from(int family, HostResPreferenceOrder const &order)
   return HOST_RES_NONE;
 }
 
-void
-ats_force_order_by_family(sockaddr const *addr, HostResPreferenceOrder order)
+HostResStyle
+ats_host_res_match(sockaddr const *addr)
 {
-  HostResPreferenceOrder::size_type pos{0};
+  HostResStyle zret = HOST_RES_NONE;
   if (ats_is_ip6(addr)) {
-    order[pos++] = HOST_RES_PREFER_IPV6;
+    zret = HOST_RES_IPV6_ONLY;
   } else if (ats_is_ip4(addr)) {
-    order[pos++] = HOST_RES_PREFER_IPV4;
+    zret = HOST_RES_IPV4_ONLY;
   }
-  for (; pos < order.size(); pos++) {
-    order[pos] = HOST_RES_PREFER_NONE;
-  }
+  return zret;
 }

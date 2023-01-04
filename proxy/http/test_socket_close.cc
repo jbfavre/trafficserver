@@ -93,7 +93,7 @@ struct State {
   int64_t nbytes_write; // number of bytes to write
   intte_t nbytes_read;  // number of bytes to read
 
-  State() : state(STATE_IDLE), tasks_count(0), nbytes_write(0), {}
+  State() : state(STATE_IDLE), tasks_count(0) {}
 };
 
 struct Conn {
@@ -241,6 +241,7 @@ state_act(Conn *c)
 void
 state_act_task(Conn *c)
 {
+  int error;
   char write_ch = 'T', read_ch;
   int r;
 
@@ -331,6 +332,7 @@ int
 do_connect(Conn *from, Conn *to)
 {
   assert(to->listen_s > 0);
+  int error;
 
   // create a non-blocking socket
   if ((from->s = create_nonblocking_socket()) < 0) {
@@ -339,7 +341,7 @@ do_connect(Conn *from, Conn *to)
   }
   // connect
   if (connect(from->s, (struct sockaddr *)&to->addr, sizeof(to->addr)) < 0) {
-    int error = -errno;
+    error = -errno;
     if (error != -EINPROGRESS) {
       ::close(from->s);
       from->state.state = STATE_ERROR;
@@ -461,8 +463,11 @@ create_nonblocking_socket()
 int
 set_nonblocking_socket(int s)
 {
+  int error = 0;
+  int on    = 1;
+
   if (fcntl(s, F_SETFL, O_NDELAY) < 0) {
-    int error = -errno;
+    error = -errno;
     ::close(s);
     cout << "fcntl F_SETFD O_NDELAY failed (" << error << ")" << endl;
     return (error);
@@ -479,7 +484,7 @@ set_nonblocking_socket(int s)
 int
 do_shutdown(int s, Task_t task)
 {
-  int howto;
+  int howto, error;
 
   switch (task) {
   case TASK_SHUTDOWN_OUTPUT:
@@ -498,7 +503,7 @@ do_shutdown(int s, Task_t task)
     break;
   }
   if (shutdown(s, howto) < 0) {
-    int error = -errno;
+    error = -errno;
     cout << "shutdown failed (" << error << ")" << endl;
     return (error);
   }

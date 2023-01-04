@@ -25,9 +25,7 @@ Change packet DSCP for the server side connection.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSHttpTxnServerPacketDscpSet(TSHttpTxn txnp, int dscp)
 

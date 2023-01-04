@@ -24,7 +24,6 @@
 
 #include <string>
 #include <memory>
-#include <ts/ts.h>
 #include "tscpp/api/Async.h"
 #include "tscpp/api/Request.h"
 #include "tscpp/api/Response.h"
@@ -61,18 +60,8 @@ public:
    *                             events will have "regular" cadence. This is useful if the timer is
    *                             set for a long period of time (1hr etc.), but an initial event is
    *                             required. Value of 0 (default) indicates no initial event is desired.
-   * @param thread_pool Thread pool to execute timer action in.
    */
-  AsyncTimer(Type type, int period_in_ms, int initial_period_in_ms, TSThreadPool thread_pool);
-
-  // For convenience, additional constructor prototypes.
-
-  AsyncTimer(Type type, int period_in_ms, int initial_period_in_ms = 0)
-    : AsyncTimer(type, period_in_ms, initial_period_in_ms, TS_THREAD_POOL_NET)
-  {
-  }
-
-  AsyncTimer(Type type, int period_in_ms, TSThreadPool thread_pool) : AsyncTimer(type, period_in_ms, 0, thread_pool) {}
+  AsyncTimer(Type type, int period_in_ms, int initial_period_in_ms = 0);
 
   ~AsyncTimer() override;
 

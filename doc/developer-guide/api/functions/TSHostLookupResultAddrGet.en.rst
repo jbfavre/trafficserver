@@ -24,9 +24,7 @@ TSHostLookupResultAddrGet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: sockaddr const* TSHostLookupResultAddrGet(TSHostLookupResult lookup_result)
 

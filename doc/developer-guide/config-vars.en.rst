@@ -33,15 +33,11 @@
 
 .. |InkAPI.cc| replace:: ``InkAPI.cc``
 
-.. _InkAPI.cc: https://github.com/apache/trafficserver/blob/master/src/traffic_server/InkAPI.cc
+.. _InkAPI.cc: https://github.com/apache/trafficserver/blob/master/proxy/api/InkAPI.cc
 
 .. |InkAPITest.cc| replace:: ``InkAPITest.cc``
 
-.. _InkAPITest.cc: https://github.com/apache/trafficserver/blob/master/src/traffic_server/InkAPITest.cc
-
-.. |overridable_txn_vars.cc| replace:: ``overridable_txn_vars.cc``
-
-.. _overridable_txn_vars.cc: https://github.com/apache/trafficserver/blob/master/src/shared/overridable_txn_vars.cc
+.. _InkAPITest.cc: https://github.com/apache/trafficserver/blob/master/proxy/api/InkAPITest.cc
 
 .. |ts_lua_http_config.c| replace:: ``ts_lua_http_config.c``
 
@@ -97,9 +93,9 @@ type:``RecT``
 
 name:``char const*``
    The fully qualified name of the configuration variable. Although there
-   appears to be a hierarchical naming scheme, that's just a convention, and it
+   appears to be a hierarchial naming scheme, that's just a convention, and it
    is not actually used by the code. Nonetheless, new variables should adhere
-   to the hierarchical scheme.
+   to the hierarchial scheme.
 
 value_type:``RecDataT``
    The data type of the value. It should be one of ``RECD_INT``,
@@ -176,7 +172,7 @@ generally via :option:`traffic_ctl config reload`. This is handled in a generic 
 described in the next section, or in a :ref:`more specialized way <http-config-var-impl>`
 (built on top of the generic mechanism) for HTTP related configuration
 variables. This is only needed if the variable is marked as dynamically
-updatable (|RECU_DYNAMIC|_) although HTTP configuration variables should be
+updateable (|RECU_DYNAMIC|_) although HTTP configuration variables should be
 dynamic if possible.
 
 Documentation and Defaults
@@ -264,12 +260,12 @@ action.
 
    The callback occurs asynchronously. For HTTP variables as described in the
    next section, this is handled by the more specialized HTTP update mechanisms.
-   Otherwise it is the implementer's responsibility to avoid race conditions.
+   Otherwise it is the implementor's responsibility to avoid race conditions.
 
 .. _http-config-var-impl:
 
-HTTP Configuration Values
--------------------------
+HTTP Configuation Values
+------------------------
 
 Variables used for HTTP processing should be declared as members of the
 ``HTTPConfigParams`` structure (but see :ref:`overridable-config-vars` for
@@ -312,10 +308,13 @@ required for generic access:
 
 #. Add a value to the ``TSOverridableConfigKey`` enumeration in |apidefs.h.in|_.
 
-#. Augment ``Overridable_Map`` in |overridable_txn_vars.cc|_ to include configuration variable.
+#. Augment the ``TSHttpTxnConfigFind`` function to return this enumeration value
+   when given the name of the configuration variable. Be sure to count the
+   charaters very carefully.
 
-#. Update the function ``_conf_to_memberp`` in |InkAPI.cc|_ to have a case for the enumeration value
-   in ``TSOverridableConfigKey``.
+#. Augment the ``_conf_to_memberp`` function in |InkAPI.cc|_ to return a pointer
+   to the appropriate member of ``OverridableHttpConfigParams`` and set the type
+   if not a byte value.
 
 #. Update the testing logic in |InkAPITest.cc|_ by adding the string name of the
    configuration variable to the ``SDK_Overridable_Configs`` array.
@@ -323,29 +322,3 @@ required for generic access:
 #. Update the Lua plugin enumeration ``TSLuaOverridableConfigKey`` in |ts_lua_http_config.c|_.
 
 #. Update the documentation of :ref:`ts-overridable-config` in |TSHttpOverridableConfig.en.rst|_.
-
-API conversions
----------------
-
-A relatively new feature for overridable variables is the ability to keep them in more natural data
-types and convert as needed to the API types. This in turns enables defining the configuration
-locally in a module and then "exporting" it to the API interface. Modules then do not have to
-include headers for all types in all overridable configurations.
-
-The conversion is done through an instance of :code:`MgmtConverter`. This has 6 points to
-conversions, a load and store function for each of the types :code:`MgmtInt`, :code:`MgmtFloat`, and
-:code:`MgmtInt`. The :code:`MgmtByte` type is handled by the :code:`MgmtInt` conversions. In general
-each overridable variable will specify two of these, a load and store for a specific type, although
-it is possible to provide other pairs, e.g. if a value is an enumeration can should be settable
-as a string as well as an integer.
-
-The module is responsible for creating an instance of :code:`MgmtConverter` with the appropriate
-load / store function pairs set. The declaration must be visible in the :ts:git:`proxy/InkAPI.cc`
-file. The function :code:`_conf_to_memberp` sets up the conversion. For the value of the enumeration
-:c:type:`TSOverridableConfigKey` that specifies the overridable variable, code is added to specify
-the member and the conversion. There are default converters for the API types and if the overridable
-is one of those, it is only necessary to call :code:`_memberp_to_generic` passing in a pointer to
-the variable. For a variable with conversion, :arg:`ret` should be set to point to the variable and
-:arg:`conv` set to point to the converter for that variable. If multiple variables are of the same
-type they can use the same converter because a pointer to the specific member is passed to the
-converter.

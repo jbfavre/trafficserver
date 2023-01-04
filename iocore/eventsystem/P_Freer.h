@@ -27,7 +27,7 @@
 #include "I_Tasks.h"
 
 // Note that these should not be used for memory that wishes to retain
-// NUMA socket affinity. We'll potentially return these on an arbitrarily
+// NUMA socket affinity. We'll potentially return these on an arbitarily
 // selected processor/socket.
 
 template <class C> struct DeleterContinuation : public Continuation {
@@ -44,7 +44,7 @@ public: // Needed by WinNT compiler (compiler bug)
     delete this;
     return EVENT_DONE;
   }
-  explicit DeleterContinuation(C *ap) : Continuation(new_ProxyMutex()), p(ap) { SET_HANDLER(&DeleterContinuation::dieEvent); }
+  DeleterContinuation(C *ap) : Continuation(new_ProxyMutex()), p(ap) { SET_HANDLER(&DeleterContinuation::dieEvent); }
 };
 
 // This can be useful for two things (or both):
@@ -73,7 +73,7 @@ public: // Needed by WinNT compiler (compiler bug)
     delete this;
     return EVENT_DONE;
   }
-  explicit FreeCallContinuation(C *ap) : Continuation(nullptr), p(ap) { SET_HANDLER(&FreeCallContinuation::dieEvent); }
+  FreeCallContinuation(C *ap) : Continuation(nullptr), p(ap) { SET_HANDLER(&FreeCallContinuation::dieEvent); }
 };
 
 template <class C>
@@ -99,10 +99,7 @@ struct FreerContinuation : public Continuation {
     return EVENT_DONE;
   }
 
-  explicit FreerContinuation(void *ap) : Continuation(nullptr), p(ap)
-  {
-    SET_HANDLER((FreerContHandler)&FreerContinuation::dieEvent);
-  }
+  FreerContinuation(void *ap) : Continuation(nullptr), p(ap) { SET_HANDLER((FreerContHandler)&FreerContinuation::dieEvent); }
 };
 
 TS_INLINE void
@@ -126,7 +123,7 @@ template <class C> struct DereferContinuation : public Continuation {
     return EVENT_DONE;
   }
 
-  explicit DereferContinuation(C *ap) : Continuation(nullptr), p(ap) { SET_HANDLER(&DereferContinuation::dieEvent); }
+  DereferContinuation(C *ap) : Continuation(nullptr), p(ap) { SET_HANDLER(&DereferContinuation::dieEvent); }
 };
 
 template <class C>

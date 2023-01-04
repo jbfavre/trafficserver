@@ -1,6 +1,6 @@
 /** @file
 
-  Functions for interfacing to management records
+  A brief file description
 
   @section license License
 
@@ -21,14 +21,29 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _WEB_MGMT_UTILS_
+#define _WEB_MGMT_UTILS_
 
 #include "MgmtDefs.h"
+
+/****************************************************************************
+ *
+ *  WebMgmtUtils.h - Functions for interfacing to management records
+ *
+ *
+ *
+ ****************************************************************************/
+
+#include "tscore/ink_hash_table.h"
+#include "tscore/TextBuffer.h"
+#include "ExpandingArray.h"
+
 #include "records/P_RecCore.h"
 
 // class MgmtData - stores information from local manager
 //    variables in its native type
 //
+#include "records/P_RecCore.h"
 class MgmtData
 {
 public:
@@ -62,9 +77,9 @@ bool varFloatFromName(const char *varName, RecFloat *value);
 bool varCounterFromName(const char *varName, RecCounter *value);
 bool varDataFromName(RecDataT varType, const char *varName, RecData *value);
 
-// No conversion done.  varName must represent a value of the appropriate
+// No conversion done.  varName must represnt a value of the appropriate
 //  type
-// Default argument "convert" added to allow great flexibility in type checking
+// Default arguement "convert" added to allow great flexiblity in type checking
 bool varSetInt(const char *varName, RecInt value, bool convert = false);
 bool varSetCounter(const char *varName, RecCounter value, bool convert = false);
 bool varSetFloat(const char *varName, RecFloat value, bool convert = false);
@@ -77,11 +92,25 @@ int convertHtmlToUnix(char *buffer);
 int substituteUnsafeChars(char *buffer);
 char *substituteForHTMLChars(const char *buffer);
 
+// Produce a hash table based on a HTML form submission
+//
+//  CALLEE deallocates hashtable
+InkHashTable *processFormSubmission(char *submission);
+InkHashTable *processFormSubmission_noSubstitute(char *submission);
+
 int setHostnameVar();
 void appendDefaultDomain(char *hostname, int bufLength);
+
+// Some scaling constants
+#define BYTES_TO_MB_SCALE (1 / (1024 * 1024.0))
+#define MBIT_TO_KBIT_SCALE (1000.0)
+#define SECOND_TO_MILLISECOND_SCALE (1000.0)
+#define PCT_TO_INTPCT_SCALE (100.0)
 
 bool recordValidityCheck(const char *varName, const char *value);
 bool recordRegexCheck(const char *pattern, const char *value);
 bool recordRangeCheck(const char *pattern, const char *value);
 bool recordIPCheck(const char *pattern, const char *value);
 bool recordRestartCheck(const char *varName);
+
+#endif

@@ -23,10 +23,13 @@ AM_CPPFLAGS += \
 	-I$(abs_top_srcdir)/include \
 	-I$(abs_top_srcdir)/lib \
 	-I$(abs_top_srcdir)/proxy \
-	$(TS_INCLUDES) \
-	@YAMLCPP_INCLUDES@
+	$(TS_INCLUDES)
+
+#WCCP_DEFS = @WCCP_DEFS@
+#DEFS += $(WCCP_DEFS)
 
 noinst_LIBRARIES = libwccp.a
+# noinst_PROGRAMS = test-cache
 
 libwccp_a_SOURCES = \
 	Wccp.h \
@@ -38,5 +41,3 @@ libwccp_a_SOURCES = \
 	WccpStatic.cc \
 	WccpUtil.h
 
-clang-tidy-local: $(DIST_SOURCES)
-	$(CXX_Clang_Tidy)

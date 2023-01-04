@@ -27,9 +27,7 @@ Traffic Server text logging API.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSTextLogObjectCreate(const char * filename, int mode, TSTextLogObject * new_log_obj)
 .. function:: TSReturnCode TSTextLogObjectWrite(TSTextLogObject the_object, const char * format, ...)

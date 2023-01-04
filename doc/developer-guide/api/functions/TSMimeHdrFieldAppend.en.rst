@@ -24,9 +24,7 @@ TSMimeHdrFieldAppend
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSMimeHdrFieldAppend(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 

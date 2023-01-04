@@ -48,7 +48,6 @@ component to which they're related.
    core/http-header.en
    core/bandwidth.en
    core/socks.en
-   core/eventloop.en
    core/websocket.en
    core/misc.en
 

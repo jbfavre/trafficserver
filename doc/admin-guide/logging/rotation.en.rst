@@ -67,7 +67,8 @@ the following information:
 
 -  The original log file's name (such as ``access.log``).
 
--  The hostname of the |TS| node that generated the log file.
+-  The hostname of the |TS| node that generated the log file (useful in |TS|
+   log collation configurations).
 
 -  Two timestamps separated by a hyphen (``-``). The first timestamp is
    a *lower bound* for the timestamp of the first record in the log
@@ -166,11 +167,6 @@ they reach a certain size, adjust the following settings in
 
     CONFIG proxy.config.log.rolling_interval_sec INT 21600
 
-#. Set the minimum number of rolled files with
-   :ts:cv:`proxy.config.log.rolling_min_count`. ::
-
-    CONFIG proxy.config.log.rolling_min_count INT 0
-
 #. Run the command :option:`traffic_ctl config reload` to apply the configuration
    changes.
 
@@ -187,21 +183,15 @@ Retention Options
 
 |TS| enables you to control the amount of disk space that the logging directory
 can consume. This allows the system to operate smoothly within a specified
-space window for a long period of time. After you establish a space limit,
+space window for a long period of time.  After you establish a space limit,
 |TS| continues to monitor the space in the logging directory. When the free
 space dwindles to the headroom limit, it enters a low space state and takes the
 following actions:
 
 -  If the autodelete option is enabled, then |TS| identifies previously-rolled
    log files (log files with the ``.old`` extension). It starts deleting files
-   one by one, beginning with the oldest file with largest ratio between current
-   number of files and the minimum rolling count, until it emerges from the low
-   state. The default minimum rolling count of 0 is treated as INT_MAX during
-   ratio calculation. Hence the `rolling_min_count` is not guaranteed to be
-   reserved; instead, it is used as a reference to decide the priority of log
-   files to delete. In low space state, even when all log files are below minimum
-   count, |TS| still tries to delete files until it emerges from the low state.
-   |TS| logs a record of all deleted files in the system error log.
+   one by one, beginning with the oldest file, until it emerges from the low
+   state. |TS| logs a record of all deleted files in the system error log.
 
 -  If the autodelete option is disabled or there are not enough old log files
    to delete for the system to emerge from its low space state, then |TS|
@@ -255,13 +245,13 @@ the maximum number of rolled log files, and forcing |TS| to roll even when there
 
 Let us say we wanted the oldest log entry to be kept on the box to be no older than 2-hour old.
 
-Set :ts:cv:`proxy.config.log.rolling_interval_sec` (yaml: `rolling_interval_sec`) to 3600 (1h)
+Set :ts:cv:`proxy.config.output.logfile.rolling_interval_sec` (yaml: `rolling_interval_sec`) to 3600 (1h)
 which will lead to rolling every 1h.
 
-Set :ts:cv:`proxy.config.log.rolling_max_count` (yaml: `rolling_max_count`) to 1
+Set :ts:cv:`proxy.config.output.logfile.rolling_max_count` (yaml: `rolling_max_count`) to 1
 which will lead to keeping only one rolled log file at any moment (rolled will be trimmed on every roll).
 
-Set :ts:cv:`proxy.config.log.rolling_allow_empty` (yaml: `rolling_allow_empty`) to 1 (default: 0)
+Set :ts:cv:`proxy.config.output.logfile.rolling_allow_empty` (yaml: `rolling_allow_empty`) to 1 (default: 0)
 which will allow logs to be open and rolled even if there was nothing to be logged during the previous period
 (i.e. no requests to |TS|).
 

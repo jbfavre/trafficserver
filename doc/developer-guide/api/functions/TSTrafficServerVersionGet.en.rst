@@ -26,9 +26,7 @@ Return Traffic Server version information.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: const char * TSTrafficServerVersionGet(void)
 .. function:: int TSTrafficServerVersionGetMajor(void)

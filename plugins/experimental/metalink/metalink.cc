@@ -44,18 +44,19 @@
 /* TSCacheWrite() and TSVConnWrite() data: Write the digest to the
  * cache and store the request URL at that key */
 
-struct WriteData {
+typedef struct {
   TSHttpTxn txnp;
 
   TSCacheKey key;
 
   TSVConn connp;
   TSIOBuffer cache_bufp;
-};
+
+} WriteData;
 
 /* TSTransformCreate() data: Compute the SHA-256 digest of the content */
 
-struct TransformData {
+typedef struct {
   TSHttpTxn txnp;
 
   /* Null transformation */
@@ -64,12 +65,13 @@ struct TransformData {
 
   /* Message digest handle */
   SHA256_CTX c;
-};
+
+} TransformData;
 
 /* TSCacheRead() and TSVConnRead() data: Check the Location and Digest
  * headers */
 
-struct SendData {
+typedef struct {
   TSHttpTxn txnp;
 
   TSMBuffer resp_bufp;
@@ -93,7 +95,8 @@ struct SendData {
 
   const char *value;
   int64_t length;
-};
+
+} SendData;
 
 /* Implement TS_HTTP_READ_RESPONSE_HDR_HOOK to implement a null
  * transformation */
@@ -111,8 +114,8 @@ cache_open_write(TSCont contp, void *edata)
   char *value;
   int length;
 
-  WriteData *data = static_cast<WriteData *>(TSContDataGet(contp));
-  data->connp     = static_cast<TSVConn>(edata);
+  WriteData *data = (WriteData *)TSContDataGet(contp);
+  data->connp     = (TSVConn)edata;
 
   TSCacheKeyDestroy(data->key);
 
@@ -172,7 +175,7 @@ cache_open_write(TSCont contp, void *edata)
 static int
 cache_open_write_failed(TSCont contp, void * /* edata ATS_UNUSED */)
 {
-  WriteData *data = static_cast<WriteData *>(TSContDataGet(contp));
+  WriteData *data = (WriteData *)TSContDataGet(contp);
   TSContDestroy(contp);
 
   TSCacheKeyDestroy(data->key);
@@ -184,7 +187,7 @@ cache_open_write_failed(TSCont contp, void * /* edata ATS_UNUSED */)
 static int
 write_vconn_write_complete(TSCont contp, void * /* edata ATS_UNUSED */)
 {
-  WriteData *data = static_cast<WriteData *>(TSContDataGet(contp));
+  WriteData *data = (WriteData *)TSContDataGet(contp);
   TSContDestroy(contp);
 
   /* The object is not committed to the cache until the VConnection is
@@ -340,7 +343,7 @@ vconn_write_ready(TSCont contp, void * /* edata ATS_UNUSED */)
 
   char digest[32]; /* SHA-256 */
 
-  TransformData *transform_data = static_cast<TransformData *>(TSContDataGet(contp));
+  TransformData *transform_data = (TransformData *)TSContDataGet(contp);
 
   /* Check if we are "closed" before doing anything else to avoid
    * errors.  We *must* check for this case, if only to clean up
@@ -443,9 +446,9 @@ vconn_write_ready(TSCont contp, void * /* edata ATS_UNUSED */)
 
     /* Write the digest to the cache */
 
-    SHA256_Final(reinterpret_cast<unsigned char *>(digest), &transform_data->c);
+    SHA256_Final((unsigned char *)digest, &transform_data->c);
 
-    WriteData *write_data = static_cast<WriteData *>(TSmalloc(sizeof(WriteData)));
+    WriteData *write_data = (WriteData *)TSmalloc(sizeof(WriteData));
     write_data->txnp      = transform_data->txnp;
 
     /* Don't finish computing the digest more than once! */
@@ -499,8 +502,8 @@ transform_handler(TSCont contp, TSEvent event, void *edata)
 static int
 http_read_response_hdr(TSCont /* contp ATS_UNUSED */, void *edata)
 {
-  TransformData *data = static_cast<TransformData *>(TSmalloc(sizeof(TransformData)));
-  data->txnp          = static_cast<TSHttpTxn>(edata);
+  TransformData *data = (TransformData *)TSmalloc(sizeof(TransformData));
+  data->txnp          = (TSHttpTxn)edata;
 
   /* Can't initialize data here because we can't call TSVConnWrite()
    * before TS_HTTP_RESPONSE_TRANSFORM_HOOK */
@@ -524,8 +527,8 @@ http_read_response_hdr(TSCont /* contp ATS_UNUSED */, void *edata)
 static int
 cache_open_read(TSCont contp, void *edata)
 {
-  SendData *data = static_cast<SendData *>(TSContDataGet(contp));
-  data->connp    = static_cast<TSVConn>(edata);
+  SendData *data = (SendData *)TSContDataGet(contp);
+  data->connp    = (TSVConn)edata;
 
   data->cache_bufp = TSIOBufferCreate();
 
@@ -540,7 +543,7 @@ cache_open_read(TSCont contp, void *edata)
 static int
 cache_open_read_failed(TSCont contp, void * /* edata ATS_UNUSED */)
 {
-  SendData *data = static_cast<SendData *>(TSContDataGet(contp));
+  SendData *data = (SendData *)TSContDataGet(contp);
   TSContDestroy(contp);
 
   TSCacheKeyDestroy(data->key);
@@ -561,7 +564,7 @@ cache_open_read_failed(TSCont contp, void * /* edata ATS_UNUSED */)
 static int
 rewrite_handler(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
 {
-  SendData *data = static_cast<SendData *>(TSContDataGet(contp));
+  SendData *data = (SendData *)TSContDataGet(contp);
   TSContDestroy(contp);
 
   TSCacheKeyDestroy(data->key);
@@ -599,7 +602,7 @@ rewrite_handler(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
 static int
 vconn_read_ready(TSCont contp, void * /* edata ATS_UNUSED */)
 {
-  SendData *data = static_cast<SendData *>(TSContDataGet(contp));
+  SendData *data = (SendData *)TSContDataGet(contp);
   TSContDestroy(contp);
 
   TSVConnClose(data->connp);
@@ -693,9 +696,9 @@ location_handler(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
   const char *value;
   int length;
 
-  char digest[33]; /* ats_base64_decode_dstlen() */
+  char digest[33]; /* ATS_BASE64_DECODE_DSTLEN() */
 
-  SendData *data = static_cast<SendData *>(TSContDataGet(contp));
+  SendData *data = (SendData *)TSContDataGet(contp);
   TSContDestroy(contp);
 
   switch (event) {
@@ -708,7 +711,7 @@ location_handler(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
 
     /* No allocation, freed with data->resp_bufp? */
     value = TSMimeHdrFieldValueStringGet(data->resp_bufp, data->hdr_loc, data->digest_loc, data->idx, &length);
-    if (TSBase64Decode(value + 8, length - 8, reinterpret_cast<unsigned char *>(digest), sizeof(digest), nullptr) != TS_SUCCESS ||
+    if (TSBase64Decode(value + 8, length - 8, (unsigned char *)digest, sizeof(digest), nullptr) != TS_SUCCESS ||
         TSCacheKeyDigestSet(data->key, digest, 32 /* SHA-256 */) != TS_SUCCESS) {
       break;
     }
@@ -753,8 +756,8 @@ http_send_response_hdr(TSCont contp, void *edata)
   const char *value;
   int length;
 
-  SendData *data = static_cast<SendData *>(TSmalloc(sizeof(SendData)));
-  data->txnp     = static_cast<TSHttpTxn>(edata);
+  SendData *data = (SendData *)TSmalloc(sizeof(SendData));
+  data->txnp     = (TSHttpTxn)edata;
 
   if (TSHttpTxnClientRespGet(data->txnp, &data->resp_bufp, &data->hdr_loc) != TS_SUCCESS) {
     TSError("[metalink] Couldn't retrieve client response header");
@@ -885,7 +888,7 @@ handler(TSCont contp, TSEvent event, void *edata)
 }
 
 void
-TSPluginInit(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */[])
+TSPluginInit(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */ [])
 {
   TSPluginRegistrationInfo info;
 

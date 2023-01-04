@@ -16,8 +16,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
+
 
 Test.Summary = 'Test that Trafficserver starts with different thread configurations.'
+Test.SkipUnless(Condition.HasProgram('curl', 'Curl need to be installed on system for this test to work'))
+
 Test.ContinueOnFail = True
 
 ts = Test.MakeATSProcess('ts')
@@ -51,8 +55,7 @@ ts.Disk.remap_config.AddLine(
 ts.Setup.CopyAs('check_threads.py', Test.RunDirectory)
 
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'curl --proxy http://127.0.0.1:{0} http://www.example.com -H "Proxy-Connection: Keep-Alive" --verbose'.format(
-    ts.Variables.port)
+tr.Processes.Default.Command = 'curl --proxy http://127.0.0.1:{0} http://www.example.com -H "Proxy-Connection: Keep-Alive" --verbose'.format(ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.StartBefore(ts)
 tr.Processes.Default.StartBefore(server)

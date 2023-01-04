@@ -41,9 +41,9 @@ public:
     TSContDataSet(_cont, static_cast<void *>(this));
   }
 
-  // Create "empty" continuation, can only be populated by move assignment.
+  // Create "empty" continuation, can only be populated by move assignement.
   //
-  Continuation() {}
+  Continuation() : _cont(nullptr) {}
 
   TSCont
   asTSCont() const
@@ -111,9 +111,9 @@ public:
   // Timeout of zero means no timeout.
   //
   Action
-  schedule(TSHRTime timeout = 0, TSThreadPool tp = TS_THREAD_POOL_NET)
+  schedule(TSHRTime timeout = 0, TSThreadPool tp = TS_THREAD_POOL_DEFAULT)
   {
-    return TSContScheduleOnPool(_cont, timeout, tp);
+    return TSContSchedule(_cont, timeout, tp);
   }
 
   // Timeout of zero means no timeout.
@@ -125,13 +125,13 @@ public:
   }
 
   Action
-  scheduleEvery(TSHRTime interval /* milliseconds */, TSThreadPool tp = TS_THREAD_POOL_NET)
+  scheduleEvery(TSHRTime interval /* milliseconds */, TSThreadPool tp = TS_THREAD_POOL_DEFAULT)
   {
-    return TSContScheduleEveryOnPool(_cont, interval, tp);
+    return TSContScheduleEvery(_cont, interval, tp);
   }
 
 protected:
-  // Distinct continuation behavior is achieved by overriding this function in a derived continuation type.
+  // Distinct continuation behavior is acheived by overriding this function in a derived continutation type.
   //
   virtual int _run(TSEvent event, void *edata) = 0;
 
@@ -139,7 +139,7 @@ protected:
   //
   static int _generalEventFunc(TSCont cont, TSEvent event, void *edata);
 
-  TSCont _cont = nullptr;
+  TSCont _cont;
 };
 
 } // end namespace atscppapi

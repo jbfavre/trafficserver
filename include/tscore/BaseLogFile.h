@@ -177,7 +177,7 @@ public:
   static bool rolled_logfile(char *path);
   static bool exists(const char *pathname);
   int open_file(int perm = -1);
-  int close_file();
+  void close_file();
   void change_name(const char *new_name);
   void display(FILE *fd = stdout);
   const char *

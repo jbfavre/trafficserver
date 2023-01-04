@@ -36,16 +36,16 @@ class EventNotify
 {
 public:
   EventNotify();
-  void signal();
-  int wait();
+  void signal(void);
+  int wait(void);
   int timedwait(int timeout); // milliseconds
-  void lock();
-  bool trylock();
-  void unlock();
+  void lock(void);
+  bool trylock(void);
+  void unlock(void);
   ~EventNotify();
 
 private:
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   int m_event_fd;
   int m_epoll_fd;
 #else

@@ -24,20 +24,9 @@ TSHttpHdrLengthGet
 Synopsis
 ========
 
-.. code-block:: cpp
+`#include <ts/ts.h>`
 
-    #include <ts/ts.h>
-
-.. function:: int TSHttpHdrLengthGet(TSMBuffer bufp, TSMLoc mloc)
+.. function:: int TSHttpHdrLengthGet(TSMBuffer bufp, TSMLoc offset)
 
 Description
 ===========
-
-Return the length in characters of the HTTP header specified by :arg:`bufp` and :arg:`mloc` which
-must specify a valid HTTP header. Usually these values would have been obtained via an earlier call
-to
-:func:`TSHttpTxnServerReqGet`,
-:func:`TSHttpTxnClientReqGet`,
-:func:`TSHttpTxnServerRespGet`,
-:func:`TSHttpTxnClientRespGet`,
-or via calls to create a new HTTP header such as :func:`TSHttpHdrCreate`.

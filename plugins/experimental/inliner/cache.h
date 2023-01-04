@@ -40,7 +40,7 @@ namespace cache
       TSCacheKeyDestroy(key_);
     }
 
-    Key() : key_(TSCacheKeyCreate()) { assert(key_ != nullptr); }
+    Key(void) : key_(TSCacheKeyCreate()) { assert(key_ != nullptr); }
     Key(const Key &) = delete;
     Key &operator=(const Key &) = delete;
 
@@ -51,7 +51,7 @@ namespace cache
     }
 
     TSCacheKey
-    key() const
+    key(void) const
     {
       return key_;
     }
@@ -79,7 +79,7 @@ namespace cache
         self->t_.miss();
         break;
       default:
-        assert(false); // UNREACHABLE.
+        assert(false); // UNRECHEABLE.
         break;
       }
       delete self;

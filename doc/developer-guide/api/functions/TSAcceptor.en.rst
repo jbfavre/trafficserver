@@ -26,9 +26,7 @@ Traffic Server API's related to Accept objects
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSAcceptor TSAcceptorGet(TSVConn sslp)
 .. function:: TSAcceptor TSAcceptorGetbyID(int id)

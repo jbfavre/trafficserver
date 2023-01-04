@@ -21,9 +21,10 @@ import os
 Test.Summary = '''
 Test custom log file format
 '''
-
-# this test depends on Linux specific behavior regarding loopback addresses
+# need Curl
 Test.SkipUnless(
+    Condition.HasProgram(
+        "curl", "Curl need to be installed on system for this test to work"),
     Condition.IsPlatform("linux")
 )
 
@@ -37,13 +38,12 @@ ts.Disk.remap_config.AddLine(
 
 ts.Disk.logging_yaml.AddLines(
     '''
-logging:
-  formats:
-    - name: custom
-      format: "%<hii> %<hiih>"
-  logs:
-    - filename: test_log_field
-      format: custom
+formats:
+  - name: custom
+    format: "%<hii> %<hiih>"
+logs:
+  - filename: test_log_field
+    format: custom
 '''.split("\n")
 )
 
@@ -59,6 +59,7 @@ tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl "http://127.0.0.1:{0}" --verbose'.format(
     ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
+# time delay as proxy.config.http.wait_for_cache could be broken
 tr.Processes.Default.StartBefore(Test.Processes.ts)
 
 tr = Test.AddTestRun()
@@ -96,10 +97,7 @@ tr.Processes.Default.Command = 'curl "http://127.123.32.243:{0}" --verbose'.form
     ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 
-# Wait for log file to appear, then wait one extra second to make sure TS is done writing it.
-test_run = Test.AddTestRun()
-test_run.Processes.Default.Command = (
-    os.path.join(Test.Variables.AtsTestToolsDir, 'condwait') + ' 60 1 -f ' +
-    os.path.join(ts.Variables.LOGDIR, 'test_log_field.log')
-)
-test_run.Processes.Default.ReturnCode = 0
+tr = Test.AddTestRun()
+tr.DelayStart = 10
+tr.Processes.Default.Command = 'echo "Delay"'
+tr.Processes.Default.ReturnCode = 0

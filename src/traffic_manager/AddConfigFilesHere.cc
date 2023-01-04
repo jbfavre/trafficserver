@@ -22,15 +22,12 @@
  */
 
 #include "tscore/ink_platform.h"
-#include "tscore/Filenames.h"
 #include "MgmtUtils.h"
 #include "tscore/Diags.h"
 #include "FileManager.h"
 
 extern FileManager *configFiles;
 
-static constexpr bool REQUIRED{true};
-static constexpr bool NOT_REQUIRED{false};
 /****************************************************************************
  *
  *  AddConfigFilesHere.cc - Structs for config files and
@@ -39,27 +36,15 @@ static constexpr bool NOT_REQUIRED{false};
  ****************************************************************************/
 
 void
-testcall(char *foo, char * /*configName */)
+testcall(char *foo, bool /* incVersion */)
 {
   Debug("lm", "Received Callback that %s has changed", foo);
-}
-
-void
-registerFile(const char *configName, const char *defaultName, bool isRequired)
-{
-  bool found  = false;
-  char *fname = REC_readString(configName, &found);
-  if (!found) {
-    fname = ats_strdup(defaultName);
-  }
-  configFiles->addFile(fname, configName, false, isRequired);
-  ats_free(fname);
 }
 
 //
 // initializeRegistry()
 //
-// Code to initialize of registry of objects that represent
+// Code to initialze of registry of objects that represent
 //   Web Editable configuration files
 //
 // thread-safe: NO!  - Should only be executed once from the main
@@ -76,20 +61,19 @@ initializeRegistry()
     ink_assert(!"Configuration Object Registry Initialized More than Once");
   }
 
-  registerFile("proxy.config.log.config.filename", ts::filename::LOGGING, NOT_REQUIRED);
-  registerFile("", ts::filename::STORAGE, REQUIRED);
-  registerFile("proxy.config.socks.socks_config_file", ts::filename::SOCKS, NOT_REQUIRED);
-  registerFile(ts::filename::RECORDS, ts::filename::RECORDS, NOT_REQUIRED);
-  registerFile("proxy.config.cache.control.filename", ts::filename::CACHE, NOT_REQUIRED);
-  registerFile("proxy.config.cache.ip_allow.filename", ts::filename::IP_ALLOW, NOT_REQUIRED);
-  registerFile("proxy.config.http.parent_proxy.file", ts::filename::PARENT, NOT_REQUIRED);
-  registerFile("proxy.config.url_remap.filename", ts::filename::REMAP, NOT_REQUIRED);
-  registerFile("", ts::filename::VOLUME, NOT_REQUIRED);
-  registerFile("proxy.config.cache.hosting_filename", ts::filename::HOSTING, NOT_REQUIRED);
-  registerFile("", ts::filename::PLUGIN, NOT_REQUIRED);
-  registerFile("proxy.config.dns.splitdns.filename", ts::filename::SPLITDNS, NOT_REQUIRED);
-  registerFile("proxy.config.ssl.server.multicert.filename", ts::filename::SSL_MULTICERT, NOT_REQUIRED);
-  registerFile("proxy.config.ssl.servername.filename", ts::filename::SNI, NOT_REQUIRED);
-
+  configFiles->addFile("logging.yaml", false);
+  configFiles->addFile("storage.config", false);
+  configFiles->addFile("socks.config", false);
+  configFiles->addFile("records.config", false);
+  configFiles->addFile("cache.config", false);
+  configFiles->addFile("ip_allow.config", false);
+  configFiles->addFile("parent.config", false);
+  configFiles->addFile("remap.config", false);
+  configFiles->addFile("volume.config", false);
+  configFiles->addFile("hosting.config", false);
+  configFiles->addFile("plugin.config", false);
+  configFiles->addFile("splitdns.config", false);
+  configFiles->addFile("ssl_multicert.config", false);
+  configFiles->addFile(SSL_SERVER_NAME_CONFIG, false);
   configFiles->registerCallback(testcall);
 }

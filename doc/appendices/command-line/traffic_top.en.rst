@@ -152,8 +152,8 @@ PURGE request).
 
 Statistic: :ts:stat:`proxy.process.http.cache_deletes`.
 
-Read Active
-~~~~~~~~~~~
+Read Activ
+~~~~~~~~~~
 
 Current number of active cache reads.
 

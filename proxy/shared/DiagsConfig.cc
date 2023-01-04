@@ -25,7 +25,6 @@
 #include "tscore/ink_memory.h"
 #include "tscore/ink_file.h"
 #include "tscore/I_Layout.h"
-#include "tscore/Filenames.h"
 #include "DiagsConfig.h"
 #include "records/P_RecCore.h"
 
@@ -72,19 +71,19 @@ DiagsConfig::reconfigure_diags()
 
   // enabled if records.config set
 
-  e = static_cast<int>(REC_readInteger("proxy.config.diags.debug.enabled", &found));
+  e = (int)REC_readInteger("proxy.config.diags.debug.enabled", &found);
   if (e && found) {
     c.enabled[DiagsTagType_Debug] = e; // implement OR logic
   }
   all_found = all_found && found;
 
-  e = static_cast<int>(REC_readInteger("proxy.config.diags.action.enabled", &found));
+  e = (int)REC_readInteger("proxy.config.diags.action.enabled", &found);
   if (e && found) {
     c.enabled[DiagsTagType_Action] = true; // implement OR logic
   }
   all_found = all_found && found;
 
-  e                    = static_cast<int>(REC_readInteger("proxy.config.diags.show_location", &found));
+  e                    = (int)REC_readInteger("proxy.config.diags.show_location", &found);
   diags->show_location = ((e == 1 && found) ? SHOW_LOCATION_DEBUG : ((e == 2 && found) ? SHOW_LOCATION_ALL : SHOW_LOCATION_NONE));
   all_found            = all_found && found;
 
@@ -171,7 +170,7 @@ diags_config_callback(const char * /* name ATS_UNUSED */, RecDataT /* data_type 
 {
   DiagsConfig *diagsConfig;
 
-  diagsConfig = static_cast<DiagsConfig *>(opaque_token);
+  diagsConfig = (DiagsConfig *)opaque_token;
   ink_assert(diags->magic == DIAGS_MAGIC);
   diagsConfig->reconfigure_diags();
   return (0);
@@ -245,15 +244,37 @@ DiagsConfig::config_diags_norecords()
 #endif
 }
 
-DiagsConfig::DiagsConfig(std::string_view prefix_string, const char *filename, const char *tags, const char *actions,
-                         bool use_records)
-  : callbacks_established(false), diags_log(nullptr), diags(nullptr)
+void
+DiagsConfig::RegisterDiagConfig()
+{
+  RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.debug.enabled", 0, RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.debug.tags", "", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.action.enabled", 0, RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.action.tags", "", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.show_location", 1, RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.diag", "L", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.debug", "L", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.status", "L", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.note", "L", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.warning", "L", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.error", "SL", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.fatal", "SL", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.alert", "L", RECU_NULL, RECC_NULL, nullptr, REC_SOURCE_DEFAULT);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.emergency", "SL", RECU_NULL, RECC_NULL, nullptr,
+                          REC_SOURCE_DEFAULT);
+}
+
+DiagsConfig::DiagsConfig(const char *prefix_string, const char *filename, const char *tags, const char *actions, bool use_records)
+  : diags_log(nullptr)
 {
   char diags_logpath[PATH_NAME_MAX];
   ats_scoped_str logpath;
 
+  callbacks_established = false;
+  diags                 = nullptr;
+
   ////////////////////////////////////////////////////////////////////
-  //  If we aren't using the manager records for configuration      //
+  //  If we aren't using the manager records for configuation       //
   //   just build the tables based on command line parameters and   //
   //   exit                                                         //
   ////////////////////////////////////////////////////////////////////
@@ -278,12 +299,12 @@ DiagsConfig::DiagsConfig(std::string_view prefix_string, const char *filename, c
 
   // Grab rolling intervals from configuration
   // TODO error check these values
-  int output_log_roll_int    = static_cast<int>(REC_ConfigReadInteger("proxy.config.output.logfile.rolling_interval_sec"));
-  int output_log_roll_size   = static_cast<int>(REC_ConfigReadInteger("proxy.config.output.logfile.rolling_size_mb"));
-  int output_log_roll_enable = static_cast<int>(REC_ConfigReadInteger("proxy.config.output.logfile.rolling_enabled"));
-  int diags_log_roll_int     = static_cast<int>(REC_ConfigReadInteger("proxy.config.diags.logfile.rolling_interval_sec"));
-  int diags_log_roll_size    = static_cast<int>(REC_ConfigReadInteger("proxy.config.diags.logfile.rolling_size_mb"));
-  int diags_log_roll_enable  = static_cast<int>(REC_ConfigReadInteger("proxy.config.diags.logfile.rolling_enabled"));
+  int output_log_roll_int    = (int)REC_ConfigReadInteger("proxy.config.output.logfile.rolling_interval_sec");
+  int output_log_roll_size   = (int)REC_ConfigReadInteger("proxy.config.output.logfile.rolling_size_mb");
+  int output_log_roll_enable = (int)REC_ConfigReadInteger("proxy.config.output.logfile.rolling_enabled");
+  int diags_log_roll_int     = (int)REC_ConfigReadInteger("proxy.config.diags.logfile.rolling_interval_sec");
+  int diags_log_roll_size    = (int)REC_ConfigReadInteger("proxy.config.diags.logfile.rolling_size_mb");
+  int diags_log_roll_enable  = (int)REC_ConfigReadInteger("proxy.config.diags.logfile.rolling_enabled");
 
   // Grab some perms for the actual files on disk
   char *diags_perm       = REC_ConfigReadString("proxy.config.diags.logfile_perm");
@@ -297,9 +318,8 @@ DiagsConfig::DiagsConfig(std::string_view prefix_string, const char *filename, c
   // Set up diags, FILE streams are opened in Diags constructor
   diags_log = new BaseLogFile(diags_logpath);
   diags     = new Diags(prefix_string, tags, actions, diags_log, diags_perm_parsed, output_perm_parsed);
-  diags->config_roll_diagslog(static_cast<RollingEnabledValues>(diags_log_roll_enable), diags_log_roll_int, diags_log_roll_size);
-  diags->config_roll_outputlog(static_cast<RollingEnabledValues>(output_log_roll_enable), output_log_roll_int,
-                               output_log_roll_size);
+  diags->config_roll_diagslog((RollingEnabledValues)diags_log_roll_enable, diags_log_roll_int, diags_log_roll_size);
+  diags->config_roll_outputlog((RollingEnabledValues)output_log_roll_enable, output_log_roll_int, output_log_roll_size);
 
   Status("opened %s", diags_logpath);
 
@@ -339,7 +359,7 @@ DiagsConfig::register_diags_callbacks()
   for (i = 0; config_record_names[i] != nullptr; i++) {
     status = (REC_RegisterConfigUpdateFunc(config_record_names[i], diags_config_callback, o) == REC_ERR_OKAY);
     if (!status) {
-      Warning("couldn't register variable '%s', is %s up to date?", config_record_names[i], ts::filename::RECORDS);
+      Warning("couldn't register variable '%s', is records.config up to date?", config_record_names[i]);
     }
     total_status = total_status && status;
   }

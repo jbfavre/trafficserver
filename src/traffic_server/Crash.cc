@@ -23,7 +23,6 @@
 
 #include "Main.h"
 #include "tscore/I_Layout.h"
-#include "tscore/I_Version.h"
 #include "I_Net.h"
 #include "tscore/signals.h"
 #include "tscore/ink_cap.h"
@@ -33,8 +32,6 @@
 #if defined(__linux__)
 #include <ucontext.h>
 #endif
-
-extern AppVersionInfo appVersionInfo;
 
 static pid_t crash_logger_pid = -1;
 static int crash_logger_fd    = NO_FD;
@@ -158,7 +155,7 @@ crash_logger_invoke(int signo, siginfo_t *info, void *ctx)
     // ucontext_t can contain pointers, so it's highly platform dependent. On Linux with glibc, however, it is
     // a single memory block that we can just puke out.
     ATS_UNUSED_RETURN(write(crash_logger_fd, info, sizeof(siginfo_t)));
-    ATS_UNUSED_RETURN(write(crash_logger_fd, static_cast<ucontext_t *>(ctx), sizeof(ucontext_t)));
+    ATS_UNUSED_RETURN(write(crash_logger_fd, (ucontext_t *)ctx, sizeof(ucontext_t)));
 #endif
 
     close(crash_logger_fd);

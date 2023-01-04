@@ -38,16 +38,22 @@ RefCountCacheHashEntry::dealloc(RefCountCacheHashEntry *e)
   return refCountCacheHashingValueAllocator.free(e);
 }
 
-RefCountCacheHeader::RefCountCacheHeader(ts::VersionNumber object_version) : object_version(object_version){};
+RefCountCacheHeader::RefCountCacheHeader(VersionNumber object_version)
+  : magic(REFCOUNTCACHE_MAGIC_NUMBER), object_version(object_version)
+{
+  this->version.ink_major = REFCOUNTCACHE_MAJOR_VERSION;
+  this->version.ink_minor = REFCOUNTCACHE_MINOR_VERSION;
+};
 
 bool
-RefCountCacheHeader::operator==(RefCountCacheHeader const &that) const
+RefCountCacheHeader::operator==(const RefCountCacheHeader other) const
 {
-  return this->magic == that.magic && this->version == that.version;
+  return this->magic == other.magic && this->version == other.version;
 }
 
 bool
-RefCountCacheHeader::compatible(RefCountCacheHeader *that) const
+RefCountCacheHeader::compatible(RefCountCacheHeader *other) const
 {
-  return this->magic == that->magic && this->version == that->version && this->object_version == that->version;
+  return (this->magic == other->magic && this->version.ink_major == other->version.ink_major &&
+          this->object_version.ink_major == other->version.ink_major);
 };

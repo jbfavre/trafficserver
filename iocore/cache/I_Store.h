@@ -62,11 +62,7 @@ struct span_diskid_t {
     return id[0] == rhs.id[0] && id[1] == rhs.id[1];
   }
 
-  int64_t &
-  operator[](unsigned i)
-  {
-    return id[i];
-  }
+  int64_t &operator[](unsigned i) { return id[i]; }
 };
 
 //
@@ -74,17 +70,17 @@ struct span_diskid_t {
 // Those on the same disk should be in a linked list.
 //
 struct Span {
-  int64_t blocks          = 0; // in STORE_BLOCK_SIZE blocks
-  int64_t offset          = 0; // used only if (file == true); in bytes
-  unsigned hw_sector_size = DEFAULT_HW_SECTOR_SIZE;
-  unsigned alignment      = 0;
+  int64_t blocks; // in STORE_BLOCK_SIZE blocks
+  int64_t offset; // used only if (file == true); in bytes
+  unsigned hw_sector_size;
+  unsigned alignment;
   span_diskid_t disk_id;
-  int forced_volume_num = -1; ///< Force span in to specific volume.
+  int forced_volume_num; ///< Force span in to specific volume.
 private:
-  bool is_mmapable_internal = false;
+  bool is_mmapable_internal;
 
 public:
-  bool file_pathname = false; // the pathname is a file
+  bool file_pathname; // the pathname is a file
   // v- used as a magic location for copy constructor.
   // we memcpy everything before this member and do explicit assignment for the rest.
   ats_scoped_str pathname;
@@ -161,7 +157,17 @@ public:
   /// Set the volume number.
   void volume_number_set(int n);
 
-  Span() { disk_id[0] = disk_id[1] = 0; }
+  Span()
+    : blocks(0),
+      offset(0),
+      hw_sector_size(DEFAULT_HW_SECTOR_SIZE),
+      alignment(0),
+      forced_volume_num(-1),
+      is_mmapable_internal(false),
+      file_pathname(false)
+  {
+    disk_id[0] = disk_id[1] = 0;
+  }
 
   /// Copy constructor.
   /// @internal Prior to this implementation handling the char* pointers was done manually
@@ -170,7 +176,7 @@ public:
   Span(Span const &that)
   {
     /* I looked at simplifying this by changing the @c ats_scoped_str instances to @c std::string
-     * but that actually makes it worse. The copy constructor @b must be overridden to get the
+     * but that actually makes it worse. The copy constructor @b must be overriden to get the
      * internal link (@a link.next) correct. Given that, changing to @c std::string means doing
      * explicit assignment for every member, which has its own problems.
      */
@@ -259,10 +265,10 @@ struct Store {
   ~Store();
 
   // The number of disks/paths defined in storage.config
-  unsigned n_disks_in_config = 0;
+  unsigned n_disks_in_config;
   // The number of disks/paths we could actually read and parse.
-  unsigned n_disks = 0;
-  Span **disk      = nullptr;
+  unsigned n_disks;
+  Span **disk;
 
   Result read_config();
 

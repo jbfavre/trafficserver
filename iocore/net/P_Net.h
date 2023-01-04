@@ -51,14 +51,12 @@ enum Net_Stats {
   inactivity_cop_lock_acquire_failure_stat,
   keep_alive_queue_timeout_total_stat,
   keep_alive_queue_timeout_count_stat,
-  default_inactivity_timeout_applied_stat,
-  default_inactivity_timeout_count_stat,
+  default_inactivity_timeout_stat,
   net_fastopen_attempts_stat,
   net_fastopen_successes_stat,
   net_tcp_accept_stat,
   net_connections_throttled_in_stat,
   net_connections_throttled_out_stat,
-  net_requests_max_throttled_in_stat,
   Net_Stat_Count
 };
 
@@ -105,13 +103,16 @@ extern RecRawStatBlock *net_rsb;
 #include "P_Socks.h"
 #include "P_CompletionUtil.h"
 #include "P_NetVCTest.h"
+#include "P_LibBulkIO.h"
 
 #include "P_SSLNetVConnection.h"
 #include "P_SSLNetProcessor.h"
 #include "P_SSLNetAccept.h"
 #include "P_SSLCertLookup.h"
 
-static constexpr ts::ModuleVersion NET_SYSTEM_MODULE_INTERNAL_VERSION(NET_SYSTEM_MODULE_PUBLIC_VERSION, ts::ModuleVersion::PRIVATE);
+#undef NET_SYSTEM_MODULE_VERSION
+#define NET_SYSTEM_MODULE_VERSION \
+  makeModuleVersion(NET_SYSTEM_MODULE_MAJOR_VERSION, NET_SYSTEM_MODULE_MINOR_VERSION, PRIVATE_MODULE_HEADER)
 
 // For very verbose iocore debugging.
 #ifndef DEBUG

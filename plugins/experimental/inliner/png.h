@@ -63,13 +63,13 @@ namespace inliner
 
     public:
       uint32_t
-      length() const
+      length(void) const
       {
         return (length_[0] << 24) | (length_[1] << 16) | (length_[2] << 8) | length_[3];
       }
 
       std::string
-      type() const
+      type(void) const
       {
         return std::string(type_, 4);
       }

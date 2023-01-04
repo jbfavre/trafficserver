@@ -71,7 +71,7 @@ namespace cache
       TSIOBufferWrite(self->out_->buffer, self->content_.data(), self->content_.size());
       break;
     default:
-      assert(false); // UNREACHABLE.
+      assert(false); // UNRECHEABLE.
       break;
     }
     return 0;

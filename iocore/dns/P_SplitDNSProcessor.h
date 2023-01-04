@@ -30,14 +30,19 @@
 
 #pragma once
 
+/*
+#include "P_DNS.h"
+#include "I_SplitDNS.h"
+#include "I_Lock.h"
+#include "ControlBase.h"
+#include "ControlMatcher.h"
+*/
 #include "ProxyConfig.h"
-
-#include "tscore/HostLookup.h"
 
 /* ---------------------------
    forward declarations ...
    --------------------------- */
-void ink_split_dns_init(ts::ModuleVersion version);
+void ink_split_dns_init(ModuleVersion version);
 
 struct RequestData;
 
@@ -65,11 +70,18 @@ struct SplitDNSResult {
   /* ------------
      public
      ------------ */
-  DNSResultType r = DNS_SRVR_UNDEFINED;
+  DNSResultType r;
 
-  int m_line_number = 0;
+  DNSServer *get_dns_record();
+  int get_dns_srvr_count();
 
-  SplitDNSRecord *m_rec = nullptr;
+  /* ------------
+     private
+     ------------ */
+  int m_line_number;
+
+  SplitDNSRecord *m_rec;
+  bool m_wrap_around;
 };
 
 /* --------------------------------------------------------------
@@ -82,17 +94,17 @@ struct SplitDNS : public ConfigInfo {
   void *getDNSRecord(const char *hostname);
   void findServer(RequestData *rdata, SplitDNSResult *result);
 
-  DNS_table *m_DNSSrvrTable = nullptr;
+  DNS_table *m_DNSSrvrTable;
 
-  int32_t m_SplitDNSlEnable = 0;
+  int32_t m_SplitDNSlEnable;
 
   /* ----------------------------
      required by the alleged fast
      path
      ---------------------------- */
-  bool m_bEnableFastPath               = false;
-  HostLookup::LeafArray *m_pxLeafArray = nullptr;
-  int m_numEle                         = 0;
+  bool m_bEnableFastPath;
+  void *m_pxLeafArray;
+  int m_numEle;
 };
 
 /* --------------------------------------------------------------
@@ -118,21 +130,21 @@ class DNSRequestData : public RequestData
 public:
   DNSRequestData();
 
-  char *get_string() override;
+  char *get_string();
 
-  const char *get_host() override;
+  const char *get_host();
 
-  sockaddr const *get_ip() override;        // unused required virtual method.
-  sockaddr const *get_client_ip() override; // unused required virtual method.
+  sockaddr const *get_ip();        // unused required virtual method.
+  sockaddr const *get_client_ip(); // unused required virtual method.
 
-  const char *m_pHost = nullptr;
+  const char *m_pHost;
 };
 
 /* --------------------------------------------------------------
    DNSRequestData::get_string()
    -------------------------------------------------------------- */
 TS_INLINE
-DNSRequestData::DNSRequestData() {}
+DNSRequestData::DNSRequestData() : m_pHost(nullptr) {}
 
 /* --------------------------------------------------------------
    DNSRequestData::get_string()
@@ -188,20 +200,28 @@ public:
   const char *ProcessDefDomain(char *val);
 
   void UpdateMatch(SplitDNSResult *result, RequestData *rdata);
-  void Print() const;
+  void Print();
 
   DNSServer m_servers;
-  int m_dnsSrvr_cnt      = 0;
-  int m_domain_srch_list = 0;
+  int m_dnsSrvr_cnt;
+  int m_domain_srch_list;
 };
 
 /* --------------------------------------------------------------
    SplitDNSRecord::SplitDNSRecord()
    -------------------------------------------------------------- */
 TS_INLINE
-SplitDNSRecord::SplitDNSRecord() {}
+SplitDNSRecord::SplitDNSRecord() : m_dnsSrvr_cnt(0), m_domain_srch_list(0) {}
 
 /* --------------------------------------------------------------
    SplitDNSRecord::~SplitDNSRecord()
    -------------------------------------------------------------- */
 TS_INLINE SplitDNSRecord::~SplitDNSRecord() {}
+
+/* ------------------
+   Helper Functions
+   ------------------ */
+
+SplitDNSRecord *createDefaultServer();
+void reloadDefaultParent(char *val);
+void reloadParentFile();

@@ -22,17 +22,16 @@
 Webp Transform Plugin
 *********************
 
-This plugin converts jpeg and png images and transforms them into webp format for browsers that support webp.
-Also, the plugin converts webp images and transforms them to jpeg for browsers that don't support webp
+This plugin converts jpeg and png images and transforms them into webp format.
 All response with content-type 'image/jpeg' or 'image/png' will go through the transform.
-Content-type is changed to 'image/webp' or 'image/jpeg' on successful transformation.
+Content-type is changed to 'image/webp' on successful transformation.
 
 Installation
 ============
 
 Add the following line to :file:`plugin.config`::
 
-    webp_transform.so [convert_to_jpeg,convert_to_webp]
+    webp_transform.so
 
 
 Note

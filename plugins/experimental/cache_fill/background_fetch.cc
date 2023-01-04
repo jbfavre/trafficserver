@@ -38,7 +38,7 @@
 #include "ts/ts.h"
 #include "ts/remap.h"
 #include "background_fetch.h"
-using OutstandingRequests = std::unordered_map<std::string, bool>;
+typedef std::unordered_map<std::string, bool> OutstandingRequests;
 
 ///////////////////////////////////////////////////////////////////////////
 // Set a header to a specific value. This will avoid going to through a
@@ -201,7 +201,7 @@ BgFetchData::schedule()
   resp_io_buf_reader = TSIOBufferReaderAlloc(resp_io_buf);
 
   // Schedule
-  TSContScheduleOnPool(_cont, 0, TS_THREAD_POOL_NET);
+  TSContSchedule(_cont, 0, TS_THREAD_POOL_NET);
 }
 
 //////////////////////////////////////////////////////////////////////////////
