@@ -45,13 +45,6 @@ NetVConnection::get_remote_endpoint()
   return remote_addr;
 }
 
-inline in_addr_t
-NetVConnection::get_remote_ip()
-{
-  sockaddr const *addr = this->get_remote_addr();
-  return ats_is_ip4(addr) ? ats_ip4_addr_cast(addr) : 0;
-}
-
 /// @return The remote port in host order.
 inline uint16_t
 NetVConnection::get_remote_port()
@@ -80,13 +73,6 @@ NetVConnection::get_local_addr()
   return &local_addr.sa;
 }
 
-inline in_addr_t
-NetVConnection::get_local_ip()
-{
-  sockaddr const *addr = this->get_local_addr();
-  return ats_is_ip4(addr) ? ats_ip4_addr_cast(addr) : 0;
-}
-
 /// @return The local port in host order.
 inline uint16_t
 NetVConnection::get_local_port()
@@ -99,7 +85,7 @@ NetVConnection::get_proxy_protocol_addr(const ProxyProtocolData src_or_dst) cons
 {
   const IpEndpoint &addr = (src_or_dst == ProxyProtocolData::SRC ? pp_info.src_addr : pp_info.dst_addr);
 
-  if ((addr.isValid() && addr.port() != 0) || (ats_is_ip4(&addr) && INADDR_ANY != ats_ip4_addr_cast(&addr)) // IPv4
+  if ((addr.isValid() && addr.network_order_port() != 0) || (ats_is_ip4(&addr) && INADDR_ANY != ats_ip4_addr_cast(&addr)) // IPv4
       || (ats_is_ip6(&addr) && !IN6_IS_ADDR_UNSPECIFIED(&addr.sin6.sin6_addr))) {
     return &addr.sa;
   }

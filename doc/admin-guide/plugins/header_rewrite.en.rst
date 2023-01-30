@@ -163,6 +163,25 @@ Returns true if |TS| was able to successfully update the access time on the
 file at ``<path>``. This condition will return false if the file does not exist
 or |TS| cannot access it for any other reason.
 
+CACHE
+~~~~~
+::
+
+    cond %{CACHE} <operand>
+
+This condition provides the server's cache lookup results to inform headers
+where the requested data was generated from. The cache values are:
+
+  ==========  ===========
+  Value       Description
+  ==========  ===========
+  none        No cache lookup was attempted.
+  miss        The object was not found in the cache.
+  hit-stale   The object was found in the cache, but it was stale.
+  hit-fresh   The object was fresh in the cache.
+  skipped     The cache lookup was skipped.
+  ==========  ===========
+
 CLIENT-HEADER
 ~~~~~~~~~~~~~
 ::
@@ -355,6 +374,14 @@ string. Therefore the condition is treated as if it were ::
 which is true when the connection is not TLS. The arguments ``H2``, ``IPV4``, and ``IPV6`` work the
 same way.
 
+As a special matcher, the inbound IP addresses can be matched against a list of IP ranges, e.g.
+::
+
+   cond %{INBOUND:REMOTE-ADDR} {192.168.201.0/24,10.0.0.0/8}
+
+Note that this will not work against the non-IP based conditions, such as the protocol families,
+and the configuration parser will error out. The format here is very specific, in particular no
+white spaces are allowed between the ranges.
 
 IP
 ~~
@@ -381,6 +408,13 @@ actually as a value to an operator, e.g. ::
      set-header X-Server-IP %{IP:SERVER}
      set-header X-Outbound-IP %{IP:OUTBOUND}
 
+As a special matcher, the `IP` can be matched against a list of IP ranges, e.g.
+::
+
+   cond %{IP:CLIENT} {192.168.201.0/24,10.0.0.0/8}
+
+The format here is very specific, in particular no white spaces are allowed between the
+ranges.
 
 INTERNAL-TRANSACTION
 ~~~~~~~~~~~~~~~~~~~~
@@ -631,6 +665,14 @@ rm-cookie
 
 Removes the cookie ``<name>``.
 
+set-body
+~~~~~~~~
+::
+
+  set-body <text>
+
+Sets the body to ``<text>``. Can also be used to delete a body with ``""``
+
 set-config
 ~~~~~~~~~~
 ::
@@ -676,6 +718,9 @@ the appropriate logs even when the debug tag has not been enabled. For
 additional information on |TS| debugging statements, refer to
 :ref:`developer-debug-tags` in the developer's documentation.
 
++**Note**: This operator is deprecated, use the ``set-http-cntl`` operator instead,
++with the ``TXN_DEBUG`` control.
+
 set-destination
 ~~~~~~~~~~~~~~~
 ::
@@ -688,6 +733,18 @@ component that is being modified (see `URL Parts`_), and ``<value>`` will be
 used as its replacement. You must supply a non-zero length value, otherwise
 this operator will be an effective no-op (though a warning will be emitted to
 the logs if debugging is enabled).
+
+rm-destination
+~~~~~~~~~~~~~~
+::
+
+  rm-destination <part>
+
+Removes individual components of the remapped destination's address. When
+changing the remapped destination, ``<part>`` should be used to indicate the
+component that is being modified (see `URL Parts`_). Currently the only valid
+parts for rm-destination are QUERY, PATH, and PORT.
+
 
 set-header
 ~~~~~~~~~~
@@ -755,6 +812,9 @@ When invoked, and when ``<value>`` is any of ``1``, ``true``, or ``TRUE``, this
 operator causes |TS| to abort further request remapping. Any other value and
 the operator will effectively be a no-op.
 
+**Note**: This operator is deprecated, use the ``set-http-cntl`` operator instead,
+with the ``SKIP_REMAP`` control.
+
 set-cookie
 ~~~~~~~~~~
 ::
@@ -763,6 +823,28 @@ set-cookie
 
 Replaces the value of cookie ``<name>`` with ``<value>``, creating the cookie
 if necessary.
+
+set-http-cntl
+~~~~~~~~~~~~~
+;;
+
+  set-http-cntl <controller> <flag>
+
+This operator lets you turn off (or on) the logging for a particular transaction.
+The ``<flag>`` is any of ``0``, ``off``, and ``false``, or ``1``, ``on`` and ``true``.
+The available controllers are:
+
+================ ====================================================================
+Controller       Description
+================ ====================================================================
+LOGGING          Turns off logging for the transction (default: ``on``)
+INTERCEPT_RETRY  Allow intercepts to be retried (default: ``off``)
+RESP_CACHEABLE   Force the response to be cacheable (default: ``off``)
+REQ_CACHEABLE    Force the request to be cacheable (default: ``off``)
+SERVER_NO_STORE  Don't allow the response to be written to cache (default: ``off``)
+TXN_DEBUG        Enable transaction debugging (default: ``off``)
+SKIP_REMAP       Don't require a remap match for the transaction (default: ``off``)
+================ ====================================================================
 
 Operator Flags
 --------------
@@ -1204,3 +1286,37 @@ could each be tagged with a consistent name to make finding logs easier.::
    set-header @PropertyName "someproperty"
 
 (Then in :file:`logging.yaml`, log ``%<{@PropertyName}cqh>``)
+
+Remove Client Query Parameters
+------------------------------------
+
+The following ruleset removes any query parameters set by the client.::
+
+   cond %{REMAP_PSEUDO_HOOK}
+   rm-destination QUERY
+
+Mimic X-Debug Plugin's X-Cache Header
+-------------------------------------
+
+This rule can mimic X-Debug plugin's ``X-Cache`` header by accumulating
+the ``CACHE`` condition results to a header.::
+
+   cond %{SEND_RESPONSE_HDR_HOOK} [AND]
+   cond %{HEADER:All-Cache} ="" [NOT]
+   set-header All-Cache "%{HEADER:All-Cache}, %{CACHE}"
+
+   cond %{SEND_RESPONSE_HDR_HOOK} [AND]
+   cond %{HEADER:All-Cache} =""
+   set-header All-Cache %{CACHE}
+
+Add Identifier from Server with Data
+------------------------------------
+
+This rule adds an unique identifier from the server if the data is fresh from
+the cache or if the identifier has not been generated yet. This will inform
+the client where the requested data was served from.::
+
+   cond %{SEND_RESPONSE_HDR_HOOK} [AND]
+   cond %{HEADER:ATS-SRVR-UUID} ="" [OR]
+   cond %{CACHE} ="hit-fresh"
+   set-header ATS-SRVR-UUID %{ID:UNIQUE}

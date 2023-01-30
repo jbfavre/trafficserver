@@ -143,6 +143,7 @@ check_PROGRAMS = test_certlookup$(EXEEXT) test_UDPNet$(EXEEXT) \
 subdir = iocore/net
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_cc_for_build.m4 \
 	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
@@ -162,7 +163,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
-	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/mimalloc.m4 $(top_srcdir)/build/network.m4 \
+	$(top_srcdir)/build/nuraft.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
@@ -182,36 +184,38 @@ am__v_AR_1 =
 libinknet_a_AR = $(AR) $(ARFLAGS)
 libinknet_a_LIBADD =
 am__libinknet_a_SOURCES_DIST = ALPNSupport.cc BIO_fastopen.cc \
-	BIO_fastopen.h Connection.cc I_Net.h I_NetProcessor.h \
-	I_NetVConnection.h I_Socks.h I_UDPConnection.h I_UDPNet.h \
-	I_UDPPacket.h Inline.cc I_SessionAccept.h YamlSNIConfig.h \
-	YamlSNIConfig.cc Net.cc NetVConnection.cc P_ALPNSupport.h \
-	P_SNIActionPerformer.h P_CompletionUtil.h P_Connection.h \
-	P_Net.h P_NetAccept.h P_NetVConnection.h P_Socks.h \
-	P_SSLCertLookup.h P_SSLConfig.h P_SSLNetAccept.h \
-	P_SSLNetProcessor.h P_SSLNetVConnection.h \
-	P_SSLNextProtocolAccept.h P_SSLNextProtocolSet.h P_SSLSNI.h \
-	P_SSLUtils.h P_SSLClientCoordinator.h P_SSLClientUtils.h \
+	BIO_fastopen.h BoringSSLUtils.cc BoringSSLUtils.h \
+	Connection.cc I_Net.h I_NetProcessor.h I_NetVConnection.h \
+	I_Socks.h I_UDPConnection.h I_UDPNet.h I_UDPPacket.h Inline.cc \
+	I_SessionAccept.h YamlSNIConfig.h YamlSNIConfig.cc Net.cc \
+	NetVConnection.cc P_ALPNSupport.h P_SNIActionPerformer.h \
+	P_CompletionUtil.h P_Connection.h P_Net.h P_NetAccept.h \
+	P_NetVConnection.h P_Socks.h P_SSLCertLookup.h P_SSLConfig.h \
+	P_SSLSecret.h P_SSLNetAccept.h P_SSLNetProcessor.h \
+	P_SSLNetVConnection.h P_SSLNextProtocolAccept.h \
+	P_SSLNextProtocolSet.h P_SSLSNI.h P_SSLUtils.h \
+	P_SSLClientCoordinator.h P_SSLClientUtils.h P_TLSKeyLogger.h \
 	P_OCSPStapling.h P_UDPConnection.h P_UDPIOEvent.h P_UDPNet.h \
 	P_UDPPacket.h P_UnixCompletionUtil.h P_UnixNet.h \
 	P_UnixNetProcessor.h P_UnixNetState.h P_UnixNetVConnection.h \
 	P_UnixPollDescriptor.h P_UnixUDPConnection.h ProxyProtocol.h \
 	ProxyProtocol.cc Socks.cc SSLCertLookup.cc \
 	SSLClientCoordinator.cc SSLClientUtils.cc SSLConfig.cc \
-	SSLDiags.cc SSLInternal.cc SSLNetAccept.cc SSLNetProcessor.cc \
-	SSLNetVConnection.cc SSLNextProtocolAccept.cc \
-	SSLNextProtocolSet.cc SSLSNIConfig.cc SSLStats.cc \
-	SSLSessionCache.cc SSLSessionTicket.cc SSLUtils.cc \
-	OCSPStapling.cc TLSSessionResumptionSupport.cc \
-	TLSSNISupport.cc UDPIOEvent.cc UnixConnection.cc UnixNet.cc \
-	UnixNetAccept.cc UnixNetPages.cc UnixNetProcessor.cc \
-	UnixNetVConnection.cc UnixUDPConnection.cc UnixUDPNet.cc \
-	SSLDynlock.cc P_QUICClosedConCollector.h P_QUICPacketHandler.h \
-	P_QUICNet.h P_QUICNetProcessor.h P_QUICNetVConnection.h \
-	P_QUICNextProtocolAccept.h QUICClosedConCollector.cc \
-	QUICPacketHandler.cc QUICMultiCertConfigLoader.cc QUICNet.cc \
-	QUICNetProcessor.cc QUICNetVConnection.cc \
-	QUICNextProtocolAccept.cc NetVCTest.cc P_NetVCTest.h
+	SSLSecret.cc SSLDiags.cc SSLInternal.cc SSLNetAccept.cc \
+	SSLNetProcessor.cc SSLNetVConnection.cc \
+	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc SSLSNIConfig.cc \
+	SSLStats.cc SSLSessionCache.cc SSLSessionTicket.cc SSLUtils.cc \
+	OCSPStapling.cc TLSBasicSupport.cc TLSKeyLogger.cc \
+	TLSSessionResumptionSupport.cc TLSSNISupport.cc UDPIOEvent.cc \
+	UnixConnection.cc UnixNet.cc UnixNetAccept.cc UnixNetPages.cc \
+	UnixNetProcessor.cc UnixNetVConnection.cc UnixUDPConnection.cc \
+	UnixUDPNet.cc SSLDynlock.cc P_QUICClosedConCollector.h \
+	P_QUICPacketHandler.h P_QUICNet.h P_QUICNetProcessor.h \
+	P_QUICNetVConnection.h P_QUICNextProtocolAccept.h \
+	QUICClosedConCollector.cc QUICPacketHandler.cc \
+	QUICMultiCertConfigLoader.cc QUICNet.cc QUICNetProcessor.cc \
+	QUICNetVConnection.cc QUICNextProtocolAccept.cc NetVCTest.cc \
+	P_NetVCTest.h
 @ENABLE_QUIC_TRUE@am__objects_1 = QUICClosedConCollector.$(OBJEXT) \
 @ENABLE_QUIC_TRUE@	QUICPacketHandler.$(OBJEXT) \
 @ENABLE_QUIC_TRUE@	QUICMultiCertConfigLoader.$(OBJEXT) \
@@ -220,17 +224,19 @@ am__libinknet_a_SOURCES_DIST = ALPNSupport.cc BIO_fastopen.cc \
 @ENABLE_QUIC_TRUE@	QUICNextProtocolAccept.$(OBJEXT)
 @BUILD_TESTS_TRUE@am__objects_2 = NetVCTest.$(OBJEXT)
 am_libinknet_a_OBJECTS = ALPNSupport.$(OBJEXT) BIO_fastopen.$(OBJEXT) \
-	Connection.$(OBJEXT) Inline.$(OBJEXT) YamlSNIConfig.$(OBJEXT) \
-	Net.$(OBJEXT) NetVConnection.$(OBJEXT) ProxyProtocol.$(OBJEXT) \
-	Socks.$(OBJEXT) SSLCertLookup.$(OBJEXT) \
-	SSLClientCoordinator.$(OBJEXT) SSLClientUtils.$(OBJEXT) \
-	SSLConfig.$(OBJEXT) SSLDiags.$(OBJEXT) SSLInternal.$(OBJEXT) \
+	BoringSSLUtils.$(OBJEXT) Connection.$(OBJEXT) Inline.$(OBJEXT) \
+	YamlSNIConfig.$(OBJEXT) Net.$(OBJEXT) NetVConnection.$(OBJEXT) \
+	ProxyProtocol.$(OBJEXT) Socks.$(OBJEXT) \
+	SSLCertLookup.$(OBJEXT) SSLClientCoordinator.$(OBJEXT) \
+	SSLClientUtils.$(OBJEXT) SSLConfig.$(OBJEXT) \
+	SSLSecret.$(OBJEXT) SSLDiags.$(OBJEXT) SSLInternal.$(OBJEXT) \
 	SSLNetAccept.$(OBJEXT) SSLNetProcessor.$(OBJEXT) \
 	SSLNetVConnection.$(OBJEXT) SSLNextProtocolAccept.$(OBJEXT) \
 	SSLNextProtocolSet.$(OBJEXT) SSLSNIConfig.$(OBJEXT) \
 	SSLStats.$(OBJEXT) SSLSessionCache.$(OBJEXT) \
 	SSLSessionTicket.$(OBJEXT) SSLUtils.$(OBJEXT) \
-	OCSPStapling.$(OBJEXT) TLSSessionResumptionSupport.$(OBJEXT) \
+	OCSPStapling.$(OBJEXT) TLSBasicSupport.$(OBJEXT) \
+	TLSKeyLogger.$(OBJEXT) TLSSessionResumptionSupport.$(OBJEXT) \
 	TLSSNISupport.$(OBJEXT) UDPIOEvent.$(OBJEXT) \
 	UnixConnection.$(OBJEXT) UnixNet.$(OBJEXT) \
 	UnixNetAccept.$(OBJEXT) UnixNetPages.$(OBJEXT) \
@@ -247,6 +253,7 @@ test_UDPNet_DEPENDENCIES = libinknet.a \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
 	$(top_builddir)/proxy/ParentSelectionStrategy.o
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -298,10 +305,11 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/ALPNSupport.Po \
-	./$(DEPDIR)/BIO_fastopen.Po ./$(DEPDIR)/Connection.Po \
-	./$(DEPDIR)/Inline.Po ./$(DEPDIR)/Net.Po \
-	./$(DEPDIR)/NetVCTest.Po ./$(DEPDIR)/NetVConnection.Po \
-	./$(DEPDIR)/OCSPStapling.Po ./$(DEPDIR)/ProxyProtocol.Po \
+	./$(DEPDIR)/BIO_fastopen.Po ./$(DEPDIR)/BoringSSLUtils.Po \
+	./$(DEPDIR)/Connection.Po ./$(DEPDIR)/Inline.Po \
+	./$(DEPDIR)/Net.Po ./$(DEPDIR)/NetVCTest.Po \
+	./$(DEPDIR)/NetVConnection.Po ./$(DEPDIR)/OCSPStapling.Po \
+	./$(DEPDIR)/ProxyProtocol.Po \
 	./$(DEPDIR)/QUICClosedConCollector.Po \
 	./$(DEPDIR)/QUICMultiCertConfigLoader.Po \
 	./$(DEPDIR)/QUICNet.Po ./$(DEPDIR)/QUICNetProcessor.Po \
@@ -316,9 +324,11 @@ am__depfiles_remade = ./$(DEPDIR)/ALPNSupport.Po \
 	./$(DEPDIR)/SSLNetVConnection.Po \
 	./$(DEPDIR)/SSLNextProtocolAccept.Po \
 	./$(DEPDIR)/SSLNextProtocolSet.Po ./$(DEPDIR)/SSLSNIConfig.Po \
-	./$(DEPDIR)/SSLSessionCache.Po ./$(DEPDIR)/SSLSessionTicket.Po \
-	./$(DEPDIR)/SSLStats.Po ./$(DEPDIR)/SSLUtils.Po \
-	./$(DEPDIR)/Socks.Po ./$(DEPDIR)/TLSSNISupport.Po \
+	./$(DEPDIR)/SSLSecret.Po ./$(DEPDIR)/SSLSessionCache.Po \
+	./$(DEPDIR)/SSLSessionTicket.Po ./$(DEPDIR)/SSLStats.Po \
+	./$(DEPDIR)/SSLUtils.Po ./$(DEPDIR)/Socks.Po \
+	./$(DEPDIR)/TLSBasicSupport.Po ./$(DEPDIR)/TLSKeyLogger.Po \
+	./$(DEPDIR)/TLSSNISupport.Po \
 	./$(DEPDIR)/TLSSessionResumptionSupport.Po \
 	./$(DEPDIR)/UDPIOEvent.Po ./$(DEPDIR)/UnixConnection.Po \
 	./$(DEPDIR)/UnixNet.Po ./$(DEPDIR)/UnixNetAccept.Po \
@@ -680,6 +690,7 @@ CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
+CC_FOR_BUILD = @CC_FOR_BUILD@
 CFLAGS = @CFLAGS@
 CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
@@ -697,6 +708,7 @@ CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
+CXX_FOR_BUILD = @CXX_FOR_BUILD@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -711,6 +723,7 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
+EXEEXT_FOR_BUILD = @EXEEXT_FOR_BUILD@
 FGREP = @FGREP@
 FILECMD = @FILECMD@
 FLEX_CFLAGS = @FLEX_CFLAGS@
@@ -768,11 +781,15 @@ MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NURAFT_INCLUDES = @NURAFT_INCLUDES@
+NURAFT_LDFLAGS = @NURAFT_LDFLAGS@
+NURAFT_LIBS = @NURAFT_LIBS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OPENSSL_INCLUDES = @OPENSSL_INCLUDES@
 OPENSSL_LDFLAGS = @OPENSSL_LDFLAGS@
 OPENSSL_LIBS = @OPENSSL_LIBS@
+OTEL_LIBS = @OTEL_LIBS@
 OTOOL = @OTOOL@
 OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
@@ -845,12 +862,10 @@ builddir = @builddir@
 cachedir = @cachedir@
 datadir = @datadir@
 datarootdir = @datarootdir@
-default_loopback_iface = @default_loopback_iface@
 default_stack_size = @default_stack_size@
 docdir = @docdir@
 dvidir = @dvidir@
 enable_fips = @enable_fips@
-enable_remote_cov_commit = @enable_remote_cov_commit@
 exec_prefix = @exec_prefix@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
@@ -880,13 +895,16 @@ has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
 has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
+has_otel = @has_otel@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_keylogging = @has_tls_keylogging@
 has_tls_session_ticket = @has_tls_session_ticket@
+has_verify_cert_store = @has_verify_cert_store@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -910,6 +928,7 @@ mandir = @mandir@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
+mimalloch = @mimalloch@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
 pdfdir = @pdfdir@
@@ -1020,6 +1039,7 @@ test_UDPNet_LDADD = \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/src/tscore/libtscore.la $(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
 	$(top_builddir)/proxy/ParentSelectionStrategy.o \
 	@HWLOC_LIBS@ @OPENSSL_LIBS@ @LIBPCRE@ @YAMLCPP_LIBS@
 
@@ -1058,30 +1078,32 @@ test_libinknet_LDADD = \
 	@HWLOC_LIBS@ @OPENSSL_LIBS@ @LIBPCRE@ @YAMLCPP_LIBS@
 
 libinknet_a_SOURCES = ALPNSupport.cc BIO_fastopen.cc BIO_fastopen.h \
-	Connection.cc I_Net.h I_NetProcessor.h I_NetVConnection.h \
-	I_Socks.h I_UDPConnection.h I_UDPNet.h I_UDPPacket.h Inline.cc \
+	BoringSSLUtils.cc BoringSSLUtils.h Connection.cc I_Net.h \
+	I_NetProcessor.h I_NetVConnection.h I_Socks.h \
+	I_UDPConnection.h I_UDPNet.h I_UDPPacket.h Inline.cc \
 	I_SessionAccept.h YamlSNIConfig.h YamlSNIConfig.cc Net.cc \
 	NetVConnection.cc P_ALPNSupport.h P_SNIActionPerformer.h \
 	P_CompletionUtil.h P_Connection.h P_Net.h P_NetAccept.h \
 	P_NetVConnection.h P_Socks.h P_SSLCertLookup.h P_SSLConfig.h \
-	P_SSLNetAccept.h P_SSLNetProcessor.h P_SSLNetVConnection.h \
-	P_SSLNextProtocolAccept.h P_SSLNextProtocolSet.h P_SSLSNI.h \
-	P_SSLUtils.h P_SSLClientCoordinator.h P_SSLClientUtils.h \
+	P_SSLSecret.h P_SSLNetAccept.h P_SSLNetProcessor.h \
+	P_SSLNetVConnection.h P_SSLNextProtocolAccept.h \
+	P_SSLNextProtocolSet.h P_SSLSNI.h P_SSLUtils.h \
+	P_SSLClientCoordinator.h P_SSLClientUtils.h P_TLSKeyLogger.h \
 	P_OCSPStapling.h P_UDPConnection.h P_UDPIOEvent.h P_UDPNet.h \
 	P_UDPPacket.h P_UnixCompletionUtil.h P_UnixNet.h \
 	P_UnixNetProcessor.h P_UnixNetState.h P_UnixNetVConnection.h \
 	P_UnixPollDescriptor.h P_UnixUDPConnection.h ProxyProtocol.h \
 	ProxyProtocol.cc Socks.cc SSLCertLookup.cc \
 	SSLClientCoordinator.cc SSLClientUtils.cc SSLConfig.cc \
-	SSLDiags.cc SSLInternal.cc SSLNetAccept.cc SSLNetProcessor.cc \
-	SSLNetVConnection.cc SSLNextProtocolAccept.cc \
-	SSLNextProtocolSet.cc SSLSNIConfig.cc SSLStats.cc \
-	SSLSessionCache.cc SSLSessionTicket.cc SSLUtils.cc \
-	OCSPStapling.cc TLSSessionResumptionSupport.cc \
-	TLSSNISupport.cc UDPIOEvent.cc UnixConnection.cc UnixNet.cc \
-	UnixNetAccept.cc UnixNetPages.cc UnixNetProcessor.cc \
-	UnixNetVConnection.cc UnixUDPConnection.cc UnixUDPNet.cc \
-	SSLDynlock.cc $(am__append_1) $(am__append_2)
+	SSLSecret.cc SSLDiags.cc SSLInternal.cc SSLNetAccept.cc \
+	SSLNetProcessor.cc SSLNetVConnection.cc \
+	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc SSLSNIConfig.cc \
+	SSLStats.cc SSLSessionCache.cc SSLSessionTicket.cc SSLUtils.cc \
+	OCSPStapling.cc TLSBasicSupport.cc TLSKeyLogger.cc \
+	TLSSessionResumptionSupport.cc TLSSNISupport.cc UDPIOEvent.cc \
+	UnixConnection.cc UnixNet.cc UnixNetAccept.cc UnixNetPages.cc \
+	UnixNetProcessor.cc UnixNetVConnection.cc UnixUDPConnection.cc \
+	UnixUDPNet.cc SSLDynlock.cc $(am__append_1) $(am__append_2)
 Clang_Tidy_Options = -fix -fix-errors
 
 # Sort the filenames to remove duplicates, then filter to retain
@@ -1180,6 +1202,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ALPNSupport.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/BIO_fastopen.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/BoringSSLUtils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Connection.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Inline.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Net.Po@am__quote@ # am--include-marker
@@ -1207,11 +1230,14 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNextProtocolAccept.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNextProtocolSet.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLSNIConfig.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLSecret.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLSessionCache.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLSessionTicket.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLStats.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLUtils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Socks.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TLSBasicSupport.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TLSKeyLogger.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TLSSNISupport.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TLSSessionResumptionSupport.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UDPIOEvent.Po@am__quote@ # am--include-marker
@@ -1695,6 +1721,7 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 distclean: distclean-recursive
 		-rm -f ./$(DEPDIR)/ALPNSupport.Po
 	-rm -f ./$(DEPDIR)/BIO_fastopen.Po
+	-rm -f ./$(DEPDIR)/BoringSSLUtils.Po
 	-rm -f ./$(DEPDIR)/Connection.Po
 	-rm -f ./$(DEPDIR)/Inline.Po
 	-rm -f ./$(DEPDIR)/Net.Po
@@ -1722,11 +1749,14 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/SSLNextProtocolAccept.Po
 	-rm -f ./$(DEPDIR)/SSLNextProtocolSet.Po
 	-rm -f ./$(DEPDIR)/SSLSNIConfig.Po
+	-rm -f ./$(DEPDIR)/SSLSecret.Po
 	-rm -f ./$(DEPDIR)/SSLSessionCache.Po
 	-rm -f ./$(DEPDIR)/SSLSessionTicket.Po
 	-rm -f ./$(DEPDIR)/SSLStats.Po
 	-rm -f ./$(DEPDIR)/SSLUtils.Po
 	-rm -f ./$(DEPDIR)/Socks.Po
+	-rm -f ./$(DEPDIR)/TLSBasicSupport.Po
+	-rm -f ./$(DEPDIR)/TLSKeyLogger.Po
 	-rm -f ./$(DEPDIR)/TLSSNISupport.Po
 	-rm -f ./$(DEPDIR)/TLSSessionResumptionSupport.Po
 	-rm -f ./$(DEPDIR)/UDPIOEvent.Po
@@ -1790,6 +1820,7 @@ installcheck-am:
 maintainer-clean: maintainer-clean-recursive
 		-rm -f ./$(DEPDIR)/ALPNSupport.Po
 	-rm -f ./$(DEPDIR)/BIO_fastopen.Po
+	-rm -f ./$(DEPDIR)/BoringSSLUtils.Po
 	-rm -f ./$(DEPDIR)/Connection.Po
 	-rm -f ./$(DEPDIR)/Inline.Po
 	-rm -f ./$(DEPDIR)/Net.Po
@@ -1817,11 +1848,14 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/SSLNextProtocolAccept.Po
 	-rm -f ./$(DEPDIR)/SSLNextProtocolSet.Po
 	-rm -f ./$(DEPDIR)/SSLSNIConfig.Po
+	-rm -f ./$(DEPDIR)/SSLSecret.Po
 	-rm -f ./$(DEPDIR)/SSLSessionCache.Po
 	-rm -f ./$(DEPDIR)/SSLSessionTicket.Po
 	-rm -f ./$(DEPDIR)/SSLStats.Po
 	-rm -f ./$(DEPDIR)/SSLUtils.Po
 	-rm -f ./$(DEPDIR)/Socks.Po
+	-rm -f ./$(DEPDIR)/TLSBasicSupport.Po
+	-rm -f ./$(DEPDIR)/TLSKeyLogger.Po
 	-rm -f ./$(DEPDIR)/TLSSNISupport.Po
 	-rm -f ./$(DEPDIR)/TLSSessionResumptionSupport.Po
 	-rm -f ./$(DEPDIR)/UDPIOEvent.Po

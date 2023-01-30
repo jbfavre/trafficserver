@@ -21,6 +21,7 @@
   limitations under the License.
  */
 
+#include "tscore/ink_platform.h"
 #include "tscore/ink_sys_control.h"
 #include "tscore/ink_cap.h"
 #include "tscore/ink_lockfile.h"
@@ -62,7 +63,8 @@
 #include "tscore/bwf_std_format.h"
 
 #define FD_THROTTLE_HEADROOM (128 + 64) // TODO: consolidate with THROTTLE_FD_HEADROOM
-#define DIAGS_LOG_FILENAME "manager.log"
+#define DEFAULT_DIAGS_LOG_FILENAME "manager.log"
+static char diags_log_filename[PATH_NAME_MAX] = DEFAULT_DIAGS_LOG_FILENAME;
 
 #if ATOMIC_INT_LOCK_FREE != 2
 #error "Need lock free std::atomic<int>"
@@ -83,14 +85,14 @@ extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer,
 
 static AppVersionInfo appVersionInfo; // Build info for this application
 
-static inkcoreapi DiagsConfig *diagsConfig = nullptr;
-static char debug_tags[1024]               = "";
-static char action_tags[1024]              = "";
-static int proxy_off                       = false;
-static int listen_off                      = false;
-static char bind_stdout[512]               = "";
-static char bind_stderr[512]               = "";
-static const char *mgmt_path               = nullptr;
+static DiagsConfig *diagsConfig = nullptr;
+static char debug_tags[1024]    = "";
+static char action_tags[1024]   = "";
+static int proxy_off            = false;
+static int listen_off           = false;
+static char bind_stdout[512]    = "";
+static char bind_stderr[512]    = "";
+static const char *mgmt_path    = nullptr;
 
 // By default, set the current directory as base
 static const char *recs_conf = ts::filename::RECORDS;
@@ -131,7 +133,7 @@ rotateLogs()
 
   // Now we can actually roll the logs (if necessary)
   if (diags->should_roll_diagslog()) {
-    mgmt_log("Rotated %s", DIAGS_LOG_FILENAME);
+    mgmt_log("Rotated %s", diags_log_filename);
   }
 
   if (diags->should_roll_outputlog()) {
@@ -545,8 +547,7 @@ main(int argc, const char **argv)
 
   // Bootstrap the Diags facility so that we can use it while starting
   //  up the manager
-  diagsConfig = new DiagsConfig("Manager", DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
-  diags       = diagsConfig->diags;
+  diagsConfig = new DiagsConfig("Manager", DEFAULT_DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
   diags->set_std_output(StdStream::STDOUT, bind_stdout);
   diags->set_std_output(StdStream::STDERR, bind_stderr);
 
@@ -590,13 +591,19 @@ main(int argc, const char **argv)
   RecLocalInitMessage();
   lmgmt->initAlarm();
 
-  if (diags) {
-    delete diagsConfig;
-  }
   // INKqa11968: need to set up callbacks and diags data structures
   // using configuration in records.config
-  diagsConfig = new DiagsConfig("Manager", DIAGS_LOG_FILENAME, debug_tags, action_tags, true);
-  diags       = diagsConfig->diags;
+  REC_ReadConfigString(diags_log_filename, "proxy.node.config.manager_log_filename", sizeof(diags_log_filename));
+  if (strnlen(diags_log_filename, sizeof(diags_log_filename)) == 0) {
+    strncpy(diags_log_filename, DEFAULT_DIAGS_LOG_FILENAME, sizeof(diags_log_filename));
+  }
+  DiagsConfig *old_diagsconfig = diagsConfig;
+  diagsConfig                  = new DiagsConfig("Manager", diags_log_filename, debug_tags, action_tags, true);
+  if (old_diagsconfig) {
+    delete old_diagsconfig;
+    old_diagsconfig = nullptr;
+  }
+
   RecSetDiags(diags);
   diags->set_std_output(StdStream::STDOUT, bind_stdout);
   diags->set_std_output(StdStream::STDERR, bind_stderr);
@@ -730,7 +737,7 @@ main(int argc, const char **argv)
     lmgmt->processEventQueue();
     lmgmt->pollMgmtProcessServer();
 
-    // Handle rotation of output log (aka traffic.out) as well as DIAGS_LOG_FILENAME (aka manager.log)
+    // Handle rotation of output log (aka traffic.out) as well as DEFAULT_DIAGS_LOG_FILENAME (aka manager.log)
     rotateLogs();
 
     // Check for a SIGHUP
@@ -936,9 +943,9 @@ SignalHandler(int sig)
     diags->set_std_output(StdStream::STDOUT, bind_stdout);
     diags->set_std_output(StdStream::STDERR, bind_stderr);
     if (diags->reseat_diagslog()) {
-      Note("Reseated %s", DIAGS_LOG_FILENAME);
+      Note("Reseated %s", diags_log_filename);
     } else {
-      Note("Could not reseat %s", DIAGS_LOG_FILENAME);
+      Note("Could not reseat %s", diags_log_filename);
     }
     return;
   }
@@ -971,6 +978,8 @@ SignalHandler(int sig)
   case SIGXCPU:
   case SIGXFSZ:
     abort();
+  case SIGTERM:
+    ::exit(0);
   default:
     fprintf(stderr, "[TrafficManager] ==> signal #%d\n", sig);
     mgmt_log("[TrafficManager] ==> signal #%d\n", sig);

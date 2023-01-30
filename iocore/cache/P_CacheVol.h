@@ -51,8 +51,8 @@
 #define LOOKASIDE_SIZE 256
 #define EVACUATION_BUCKET_SIZE (2 * EVACUATION_SIZE) // 16MB
 #define RECOVERY_SIZE EVACUATION_SIZE                // 8MB
-#define AIO_NOT_IN_PROGRESS 0
-#define AIO_AGG_WRITE_IN_PROGRESS -1
+#define AIO_NOT_IN_PROGRESS -1
+#define AIO_AGG_WRITE_IN_PROGRESS -2
 #define AUTO_SIZE_RAM_CACHE -1                               // 1-1 with directory size
 #define DEFAULT_TARGET_FRAGMENT_SIZE (1048576 - sizeof(Doc)) // 1MB
 
@@ -205,6 +205,12 @@ struct Vol : public Continuation {
 
   int dir_check(bool fix);
   int db_check(bool fix);
+
+  bool
+  evac_bucket_valid(off_t bucket)
+  {
+    return (bucket >= 0 && bucket < evacuate_size);
+  }
 
   int
   is_io_in_progress()
@@ -456,10 +462,13 @@ int vol_init(Vol *d, char *s, off_t blocks, off_t skip, bool clear);
 TS_INLINE EvacuationBlock *
 evacuation_block_exists(Dir *dir, Vol *p)
 {
-  EvacuationBlock *b = p->evacuate[dir_evac_bucket(dir)].head;
-  for (; b; b = b->link.next)
-    if (dir_offset(&b->dir) == dir_offset(dir))
-      return b;
+  auto bucket = dir_evac_bucket(dir);
+  if (p->evac_bucket_valid(bucket)) {
+    EvacuationBlock *b = p->evacuate[bucket].head;
+    for (; b; b = b->link.next)
+      if (dir_offset(&b->dir) == dir_offset(dir))
+        return b;
+  }
   return nullptr;
 }
 

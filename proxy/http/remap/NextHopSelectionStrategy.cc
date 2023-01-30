@@ -21,7 +21,10 @@
   limitations under the License.
  */
 
+#include <optional>
+
 #include <yaml-cpp/yaml.h>
+#include <YamlCfg.h>
 #include "I_Machine.h"
 #include "HttpSM.h"
 #include "NextHopSelectionStrategy.h"
@@ -29,6 +32,7 @@
 // ring mode strings
 constexpr std::string_view alternate_rings = "alternate_ring";
 constexpr std::string_view exhaust_rings   = "exhaust_ring";
+constexpr std::string_view peering_rings   = "peering_ring";
 
 // health check strings
 constexpr std::string_view active_health_check  = "active";
@@ -37,22 +41,17 @@ constexpr std::string_view passive_health_check = "passive";
 constexpr const char *policy_strings[] = {"NH_UNDEFINED", "NH_FIRST_LIVE", "NH_RR_STRICT",
                                           "NH_RR_IP",     "NH_RR_LATCHED", "NH_CONSISTENT_HASH"};
 
-NextHopSelectionStrategy::NextHopSelectionStrategy(const std::string_view &name, const NHPolicyType &policy)
+NextHopSelectionStrategy::NextHopSelectionStrategy(const std::string_view &name, const NHPolicyType &policy, ts::Yaml::Map &n)
+  : strategy_name(name), policy_type(policy)
 {
-  strategy_name = name;
-  policy_type   = policy;
+  NH_Debug(NH_DEBUG_TAG, "NextHopSelectionStrategy calling constructor");
   NH_Debug(NH_DEBUG_TAG, "Using a selection strategy of type %s", policy_strings[policy]);
-}
 
-//
-// parse out the data for this strategy.
-//
-bool
-NextHopSelectionStrategy::Init(const YAML::Node &n)
-{
-  NH_Debug(NH_DEBUG_TAG, "calling Init()");
+  std::string self_host;
+  bool self_host_used = false;
 
   try {
+    // scheme is optional, and strategies with no scheme will match hosts with no scheme
     if (n["scheme"]) {
       auto scheme_val = n["scheme"].Scalar();
       if (scheme_val == "http") {
@@ -60,9 +59,7 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
       } else if (scheme_val == "https") {
         scheme = NH_SCHEME_HTTPS;
       } else {
-        scheme = NH_SCHEME_NONE;
-        NH_Note("Invalid 'scheme' value, '%s', for the strategy named '%s', setting to NH_SCHEME_NONE", scheme_val.c_str(),
-                strategy_name.c_str());
+        NH_Note("Invalid scheme '%s' for strategy '%s', setting to NONE", scheme_val.c_str(), strategy_name.c_str());
       }
     }
 
@@ -81,16 +78,27 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
       ignore_self_detect = n["ignore_self_detect"].as<bool>();
     }
 
+    if (n["cache_peer_result"]) {
+      cache_peer_result = n["cache_peer_result"].as<bool>();
+    }
+
     // failover node.
-    YAML::Node failover_node;
-    if (n["failover"]) {
-      failover_node = n["failover"];
+    YAML::Node failover_node_n = n["failover"];
+    if (failover_node_n) {
+      ts::Yaml::Map failover_node{failover_node_n};
       if (failover_node["ring_mode"]) {
         auto ring_mode_val = failover_node["ring_mode"].Scalar();
         if (ring_mode_val == alternate_rings) {
           ring_mode = NH_ALTERNATE_RING;
         } else if (ring_mode_val == exhaust_rings) {
           ring_mode = NH_EXHAUST_RING;
+        } else if (ring_mode_val == peering_rings) {
+          ring_mode            = NH_PEERING_RING;
+          YAML::Node self_node = failover_node["self"];
+          if (self_node) {
+            self_host = self_node.Scalar();
+            NH_Debug(NH_DEBUG_TAG, "%s is self", self_host.c_str());
+          }
         } else {
           ring_mode = NH_ALTERNATE_RING;
           NH_Note("Invalid 'ring_mode' value, '%s', for the strategy named '%s', using default '%s'.", ring_mode_val.c_str(),
@@ -100,7 +108,11 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
       if (failover_node["max_simple_retries"]) {
         max_simple_retries = failover_node["max_simple_retries"].as<int>();
       }
+      if (failover_node["max_unavailable_retries"]) {
+        max_unavailable_retries = failover_node["max_unavailable_retries"].as<int>();
+      }
 
+      // response codes for simple retry.
       YAML::Node resp_codes_node;
       if (failover_node["response_codes"]) {
         resp_codes_node = failover_node["response_codes"];
@@ -117,6 +129,24 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
             }
           }
           resp_codes.sort();
+        }
+      }
+      YAML::Node markdown_codes_node;
+      if (failover_node["markdown_codes"]) {
+        markdown_codes_node = failover_node["markdown_codes"];
+        if (markdown_codes_node.Type() != YAML::NodeType::Sequence) {
+          NH_Error("Error in the markdown_codes definition for the strategy named '%s', skipping markdown_codes.",
+                   strategy_name.c_str());
+        } else {
+          for (auto &&k : markdown_codes_node) {
+            auto code = k.as<int>();
+            if (code > 300 && code < 599) {
+              markdown_codes.add(code);
+            } else {
+              NH_Note("Skipping invalid markdown response code '%d' for the strategy named '%s'.", code, strategy_name.c_str());
+            }
+          }
+          markdown_codes.sort();
         }
       }
       YAML::Node health_check_node;
@@ -137,12 +167,12 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
           }
         }
       }
+      failover_node.done();
     }
 
     // parse and load the host data
-    YAML::Node groups_node;
-    if (n["groups"]) {
-      groups_node = n["groups"];
+    YAML::Node groups_node = n["groups"];
+    if (groups_node) {
       // a groups list is required.
       if (groups_node.Type() != YAML::NodeType::Sequence) {
         throw std::invalid_argument("Invalid groups definition, expected a sequence, '" + strategy_name + "' cannot be loaded.");
@@ -171,11 +201,17 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
             std::vector<std::shared_ptr<HostRecord>> hosts_inner;
 
             for (unsigned int hst = 0; hst < hosts_list.size(); ++hst) {
-              std::shared_ptr<HostRecord> host_rec = std::make_shared<HostRecord>(hosts_list[hst].as<HostRecord>());
+              std::shared_ptr<HostRecord> host_rec = std::make_shared<HostRecord>(hosts_list[hst].as<HostRecordCfg>());
               host_rec->group_index                = grp;
               host_rec->host_index                 = hst;
-              if (mach->is_self(host_rec->hostname.c_str())) {
-                h_stat.setHostStatus(host_rec->hostname.c_str(), HostStatus_t::HOST_STATUS_DOWN, 0, Reason::SELF_DETECT);
+              if ((self_host == host_rec->hostname) || mach->is_self(host_rec->hostname.c_str())) {
+                if (ring_mode == NH_PEERING_RING && grp != 0) {
+                  throw std::invalid_argument("self host (" + self_host +
+                                              ") can only appear in first host group for peering ring mode");
+                }
+                h_stat.setHostStatus(host_rec->hostname.c_str(), TSHostStatus::TS_HOST_STATUS_DOWN, 0, Reason::SELF_DETECT);
+                host_rec->self = true;
+                self_host_used = true;
               }
               hosts_inner.push_back(std::move(host_rec));
               num_parents++;
@@ -186,12 +222,30 @@ NextHopSelectionStrategy::Init(const YAML::Node &n)
         }
       }
     }
+    if (!self_host.empty() && !self_host_used) {
+      throw std::invalid_argument("self host (" + self_host + ") does not appear in the first (peer) group");
+    }
   } catch (std::exception &ex) {
-    NH_Note("Error parsing the strategy named '%s' due to '%s', this strategy will be ignored.", strategy_name.c_str(), ex.what());
-    return false;
+    throw std::invalid_argument("Error parsing the strategy named '" + strategy_name + "' due to '" + ex.what() +
+                                "', this strategy will be ignored.");
   }
 
-  return true;
+  if (ring_mode == NH_PEERING_RING) {
+    if (groups == 1) {
+      if (!go_direct) {
+        throw std::invalid_argument("ring mode '" + std::string(peering_rings) +
+                                    "' go_direct must be true when there is only one host group");
+      }
+    } else if (groups != 2) {
+      throw std::invalid_argument(
+        "ring mode '" + std::string(peering_rings) +
+        "' requires two host groups (peering group and an upstream group), or a single peering group with go_direct");
+    }
+    if (policy_type != NH_CONSISTENT_HASH) {
+      throw std::invalid_argument("ring mode '" + std::string(peering_rings) +
+                                  "' is only implemented for a 'consistent_hash' policy");
+    }
+  }
 }
 
 void
@@ -210,8 +264,11 @@ NextHopSelectionStrategy::nextHopExists(TSHttpTxn txnp, void *ih)
   for (uint32_t gg = 0; gg < groups; gg++) {
     for (auto &hh : host_groups[gg]) {
       HostRecord *p = hh.get();
-      if (p->available) {
-        NH_Debug(NH_DEBUG_TAG, "[%" PRIu64 "] found available next hop %s", sm_id, p->hostname.c_str());
+      if (p->available.load()) {
+        NH_Debug(NH_DEBUG_TAG,
+                 "[%" PRIu64 "] found available next hop %s (this is NOT necessarily the parent which will be selected, just the "
+                 "first available parent found)",
+                 sm_id, p->hostname.c_str());
         return true;
       }
     }
@@ -219,45 +276,55 @@ NextHopSelectionStrategy::nextHopExists(TSHttpTxn txnp, void *ih)
   return false;
 }
 
-bool
-NextHopSelectionStrategy::responseIsRetryable(unsigned int current_retry_attempts, HTTPStatus response_code)
+ParentRetry_t
+NextHopSelectionStrategy::responseIsRetryable(int64_t sm_id, HttpTransact::CurrentInfo &current_info, HTTPStatus response_code)
 {
-  return this->resp_codes.contains(response_code) && current_retry_attempts < this->max_simple_retries &&
-         current_retry_attempts < this->num_parents;
-}
+  unsigned sa = current_info.simple_retry_attempts;
+  unsigned ua = current_info.unavailable_server_retry_attempts;
 
-bool
-NextHopSelectionStrategy::onFailureMarkParentDown(HTTPStatus response_code)
-{
-  return static_cast<int>(response_code) >= 500 && static_cast<int>(response_code) <= 599;
+  NH_Debug(NH_DEBUG_TAG,
+           "[%" PRIu64 "] response_code %d, simple_retry_attempts: %d max_simple_retries: %d, unavailable_server_retry_attempts: "
+           "%d, max_unavailable_retries: %d",
+           sm_id, response_code, sa, this->max_simple_retries, ua, max_unavailable_retries);
+  if (this->resp_codes.contains(response_code) && sa < this->max_simple_retries && sa < this->num_parents) {
+    NH_Debug(NH_DEBUG_TAG, "[%" PRIu64 "] response code %d is retryable, returning PARENT_RETRY_SIMPLE", sm_id, response_code);
+    return PARENT_RETRY_SIMPLE;
+  }
+  if (this->markdown_codes.contains(response_code) && ua < this->max_unavailable_retries && ua < this->num_parents) {
+    NH_Debug(NH_DEBUG_TAG, "[%" PRIu64 "] response code %d is retryable, returning PARENT_RETRY_UNAVAILABLE_SERVER", sm_id,
+             response_code);
+    return PARENT_RETRY_UNAVAILABLE_SERVER;
+  }
+  NH_Debug(NH_DEBUG_TAG, "[%" PRIu64 "] response code %d is not retryable, returning PARENT_RETRY_NONE", sm_id, response_code);
+  return PARENT_RETRY_NONE;
 }
 
 namespace YAML
 {
-template <> struct convert<HostRecord> {
+template <> struct convert<HostRecordCfg> {
   static bool
-  decode(const Node &node, HostRecord &nh)
+  decode(const Node &node, HostRecordCfg &nh)
   {
-    YAML::Node nd;
-    bool merge_tag_used = false;
+    ts::Yaml::Map map{node};
+    ts::Yaml::Map *mmap{&map};
+    std::optional<ts::Yaml::Map> mergeable_map;
 
     // check for YAML merge tag.
-    if (node["<<"]) {
-      nd             = node["<<"];
-      merge_tag_used = true;
-    } else {
-      nd = node;
+    YAML::Node mergeable_map_n = map["<<"];
+    if (mergeable_map_n) {
+      mergeable_map.emplace(mergeable_map_n);
+      mmap = &mergeable_map.value();
     }
 
     // lookup the hostname
-    if (nd["host"]) {
-      nh.hostname = nd["host"].Scalar();
+    if ((*mmap)["host"]) {
+      nh.hostname = (*mmap)["host"].Scalar();
     } else {
       throw std::invalid_argument("Invalid host definition, missing host name.");
     }
 
     // lookup the port numbers supported by this host.
-    YAML::Node proto = nd["protocol"];
+    YAML::Node proto = (*mmap)["protocol"];
 
     if (proto.Type() != YAML::NodeType::Sequence) {
       throw std::invalid_argument("Invalid host protocol definition, expected a sequence.");
@@ -269,12 +336,17 @@ template <> struct convert<HostRecord> {
       }
     }
 
-    // get the host's weight
-    YAML::Node weight;
-    if (merge_tag_used) {
-      weight    = node["weight"];
-      nh.weight = weight.as<float>();
-    } else if ((weight = nd["weight"])) {
+    // get the host's weight, allowing override of weight in merged map
+    YAML::Node weight = map["weight"];
+    if (mmap != &map) {
+      // weight must always be looked up in the merged map, even if overridden, so it's presence will not
+      // cause an exception when mmap->done() is called
+      YAML::Node w = (*mmap)["weight"];
+      if (!weight) {
+        weight = w;
+      }
+    }
+    if (weight) {
       nh.weight = weight.as<float>();
     } else {
       NH_Note("No weight is defined for the host '%s', using default 1.0", nh.hostname.data());
@@ -282,9 +354,14 @@ template <> struct convert<HostRecord> {
     }
 
     // get the host's optional hash_string
-    YAML::Node hash;
-    if ((hash = nd["hash_string"])) {
+    YAML::Node hash{(*mmap)["hash_string"]};
+    if (hash) {
       nh.hash_string = hash.Scalar();
+    }
+
+    map.done();
+    if (mmap != &map) {
+      mmap->done();
     }
 
     return true;
@@ -295,21 +372,33 @@ template <> struct convert<NHProtocol> {
   static bool
   decode(const Node &node, NHProtocol &nh)
   {
-    if (node["scheme"]) {
-      if (node["scheme"].Scalar() == "http") {
+    ts::Yaml::Map map{node};
+
+    // scheme is optional, and strategies with no scheme will match hosts with no scheme
+    if (map["scheme"]) {
+      const auto scheme_val = map["scheme"].Scalar();
+      if (scheme_val == "http") {
         nh.scheme = NH_SCHEME_HTTP;
-      } else if (node["scheme"].Scalar() == "https") {
+      } else if (scheme_val == "https") {
         nh.scheme = NH_SCHEME_HTTPS;
       } else {
-        nh.scheme = NH_SCHEME_NONE;
+        NH_Note("Invalid scheme '%s' for protocol, setting to NONE", scheme_val.c_str());
       }
     }
-    if (node["port"]) {
-      nh.port = node["port"].as<int>();
+    if (map["port"]) {
+      nh.port = map["port"].as<int>();
+      if (nh.port <= 0 || nh.port > 65535) {
+        throw YAML::ParserException(map["port"].Mark(), "port number must be in (inclusive) range 1 - 65,536");
+      }
+    } else {
+      if (nh.port == 0) {
+        throw YAML::ParserException(map["port"].Mark(), "no port defined must be in (inclusive) range 1 - 65,536");
+      }
     }
-    if (node["health_check_url"]) {
-      nh.health_check_url = node["health_check_url"].Scalar();
+    if (map["health_check_url"]) {
+      nh.health_check_url = map["health_check_url"].Scalar();
     }
+    map.done();
     return true;
   }
 };

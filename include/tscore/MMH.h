@@ -27,6 +27,9 @@
 #include "tscore/ink_defs.h"
 #include "tscore/CryptoHash.h"
 
+#define MMH_X_SIZE 512
+extern uint64_t MMH_x[MMH_X_SIZE + 8];
+
 struct MMH_CTX {
   uint64_t state[4];
   unsigned char buffer[32];
@@ -37,10 +40,10 @@ struct MMH_CTX {
 // signed-unsigned-const gratuitous differences brought
 // to you by history and the ANSI committee
 
-int inkcoreapi ink_code_incr_MMH_init(MMH_CTX *context);
-int inkcoreapi ink_code_incr_MMH_update(MMH_CTX *context, const char *input, int input_length);
-int inkcoreapi ink_code_incr_MMH_final(uint8_t *sixteen_byte_hash_pointer, MMH_CTX *context);
-int inkcoreapi ink_code_MMH(unsigned char *input, int len, unsigned char *sixteen_byte_hash);
+int ink_code_incr_MMH_init(MMH_CTX *context);
+int ink_code_incr_MMH_update(MMH_CTX *context, const char *input, int input_length);
+int ink_code_incr_MMH_final(uint8_t *sixteen_byte_hash_pointer, MMH_CTX *context);
+int ink_code_MMH(unsigned char *input, int len, unsigned char *sixteen_byte_hash);
 
 /**
   MMH will return different values on big-endian and little-endian

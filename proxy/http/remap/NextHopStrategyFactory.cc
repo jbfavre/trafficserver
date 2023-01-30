@@ -29,14 +29,14 @@
 #include "NextHopStrategyFactory.h"
 #include "NextHopConsistentHash.h"
 #include "NextHopRoundRobin.h"
+#include <YamlCfg.h>
 
-NextHopStrategyFactory::NextHopStrategyFactory(const char *file)
+NextHopStrategyFactory::NextHopStrategyFactory(const char *file) : fn(file)
 {
   YAML::Node config;
   YAML::Node strategies;
   std::stringstream doc;
   std::unordered_set<std::string> include_once;
-  std::string_view fn = file;
 
   // strategy policies.
   constexpr std::string_view consistent_hash = "consistent_hash";
@@ -47,22 +47,21 @@ NextHopStrategyFactory::NextHopStrategyFactory(const char *file)
 
   bool error_loading   = false;
   strategies_loaded    = true;
-  const char *basename = fn.substr(fn.find_last_of('/') + 1).data();
+  const char *basename = std::string_view(fn).substr(fn.find_last_of('/') + 1).data();
 
   NH_Note("%s loading ...", basename);
 
   struct stat sbuf;
-  if (stat(std::string(fn).c_str(), &sbuf) == -1 && errno == ENOENT) {
+  if (stat(fn.c_str(), &sbuf) == -1 && errno == ENOENT) {
     // missing config file is an acceptable runtime state
     strategies_loaded = false;
-    NH_Note("%s doesn't exist", std::string(fn).c_str());
+    NH_Note("%s doesn't exist", fn.c_str());
     goto done;
   }
 
   // load the strategies yaml config file.
   try {
-    NH_Note("%s loading ...", basename);
-    loadConfigFile(fn.data(), doc, include_once);
+    loadConfigFile(fn.c_str(), doc, include_once);
 
     config = YAML::Load(doc);
     if (config.IsNull()) {
@@ -78,9 +77,9 @@ NextHopStrategyFactory::NextHopStrategyFactory(const char *file)
     }
     // loop through the strategies document.
     for (auto &&strategie : strategies) {
-      YAML::Node strategy = strategie;
-      auto name           = strategy["strategy"].as<std::string>();
-      auto policy         = strategy["policy"];
+      ts::Yaml::Map strategy{strategie};
+      auto name   = strategy["strategy"].as<std::string>();
+      auto policy = strategy["policy"];
       if (!policy) {
         NH_Error("No policy is defined for the strategy named '%s', this strategy will be ignored.", name.c_str());
         continue;
@@ -104,6 +103,7 @@ NextHopStrategyFactory::NextHopStrategyFactory(const char *file)
                  name.c_str());
       } else {
         createStrategy(name, policy_type, strategy);
+        strategy.done();
       }
     }
   } catch (std::exception &ex) {
@@ -126,7 +126,7 @@ NextHopStrategyFactory::~NextHopStrategyFactory()
 }
 
 void
-NextHopStrategyFactory::createStrategy(const std::string &name, const NHPolicyType policy_type, const YAML::Node &node)
+NextHopStrategyFactory::createStrategy(const std::string &name, const NHPolicyType policy_type, ts::Yaml::Map &node)
 {
   std::shared_ptr<NextHopSelectionStrategy> strat;
   std::shared_ptr<NextHopRoundRobin> strat_rr;
@@ -135,32 +135,29 @@ NextHopStrategyFactory::createStrategy(const std::string &name, const NHPolicyTy
   strat = strategyInstance(name.c_str());
   if (strat != nullptr) {
     NH_Note("A strategy named '%s' has already been loaded and another will not be created.", name.data());
+    node.bad();
     return;
   }
 
-  switch (policy_type) {
-  case NH_FIRST_LIVE:
-  case NH_RR_STRICT:
-  case NH_RR_IP:
-  case NH_RR_LATCHED:
-    strat_rr = std::make_shared<NextHopRoundRobin>(name, policy_type);
-    if (strat_rr->Init(node)) {
+  try {
+    switch (policy_type) {
+    case NH_FIRST_LIVE:
+    case NH_RR_STRICT:
+    case NH_RR_IP:
+    case NH_RR_LATCHED:
+      strat_rr = std::make_shared<NextHopRoundRobin>(name, policy_type, node);
       _strategies.emplace(std::make_pair(std::string(name), strat_rr));
-    } else {
-      strat.reset();
-    }
-    break;
-  case NH_CONSISTENT_HASH:
-    strat_chash = std::make_shared<NextHopConsistentHash>(name, policy_type);
-    if (strat_chash->Init(node)) {
+      break;
+    case NH_CONSISTENT_HASH:
+      strat_chash = std::make_shared<NextHopConsistentHash>(name, policy_type, node);
       _strategies.emplace(std::make_pair(std::string(name), strat_chash));
-    } else {
-      strat_chash.reset();
-    }
-    break;
-  default: // handles P_UNDEFINED, no strategy is added
-    break;
-  };
+      break;
+    default: // handles P_UNDEFINED, no strategy is added
+      break;
+    };
+  } catch (std::exception &ex) {
+    strat.reset();
+  }
 }
 
 std::shared_ptr<NextHopSelectionStrategy>
@@ -187,7 +184,7 @@ NextHopStrategyFactory::strategyInstance(const char *name)
 
 /*
  * loads the contents of a file into a std::stringstream document.  If the file has a '#include file'
- * directive, that 'file' is read into the document beginning at the the point where the
+ * directive, that 'file' is read into the document beginning at the point where the
  * '#include' was found. This allows the 'strategy' and 'hosts' yaml files to be separate.  The
  * 'strategy' yaml file would then normally have the '#include hosts.yml' in it's beginning.
  */

@@ -51,32 +51,7 @@ char INVALID_STR[] = "!INVALID_STR!";
   machine pointer.
   -------------------------------------------------------------------------*/
 
-LogAccess::LogAccess(HttpSM *sm)
-  : m_http_sm(sm),
-    m_arena(),
-    m_client_request(nullptr),
-    m_proxy_response(nullptr),
-    m_proxy_request(nullptr),
-    m_server_response(nullptr),
-    m_cache_response(nullptr),
-    m_client_req_url_str(nullptr),
-    m_client_req_url_len(0),
-    m_client_req_url_canon_str(nullptr),
-    m_client_req_url_canon_len(0),
-    m_client_req_unmapped_url_canon_str(nullptr),
-    m_client_req_unmapped_url_canon_len(0),
-    m_client_req_unmapped_url_path_str(nullptr),
-    m_client_req_unmapped_url_path_len(0),
-    m_client_req_unmapped_url_host_str(nullptr),
-    m_client_req_unmapped_url_host_len(0),
-    m_client_req_url_path_str(nullptr),
-    m_client_req_url_path_len(0),
-    m_proxy_resp_content_type_str(nullptr),
-    m_proxy_resp_content_type_len(0),
-    m_proxy_resp_reason_phrase_str(nullptr),
-    m_proxy_resp_reason_phrase_len(0),
-    m_cache_lookup_url_canon_str(nullptr),
-    m_cache_lookup_url_canon_len(0)
+LogAccess::LogAccess(HttpSM *sm) : m_http_sm(sm)
 {
   ink_assert(m_http_sm != nullptr);
 }
@@ -135,16 +110,15 @@ LogAccess::init()
 int
 LogAccess::marshal_proxy_host_name(char *buf)
 {
-  char *str        = nullptr;
-  int len          = 0;
-  Machine *machine = Machine::instance();
+  int len         = 0;
+  char const *str = nullptr;
 
-  if (machine) {
-    str = machine->hostname;
+  if (Machine *machine = Machine::instance(); machine) {
+    str = machine->host_name.c_str();
+    len = machine->host_name.length();
   }
 
-  len = LogAccess::strlen(str);
-
+  len = INK_ALIGN_DEFAULT(len + 1);
   if (buf) {
     marshal_str(buf, str, len);
   }
@@ -669,6 +643,141 @@ LogAccess::unmarshal_str(char **buf, char *dest, int len, LogSlice *slice)
   return -1;
 }
 
+namespace
+{
+class EscLookup
+{
+public:
+  static const char NO_ESCAPE{'\0'};
+  static const char LONG_ESCAPE{'\x01'};
+
+  static char
+  result(char c)
+  {
+    return _lu.table[static_cast<unsigned char>(c)];
+  }
+
+private:
+  struct _LUT {
+    _LUT();
+
+    char table[1 << 8];
+  };
+
+  inline static _LUT const _lu;
+};
+
+EscLookup::_LUT::_LUT()
+{
+  for (unsigned i = 0; i < ' '; ++i) {
+    table[i] = LONG_ESCAPE;
+  }
+  for (unsigned i = '\x7f'; i < sizeof(table); ++i) {
+    table[i] = LONG_ESCAPE;
+  }
+
+  // Short escapes.
+  //
+  table[static_cast<int>('\b')] = 'b';
+  table[static_cast<int>('\t')] = 't';
+  table[static_cast<int>('\n')] = 'n';
+  table[static_cast<int>('\f')] = 'f';
+  table[static_cast<int>('\r')] = 'r';
+  table[static_cast<int>('\\')] = '\\';
+  table[static_cast<int>('\"')] = '"';
+  table[static_cast<int>('/')]  = '/';
+}
+
+char
+nibble(int nib)
+{
+  return nib >= 0xa ? 'a' + (nib - 0xa) : '0' + nib;
+}
+
+} // end anonymous namespace
+
+static int
+escape_json(char *dest, const char *buf, int len)
+{
+  int escaped_len = 0;
+
+  for (int i = 0; i < len; i++) {
+    char c  = buf[i];
+    char ec = EscLookup::result(c);
+    if (__builtin_expect(EscLookup::NO_ESCAPE == ec, 1)) {
+      if (dest) {
+        if (escaped_len + 1 > len) {
+          break;
+        }
+        *dest++ = c;
+      }
+      escaped_len++;
+
+    } else if (EscLookup::LONG_ESCAPE == ec) {
+      if (dest) {
+        if (escaped_len + 6 > len) {
+          break;
+        }
+        *dest++ = '\\';
+        *dest++ = 'u';
+        *dest++ = '0';
+        *dest++ = '0';
+        *dest++ = nibble(static_cast<unsigned char>(c) >> 4);
+        *dest++ = nibble(c & 0x0f);
+      }
+      escaped_len += 6;
+
+    } else { // Short escape.
+      if (dest) {
+        if (escaped_len + 2 > len) {
+          break;
+        }
+        *dest++ = '\\';
+        *dest++ = ec;
+      }
+      escaped_len += 2;
+    }
+  } // end for
+  return escaped_len;
+}
+
+int
+LogAccess::unmarshal_str_json(char **buf, char *dest, int len, LogSlice *slice)
+{
+  Debug("log-escape", "unmarshal_str_json start, len=%d, slice=%p", len, slice);
+  ink_assert(buf != nullptr);
+  ink_assert(*buf != nullptr);
+  ink_assert(dest != nullptr);
+
+  char *val_buf   = *buf;
+  int val_len     = static_cast<int>(::strlen(val_buf));
+  int escaped_len = escape_json(nullptr, val_buf, val_len);
+
+  *buf += LogAccess::strlen(val_buf); // this is how it was stored
+
+  if (slice && slice->m_enable) {
+    int offset, n;
+
+    n = slice->toStrOffset(escaped_len, &offset);
+    Debug("log-escape", "unmarshal_str_json start, n=%d, offset=%d", n, offset);
+    if (n <= 0) {
+      return 0;
+    }
+
+    if (n >= len) {
+      return -1;
+    }
+
+    return escape_json(dest, (val_buf + offset), n);
+  }
+
+  if (escaped_len < len) {
+    escape_json(dest, val_buf, escaped_len);
+    return escaped_len;
+  }
+  return -1;
+}
+
 int
 LogAccess::unmarshal_ttmsf(char **buf, char *dest, int len)
 {
@@ -827,6 +936,34 @@ LogAccess::unmarshal_http_text(char **buf, char *dest, int len, LogSlice *slice)
   p += res1;
   *p++     = ' ';
   int res2 = unmarshal_str(buf, p, len - res1 - 1, slice);
+  if (res2 < 0) {
+    return -1;
+  }
+  p += res2;
+  *p++     = ' ';
+  int res3 = unmarshal_http_version(buf, p, len - res1 - res2 - 2);
+  if (res3 < 0) {
+    return -1;
+  }
+  return res1 + res2 + res3 + 2;
+}
+
+int
+LogAccess::unmarshal_http_text_json(char **buf, char *dest, int len, LogSlice *slice)
+{
+  ink_assert(buf != nullptr);
+  ink_assert(*buf != nullptr);
+  ink_assert(dest != nullptr);
+
+  char *p = dest;
+
+  int res1 = unmarshal_str_json(buf, p, len);
+  if (res1 < 0) {
+    return -1;
+  }
+  p += res1;
+  *p++     = ' ';
+  int res2 = unmarshal_str_json(buf, p, len - res1 - 1, slice);
   if (res2 < 0) {
     return -1;
   }
@@ -1189,10 +1326,7 @@ void
 LogAccess::set_client_req_url_path(char *buf, int len)
 {
   //?? use m_client_req_unmapped_url_path_str for now..may need to enhance later..
-  if (buf && m_client_req_unmapped_url_path_str) {
-    m_client_req_url_path_len = std::min(len, m_client_req_url_path_len);
-    ink_strlcpy(m_client_req_unmapped_url_path_str, buf, m_client_req_url_path_len + 1);
-  }
+  this->set_client_req_unmapped_url_path(buf, len);
 }
 
 /*-------------------------------------------------------------------------
@@ -1424,7 +1558,7 @@ int
 LogAccess::marshal_client_host_port(char *buf)
 {
   if (buf) {
-    uint16_t port = ntohs(m_http_sm->t_state.client_info.src_addr.port());
+    uint16_t port = m_http_sm->t_state.client_info.src_addr.host_order_port();
     marshal_int(buf, port);
   }
   return INK_MIN_ALIGN;
@@ -1505,7 +1639,7 @@ LogAccess::validate_unmapped_url_path()
           // Attempt to find first '/' in the path
           if (m_client_req_unmapped_url_host_len > 0 &&
               (c = static_cast<char *>(
-                 memchr((void *)m_client_req_unmapped_url_host_str, '/', m_client_req_unmapped_url_path_len))) != nullptr) {
+                 memchr((void *)m_client_req_unmapped_url_host_str, '/', m_client_req_unmapped_url_host_len))) != nullptr) {
             m_client_req_unmapped_url_host_len = static_cast<int>(c - m_client_req_unmapped_url_host_str);
             m_client_req_unmapped_url_path_str = &m_client_req_unmapped_url_host_str[m_client_req_unmapped_url_host_len];
             m_client_req_unmapped_url_path_len = m_client_req_unmapped_url_path_len - len - m_client_req_unmapped_url_host_len;
@@ -1589,7 +1723,7 @@ LogAccess::marshal_client_req_http_method(char *buf)
   if (m_client_request) {
     str = const_cast<char *>(m_client_request->method_get(&alen));
 
-    // calculate the the padded length only if the actual length
+    // calculate the padded length only if the actual length
     // is not zero. We don't want the padded length to be zero
     // because marshal_mem should write the DEFAULT_STR to the
     // buffer if str is nil, and we need room for this.
@@ -1723,7 +1857,7 @@ LogAccess::marshal_client_req_url_scheme(char *buf)
     alen = strlen(str);
   }
 
-  // calculate the the padded length only if the actual length
+  // calculate the padded length only if the actual length
   // is not zero. We don't want the padded length to be zero
   // because marshal_mem should write the DEFAULT_STR to the
   // buffer if str is nil, and we need room for this.
@@ -2303,7 +2437,8 @@ int
 LogAccess::marshal_proxy_req_server_port(char *buf)
 {
   if (buf) {
-    uint16_t port = ntohs(m_http_sm->t_state.current.server != nullptr ? m_http_sm->t_state.current.server->src_addr.port() : 0);
+    uint16_t port =
+      m_http_sm->t_state.current.server != nullptr ? m_http_sm->t_state.current.server->src_addr.host_order_port() : 0;
     marshal_int(buf, port);
   }
   return INK_MIN_ALIGN;
@@ -2319,7 +2454,8 @@ int
 LogAccess::marshal_next_hop_port(char *buf)
 {
   if (buf) {
-    uint16_t port = ntohs(m_http_sm->t_state.current.server != nullptr ? m_http_sm->t_state.current.server->dst_addr.port() : 0);
+    uint16_t port =
+      m_http_sm->t_state.current.server != nullptr ? m_http_sm->t_state.current.server->dst_addr.host_order_port() : 0;
     marshal_int(buf, port);
   }
   return INK_MIN_ALIGN;
@@ -2335,6 +2471,15 @@ LogAccess::marshal_proxy_req_is_ssl(char *buf)
     int64_t is_ssl;
     is_ssl = m_http_sm->server_connection_is_ssl;
     marshal_int(buf, is_ssl);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccess::marshal_proxy_req_ssl_reused(char *buf)
+{
+  if (buf) {
+    marshal_int(buf, m_http_sm->server_ssl_reused ? 1 : 0);
   }
   return INK_MIN_ALIGN;
 }
@@ -2826,7 +2971,8 @@ LogAccess::marshal_cache_collapsed_connection_success(char *buf)
 
       // We increment open_write_tries beyond the max when we want to jump back to the read state for collapsing
       if ((m_http_sm->get_cache_sm().get_open_write_tries() > (m_http_sm->t_state.txn_conf->max_cache_open_write_retries)) &&
-          ((code == SQUID_LOG_TCP_HIT) || (code == SQUID_LOG_TCP_MEM_HIT) || (code == SQUID_LOG_TCP_DISK_HIT))) {
+          ((code == SQUID_LOG_TCP_HIT) || (code == SQUID_LOG_TCP_MEM_HIT) || (code == SQUID_LOG_TCP_DISK_HIT) ||
+           (code == SQUID_LOG_TCP_CF_HIT))) {
         // Attempted collapsed connection and got a hit, success
         id = 1;
       } else if (m_http_sm->get_cache_sm().get_open_write_tries() > (m_http_sm->t_state.txn_conf->max_cache_open_write_retries)) {

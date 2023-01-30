@@ -18,6 +18,7 @@ Verify support of external log rotation via SIGUSR2.
 #  limitations under the License.
 
 import os
+import sys
 
 
 TRAFFIC_MANAGER_PID_SCRIPT = 'ts_process_handler.py'
@@ -107,8 +108,8 @@ class Sigusr2Test:
         Return the command that will send a USR2 signal to the traffic manager
         process.
         """
-        return r"python3 {} --parent --signal SIGUSR2 {}".format(
-            TRAFFIC_MANAGER_PID_SCRIPT, self._ts_name)
+        return (f"{sys.executable} {TRAFFIC_MANAGER_PID_SCRIPT} --parent "
+                f"--signal SIGUSR2 {self._ts_name}")
 
 
 Test.Summary = '''
@@ -131,7 +132,7 @@ rotate_diags_log = tr1.Processes.Process("rotate_diags_log", "mv {} {}".format(
 rotate_manager_log = tr1.Processes.Process("rotate_manager_log", "mv {} {}".format(
     diags_test.manager_log, diags_test.rotated_manager_log))
 
-# Configure the signaling of SIGUSR2 to traffic_manaager.
+# Configure the signaling of SIGUSR2 to traffic_manager.
 tr1.Processes.Default.Command = diags_test.get_sigusr2_signal_command()
 tr1.Processes.Default.Return = 0
 tr1.Processes.Default.Ready = When.FileExists(diags_test.diags_log)

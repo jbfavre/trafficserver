@@ -130,13 +130,22 @@ std::set<std::string> valid_sni_config_keys = {TS_fqdn,
                                                TS_forward_route,
                                                TS_partial_blind_route,
                                                TS_tunnel_alpn,
+                                               TS_tunnel_prewarm,
+                                               TS_tunnel_prewarm_min,
+                                               TS_tunnel_prewarm_max,
+                                               TS_tunnel_prewarm_rate,
+                                               TS_tunnel_prewarm_connect_timeout,
+                                               TS_tunnel_prewarm_inactive_timeout,
+                                               TS_tunnel_prewarm_srv,
                                                TS_verify_server_policy,
                                                TS_verify_server_properties,
                                                TS_client_cert,
                                                TS_client_key,
+                                               TS_client_sni_policy,
                                                TS_http2,
+                                               TS_http2_buffer_water_mark,
                                                TS_ip_allow,
-#if TS_USE_HELLO_CB
+#if TS_USE_HELLO_CB || defined(OPENSSL_IS_BORINGSSL)
                                                TS_valid_tls_versions_in,
 #endif
                                                TS_host_sni_policy};
@@ -165,6 +174,9 @@ template <> struct convert<YamlSNIConfig::Item> {
     if (node[TS_http2]) {
       item.offer_h2 = node[TS_http2].as<bool>();
     }
+    if (node[TS_http2_buffer_water_mark]) {
+      item.http2_buffer_water_mark = node[TS_http2_buffer_water_mark].as<int>();
+    }
 
     // enum
     if (node[TS_verify_client]) {
@@ -177,7 +189,7 @@ template <> struct convert<YamlSNIConfig::Item> {
     }
 
     if (node[TS_verify_client_ca_certs]) {
-#if !defined(SSL_set1_verify_cert_store)
+#if !TS_HAS_VERIFY_CERT_STORE
       // TS was compiled with an older version of the OpenSSL interface, that doesn't have
       // SSL_set1_verify_cert_store().  We need this macro in order to set the CA certs for verifying clients
       // after the client sends the SNI server name.
@@ -231,15 +243,64 @@ template <> struct convert<YamlSNIConfig::Item> {
       item.host_sni_policy = static_cast<uint8_t>(policy);
     }
 
+    YamlSNIConfig::TunnelPreWarm t_prewarm = YamlSNIConfig::TunnelPreWarm::UNSET;
+    uint32_t t_min                         = item.tunnel_prewarm_min;
+    int32_t t_max                          = item.tunnel_prewarm_max;
+    double t_rate                          = item.tunnel_prewarm_rate;
+    uint32_t t_connect_timeout             = item.tunnel_prewarm_connect_timeout;
+    uint32_t t_inactive_timeout            = item.tunnel_prewarm_inactive_timeout;
+    bool t_srv                             = item.tunnel_prewarm_srv;
+
+    if (node[TS_tunnel_prewarm]) {
+      auto is_prewarm_enabled = node[TS_tunnel_prewarm].as<bool>();
+      if (is_prewarm_enabled) {
+        t_prewarm = YamlSNIConfig::TunnelPreWarm::ENABLED;
+      } else {
+        t_prewarm = YamlSNIConfig::TunnelPreWarm::DISABLED;
+      }
+    }
+    if (node[TS_tunnel_prewarm_min]) {
+      t_min = node[TS_tunnel_prewarm_min].as<uint32_t>();
+    }
+    if (node[TS_tunnel_prewarm_max]) {
+      t_max = node[TS_tunnel_prewarm_max].as<int32_t>();
+    }
+    if (node[TS_tunnel_prewarm_rate]) {
+      t_rate = node[TS_tunnel_prewarm_rate].as<double>();
+    }
+    if (node[TS_tunnel_prewarm_connect_timeout]) {
+      t_connect_timeout = node[TS_tunnel_prewarm_connect_timeout].as<uint32_t>();
+    }
+    if (node[TS_tunnel_prewarm_inactive_timeout]) {
+      t_inactive_timeout = node[TS_tunnel_prewarm_inactive_timeout].as<uint32_t>();
+    }
+    if (node[TS_tunnel_prewarm_srv]) {
+      t_srv = node[TS_tunnel_prewarm_srv].as<bool>();
+    }
+
     if (node[TS_tunnel_route]) {
       item.tunnel_destination = node[TS_tunnel_route].as<std::string>();
       item.tunnel_type        = SNIRoutingType::BLIND;
     } else if (node[TS_forward_route]) {
-      item.tunnel_destination = node[TS_forward_route].as<std::string>();
-      item.tunnel_type        = SNIRoutingType::FORWARD;
+      item.tunnel_destination              = node[TS_forward_route].as<std::string>();
+      item.tunnel_type                     = SNIRoutingType::FORWARD;
+      item.tunnel_prewarm                  = t_prewarm;
+      item.tunnel_prewarm_min              = t_min;
+      item.tunnel_prewarm_max              = t_max;
+      item.tunnel_prewarm_rate             = t_rate;
+      item.tunnel_prewarm_connect_timeout  = t_connect_timeout;
+      item.tunnel_prewarm_inactive_timeout = t_inactive_timeout;
+      item.tunnel_prewarm_srv              = t_srv;
     } else if (node[TS_partial_blind_route]) {
-      item.tunnel_destination = node[TS_partial_blind_route].as<std::string>();
-      item.tunnel_type        = SNIRoutingType::PARTIAL_BLIND;
+      item.tunnel_destination              = node[TS_partial_blind_route].as<std::string>();
+      item.tunnel_type                     = SNIRoutingType::PARTIAL_BLIND;
+      item.tunnel_prewarm                  = t_prewarm;
+      item.tunnel_prewarm_min              = t_min;
+      item.tunnel_prewarm_max              = t_max;
+      item.tunnel_prewarm_rate             = t_rate;
+      item.tunnel_prewarm_connect_timeout  = t_connect_timeout;
+      item.tunnel_prewarm_inactive_timeout = t_inactive_timeout;
+      item.tunnel_prewarm_srv              = t_srv;
 
       if (node[TS_tunnel_alpn]) {
         load_tunnel_alpn(item.tunnel_alpn, node[TS_tunnel_alpn]);
@@ -269,6 +330,9 @@ template <> struct convert<YamlSNIConfig::Item> {
     }
     if (node[TS_client_key]) {
       item.client_key = node[TS_client_key].as<std::string>();
+    }
+    if (node[TS_client_sni_policy]) {
+      item.client_sni_policy = node[TS_client_sni_policy].as<std::string>();
     }
 
     if (node[TS_ip_allow]) {

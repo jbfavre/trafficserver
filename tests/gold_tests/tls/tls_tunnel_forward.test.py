@@ -25,6 +25,7 @@ ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
 server_foo = Test.MakeOriginServer("server_foo", ssl=True)
 server_bar = Test.MakeOriginServer("server_bar", ssl=False)
 server_random = Test.MakeOriginServer("server_random", ssl=False)
+nameserver = Test.MakeDNServer("dns", default='127.0.0.1')
 
 request_foo_header = {"headers": "GET / HTTP/1.1\r\nHost: foo.com\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
 request_bar_header = {"headers": "GET / HTTP/1.1\r\nHost: bar.com\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
@@ -56,16 +57,18 @@ ts.Disk.ssl_multicert_config.AddLine(
 
 # Case 1, global config policy=permissive properties=signature
 #         override for foo.com policy=enforced properties=all
-ts.Disk.records_config.update({
-    'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.http.connect_ports': '{0} {1} {2} {3}'.format(ts.Variables.ssl_port, server_foo.Variables.SSL_Port, server_bar.Variables.Port, server_random.Variables.Port),
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
-    'proxy.config.ssl.client.CA.cert.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.client.CA.cert.filename': 'signer.pem',
-    'proxy.config.exec_thread.autoconfig.scale': 1.0,
-    'proxy.config.url_remap.pristine_host_hdr': 1
-})
+ts.Disk.records_config.update({'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
+                               'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
+                               'proxy.config.http.connect_ports': '{0} {1} {2} {3}'.format(ts.Variables.ssl_port,
+                                                                                           server_foo.Variables.SSL_Port,
+                                                                                           server_bar.Variables.Port,
+                                                                                           server_random.Variables.Port),
+                               'proxy.config.ssl.client.CA.cert.path': '{0}'.format(ts.Variables.SSLDir),
+                               'proxy.config.ssl.client.CA.cert.filename': 'signer.pem',
+                               'proxy.config.exec_thread.autoconfig.scale': 1.0,
+                               'proxy.config.url_remap.pristine_host_hdr': 1,
+                               'proxy.config.dns.nameservers': f"127.0.0.1:{nameserver.Variables.Port}",
+                               'proxy.config.dns.resolv_conf': 'NULL'})
 
 # foo.com should not terminate.  Just tunnel to server_foo
 # bar.com should terminate.  Forward its tcp stream to server_bar
@@ -85,6 +88,7 @@ tr.ReturnCode = 0
 tr.Processes.Default.StartBefore(server_foo)
 tr.Processes.Default.StartBefore(server_bar)
 tr.Processes.Default.StartBefore(server_random)
+tr.Processes.Default.StartBefore(nameserver)
 tr.Processes.Default.StartBefore(Test.Processes.ts)
 tr.StillRunningAfter = ts
 tr.Processes.Default.Streams.All += Testers.ExcludesExpression("Could Not Connect", "Curl attempt should have succeeded")

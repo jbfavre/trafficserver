@@ -30,6 +30,7 @@
 #pragma once
 
 #include <ts/apidefs.h>
+#include <ts/parentselectdefs.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -1301,10 +1302,17 @@ tsapi TSSslContext TSSslClientContextFindByName(const char *ca_paths, const char
 tsapi TSReturnCode TSSslClientCertUpdate(const char *cert_path, const char *key_path);
 tsapi TSReturnCode TSSslServerCertUpdate(const char *cert_path, const char *key_path);
 
+/* Update the transient secret table for SSL_CTX loading */
+tsapi TSReturnCode TSSslSecretSet(const char *secret_name, int secret_name_length, const char *secret_data, int secret_data_len);
+tsapi TSReturnCode TSSslSecretGet(const char *secret_name, int secret_name_length, const char **secret_data_return,
+                                  int *secret_data_len);
+
+tsapi TSReturnCode TSSslSecretUpdate(const char *secret_name, int secret_name_length);
+
 /* Create a new SSL context based on the settings in records.config */
 tsapi TSSslContext TSSslServerContextCreate(TSSslX509 cert, const char *certname, const char *rsp_file);
 tsapi void TSSslContextDestroy(TSSslContext ctx);
-tsapi void TSSslTicketKeyUpdate(char *ticketData, int ticketDataLen);
+tsapi TSReturnCode TSSslTicketKeyUpdate(char *ticketData, int ticketDataLen);
 TSAcceptor TSAcceptorGet(TSVConn sslp);
 TSAcceptor TSAcceptorGetbyID(int ID);
 int TSAcceptorCount();
@@ -1317,6 +1325,7 @@ tsapi int TSVConnIsSsl(TSVConn sslp);
 /* Returns 1 if a certificate was provided in the TLS handshake, 0 otherwise.
  */
 tsapi int TSVConnProvidedSslCert(TSVConn sslp);
+tsapi const char *TSVConnSslSniGet(TSVConn sslp, int *length);
 
 tsapi TSSslSession TSSslSessionGet(const TSSslSessionID *session_id);
 tsapi int TSSslSessionGetBuffer(const TSSslSessionID *session_id, char *buffer, int *len_ptr);
@@ -1769,6 +1778,13 @@ tsapi void TSHttpTxnServerIntercept(TSCont contp, TSHttpTxn txnp);
 
     This returns a VConn that connected to the transaction.
 
+    @param options a TSHttpConnectPluginOptions structure that specifies options.
+ */
+tsapi TSVConn TSHttpConnectPlugin(TSHttpConnectOptions *options);
+
+/** Backwards compatible version.
+    This function calls This provides a @a buffer_index of 8 and a @a buffer_water_mark of 0.
+
     @param addr Target address of the origin server.
     @param tag A logging tag that can be accessed via the pitag field. May be @c NULL.
     @param id A logging id that can be access via the piid field.
@@ -1779,6 +1795,21 @@ tsapi TSVConn TSHttpConnectWithPluginId(struct sockaddr const *addr, const char 
     This provides a @a tag of "plugin" and an @a id of 0.
  */
 tsapi TSVConn TSHttpConnect(struct sockaddr const *addr);
+
+/**
+   Get an instance of TSHttpConnectOptions with default values.
+ */
+tsapi TSHttpConnectOptions TSHttpConnectOptionsGet(TSConnectType connect_type);
+
+/**
+   Get the value of proxy.config.plugin.vc.default_buffer_index from the TSHttpTxn
+ */
+tsapi TSIOBufferSizeIndex TSPluginVCIOBufferIndexGet(TSHttpTxn txnp);
+
+/**
+   Get the value of proxy.config.plugin.vc.default_buffer_water_mark from the TSHttpTxn
+ */
+tsapi TSIOBufferWaterMark TSPluginVCIOBufferWaterMarkGet(TSHttpTxn txnp);
 
 /* --------------------------------------------------------------------------
  Initiate Transparent Http Connection */
@@ -2616,6 +2647,12 @@ tsapi TSReturnCode TSRemapFromUrlGet(TSHttpTxn txnp, TSMLoc *urlLocp);
 //
 tsapi TSReturnCode TSRemapToUrlGet(TSHttpTxn txnp, TSMLoc *urlLocp);
 
+// Override response behavior, and hard-set the state machine for whether to succeed or fail, and how.
+tsapi void TSHttpTxnResponseActionSet(TSHttpTxn txnp, TSResponseAction *action);
+
+// Get the overridden response behavior set by previously called plugins.
+tsapi void TSHttpTxnResponseActionGet(TSHttpTxn txnp, TSResponseAction *action);
+
 /*
  * Get a TSIOBufferReader to read the buffered body. The return value needs to be freed.
  */
@@ -2655,6 +2692,33 @@ tsapi TSReturnCode TSHttpTxnClientStreamIdGet(TSHttpTxn txnp, uint64_t *stream_i
  * implement stream priorities.
  */
 tsapi TSReturnCode TSHttpTxnClientStreamPriorityGet(TSHttpTxn txnp, TSHttpPriority *priority);
+
+/*
+ * Returns TS_SUCCESS if hostname is this machine, as used for parent and remap self-detection.
+ * Returns TS_ERROR if hostname is not this machine.
+ */
+tsapi TSReturnCode TSHostnameIsSelf(const char *hostname, size_t hostname_len);
+
+/*
+ * Gets the status of hostname in the outparam status, and the status reason in the outparam reason.
+ * The reason is a logical-or combination of the reasons in TSHostStatusReason.
+ * If either outparam is null, it will not be set and no error will be returned.
+ * Returns TS_SUCCESS if the hostname was a parent and existed in the HostStatus, else TS_ERROR.
+ */
+tsapi TSReturnCode TSHostStatusGet(const char *hostname, const size_t hostname_len, TSHostStatus *status, unsigned int *reason);
+
+/*
+ * Sets the status of hostname in status, down_time, and reason.
+ * The reason is a logical-or combination of the reasons in TSHostStatusReason.
+ */
+tsapi void TSHostStatusSet(const char *hostname, const size_t hostname_len, TSHostStatus status, const unsigned int down_time,
+                           const unsigned int reason);
+
+/*
+ * Set or get various HTTP Transaction control settings.
+ */
+tsapi bool TSHttpTxnCntlGet(TSHttpTxn txnp, TSHttpCntlType ctrl);
+tsapi TSReturnCode TSHttpTxnCntlSet(TSHttpTxn txnp, TSHttpCntlType ctrl, bool data);
 
 #ifdef __cplusplus
 }

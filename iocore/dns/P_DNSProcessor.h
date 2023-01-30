@@ -24,6 +24,7 @@
 #pragma once
 
 #include "I_EventSystem.h"
+#include "tscore/PendingAction.h"
 
 #define MAX_NAMED 32
 #define DEFAULT_DNS_RETRIES 5
@@ -119,7 +120,7 @@ struct DNSEntry : public Continuation {
   int which_ns                = NO_NAMESERVER_SELECTED;
   ink_hrtime submit_time      = 0;
   ink_hrtime send_time        = 0;
-  char qname[MAXDNAME];
+  char qname[MAXDNAME + 1];
   int qname_len          = 0;
   int orig_qname_len     = 0;
   char **domains         = nullptr;
@@ -139,7 +140,7 @@ struct DNSEntry : public Continuation {
   int postAllEvent(int event, Event *e);
   int post(DNSHandler *h, HostEnt *ent);
   int postOneEvent(int event, Event *e);
-  void init(const char *x, int len, int qtype_arg, Continuation *acont, DNSProcessor::Options const &opt);
+  void init(DNSQueryData target, int qtype_arg, Continuation *acont, DNSProcessor::Options const &opt);
 
   DNSEntry()
   {
@@ -169,9 +170,10 @@ struct DNSHandler : public Continuation {
   DNSConnection udpcon[MAX_NAMED];
   Queue<DNSEntry> entries;
   Queue<DNSConnection> triggered;
-  int in_flight          = 0;
-  int name_server        = 0;
-  int in_write_dns       = 0;
+  int in_flight    = 0;
+  int name_server  = 0;
+  int in_write_dns = 0;
+
   HostEnt *hostent_cache = nullptr;
 
   int ns_down[MAX_NAMED];
@@ -212,16 +214,16 @@ struct DNSHandler : public Continuation {
             (ink_hrtime)HRTIME_SECONDS(dns_failover_period));
       Debug("dns", "\tdelta time is %" PRId64 "", (Thread::get_hrtime() - crossed_failover_number[i]));
     }
-    return (crossed_failover_number[i] &&
-            ((Thread::get_hrtime() - crossed_failover_number[i]) > HRTIME_SECONDS(dns_failover_period)));
+    return ns_down[i] || (crossed_failover_number[i] &&
+                          ((Thread::get_hrtime() - crossed_failover_number[i]) > HRTIME_SECONDS(dns_failover_period)));
   }
 
   bool
   failover_soon(int i)
   {
-    return (crossed_failover_number[i] &&
-            ((Thread::get_hrtime() - crossed_failover_number[i]) >
-             (HRTIME_SECONDS(dns_failover_try_period + failover_soon_number[i] * FAILOVER_SOON_RETRY))));
+    return ns_down[i] || (crossed_failover_number[i] &&
+                          ((Thread::get_hrtime() - crossed_failover_number[i]) >
+                           (HRTIME_SECONDS(dns_failover_try_period + failover_soon_number[i] * FAILOVER_SOON_RETRY))));
   }
 
   void recv_dns(int event, Event *e);
@@ -265,6 +267,10 @@ private:
   // Check tcp connection for TCP_RETRY mode
   void check_and_reset_tcp_conn();
   bool reset_tcp_conn(int ndx);
+
+  /** The event used for the periodic retry of connectivity to any down name
+   * servers. */
+  PendingAction _dns_retry_event;
 };
 
 /* --------------------------------------------------------------

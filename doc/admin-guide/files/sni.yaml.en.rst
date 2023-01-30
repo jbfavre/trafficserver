@@ -26,7 +26,7 @@ Description
 ===========
 
 This file is used to configure aspects of TLS connection handling for both inbound and outbound
-connections. The configuration is driven by the SNI values provided by the inbound connection. The
+connections. With the exception of ``host_sni_policy`` (see the description below), the configuration is driven by the SNI values provided by the inbound connection. The
 file consists of a set of configuration items, each identified by an SNI value (``fqdn``).
 When an inbound TLS connection is made, the SNI value from the TLS negotiation is matched against
 the items specified by this file and if there is a match, the values specified in that item override
@@ -42,109 +42,153 @@ Each table is a set of key / value pairs that create a configuration item. This 
 wildcard entries. To apply an SNI based setting on all the server names with a common upper level domain name,
 the user needs to enter the fqdn in the configuration with a ``*.`` followed by the common domain name. (``*.yahoo.com`` for example).
 
+For some settings, there is no guarantee that they will be applied to a connection under certain conditions.
+An established TLS connection may be reused for another server name if it’s used for HTTP/2. This also means that settings
+for server name A may affects requests for server name B as well. See https://daniel.haxx.se/blog/2016/08/18/http2-connection-coalescing/
+for a more detailed description of HTTP/2 connection coalescing.
+
 .. _override-verify-server-policy:
 .. _override-verify-server-properties:
 .. _override-host-sni-policy:
+.. _override-h2-properties:
 
-========================= ========================================================================================
-Key                       Meaning
-========================= ========================================================================================
-fqdn                      Fully Qualified Domain Name. This item is used if the SNI value matches this.
+========================= ========= ========================================================================================
+Key                       Direction Meaning
+========================= ========= ========================================================================================
+fqdn                      Both      Fully Qualified Domain Name. This item is used if the SNI value matches this.
 
-ip_allow                  Specify a list of client IP address, subnets, or ranges what are allowed to complete
-                          the connection. This list is comma separated. IPv4 and IPv6 addresses can be specified.
-                          Here is an example list: 192.168.1.0/24,192.168.10.1-4. This would allow connections
-                          from clients in the 19.168.1.0 network or in the range from 192.168.10.1 to 192.168.1.4.
+ip_allow                  Inbound   Specify a list of client IP address, subnets, or ranges what are allowed to complete
+                                    the connection. This list is comma separated. IPv4 and IPv6 addresses can be specified.
+                                    Here is an example list: 192.168.1.0/24,192.168.10.1-4. This would allow connections
+                                    from clients in the 19.168.1.0 network or in the range from 192.168.10.1 to 192.168.1.4.
 
-verify_server_policy      One of the values :code:`DISABLED`, :code:`PERMISSIVE`, or :code:`ENFORCED`.
+verify_server_policy      Outbound  One of the values :code:`DISABLED`, :code:`PERMISSIVE`, or :code:`ENFORCED`.
 
-                          By default this is :ts:cv:`proxy.config.ssl.client.verify.server.policy`.
-                          This controls how Traffic Server evaluated the origin certificate.
+                                    By default this is :ts:cv:`proxy.config.ssl.client.verify.server.policy`.
+                                    This controls how |TS| evaluated the origin certificate.
 
-verify_server_properties  One of the values :code:`NONE`, :code:`SIGNATURE`, :code:`NAME`, and :code:`ALL`
+verify_server_properties  Outbound  One of the values :code:`NONE`, :code:`SIGNATURE`, :code:`NAME`, and :code:`ALL`
 
-                          By default this is :ts:cv:`proxy.config.ssl.client.verify.server.properties`.
-                          This controls what Traffic Server checks when evaluating the origin certificate.
+                                    By default this is :ts:cv:`proxy.config.ssl.client.verify.server.properties`.
+                                    This controls what |TS| checks when evaluating the origin certificate.
 
-verify_client             One of the values :code:`NONE`, :code:`MODERATE`, or :code:`STRICT`.
-                          If ``NONE`` is specified, |TS| requests no certificate.  If ``MODERATE`` is specified
-                          |TS| will verify a certificate that is presented by the client, but it will not
-                          fail the TLS handshake if no certificate is presented.  If ``STRICT`` is specified
-                          the client must resent a certificate during the TLS handshake.
+verify_client             Outbound  One of the values :code:`NONE`, :code:`MODERATE`, or :code:`STRICT`.
+                                    If ``NONE`` is specified, |TS| requests no certificate.  If ``MODERATE`` is specified
+                                    |TS| will verify a certificate that is presented by the client, but it will not
+                                    fail the TLS handshake if no certificate is presented.  If ``STRICT`` is specified
+                                    the client must present a certificate during the TLS handshake.
 
-                          By default this is :ts:cv:`proxy.config.ssl.client.certification_level`.
+                                    By default this is :ts:cv:`proxy.config.ssl.client.certification_level`.
 
-verify_client_ca_certs    Specifies an alternate set of certificate authority certs to use to verify the
-                          client cert.  The value must be either a file path, or a nested set of key /
-                          value pairs.  If the value is a file path, it must specify a file containing the
-                          CA certs.  Otherwise, there should be up to two nested pairs.  The possible keys
-                          are ``file`` and ``dir``.  The value for ``file`` must be a file path for a file
-                          containing CA certs.  The value for ``dir`` must be a file path for an OpenSSL
-                          X509 hashed directory containing CA certs.  If a given file path does not being
-                          with ``/`` , it must be relative to the |TS| configuration directory.
-                          ``verify_client_ca_certs`` can only be used with capbilities provided by
-                          OpenSSL 1.0.2 or later.
+verify_client_ca_certs    Both      Specifies an alternate set of certificate authority certs to use to verify the
+                                    client cert.  The value must be either a file path, or a nested set of key /
+                                    value pairs.  If the value is a file path, it must specify a file containing the
+                                    CA certs.  Otherwise, there should be up to two nested pairs.  The possible keys
+                                    are ``file`` and ``dir``.  The value for ``file`` must be a file path for a file
+                                    containing CA certs.  The value for ``dir`` must be a file path for an OpenSSL
+                                    X509 hashed directory containing CA certs.  If a given file path does not being
+                                    with ``/`` , it must be relative to the |TS| configuration directory.
+                                    ``verify_client_ca_certs`` can only be used with capbilities provided by
+                                    OpenSSL 1.0.2 or later.
 
-host_sni_policy           One of the values :code:`DISABLED`, :code:`PERMISSIVE`, or :code:`ENFORCED`.
+host_sni_policy           Inbound   One of the values :code:`DISABLED`, :code:`PERMISSIVE`, or :code:`ENFORCED`.
 
-                          If not specified, the value of :ts:cv:`proxy.config.http.host_sni_policy` is used.
-                          This controls how policy impacting mismatches between host header and SNI values are
-                          dealt with.
+                                    If not specified, the value of :ts:cv:`proxy.config.http.host_sni_policy` is used.
+                                    This controls how policy impacting mismatches between host header and SNI values are
+                                    dealt with.  For details about hos this configuration behaves, see the corresponding
+                                    :ts:cv:`proxy.config.http.host_sni_policy` :file:`records.config` documentation.
 
-valid_tls_versions_in     This specifies the list of TLS protocols that will be offered to user agents during
-                          the TLS negotiation.  This replaces the global settings in
-                          :ts:cv:`proxy.config.ssl.TLSv1`, :ts:cv:`proxy.config.ssl.TLSv1_1`,
-                          :ts:cv:`proxy.config.ssl.TLSv1_2`, and :ts:cv:`proxy.config.ssl.TLSv1_3`. The potential
-                          values are TLSv1, TLSv1_1, TLSv1_2, and TLSv1_3.  You must list all protocols that |TS|
-                          should offer to the client when using this key.  This key is only valid for openssl
-                          1.1.0 and later. Older versions of openssl do not provide a hook early enough to update
-                          the SSL object.  It is a syntax error for |TS| built against earlier versions.
+                                    Note that this particular configuration will be inspected at the time the HTTP Host
+                                    header field is processed. Further, this policy check will be keyed off of the Host header
+                                    field value rather than the SNI in this :file:`sni.yaml` file. This is done because
+                                    the Host header field is ultimately the resource that will be retrieved from the
+                                    origin and the administrator will intend to guard this resource rather than the SNI,
+                                    which a malicious user may alter to some other server value whose policies are more
+                                    lenient than the host he is trying to access.
 
-client_cert               The file containing the client certificate to use for the outbound connection.
+valid_tls_versions_in     Inbound   This specifies the list of TLS protocols that will be offered to user agents during
+                                    the TLS negotiation.  This replaces the global settings in
+                                    :ts:cv:`proxy.config.ssl.TLSv1`, :ts:cv:`proxy.config.ssl.TLSv1_1`,
+                                    :ts:cv:`proxy.config.ssl.TLSv1_2`, and :ts:cv:`proxy.config.ssl.TLSv1_3`. The potential
+                                    values are TLSv1, TLSv1_1, TLSv1_2, and TLSv1_3.  You must list all protocols that |TS|
+                                    should offer to the client when using this key.  This key is only valid for OpenSSL
+                                    1.1.0 and later and BoringSSL. Older versions of OpenSSL do not provide a hook early enough to update
+                                    the SSL object.  It is a syntax error for |TS| built against earlier versions.
 
-                          If this is relative, it is relative to the path in
-                          :ts:cv:`proxy.config.ssl.client.cert.path`. If not set
-                          :ts:cv:`proxy.config.ssl.client.cert.filename` is used.
+client_cert               Outbound  The file containing the client certificate to use for the outbound connection.
 
-client_key                The file containing the client private key that corresponds to the certificate
-                          for the outbound connection.
+                                    If this is relative, it is relative to the path in
+                                    :ts:cv:`proxy.config.ssl.client.cert.path`. If not set
+                                    :ts:cv:`proxy.config.ssl.client.cert.filename` is used.
 
-                          If this is relative, it is relative to the path in
-                          :ts:cv:`proxy.config.ssl.client.private_key.path`. If not set,
-                          |TS| tries to use a private key in client_cert.  Otherwise,
-                          :ts:cv:`proxy.config.ssl.client.private_key.filename` is used.
+client_key                Outbound  The file containing the client private key that corresponds to the certificate
+                                    for the outbound connection.
 
-http2                     Indicates whether the H2 protocol should be added to or removed from the
-                          protocol negotiation list.  The valid values are :code:`on` or :code:`off`.
+                                    If this is relative, it is relative to the path in
+                                    :ts:cv:`proxy.config.ssl.client.private_key.path`. If not set,
+                                    |TS| tries to use a private key in client_cert.  Otherwise,
+                                    :ts:cv:`proxy.config.ssl.client.private_key.filename` is used.
 
-disable_h2                Deprecated for the more general h2 setting.  Setting disable_h2
-                          to :code:`true` is the same as setting http2 to :code:`on`.
+client_sni_policy         Outbound  Policy of SNI on outbound connection.
 
-tunnel_route              Destination as an FQDN and port, separated by a colon ``:``.
-                          Match group number can be specified by ``$N`` where N should refer to a specified group
-                          in the FQDN, ``tunnel_route: $1.domain``.
+                                    If not specified, the value of :ts:cv:`proxy.config.ssl.client.sni_policy` is used.
 
-                          This will forward all traffic to the specified destination without first terminating
-                          the incoming TLS connection.
+http2                     Inbound   Indicates whether the H2 protocol should be added to or removed from the
+                                    protocol negotiation list.  The valid values are :code:`on` or :code:`off`.
 
-forward_route             Destination as an FQDN and port, separated by a colon ``:``.
+http2_buffer_water_mark   Inbound   Specifies the high water mark for all HTTP/2 frames on an outoging connection.
+                                    By default this is :ts:cv:`proxy.config.http2.default_buffer_water_mark`.
+                                    NOTE: Connection coalescing may prevent this taking effect.
 
-                          This is similar to tunnel_route, but it terminates the TLS connection and forwards the
-                          decrypted traffic. |TS| will not interpret the decrypted data, so the contents do not
-                          need to be HTTP.
+disable_h2                Inbound   Deprecated for the more general h2 setting.  Setting disable_h2
+                                    to :code:`true` is the same as setting http2 to :code:`on`.
 
-partial_blind_route       Destination as an FQDN and port, separated by a colon ``:``.
+tunnel_route              Inbound   Destination as an FQDN and port, separated by a colon ``:``.
+                                    Match group number can be specified by ``$N`` where N should refer to a specified group
+                                    in the FQDN, ``tunnel_route: $1.domain``.
 
-                          This is similar to forward_route in that |TS| terminates the incoming TLS connection.
-                          In addition partial_blind_route creates a new TLS connection to the specified origin.
-                          It does not interpret the decrypted data before passing it to the origin TLS
-                          connection, so the contents do not need to be HTTP.
+                                    This will forward all traffic to the specified destination without first terminating
+                                    the incoming TLS connection.
 
-tunnel_alpn               List of ALPN Protocol Ids for Partial Blind Tunnel.
+forward_route             Inbound   Destination as an FQDN and port, separated by a colon ``:``.
 
-                          ATS negotiates application protocol with the client on behalf of the origin server.
-                          This only works with ``partial_blind_route``.
-========================= ========================================================================================
+                                    This is similar to tunnel_route, but it terminates the TLS connection and forwards the
+                                    decrypted traffic. |TS| will not interpret the decrypted data, so the contents do not
+                                    need to be HTTP.
+
+partial_blind_route       Inbound   Destination as an FQDN and port, separated by a colon ``:``.
+
+                                    This is similar to forward_route in that |TS| terminates the incoming TLS connection.
+                                    In addition partial_blind_route creates a new TLS connection to the specified origin.
+                                    It does not interpret the decrypted data before passing it to the origin TLS
+                                    connection, so the contents do not need to be HTTP.
+
+tunnel_alpn               Inbound   List of ALPN Protocol Ids for Partial Blind Tunnel.
+
+                                    ATS negotiates application protocol with the client on behalf of the origin server.
+                                    This only works with ``partial_blind_route``.
+========================= ========= ========================================================================================
+
+Pre-warming TLS Tunnel
+----------------------
+
+=============================== ========================================================================================
+Key                             Meaning
+=============================== ========================================================================================
+tunnel_prewarm                  Override :ts:cv:`proxy.config.tunnel.prewarm` in records.config.
+
+tunnel_prewarm_srv              Enable SRV record lookup on pre-warming. Default is ``false``.
+
+tunnel_prewarm_rate             Rate of how many connections to pre-warm. Default is ``1.0``.
+
+tunnel_prewarm_min              Minimum number of pre-warming queue size (per thread). Default is ``0``.
+
+tunnel_prewarm_max              Maximum number of pre-warming queue size (per thread). Default is ``-1`` (unlimited).
+
+tunnel_prewarm_connect_timeout  Timeout for TCP/TLS handshake (in seconds).
+
+tunnel_prewarm_inactive_timeout Inactive timeout for connections in the pool (in seconds).
+=============================== ========================================================================================
 
 Client verification, via ``verify_client``, corresponds to setting
 :ts:cv:`proxy.config.ssl.client.certification_level` for this connection as noted below.
@@ -163,7 +207,7 @@ Upstream (server) verification, via ``verify_server_policy`` and ``verify_server
 except there is always an upstream certificate. This is equivalent to setting
 :ts:cv:`proxy.config.ssl.client.verify.server.policy` and :ts:cv:`proxy.config.ssl.client.verify.server.properties` for this connection.
 
-``verify_server_policy`` specifies how Traffic Server will enforce the server certificate verification.
+``verify_server_policy`` specifies how |TS| will enforce the server certificate verification.
 
 :code:`DISABLED`
    Do not verify the upstream server certificate.
@@ -176,10 +220,10 @@ except there is always an upstream certificate. This is equivalent to setting
    Do verification of the upstream certificate. If verification fails, the failure is
    logged in :file:`diags.log` and the connection is denied.
 
-In addition ``verify_server_properties`` specifies what Traffic Server will check when performing the verification.
+In addition ``verify_server_properties`` specifies what |TS| will check when performing the verification.
 
 :code:`NONE`
-  Do not check anything in the standard Traffic Server verification routine.  Rely entirely on the ``TS_SSL_VERIFY_SERVER_HOOK`` for evaluating the origin's certificate.
+  Do not check anything in the standard |TS| verification routine.  Rely entirely on the ``TS_SSL_VERIFY_SERVER_HOOK`` for evaluating the origin's certificate.
 
 :code:`SIGNATURE`
   Check the signature of the origin certificate.

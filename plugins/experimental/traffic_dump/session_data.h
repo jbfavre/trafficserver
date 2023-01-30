@@ -31,6 +31,7 @@
 #include <optional>
 
 #include "ts/ts.h"
+#include "tscore/ink_inet.h"
 #include "tscore/ts_file.h"
 
 namespace traffic_dump
@@ -49,6 +50,8 @@ public:
   static constexpr int64_t default_sample_pool_size = 1000;
   /// By default, logging will stop after 10 MB have been dumped.
   static constexpr int64_t default_max_disk_usage = 10 * 1000 * 1000;
+  /// By default, do not enforce disk utilization limits.
+  static constexpr bool default_enforce_disk_limit = false;
 
 private:
   //
@@ -91,10 +94,12 @@ private:
   /// be dumped.
   static std::atomic<int64_t> sample_pool_size;
   /// The maximum space logs should take up before stopping the dumping of new
-  /// sessions.
+  /// sessions. This is only enforced if enforce_disk_limit is true.
   static std::atomic<int64_t> max_disk_usage;
   /// The amount of bytes currently written to dump files.
   static std::atomic<int64_t> disk_usage;
+  /// Whether to enforce a disk utilization limit.
+  static std::atomic<bool> enforce_disk_limit;
 
   /// The directory into which to put the dump files.
   static ts::file::path log_directory;
@@ -104,6 +109,9 @@ private:
 
   /// The running counter of all sessions dumped by traffic_dump.
   static uint64_t session_counter;
+
+  /// Only addresses with this IP will be dumped (if set).
+  static std::optional<IpAddr> client_ip_filter;
 
 public:
   SessionData();
@@ -116,8 +124,10 @@ public:
    *
    * @return True if initialization is successful, false otherwise.
    */
-  static bool init(std::string_view log_directory, int64_t max_disk_usage, int64_t sample_size);
-  static bool init(std::string_view log_directory, int64_t max_disk_usage, int64_t sample_size, std::string_view sni_filter);
+  static bool init(std::string_view log_directory, bool enforce_disk_limit, int64_t max_disk_usage, int64_t sample_size,
+                   std::string_view ip_filter);
+  static bool init(std::string_view log_directory, bool enforce_disk_limit, int64_t max_disk_usage, int64_t sample_size,
+                   std::string_view ip_filter, std::string_view sni_filter);
 
   /** Set the sample_pool_size to a new value.
    *
@@ -127,6 +137,12 @@ public:
 
   /** Reset the disk usage counter to 0. */
   static void reset_disk_usage();
+
+  /** Disable disk usage enforcement.
+   *
+   * @param[in] new_max_disk_usage The new value to set for max_disk_usage.
+   */
+  static void disable_disk_limit_enforcement();
 
   /** Set the max_disk_usage to a new value.
    *
@@ -213,6 +229,22 @@ private:
    */
   std::string get_protocol_stack_helper(const get_protocol_stack_f &get_protocol_stack, const get_tls_description_f &get_tls_node,
                                         const handle_http_version_f &handle_http_version);
+
+  /** Determine whether the user configured IP filter indicates this transaction
+   * should not be dumped.
+   *
+   * @note This also does some validity verification on the IP, making sure it is
+   * v4 or v6, and returns true (i.e., it should be filtered out) if it does not
+   * match these checks. These checks are required in order to perform the IP
+   * filtering logic. This function will only return true if the client has
+   * enabled client filtering.
+   *
+   * @param[in] session_client_ip The session's client address.
+   *
+   * @return True if the provided address should not be dumped per the user's
+   * configuration, false otherwise.
+   */
+  static bool is_filtered_out(const sockaddr *session_client_ip);
 
   /** Get the JSON string that describes the client session stack.
    *

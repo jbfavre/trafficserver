@@ -18,7 +18,7 @@
 
 include $(top_srcdir)/build/tidy.mk
 
-noinst_PROGRAMS = CompileParseRules
+noinst_PROGRAMS = CompileParseRules freelist_benchmark
 check_PROGRAMS = test_geometry test_X509HostnameValidator test_tscore
 
 if EXPENSIVE_TESTS
@@ -26,6 +26,8 @@ check_PROGRAMS += test_atomic test_freelist
 endif
 
 TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=$(abs_top_srcdir)/ci/asan_leak_suppression/unit_tests.txt
+
+BUILT_SOURCES = ParseRules.cc
 
 TESTS = $(check_PROGRAMS)
 
@@ -63,7 +65,6 @@ libtscore_la_SOURCES = \
 	Errata.cc \
 	EventNotify.cc \
 	Extendible.cc \
-	fastlz.c \
 	Hash.cc \
 	HashFNV.cc \
 	HashMD5.cc \
@@ -80,6 +81,7 @@ libtscore_la_SOURCES = \
 	ink_error.cc \
 	ink_file.cc \
 	ink_hrtime.cc \
+	ink_hw.cc \
 	ink_inet.cc \
 	ink_memory.cc \
 	ink_mutex.cc \
@@ -110,6 +112,7 @@ libtscore_la_SOURCES = \
 	MemArena.cc \
 	MMH.cc \
 	ParseRules.cc \
+	Random.cc \
 	RbTree.cc \
 	Regex.cc \
 	Regression.cc \
@@ -117,6 +120,8 @@ libtscore_la_SOURCES = \
 	signals.cc \
 	SourceLocation.cc \
 	TextBuffer.cc \
+	LogMessage.cc \
+	Throttler.cc \
 	Tokenizer.cc \
 	ts_file.cc \
 	Version.cc \
@@ -180,23 +185,34 @@ test_tscore_SOURCES = \
 	unit_tests/test_List.cc \
 	unit_tests/test_MemArena.cc \
 	unit_tests/test_MT_hashtable.cc \
-  unit_tests/test_ParseRules.cc \
+	unit_tests/test_ParseRules.cc \
+	unit_tests/test_PluginUserArgs.cc \
 	unit_tests/test_PriorityQueue.cc \
 	unit_tests/test_Ptr.cc \
 	unit_tests/test_Regex.cc \
 	unit_tests/test_Scalar.cc \
 	unit_tests/test_scoped_resource.cc \
+	unit_tests/test_Throttler.cc \
 	unit_tests/test_Tokenizer.cc \
 	unit_tests/test_ts_file.cc \
 	unit_tests/test_Version.cc \
-	unit_tests/test_Errata.cc
+	unit_tests/test_Errata.cc \
+	unit_tests/test_MMH.cc \
+	unit_tests/test_Random.cc
 
 if HAS_HKDF
 test_tscore_SOURCES += \
 	unit_tests/test_HKDF.cc
 endif
 
+freelist_benchmark_CXXFLAGS = -Wno-array-bounds $(AM_CXXFLAGS) -I$(abs_top_srcdir)/tests/include
+freelist_benchmark_LDADD = libtscore.la @HWLOC_LIBS@
+freelist_benchmark_SOURCES = unit_tests/freelist_benchmark.cc
+
 CompileParseRules_SOURCES = CompileParseRules.cc
+
+CompileParseRules$(BUILD_EXEEXT): $(CompileParseRules_OBJECTS)
+	$(CXX_FOR_BUILD) $(AM_CXXFLAGS) $(CPPFLAGS) -I$(top_builddir)/include -I$(abs_top_srcdir)/include -o $@ $(abs_top_srcdir)/src/tscore/CompileParseRules.cc
 
 clean-local:
 	rm -f ParseRulesCType ParseRulesCTypeToLower ParseRulesCTypeToUpper

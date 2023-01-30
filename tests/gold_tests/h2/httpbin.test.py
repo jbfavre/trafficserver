@@ -17,6 +17,7 @@
 #  limitations under the License.
 
 import os
+import sys
 
 # ----
 # Setup Test
@@ -55,8 +56,6 @@ ts.Disk.records_config.update({
     'proxy.config.http.insert_response_via_str': 1,
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.client.verify.server': 0,
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.diags.debug.enabled': 1,
     'proxy.config.diags.debug.tags': 'http2',
 
@@ -77,8 +76,8 @@ logging:
 Test.Disk.File(os.path.join(ts.Variables.LOGDIR, 'access.log'), exists=True, content='gold/httpbin_access.gold')
 
 # TODO: when httpbin 0.8.0 or later is released, remove below json pretty print hack
-json_printer = '''
-python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin), indent=2, separators=(',', ': ')))"
+json_printer = f'''
+{sys.executable} -c "import sys,json; print(json.dumps(json.load(sys.stdin), indent=2, separators=(',', ': ')))"
 '''
 
 # ----
@@ -118,7 +117,7 @@ test_run.StillRunningAfter = httpbin
 
 # Test Case 3: Expect 100-Continue
 test_run = Test.AddTestRun()
-test_run.Processes.Default.Command = "curl -vs -k --http2 https://127.0.0.1:{0}/post --data 'key=value' -H 'Expect: 100-continue' --expect100-timeout 1 --max-time 5 | {1}".format(
+test_run.Processes.Default.Command = "curl -vs -k --http2 https://127.0.0.1:{0}/post --data 'key=value' -H 'Expect: 100-continue' --max-time 5 | {1}".format(
     ts.Variables.ssl_port, json_printer)
 test_run.Processes.Default.ReturnCode = 0
 test_run.Processes.Default.Streams.stdout = "gold/httpbin_3_stdout.gold"

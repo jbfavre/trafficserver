@@ -33,6 +33,7 @@
 #include "fetch.h"
 #include "fetch_policy.h"
 #include "headers.h"
+#include "evaluate.h"
 
 static const char *
 getEventName(TSEvent event)
@@ -181,53 +182,6 @@ public:
 };
 
 /**
- * @brief Evaluate a math addition or subtraction expression.
- *
- * @param v string containing an expression, i.e. "3 + 4"
- * @return string containing the result, i.e. "7"
- */
-static String
-evaluate(const String &v)
-{
-  if (v.empty()) {
-    return String("");
-  }
-
-  /* Find out if width is specified (hence leading zeros are required if the width is bigger then the result width) */
-  String stmt;
-  size_t len = 0;
-  size_t pos = v.find_first_of(':');
-  if (String::npos != pos) {
-    stmt.assign(v.substr(0, pos));
-    len = getValue(v.substr(pos + 1));
-  } else {
-    stmt.assign(v);
-  }
-  PrefetchDebug("statement: '%s', formatting length: %zu", stmt.c_str(), len);
-
-  int result = 0;
-  pos        = stmt.find_first_of("+-");
-
-  if (String::npos == pos) {
-    result = getValue(stmt);
-  } else {
-    unsigned a = getValue(stmt.substr(0, pos));
-    unsigned b = getValue(stmt.substr(pos + 1));
-
-    if ('+' == stmt[pos]) {
-      result = a + b;
-    } else {
-      result = a - b;
-    }
-  }
-
-  std::ostringstream convert;
-  convert << std::setw(len) << std::setfill('0') << result;
-  PrefetchDebug("evaluation of '%s' resulted in '%s'", v.c_str(), convert.str().c_str());
-  return convert.str();
-}
-
-/**
  * @brief Expand+evaluate (in place) an expression surrounded with "{" and "}" and uses evaluate() to evaluate the math expression.
  *
  * @param s string containing an expression, i.e. "{3 + 4}"
@@ -365,6 +319,33 @@ getPristineUrlPath(TSHttpTxn txnp)
     PrefetchError("failed to get pristine URL");
   }
   return pristinePath;
+}
+
+/**
+ * @brief get the pristin URL querystring
+ *
+ * @param txnp HTTP transaction structure
+ * @return pristine URL querystring
+ */
+static String
+getPristineUrlQuery(TSHttpTxn txnp)
+{
+  String pristineQuery;
+  TSMLoc pristineUrlLoc;
+  TSMBuffer reqBuffer;
+
+  if (TS_SUCCESS == TSHttpTxnPristineUrlGet(txnp, &reqBuffer, &pristineUrlLoc)) {
+    int queryLen      = 0;
+    const char *query = TSUrlHttpQueryGet(reqBuffer, pristineUrlLoc, &queryLen);
+    if (nullptr != query) {
+      PrefetchDebug("query: '%.*s'", queryLen, query);
+      pristineQuery.assign(query, queryLen);
+    }
+    TSHandleMLocRelease(reqBuffer, TS_NULL_MLOC, pristineUrlLoc);
+  } else {
+    PrefetchError("failed to get pristine URL");
+  }
+  return pristineQuery;
 }
 
 /**
@@ -525,10 +506,20 @@ contHandleFetch(const TSCont contp, TSEvent event, void *edata)
     if (data->frontend()) {
       /* front-end instance */
 
-      if (data->firstPass() && data->_fetchable && !config.getNextPath().empty() && respToTriggerPrefetch(txnp)) {
+      String currentPath  = getPristineUrlPath(txnp);
+      String currentQuery = getPristineUrlQuery(txnp);
+      bool hasValidQuery  = false;
+
+      // If there is a --fetch-query defined in the config, and that string is found in the querystring, assume it is
+      // valid, and prefer the --fetch-query over the --fetch-path-pattern(s).
+      if (!config.getQueryKeyName().empty() && currentQuery.find(config.getQueryKeyName()) != std::string::npos) {
+        PrefetchDebug("Setting hasValidQuery to true");
+        hasValidQuery = true;
+      }
+
+      if (!hasValidQuery && data->firstPass() && data->_fetchable && !config.getNextPath().empty() && respToTriggerPrefetch(txnp)) {
         /* Trigger all necessary background fetches based on the next path pattern */
 
-        String currentPath = getPristineUrlPath(txnp);
         if (!currentPath.empty()) {
           unsigned total = config.getFetchCount();
           for (unsigned i = 0; i < total; ++i) {
@@ -538,7 +529,7 @@ contHandleFetch(const TSCont contp, TSEvent event, void *edata)
             if (config.getNextPath().replace(currentPath, expandedPath)) {
               PrefetchDebug("replaced: %s", expandedPath.c_str());
               expand(expandedPath);
-              PrefetchDebug("expanded: %s", expandedPath.c_str());
+              PrefetchDebug("expanded: %s cachekey: %s", expandedPath.c_str(), data->_cachekey.c_str());
 
               BgFetch::schedule(state, config, /* askPermission */ false, reqBuffer, reqHdrLoc, txnp, expandedPath.c_str(),
                                 expandedPath.length(), data->_cachekey);
@@ -553,6 +544,31 @@ contHandleFetch(const TSCont contp, TSEvent event, void *edata)
           }
         } else {
           PrefetchDebug("failed to get current path");
+        }
+      }
+      if (hasValidQuery && data->firstPass() && data->_fetchable && respToTriggerPrefetch(txnp)) {
+        /* Trigger all necessary background fetches based on the query string(s) */
+
+        PrefetchDebug("currentQuery: %s", currentQuery.c_str());
+        size_t lastSlashIndex = currentPath.find_last_of("/");
+        size_t keyLen         = config.getQueryKeyName().size();
+        unsigned done         = 1;
+        std::istringstream cStringStream(currentQuery);
+        std::string param;
+
+        while (getline(cStringStream, param, '&')) {
+          if (param.find(config.getQueryKeyName()) != 0) {
+            continue;
+          }
+          if (config.getFetchCount() < done++) {
+            break;
+          }
+          std::string nextFile = param.substr(keyLen + 1); // +1 for the '='
+          std::string nextPath = currentPath.substr(0, lastSlashIndex + 1) + nextFile;
+
+          PrefetchDebug("nextPath %s, cacheKey %s", nextPath.c_str(), data->_cachekey.c_str());
+          BgFetch::schedule(state, config, /* askPermission */ false, reqBuffer, reqHdrLoc, txnp, nextPath.c_str(),
+                            nextPath.length(), data->_cachekey);
         }
       }
     }
@@ -725,6 +741,12 @@ TSRemapDoRemap(void *instance, TSHttpTxn txnp, TSRemapRequestInfo *rri)
             }
           } else {
             PrefetchDebug("failed to get path to (pre)match");
+          }
+
+          String queryKey = config.getQueryKeyName();
+          if (!queryKey.empty()) {
+            PrefetchDebug("handling for query-key: %s", queryKey.c_str());
+            handleFetch = true;
           }
         }
       }

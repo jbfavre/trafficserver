@@ -43,6 +43,7 @@
 #include <vector>
 
 #define MAX_PARENTS 64
+#define DEFAULT_PARENT_WEIGHT 1.0
 
 struct RequestData;
 struct matcher_line;
@@ -105,15 +106,17 @@ struct SimpleRetryResponseCodes {
 private:
   std::vector<int> codes;
 };
+
 // struct pRecord
 //
 //    A record for an individual parent
 //
 struct pRecord : ATSConsistentHashNode {
+public:
   char hostname[MAXDNAME + 1];
   int port;
-  time_t failedAt;
-  int failCount;
+  std::atomic<time_t> failedAt = 0;
+  std::atomic<int> failCount   = 0;
   int32_t upAt;
   const char *scheme; // for which parent matches (if any)
   int idx;
@@ -174,7 +177,7 @@ public:
 //   between HttpTransact & the parent selection code.  The following
 ParentRecord *const extApiRecord = (ParentRecord *)0xeeeeffff;
 
-// used here to to set the number of ATSConsistentHashIter's
+// used here to set the number of ATSConsistentHashIter's
 // used in NextHopSelectionStrategy to limit the host group
 // size as well, group size is one to one with the number of rings
 constexpr const uint32_t MAX_GROUP_RINGS = 5;
@@ -187,16 +190,18 @@ struct ParentResult {
   int port;
   bool retry;
   bool chash_init[MAX_GROUP_RINGS] = {false};
-  HostStatus_t first_choice_status = HostStatus_t::HOST_STATUS_INIT;
+  TSHostStatus first_choice_status = TSHostStatus::TS_HOST_STATUS_INIT;
+  bool do_not_cache_response       = false;
 
   void
   reset()
   {
     ink_zero(*this);
-    line_number   = -1;
-    result        = PARENT_UNDEFINED;
-    mapWrapped[0] = false;
-    mapWrapped[1] = false;
+    line_number           = -1;
+    result                = PARENT_UNDEFINED;
+    mapWrapped[0]         = false;
+    mapWrapped[1]         = false;
+    do_not_cache_response = false;
   }
 
   bool
@@ -256,17 +261,17 @@ struct ParentResult {
   }
 
   bool
-  response_is_retryable(HTTPStatus response_code) const
+  response_is_retryable(ParentRetry_t retry_type, HTTPStatus response_code) const
   {
-    Debug("parent_select", "In response_is_retryable, code: %d", response_code);
-    if (retry_type() == PARENT_RETRY_BOTH) {
+    Debug("parent_select", "In response_is_retryable, code: %d, type: %d", response_code, retry_type);
+    if (retry_type == PARENT_RETRY_BOTH) {
       Debug("parent_select", "Saw retry both");
       return (rec->unavailable_server_retry_responses->contains(response_code) ||
               rec->simple_server_retry_responses->contains(response_code));
-    } else if (retry_type() == PARENT_RETRY_UNAVAILABLE_SERVER) {
+    } else if (retry_type == PARENT_RETRY_UNAVAILABLE_SERVER) {
       Debug("parent_select", "Saw retry unavailable server");
       return rec->unavailable_server_retry_responses->contains(response_code);
-    } else if (retry_type() == PARENT_RETRY_SIMPLE) {
+    } else if (retry_type == PARENT_RETRY_SIMPLE) {
       Debug("parent_select", "Saw retry simple retry");
       return rec->simple_server_retry_responses->contains(response_code);
     } else {
@@ -332,6 +337,9 @@ struct ParentSelectionPolicy {
 class ParentSelectionStrategy
 {
 public:
+  int max_retriers = 0;
+
+  ParentSelectionStrategy() { REC_ReadConfigInteger(max_retriers, "proxy.config.http.parent_proxy.max_trans_retries"); }
   //
   // Return the pRecord.
   virtual pRecord *getParents(ParentResult *result) = 0;

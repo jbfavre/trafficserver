@@ -74,6 +74,7 @@ traffic_server_traffic_server_LDADD = \
 	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
 	$(top_builddir)/iocore/dns/libinkdns.a \
 	$(top_builddir)/iocore/cache/libinkcache.a \
+	$(top_builddir)/lib/fastlz/libfastlz.a \
 	$(top_builddir)/iocore/aio/libinkaio.a \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
@@ -99,5 +100,6 @@ endif
 if ENABLE_QUIC
 traffic_server_traffic_server_LDADD += \
   $(top_builddir)/proxy/http3/libhttp3.a \
-  $(top_builddir)/iocore/net/quic/libquic.a
+  $(top_builddir)/iocore/net/quic/libquic.a \
+  $(top_builddir)/iocore/eventsystem/libinkevent.a
 endif

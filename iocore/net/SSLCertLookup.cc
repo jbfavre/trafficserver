@@ -96,7 +96,7 @@ public:
   /// cert context.
   /// @return @a idx
   int insert(const char *name, int idx);
-  SSLCertContext *lookup(const char *name);
+  SSLCertContext *lookup(const std::string &name);
   void printWildDomains() const;
   unsigned
   count() const
@@ -253,6 +253,7 @@ SSLCertContext::SSLCertContext(SSLCertContext const &other)
   opt        = other.opt;
   userconfig = other.userconfig;
   keyblock   = other.keyblock;
+  ctx_type   = other.ctx_type;
   std::lock_guard<std::mutex> lock(other.ctx_mutex);
   ctx = other.ctx;
 }
@@ -264,6 +265,7 @@ SSLCertContext::operator=(SSLCertContext const &other)
     this->opt        = other.opt;
     this->userconfig = other.userconfig;
     this->keyblock   = other.keyblock;
+    this->ctx_type   = other.ctx_type;
     std::lock_guard<std::mutex> lock(other.ctx_mutex);
     this->ctx = other.ctx;
   }
@@ -284,16 +286,30 @@ SSLCertContext::setCtx(shared_SSL_CTX sc)
   ctx = std::move(sc);
 }
 
-SSLCertLookup::SSLCertLookup() : ssl_storage(new SSLContextStorage()), ssl_default(nullptr), is_valid(true) {}
+SSLCertLookup::SSLCertLookup()
+  : ssl_storage(new SSLContextStorage()), ec_storage(new SSLContextStorage()), ssl_default(nullptr), is_valid(true)
+{
+}
 
 SSLCertLookup::~SSLCertLookup()
 {
   delete this->ssl_storage;
+  delete this->ec_storage;
 }
 
 SSLCertContext *
-SSLCertLookup::find(const char *address) const
+SSLCertLookup::find(const std::string &address, SSLCertContextType ctxType) const
 {
+#ifdef OPENSSL_IS_BORINGSSL
+  // If the context is EC supportable, try finding that first.
+  if (ctxType == SSLCertContextType::EC) {
+    auto ctx = this->ec_storage->lookup(address);
+    if (ctx != nullptr) {
+      return ctx;
+    }
+  }
+#endif
+  // non-EC last resort
   return this->ssl_storage->lookup(address);
 }
 
@@ -303,13 +319,31 @@ SSLCertLookup::find(const IpEndpoint &address) const
   SSLCertContext *cc;
   SSLAddressLookupKey key(address);
 
+#ifdef OPENSSL_IS_BORINGSSL
+  // If the context is EC supportable, try finding that first.
+  if ((cc = this->ec_storage->lookup(key.get()))) {
+    return cc;
+  }
+
+  // If that failed, try the address without the port.
+  if (address.network_order_port()) {
+    key.split();
+    if ((cc = this->ec_storage->lookup(key.get()))) {
+      return cc;
+    }
+  }
+
+  // reset for search across RSA
+  key = SSLAddressLookupKey(address);
+#endif
+
   // First try the full address.
   if ((cc = this->ssl_storage->lookup(key.get()))) {
     return cc;
   }
 
   // If that failed, try the address without the port.
-  if (address.port()) {
+  if (address.network_order_port()) {
     key.split();
     return this->ssl_storage->lookup(key.get());
   }
@@ -320,14 +354,41 @@ SSLCertLookup::find(const IpEndpoint &address) const
 int
 SSLCertLookup::insert(const char *name, SSLCertContext const &cc)
 {
+#ifdef OPENSSL_IS_BORINGSSL
+  switch (cc.ctx_type) {
+  case SSLCertContextType::GENERIC:
+  case SSLCertContextType::RSA:
+    return this->ssl_storage->insert(name, cc);
+  case SSLCertContextType::EC:
+    return this->ec_storage->insert(name, cc);
+  default:
+    ink_assert(false);
+    return -1;
+  }
+#else
   return this->ssl_storage->insert(name, cc);
+#endif
 }
 
 int
 SSLCertLookup::insert(const IpEndpoint &address, SSLCertContext const &cc)
 {
   SSLAddressLookupKey key(address);
+
+#ifdef OPENSSL_IS_BORINGSSL
+  switch (cc.ctx_type) {
+  case SSLCertContextType::GENERIC:
+  case SSLCertContextType::RSA:
+    return this->ssl_storage->insert(key.get(), cc);
+  case SSLCertContextType::EC:
+    return this->ec_storage->insert(key.get(), cc);
+  default:
+    ink_assert(false);
+    return -1;
+  }
+#else
   return this->ssl_storage->insert(key.get(), cc);
+#endif
 }
 
 unsigned
@@ -340,6 +401,34 @@ SSLCertContext *
 SSLCertLookup::get(unsigned i) const
 {
   return ssl_storage->get(i);
+}
+
+void
+SSLCertLookup::register_cert_secrets(std::vector<std::string> const &cert_secrets, std::set<std::string> &lookup_names)
+{
+  for (auto &secret : cert_secrets) {
+    auto iter = cert_secret_registry.find(secret);
+    if (iter == cert_secret_registry.end()) {
+      std::vector<std::string> add_names;
+      cert_secret_registry.insert(std::make_pair(secret, add_names));
+      iter = cert_secret_registry.find(secret);
+    }
+    iter->second.insert(iter->second.end(), lookup_names.begin(), lookup_names.end());
+  }
+}
+
+void
+SSLCertLookup::getPolicies(const std::string &secret_name, std::set<shared_SSLMultiCertConfigParams> &policies) const
+{
+  auto iter = cert_secret_registry.find(secret_name);
+  if (iter != cert_secret_registry.end()) {
+    for (auto name : iter->second) {
+      SSLCertContext *cc = this->find(name);
+      if (cc) {
+        policies.insert(cc->userconfig);
+      }
+    }
+  }
 }
 
 SSLContextStorage::SSLContextStorage() {}
@@ -412,7 +501,7 @@ SSLContextStorage::printWildDomains() const
 }
 
 SSLCertContext *
-SSLContextStorage::lookup(const char *name)
+SSLContextStorage::lookup(const std::string &name)
 {
   // First look for an exact name match
   if (auto it = this->hostnames.find(name); it != this->hostnames.end()) {

@@ -53,7 +53,10 @@ RemapPlugins::run_plugin(RemapPluginInst *plugin)
     _s->os_response_plugin_inst = plugin;
   }
 
+  HttpTransact::milestone_start_api_time(_s);
   plugin_retcode = plugin->doRemap(reinterpret_cast<TSHttpTxn>(_s->state_machine), &rri);
+  HttpTransact::milestone_update_api_time(_s);
+
   // TODO: Deal with negative return codes here
   if (plugin_retcode < 0) {
     plugin_retcode = TSREMAP_NO_REMAP;
@@ -72,7 +75,7 @@ RemapPlugins::run_plugin(RemapPluginInst *plugin)
 
   @return 1 when you are done doing crap (otherwise, you get re-called
     with schedule_imm and i hope you have something more to do), else
-    0 if you have something more do do (this isn't strict and we check
+    0 if you have something more to do (this isn't strict and we check
     there actually *is* something to do).
 
 */

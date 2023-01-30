@@ -112,7 +112,7 @@ public:
 
   virtual void set_specific() = 0;
 
-  inkcoreapi static ink_thread_key thread_data_key;
+  static thread_local Thread *this_thread_ptr;
 
   // For THREAD_ALLOC
   ProxyAllocator eventAllocator;
@@ -124,9 +124,6 @@ public:
   ProxyAllocator http2StreamAllocator;
   ProxyAllocator httpSMAllocator;
   ProxyAllocator quicClientSessionAllocator;
-  ProxyAllocator quicBidiStreamAllocator;
-  ProxyAllocator quicSendStreamAllocator;
-  ProxyAllocator quicReceiveStreamAllocator;
   ProxyAllocator httpServerSessionAllocator;
   ProxyAllocator hdrHeapAllocator;
   ProxyAllocator strHeapAllocator;
@@ -138,6 +135,7 @@ public:
   ProxyAllocator ioDataAllocator;
   ProxyAllocator ioAllocator;
   ProxyAllocator ioBlockAllocator;
+  ProxyAllocator preWarmSMAllocator;
   // From InkAPI (plugins wrappers)
   ProxyAllocator apiHookAllocator;
   ProxyAllocator INKContAllocator;

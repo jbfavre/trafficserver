@@ -52,6 +52,7 @@
 /* Libraries */
 #define TS_HAS_JEMALLOC @jemalloch@
 #define TS_HAS_TCMALLOC @has_tcmalloc@
+#define TS_HAS_MIMALLOC @mimalloch@
 
 /* Features */
 #define TS_HAS_IN6_IS_ADDR_UNSPECIFIED @has_in6_is_addr_unspecified@
@@ -75,11 +76,13 @@
 #define TS_USE_TLS13 @use_tls13@
 #define TS_USE_QUIC @use_quic@
 #define TS_USE_TLS_SET_CIPHERSUITES @use_tls_set_ciphersuites@
+#define TS_HAS_TLS_KEYLOGGING @has_tls_keylogging@
 #define TS_USE_LINUX_NATIVE_AIO @use_linux_native_aio@
 #define TS_USE_REMOTE_UNWINDING @use_remote_unwinding@
 #define TS_USE_TLS_OCSP @use_tls_ocsp@
 #define TS_HAS_TLS_EARLY_DATA @has_tls_early_data@
 #define TS_HAS_TLS_SESSION_TICKET @has_tls_session_ticket@
+#define TS_HAS_VERIFY_CERT_STORE @has_verify_cert_store@
 
 #define TS_USE_HRW_GEOIP @use_hrw_geoip@
 #define TS_USE_HRW_MAXMINDDB @use_hrw_maxminddb@
@@ -125,8 +128,6 @@
 #define TS_ABS_TOP_SRCDIR "@abs_top_srcdir@"
 
 #define TS_BUILD_CANONICAL_HOST "@host@"
-
-#define TS_BUILD_DEFAULT_LOOPBACK_IFACE "@default_loopback_iface@"
 
 static const int DEFAULT_STACKSIZE = @default_stack_size@;
 /* clang-format on */

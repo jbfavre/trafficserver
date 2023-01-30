@@ -179,9 +179,9 @@ MC::die()
   if (cbuf) {
     free_MIOBuffer(cbuf);
   }
-  if (tbuf) {
-    ats_free(tbuf);
-  }
+
+  ats_free(tbuf);
+
   mutex = NULL;
   theMCAllocator.free(this);
   return EVENT_DONE;
@@ -224,10 +224,10 @@ MC::add_binary_header(uint16_t err, uint8_t hdr_len, uint16_t key_len, uint32_t 
 
   r.response.magic    = static_cast<uint8_t>(PROTOCOL_BINARY_RES);
   r.response.opcode   = binary_header.request.opcode;
-  r.response.keylen   = (uint16_t)htons(key_len);
+  r.response.keylen   = static_cast<uint16_t>(htons(key_len));
   r.response.extlen   = hdr_len;
   r.response.datatype = static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES);
-  r.response.status   = (uint16_t)htons(err);
+  r.response.status   = static_cast<uint16_t>(htons(err));
   r.response.bodylen  = htonl(body_len);
   r.response.opaque   = binary_header.request.opaque;
   r.response.cas      = ink_hton64(header.cas);
@@ -351,9 +351,9 @@ MC::read_from_client()
     cbuf->clear();
   }
   ink_assert(!crvc && !cwvc);
-  if (tbuf) {
-    ats_free(tbuf);
-  }
+
+  ats_free(tbuf);
+
   return TS_SET_CALL(&MC::read_from_client_event, VC_EVENT_READ_READY, rvio);
 }
 

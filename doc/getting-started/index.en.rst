@@ -123,7 +123,7 @@ RHEL / CentOS
 configured on your machine yet, you must install them first with the following::
 
     wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-    sudo rpm -Uvh epel-release-7*.rpm
+    sudo rpm -Uvh epel-release-latest-7*.rpm
 
 Ensuring that you replace the release number with a value that is appropriate
 for your system. Once you have EPEL installed, you may install |TS| itself. ::
@@ -151,9 +151,9 @@ libraries on the machine used to build |TS|:
 
 - pkgconfig
 - libtool
-- gcc (>= 4.3 or clang > 3.0)
+- C++ compiler (gcc >= 4.3 or clang > 3.0)
 - GNU make
-- openssl
+- OpenSSL or BoringSSL
 - pcre
 - libcap
 - flex (for TPROXY)

@@ -46,7 +46,7 @@ load_remap_file_func load_remap_file_cb = nullptr;
   Returns the length of the URL.
 
   Will replace the terminator with a '/' if this is a full URL and
-  there are no '/' in it after the the host.  This ensures that class
+  there are no '/' in it after the host.  This ensures that class
   URL parses the URL correctly.
 
 */
@@ -148,7 +148,7 @@ is_inkeylist(const char *key, ...)
   va_start(ap, key);
 
   const char *str = va_arg(ap, const char *);
-  for (unsigned idx = 1; str; idx++) {
+  while (str) {
     if (!strcasecmp(key, str)) {
       va_end(ap);
       return true;
@@ -899,11 +899,10 @@ process_regex_mapping_config(const char *from_host_lower, url_mapping *new_mappi
   return true;
 
 lFail:
-  if (reg_map->to_url_host_template) {
-    ats_free(reg_map->to_url_host_template);
-    reg_map->to_url_host_template     = nullptr;
-    reg_map->to_url_host_template_len = 0;
-  }
+  ats_free(reg_map->to_url_host_template);
+  reg_map->to_url_host_template     = nullptr;
+  reg_map->to_url_host_template_len = 0;
+
   return false;
 }
 

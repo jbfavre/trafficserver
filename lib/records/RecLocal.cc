@@ -31,6 +31,7 @@
 #include "P_RecFile.h"
 #include "LocalManager.h"
 #include "FileManager.h"
+#include <tscore/TSSystemState.h>
 
 // Marks whether the message handler has been initialized.
 static bool message_initialized_p = false;
@@ -63,14 +64,14 @@ sync_thr(void *data)
 {
   FileManager *configFiles = static_cast<FileManager *>(data);
 
-  while (true) {
-    RecBool check = true;
-
+  while (!TSSystemState::is_event_system_shut_down()) {
     send_push_message();
     RecSyncStatsFile();
 
     // If we didn't successfully sync to disk, check whether we need to update ....
-    if (check) {
+    bool found;
+    int track_time = static_cast<int>(REC_readInteger("proxy.config.track_config_files", &found));
+    if (found && track_time > 0) {
       if (configFiles->isConfigStale()) {
         RecSetRecordInt("proxy.node.config.reconfigure_required", 1, REC_SOURCE_DEFAULT);
       }
@@ -88,7 +89,7 @@ sync_thr(void *data)
 static void *
 config_update_thr(void * /* data */)
 {
-  while (true) {
+  while (!TSSystemState::is_event_system_shut_down()) {
     switch (RecExecConfigUpdateCbs(REC_LOCAL_UPDATE_REQUIRED)) {
     case RECU_RESTART_TS:
       RecSetRecordInt("proxy.node.config.restart_required.proxy", 1, REC_SOURCE_DEFAULT);

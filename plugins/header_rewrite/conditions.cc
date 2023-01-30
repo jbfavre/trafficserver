@@ -528,10 +528,17 @@ ConditionIp::initialize(Parser &p)
 {
   Condition::initialize(p);
 
-  MatcherType *match = new MatcherType(_cond_op);
+  if (_cond_op == MATCH_IP_RANGES) { // Special hack for IP ranges for now ...
+    MatcherTypeIp *match = new MatcherTypeIp(_cond_op);
 
-  match->set(p.get_arg());
-  _matcher = match;
+    match->set(p.get_arg());
+    _matcher = match;
+  } else {
+    MatcherType *match = new MatcherType(_cond_op);
+
+    match->set(p.get_arg());
+    _matcher = match;
+  }
 }
 
 void
@@ -557,14 +564,39 @@ ConditionIp::set_qualifier(const std::string &q)
 bool
 ConditionIp::eval(const Resources &res)
 {
-  std::string s;
+  if (_matcher->op() == MATCH_IP_RANGES) {
+    const sockaddr *addr = nullptr;
 
-  append_value(s, res);
-  bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
+    switch (_ip_qual) {
+    case IP_QUAL_CLIENT:
+      addr = TSHttpTxnClientAddrGet(res.txnp);
+      break;
+    case IP_QUAL_INBOUND:
+      addr = TSHttpTxnIncomingAddrGet(res.txnp);
+      break;
+    case IP_QUAL_SERVER:
+      addr = TSHttpTxnServerAddrGet(res.txnp);
+      break;
+    case IP_QUAL_OUTBOUND:
+      addr = TSHttpTxnOutgoingAddrGet(res.txnp);
+      break;
+    }
 
-  TSDebug(PLUGIN_NAME, "Evaluating IP(): %s - rval: %d", s.c_str(), rval);
+    if (addr) {
+      return static_cast<const Matchers<const sockaddr *> *>(_matcher)->test(addr);
+    } else {
+      return false;
+    }
+  } else {
+    std::string s;
 
-  return rval;
+    append_value(s, res);
+    bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
+
+    TSDebug(PLUGIN_NAME, "Evaluating IP(): %s - rval: %d", s.c_str(), rval);
+
+    return rval;
+  }
 }
 
 void
@@ -1029,10 +1061,17 @@ ConditionInbound::initialize(Parser &p)
 {
   Condition::initialize(p);
 
-  MatcherType *match = new MatcherType(_cond_op);
+  if (_cond_op == MATCH_IP_RANGES) { // Special hack for IP ranges for now ...
+    MatcherTypeIp *match = new MatcherTypeIp(_cond_op);
 
-  match->set(p.get_arg());
-  _matcher = match;
+    match->set(p.get_arg());
+    _matcher = match;
+  } else {
+    MatcherType *match = new MatcherType(_cond_op);
+
+    match->set(p.get_arg());
+    _matcher = match;
+  }
 }
 
 void
@@ -1070,14 +1109,38 @@ ConditionInbound::set_qualifier(const std::string &q)
 bool
 ConditionInbound::eval(const Resources &res)
 {
-  std::string s;
+  // Special hack for IP-Ranges since we really don't need to do a string conversion for the comparison.
+  if (_matcher->op() == MATCH_IP_RANGES) {
+    const sockaddr *addr = nullptr;
 
-  append_value(s, res);
-  bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
+    switch (_net_qual) {
+    case NET_QUAL_LOCAL_ADDR:
+      addr = TSHttpTxnIncomingAddrGet(res.txnp);
+      break;
+    case NET_QUAL_REMOTE_ADDR:
+      addr = TSHttpTxnClientAddrGet(res.txnp);
+      break;
+    default:
+      // Only support actual IP addresses of course...
+      TSError("[%s] %%{%s:%s} is not supported, only IP-Addresses allowed", PLUGIN_NAME, TAG, get_qualifier().c_str());
+      break;
+    }
 
-  TSDebug(PLUGIN_NAME, "Evaluating %s(): %s - rval: %d", TAG, s.c_str(), rval);
+    if (addr) {
+      return static_cast<const Matchers<const sockaddr *> *>(_matcher)->test(addr);
+    } else {
+      return false;
+    }
+  } else {
+    std::string s;
 
-  return rval;
+    append_value(s, res);
+    bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
+
+    TSDebug(PLUGIN_NAME, "Evaluating %s(): %s - rval: %d", TAG, s.c_str(), rval);
+
+    return rval;
+  }
 }
 
 void
@@ -1271,4 +1334,51 @@ ConditionTcpInfo::append_value(std::string &s, Resources const &res)
 #else
   s += "-";
 #endif
+}
+
+void
+ConditionCache::initialize(Parser &p)
+{
+  Condition::initialize(p);
+  MatcherType *match = new MatcherType(_cond_op);
+
+  match->set(p.get_arg());
+  _matcher = match;
+}
+
+bool
+ConditionCache::eval(const Resources &res)
+{
+  std::string s;
+
+  append_value(s, res);
+  TSDebug(PLUGIN_NAME, "Evaluating CACHE()");
+
+  return static_cast<const MatcherType *>(_matcher)->test(s);
+}
+
+void
+ConditionCache::append_value(std::string &s, const Resources &res)
+{
+  TSHttpTxn txn = res.txnp;
+  int status;
+
+  static const char *names[] = {
+    "miss",      // TS_CACHE_LOOKUP_MISS,
+    "hit-stale", // TS_CACHE_LOOKUP_HIT_STALE,
+    "hit-fresh", // TS_CACHE_LOOKUP_HIT_FRESH,
+    "skipped"    // TS_CACHE_LOOKUP_SKIPPED
+  };
+
+  TSDebug(PLUGIN_NAME, "Appending CACHE() to evaluation value -> %s", s.c_str());
+
+  if (TSHttpTxnCacheLookupStatusGet(txn, &status) == TS_ERROR || status < 0 || status >= 4) {
+    TSDebug(PLUGIN_NAME, "Cache Status Invalid: %d", status);
+
+    s += "none";
+  } else {
+    TSDebug(PLUGIN_NAME, "Cache Status Valid: %d", status);
+
+    s += names[status];
+  }
 }

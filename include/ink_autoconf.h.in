@@ -196,9 +196,6 @@
 /* Define if you have a readline compatible library */
 #undef HAVE_LIBREADLINE
 
-/* Define to 1 if you have the <linux/fs.h> header file. */
-#undef HAVE_LINUX_FS_H
-
 /* Define to 1 if you have the <linux/hdreg.h> header file. */
 #undef HAVE_LINUX_HDREG_H
 
@@ -228,6 +225,9 @@
 
 /* Define to 1 if you have the `mcheck_pedantic' function. */
 #undef HAVE_MCHECK_PEDANTIC
+
+/* Define to 1 if you have the <mimalloc.h> header file. */
+#undef HAVE_MIMALLOC_H
 
 /* Define to 1 if you have the <mysql/mysql.h> header file. */
 #undef HAVE_MYSQL_MYSQL_H
@@ -291,6 +291,10 @@
 
 /* Define to 1 if you have the <openssl/ts.h> header file. */
 #undef HAVE_OPENSSL_TS_H
+
+/* Define to 1 if you have the <opentelemetry/trace/provider.h> header file.
+   */
+#undef HAVE_OPENTELEMETRY_TRACE_PROVIDER_H
 
 /* Define to 1 if you have the <pcre.h> header file. */
 #undef HAVE_PCRE_H
@@ -364,11 +368,17 @@
 /* Define to 1 if you have the `setreuid' function. */
 #undef HAVE_SETREUID
 
+/* Define to 1 if you have the `SHA1' function. */
+#undef HAVE_SHA1
+
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H
 
 /* Define to 1 if you have the `SSL_CTX_set_ciphersuites' function. */
 #undef HAVE_SSL_CTX_SET_CIPHERSUITES
+
+/* Define to 1 if you have the `SSL_CTX_set_keylog_callback' function. */
+#undef HAVE_SSL_CTX_SET_KEYLOG_CALLBACK
 
 /* Define to 1 if you have the `SSL_CTX_set_tlsext_ticket_key_cb' function. */
 #undef HAVE_SSL_CTX_SET_TLSEXT_TICKET_KEY_CB
@@ -379,6 +389,12 @@
 
 /* Define to 1 if you have the `SSL_get_all_async_fds' function. */
 #undef HAVE_SSL_GET_ALL_ASYNC_FDS
+
+/* Define to 1 if you have the `SSL_SESSION_dup' function. */
+#undef HAVE_SSL_SESSION_DUP
+
+/* Define to 1 if you have the `SSL_set1_verify_cert_store' function. */
+#undef HAVE_SSL_SET1_VERIFY_CERT_STORE
 
 /* Define to 1 if you have the `SSL_set_max_early_data' function. */
 #undef HAVE_SSL_SET_MAX_EARLY_DATA

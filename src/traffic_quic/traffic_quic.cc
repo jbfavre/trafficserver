@@ -36,6 +36,9 @@
 #include "diags.h"
 #include "quic_client.h"
 
+#include "P_SSLUtils.h"
+#include "P_SSLConfig.h"
+
 #define THREADS 1
 
 constexpr size_t stacksize = 1048576;
@@ -264,12 +267,18 @@ HttpRequestData::get_client_ip()
   return nullptr;
 }
 
-SslAPIHooks *ssl_hooks = nullptr;
+SslAPIHooks *ssl_hooks             = nullptr;
+LifecycleAPIHooks *lifecycle_hooks = nullptr;
 StatPagesManager statPagesManager;
 
 #include "HttpDebugNames.h"
 const char *
 HttpDebugNames::get_api_hook_name(TSHttpHookID t)
+{
+  return "dummy";
+}
+const char *
+HttpDebugNames::get_event_name(int)
 {
   return "dummy";
 }
@@ -302,7 +311,7 @@ HttpSM::handle_api_return()
 }
 
 void
-HttpSM::attach_client_session(ProxyTransaction *, IOBufferReader *)
+HttpSM::attach_client_session(ProxyTransaction *)
 {
   ink_abort("do not call stub");
 }
@@ -334,3 +343,11 @@ void
 HttpCacheAction::cancel(Continuation *c)
 {
 }
+
+#include "PreWarmManager.h"
+void
+PreWarmManager::reconfigure()
+{
+}
+
+PreWarmManager prewarmManager;

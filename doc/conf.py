@@ -38,6 +38,10 @@ import sys
 import os
 from datetime import date
 from sphinx import version_info
+# Import man_pages from manpages.py to get the list of manpages to generate in
+# separate files. Default is to put everything in apachetrafficserver.1
+# For these reasons, despite what linting tools might say, this import is required.
+from manpages import man_pages
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -65,10 +69,9 @@ LOCAL_CONFIG = os.path.join(os.environ['PWD'], "ext", "local-config.py")
 with open(LOCAL_CONFIG) as f:
     exec(compile(f.read(), LOCAL_CONFIG, 'exec'))
 
-if version_info >= (1, 4):
-    extensions.append('sphinx.ext.imgmath')
-else:
-    extensions.append('sphinx.ext.pngmath')
+if version_info < (3, 0):
+    print("Documentation requires Sphinx 3.0 or later.")
+    exit(1)
 
 # XXX Disabling docxygen for now, since it make RTD documentation builds time
 # out, eg. https://readthedocs.org/projects/trafficserver/builds/3525976/
@@ -132,7 +135,7 @@ if os.environ.get('READTHEDOCS') == 'True':
     print("done")
 else:
     # On RedHat-based distributions, install the python-sphinx_rtd_theme package
-    # to get an end result tht looks more like readthedoc.org.
+    # to get an end result that looks more like readthedoc.org.
     try:
         import sphinx_rtd_theme
         html_theme = 'sphinx_rtd_theme'
@@ -172,16 +175,18 @@ pygments_style = 'default'
 #modindex_common_prefix = []
 
 nitpicky = True
-nitpick_ignore = [('c:type', 'int64_t'),
-                  ('c:type', 'bool'),
-                  ('c:type', 'sockaddr'),
+nitpick_ignore = [('c:identifier', 'int64_t'),
+                  ('c:identifier', 'uint64_t'),
+                  ('c:identifier', 'uint8_t'),
+                  ('c:identifier', 'int32_t'),
+                  ('c:identifier', 'size_t'),
+                  ('c:identifier', 'ssize_t'),
+                  ('c:identifier', 'sockaddr'),
+                  ('c:identifier', 'time_t'),
                   ('cpp:identifier', 'T'),  # template arg
                   ('cpp:identifier', 'F'),  # template arg
                   ('cpp:identifier', 'Args'),  # variadic template arg
                   ('cpp:identifier', 'Rest'),  # variadic template arg
-                  ('c:type', 'uint64_t'),
-                  ('c:type', 'uint8_t'),
-                  ('c:type', 'int32_t')
                   ]
 
 # Autolink issue references.

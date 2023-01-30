@@ -62,6 +62,7 @@ enum {
   http_current_client_connections_stat,
   http_current_active_client_connections_stat,
   http_websocket_current_active_client_connections_stat,
+  tunnel_current_active_connections_stat,
   http_current_client_transactions_stat,
   http_total_incoming_connections_stat,
   http_current_server_transactions_stat,
@@ -111,6 +112,8 @@ enum {
   http_purge_requests_stat,
   http_connect_requests_stat,
   http_extension_method_requests_stat,
+  http_proxy_loop_detected_stat,
+  http_proxy_mh_loop_detected_stat,
 
   http_completed_requests_stat,
   http_broken_server_connections_stat,
@@ -177,6 +180,7 @@ enum {
   // cache result stats
   http_cache_hit_fresh_stat,
   http_cache_hit_mem_fresh_stat,
+  http_cache_hit_rww_stat,
   http_cache_hit_reval_stat,
   http_cache_hit_ims_stat,
   http_cache_hit_stale_served_stat,
@@ -351,6 +355,16 @@ enum {
 
   http_dead_server_no_requests,
 
+  http_origin_reuse,
+  http_origin_not_found,
+  http_origin_reuse_fail,
+  http_origin_make_new,
+  http_origin_no_sharing,
+  http_origin_body,
+  http_origin_private,
+  http_origin_close_private,
+  http_origin_raw,
+
   http_stat_count
 };
 
@@ -495,6 +509,8 @@ struct OverridableHttpConfigParams {
   MgmtByte fwd_proxy_auth_to_parent           = 0;
   MgmtByte uncacheable_requests_bypass_parent = 1;
   MgmtByte attach_server_session_to_client    = 0;
+  MgmtInt max_proxy_cycles                    = 0;
+  MgmtInt tunnel_activity_check_period        = 0;
 
   MgmtByte forward_connect_method = 0;
 
@@ -587,10 +603,14 @@ struct OverridableHttpConfigParams {
   /////////////////////////////////////////////////
   MgmtByte allow_half_open = 1;
 
+  /////////////////////////////////////////////////
+  // Body factory
+  /////////////////////////////////////////////////
+  MgmtByte response_suppression_mode = 0; // proxy.config.body_factory.response_suppression_mode
+
   //////////////////////////////
   // server verification mode //
   //////////////////////////////
-  MgmtByte ssl_client_verify_server         = 0;
   char *ssl_client_verify_server_policy     = nullptr;
   char *ssl_client_verify_server_properties = nullptr;
   char *ssl_client_sni_policy               = nullptr;
@@ -617,6 +637,7 @@ struct OverridableHttpConfigParams {
   MgmtInt sock_option_flag_out      = 0;
   MgmtInt sock_packet_mark_out      = 0;
   MgmtInt sock_packet_tos_out       = 0;
+  MgmtInt sock_packet_notsent_lowat = 0;
 
   ///////////////
   // Hdr Limit //
@@ -659,11 +680,13 @@ struct OverridableHttpConfigParams {
   ////////////////////////////////////
   // parent proxy connect attempts //
   ///////////////////////////////////
-  MgmtInt parent_connect_attempts     = 4;
-  MgmtInt parent_retry_time           = 300;
-  MgmtInt parent_fail_threshold       = 10;
-  MgmtInt per_parent_connect_attempts = 2;
-  MgmtInt parent_connect_timeout      = 30;
+  MgmtInt parent_connect_attempts          = 4;
+  MgmtInt parent_retry_time                = 300;
+  MgmtInt parent_fail_threshold            = 10;
+  MgmtInt per_parent_connect_attempts      = 2;
+  MgmtInt parent_connect_timeout           = 30;
+  MgmtByte enable_parent_timeout_markdowns = 0;
+  MgmtByte disable_parent_markdowns        = 0;
 
   MgmtInt down_server_timeout    = 300;
   MgmtInt client_abort_threshold = 1000;
@@ -687,6 +710,9 @@ struct OverridableHttpConfigParams {
   MgmtInt slow_log_threshold        = 0;
 
   OutboundConnTrack::TxnConfig outbound_conntrack;
+
+  MgmtInt plugin_vc_default_buffer_index      = BUFFER_SIZE_INDEX_32K;
+  MgmtInt plugin_vc_default_buffer_water_mark = DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK;
 
   ///////////////////////////////////////////////////////////////////
   // Server header                                                 //
@@ -816,7 +842,7 @@ public:
 
   MgmtByte server_session_sharing_pool = TS_SERVER_SESSION_SHARING_POOL_THREAD;
 
-  OutboundConnTrack::GlobalConfig outbound_conntrack;
+  OutboundConnTrack::GlobalConfig global_outbound_conntrack;
 
   // bitset to hold the status codes that will BE cached with negative caching enabled
   HttpStatusBitset negative_caching_list;
@@ -849,12 +875,14 @@ public:
 class HttpConfig
 {
 public:
+  using scoped_config = ConfigProcessor::scoped_config<HttpConfig, HttpConfigParams>;
+
   static void startup();
 
   static void reconfigure();
 
-  inkcoreapi static HttpConfigParams *acquire();
-  inkcoreapi static void release(HttpConfigParams *params);
+  static HttpConfigParams *acquire();
+  static void release(HttpConfigParams *params);
 
   static bool load_server_session_sharing_match(const char *key, MgmtByte &mask);
 

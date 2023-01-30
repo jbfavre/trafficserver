@@ -677,9 +677,7 @@ decode_indexed_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
     int decoded_value_len;
     const char *decoded_value = header.value_get(&decoded_value_len);
 
-    Arena arena;
-    Debug("hpack_decode", "Decoded field: %s: %s", arena.str_store(decoded_name, decoded_name_len),
-          arena.str_store(decoded_value, decoded_value_len));
+    Debug("hpack_decode", "Decoded field: %.*s: %.*s", decoded_name_len, decoded_name, decoded_value_len, decoded_value);
   }
 
   return len;
@@ -770,8 +768,7 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
     int decoded_value_len;
     const char *decoded_value = header.value_get(&decoded_value_len);
 
-    Debug("hpack_decode", "Decoded field: %s: %s", arena.str_store(decoded_name, decoded_name_len),
-          arena.str_store(decoded_value, decoded_value_len));
+    Debug("hpack_decode", "Decoded field: %.*s: %.*s", decoded_name_len, decoded_name, decoded_value_len, decoded_value);
   }
 
   if (has_http2_violation) {
@@ -909,11 +906,10 @@ hpack_encode_header_block(HpackIndexingTable &indexing_table, uint8_t *out_buf, 
     cursor += written;
   }
 
-  MIMEFieldIter field_iter;
-  for (MIMEField *field = hdr->iter_get_first(&field_iter); field != nullptr; field = hdr->iter_get_next(&field_iter)) {
+  for (auto &field : *hdr) {
     // Convert field name to lower case to follow HTTP2 spec
     // This conversion is needed because WKSs in MIMEFields is old fashioned
-    std::string_view original_name = field->name_get();
+    std::string_view original_name = field.name_get();
     int name_len                   = original_name.size();
     ts::LocalBuffer<char> local_buffer(name_len);
     char *lower_name = local_buffer.data();
@@ -922,7 +918,7 @@ hpack_encode_header_block(HpackIndexingTable &indexing_table, uint8_t *out_buf, 
     }
 
     std::string_view name{lower_name, static_cast<size_t>(name_len)};
-    std::string_view value = field->value_get();
+    std::string_view value = field.value_get();
 
     // Choose field representation (See RFC7541 7.1.3)
     // - Authorization header obviously should not be indexed

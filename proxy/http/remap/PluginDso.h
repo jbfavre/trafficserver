@@ -87,8 +87,8 @@ public:
   virtual bool init(std::string &error)                             = 0;
   virtual void done()                                               = 0;
 
-  void acquire();
-  void release();
+  void acquire() override;
+  void release() override;
 
   void incInstanceCount();
   void decInstanceCount();
@@ -123,7 +123,7 @@ public:
     /**
      * @brief Removes the passed plugin's effective path from the opt out list.
      * @note This is mostly used by unit test than needs to remove the plugin's effectivePath
-     *       from the out out list.
+     *       from the opt out list.
      * @param pluginPath plugin's path.
      * @note This function is mainly for unit tests purposes.
      */

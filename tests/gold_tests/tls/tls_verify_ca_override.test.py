@@ -78,7 +78,6 @@ ts.Disk.ssl_multicert_config.AddLine(
 ts.Disk.records_config.update({
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     # set global policy
     'proxy.config.ssl.client.verify.server.policy': 'ENFORCED',
     'proxy.config.ssl.client.verify.server.properties': 'SIGNATURE',
@@ -111,7 +110,7 @@ tr2.StillRunningAfter = ts
 # Should succeed, but will be message in log about name mismatch
 tr2.Processes.Default.Streams.stdout = Testers.ContainsExpression("Could Not Connect", "Curl attempt should have succeeded")
 
-tr2 = Test.AddTestRun("Use currect ca bundle for server 2")
+tr2 = Test.AddTestRun("Use correct ca bundle for server 2")
 tr2.Processes.Default.Command = "curl -k -H \"host: random.com\"  http://127.0.0.1:{0}/case2".format(ts.Variables.port)
 tr2.ReturnCode = 0
 tr2.StillRunningAfter = server2

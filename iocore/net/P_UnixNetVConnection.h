@@ -60,10 +60,11 @@ NetVCOptions::reset()
 #else
     0;
 #endif
-  socket_send_bufsize = 0;
-  sockopt_flags       = 0;
-  packet_mark         = 0;
-  packet_tos          = 0;
+  socket_send_bufsize  = 0;
+  sockopt_flags        = 0;
+  packet_mark          = 0;
+  packet_tos           = 0;
+  packet_notsent_lowat = 0;
 
   etype = ET_NET;
 
@@ -72,35 +73,20 @@ NetVCOptions::reset()
   sni_hostname                = nullptr;
   ssl_client_cert_name        = nullptr;
   ssl_client_private_key_name = nullptr;
+  outbound_sni_policy         = nullptr;
 }
 
 inline void
 NetVCOptions::set_sock_param(int _recv_bufsize, int _send_bufsize, unsigned long _opt_flags, unsigned long _packet_mark,
-                             unsigned long _packet_tos)
+                             unsigned long _packet_tos, unsigned long _packet_notsent_lowat)
 {
-  socket_recv_bufsize = _recv_bufsize;
-  socket_send_bufsize = _send_bufsize;
-  sockopt_flags       = _opt_flags;
-  packet_mark         = _packet_mark;
-  packet_tos          = _packet_tos;
+  socket_recv_bufsize  = _recv_bufsize;
+  socket_send_bufsize  = _send_bufsize;
+  sockopt_flags        = _opt_flags;
+  packet_mark          = _packet_mark;
+  packet_tos           = _packet_tos;
+  packet_notsent_lowat = _packet_notsent_lowat;
 }
-
-struct OOB_callback : public Continuation {
-  char *data;
-  int length;
-  Event *trigger;
-  UnixNetVConnection *server_vc;
-  Continuation *server_cont;
-  int retry_OOB_send(int, Event *);
-
-  OOB_callback(Ptr<ProxyMutex> &m, NetVConnection *vc, Continuation *cont, char *buf, int len)
-    : Continuation(m), data(buf), length(len), trigger(nullptr)
-  {
-    server_vc   = (UnixNetVConnection *)vc;
-    server_cont = cont;
-    SET_HANDLER(&OOB_callback::retry_OOB_send);
-  }
-};
 
 enum tcp_congestion_control_t { CLIENT_SIDE, SERVER_SIDE };
 
@@ -110,13 +96,7 @@ public:
   VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override;
   VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override;
 
-  Continuation *read_vio_cont() override;
-  Continuation *write_vio_cont() override;
-
   bool get_data(int id, void *data) override;
-
-  Action *send_OOB(Continuation *cont, char *buf, int len) override;
-  void cancel_OOB() override;
 
   const char *
   get_server_name() const override
@@ -264,7 +244,6 @@ public:
 
   Connection con;
   int recursion            = 0;
-  OOB_callback *oob_ptr    = nullptr;
   bool from_accept_thread  = false;
   NetAccept *accept_object = nullptr;
 
@@ -273,7 +252,7 @@ public:
   int mainEvent(int event, Event *e);
   virtual int connectUp(EThread *t, int fd);
   /**
-   * Populate the current object based on the socket information in in the
+   * Populate the current object based on the socket information in the
    * con parameter.
    * This is logic is invoked when the NetVC object is created in a new thread context
    */
@@ -306,6 +285,7 @@ UnixNetVConnection::set_remote_addr()
 {
   ats_ip_copy(&remote_addr, &con.addr);
   this->control_flags.set_flag(ContFlags::DEBUG_OVERRIDE, diags->test_override_ip(remote_addr));
+  set_cont_flags(get_control_flags());
 }
 
 inline void
@@ -313,6 +293,7 @@ UnixNetVConnection::set_remote_addr(const sockaddr *new_sa)
 {
   ats_ip_copy(&remote_addr, new_sa);
   this->control_flags.set_flag(ContFlags::DEBUG_OVERRIDE, diags->test_override_ip(remote_addr));
+  set_cont_flags(get_control_flags());
 }
 
 inline void

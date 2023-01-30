@@ -37,6 +37,7 @@
 #include "Transform.h"
 #include "Milestones.h"
 #include "ts/remap.h"
+#include "ts/parentselectdefs.h"
 #include "RemapPluginInfo.h"
 #include "UrlMapping.h"
 #include "records/I_RecHttp.h"
@@ -124,6 +125,7 @@ enum ViaString_t {
   VIA_IN_CACHE_STALE          = 'S',
   VIA_IN_CACHE_FRESH          = 'H',
   VIA_IN_RAM_CACHE_FRESH      = 'R',
+  VIA_IN_CACHE_RWW_HIT        = 'W',
   // server stuff
   VIA_SERVER_STRING       = 's',
   VIA_SERVER_ERROR        = 'E',
@@ -152,6 +154,7 @@ enum ViaString_t {
   VIA_ERROR_CACHE_READ        = 'R',
   VIA_ERROR_MOVED_TEMPORARILY = 'M',
   VIA_ERROR_LOOP_DETECTED     = 'L',
+  VIA_ERROR_UNKNOWN           = ' ',
   //
   // Now the detailed stuff
   //
@@ -653,6 +656,13 @@ public:
     _SquidLogInfo() {}
   } SquidLogInfo;
 
+  typedef struct _ResponseAction {
+    bool handled = false;
+    TSResponseAction action;
+
+    _ResponseAction() {}
+  } ResponseAction;
+
   struct State {
     HttpTransactMagic_t m_magic = HTTP_TRANSACT_MAGIC_ALIVE;
 
@@ -805,6 +815,8 @@ public:
     bool transparent_passthrough = false;
     bool range_in_cache          = false;
 
+    ResponseAction response_action;
+
     // Methods
     void
     init()
@@ -943,6 +955,7 @@ public:
   static void OSDNSLookup(State *s);
   static void ReDNSRoundRobin(State *s);
   static void PPDNSLookup(State *s);
+  static void PPDNSLookupAPICall(State *s);
   static void OriginServerRawOpen(State *s);
   static void HandleCacheOpenRead(State *s);
   static void HandleCacheOpenReadHitFreshness(State *s);
@@ -958,6 +971,7 @@ public:
   static void handle_transform_ready(State *s);
   static void handle_transform_cache_write(State *s);
   static void handle_response_from_parent(State *s);
+  static void handle_response_from_parent_plugin(State *s);
   static void handle_response_from_server(State *s);
   static void delete_server_rr_entry(State *s, int max_retries);
   static void retry_server_connection_not_open(State *s, ServerState_t conn_state, unsigned max_retries);
@@ -1057,6 +1071,8 @@ public:
                                          int64_t origin_server_request_body_size, int origin_server_response_header_size,
                                          int64_t origin_server_response_body_size, int pushed_response_header_size,
                                          int64_t pushed_response_body_size, const TransactionMilestones &milestones);
+  static void milestone_start_api_time(State *s);
+  static void milestone_update_api_time(State *s);
   static void histogram_request_document_size(State *s, int64_t size);
   static void histogram_response_document_size(State *s, int64_t size);
   static void user_agent_connection_speed(State *s, ink_hrtime transfer_time, int64_t nbytes);
@@ -1101,4 +1117,4 @@ is_response_body_precluded(HTTPStatus status_code, int method)
   }
 }
 
-inkcoreapi extern ink_time_t ink_local_time();
+extern ink_time_t ink_local_time();

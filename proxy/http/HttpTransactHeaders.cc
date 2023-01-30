@@ -87,7 +87,15 @@ HttpTransactHeaders::is_this_method_supported(int the_scheme, int the_method)
 bool
 HttpTransactHeaders::is_method_safe(int method)
 {
+  // See RFC 7231, section 4.2.1.
   return (method == HTTP_WKSIDX_GET || method == HTTP_WKSIDX_OPTIONS || method == HTTP_WKSIDX_HEAD || method == HTTP_WKSIDX_TRACE);
+}
+
+bool
+HttpTransactHeaders::is_status_an_error_response(HTTPStatus response_code)
+{
+  auto const comparable_response_code = static_cast<unsigned int>(response_code);
+  return (comparable_response_code >= 400) && (comparable_response_code <= 599);
 }
 
 bool
@@ -200,8 +208,6 @@ HttpTransactHeaders::copy_header_fields(HTTPHdr *src_hdr, HTTPHdr *new_hdr, bool
   ink_assert(src_hdr->valid());
   ink_assert(!new_hdr->valid());
 
-  MIMEField *field;
-  MIMEFieldIter field_iter;
   bool date_hdr = false;
 
   // Start with an exact duplicate
@@ -220,21 +226,21 @@ HttpTransactHeaders::copy_header_fields(HTTPHdr *src_hdr, HTTPHdr *new_hdr, bool
   //         serving it to a client that can not handle it
   //      2) Transfer encoding is copied.  If the transfer encoding
   //         is changed for example by dechunking, the transfer encoding
-  //         should be modified when when the decision is made to dechunk it
+  //         should be modified when the decision is made to dechunk it
 
-  for (field = new_hdr->iter_get_first(&field_iter); field != nullptr; field = new_hdr->iter_get_next(&field_iter)) {
-    if (field->m_wks_idx == -1) {
+  for (auto &field : *new_hdr) {
+    if (field.m_wks_idx == -1) {
       continue;
     }
 
-    int field_flags = hdrtoken_index_to_flags(field->m_wks_idx);
+    int field_flags = hdrtoken_index_to_flags(field.m_wks_idx);
 
     if (field_flags & HTIF_HOPBYHOP) {
       // Delete header if not in special proxy_auth retention mode
       if ((!retain_proxy_auth_hdrs) || (!(field_flags & HTIF_PROXYAUTH))) {
-        new_hdr->field_delete(field);
+        new_hdr->field_delete(&field);
       }
-    } else if (field->m_wks_idx == MIME_WKSIDX_DATE) {
+    } else if (field.m_wks_idx == MIME_WKSIDX_DATE) {
       date_hdr = true;
     }
   }
@@ -462,6 +468,8 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
     // its a cache hit.
     if (via_string[VIA_CACHE_RESULT] == VIA_IN_RAM_CACHE_FRESH) {
       hit_miss_code = SQUID_HIT_RAM;
+    } else if (via_string[VIA_CACHE_RESULT] == VIA_IN_CACHE_RWW_HIT) {
+      hit_miss_code = SQUID_HIT_RWW;
     } else { // TODO: Support other cache tiers here
       hit_miss_code = SQUID_HIT_RESERVED;
     }
@@ -525,6 +533,8 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
           log_code = SQUID_LOG_TCP_HIT;
         } else if (via_string[VIA_CACHE_RESULT] == VIA_IN_RAM_CACHE_FRESH) {
           log_code = SQUID_LOG_TCP_MEM_HIT;
+        } else if (via_string[VIA_CACHE_RESULT] == VIA_IN_CACHE_RWW_HIT) {
+          log_code = SQUID_LOG_TCP_CF_HIT; // Read while write HIT
         } else {
           log_code = SQUID_LOG_TCP_MISS;
         }
@@ -589,6 +599,10 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
     break;
   case VIA_ERROR_LOOP_DETECTED:
     log_code  = SQUID_LOG_ERR_LOOP_DETECTED;
+    hier_code = SQUID_HIER_NONE;
+    break;
+  case VIA_ERROR_UNKNOWN:
+    log_code  = SQUID_LOG_ERR_UNKNOWN;
     hier_code = SQUID_HIER_NONE;
     break;
   default:
@@ -840,7 +854,7 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
   // TODO H2 expand for HTTP/2 outbound
   proto_buf[n_proto++] = header->version_get().get_minor() == 0 ? IP_PROTO_TAG_HTTP_1_0 : IP_PROTO_TAG_HTTP_1_1;
 
-  auto ss = s->state_machine->get_server_session();
+  auto ss = s->state_machine->get_server_txn();
   if (ss) {
     n_proto += ss->populate_protocol(proto_buf.data() + n_proto, proto_buf.size() - n_proto);
   }
@@ -998,7 +1012,7 @@ HttpTransactHeaders::add_forwarded_field_to_request(HttpTransact::State *s, HTTP
       hdr << "by=_" << m.uuid.getString();
     }
 
-    if (optSet[HttpForwarded::BY_IP] and (m.ip_string_len > 0)) {
+    if (optSet[HttpForwarded::BY_IP] and m.ip.isValid()) {
       if (hdr.size()) {
         hdr << ';';
       }
@@ -1224,6 +1238,22 @@ HttpTransactHeaders::normalize_accept_encoding(const OverridableHttpConfigParams
         } else {
           header->field_delete(ae_field);
           Debug("http_trans", "[Headers::normalize_accept_encoding] removed non-br Accept-Encoding");
+        }
+      } else if (normalize_ae == 3) {
+        // Force Accept-Encoding header to br,gzip, or br, or gzip, or no header.
+        if (HttpTransactCache::match_content_encoding(ae_field, "br") &&
+            HttpTransactCache::match_content_encoding(ae_field, "gzip")) {
+          header->field_value_set(ae_field, "br, gzip", 8);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] normalized Accept-Encoding to br, gzip");
+        } else if (HttpTransactCache::match_content_encoding(ae_field, "br")) {
+          header->field_value_set(ae_field, "br", 2);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] normalized Accept-Encoding to br");
+        } else if (HttpTransactCache::match_content_encoding(ae_field, "gzip")) {
+          header->field_value_set(ae_field, "gzip", 4);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] normalized Accept-Encoding to gzip");
+        } else {
+          header->field_delete(ae_field);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] removed non-br non-gzip Accept-Encoding");
         }
       } else {
         static bool logged = false;

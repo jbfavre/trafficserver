@@ -79,6 +79,7 @@ test_UDPNet_LDADD = \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/src/tscore/libtscore.la $(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
 	$(top_builddir)/proxy/ParentSelectionStrategy.o \
 	@HWLOC_LIBS@ @OPENSSL_LIBS@ @LIBPCRE@ @YAMLCPP_LIBS@
 
@@ -120,6 +121,8 @@ libinknet_a_SOURCES = \
 	ALPNSupport.cc \
 	BIO_fastopen.cc \
 	BIO_fastopen.h \
+	BoringSSLUtils.cc \
+	BoringSSLUtils.h \
 	Connection.cc \
 	I_Net.h \
 	I_NetProcessor.h \
@@ -144,6 +147,7 @@ libinknet_a_SOURCES = \
 	P_Socks.h \
 	P_SSLCertLookup.h \
 	P_SSLConfig.h \
+	P_SSLSecret.h \
 	P_SSLNetAccept.h \
 	P_SSLNetProcessor.h \
 	P_SSLNetVConnection.h \
@@ -151,8 +155,9 @@ libinknet_a_SOURCES = \
 	P_SSLNextProtocolSet.h \
 	P_SSLSNI.h \
 	P_SSLUtils.h \
-        P_SSLClientCoordinator.h \
+	P_SSLClientCoordinator.h \
 	P_SSLClientUtils.h \
+	P_TLSKeyLogger.h \
 	P_OCSPStapling.h \
 	P_UDPConnection.h \
 	P_UDPIOEvent.h \
@@ -169,9 +174,10 @@ libinknet_a_SOURCES = \
 	ProxyProtocol.cc \
 	Socks.cc \
 	SSLCertLookup.cc \
-        SSLClientCoordinator.cc \
+	SSLClientCoordinator.cc \
 	SSLClientUtils.cc \
 	SSLConfig.cc \
+	SSLSecret.cc \
 	SSLDiags.cc \
 	SSLInternal.cc \
 	SSLNetAccept.cc \
@@ -185,6 +191,8 @@ libinknet_a_SOURCES = \
 	SSLSessionTicket.cc \
 	SSLUtils.cc \
 	OCSPStapling.cc \
+	TLSBasicSupport.cc \
+	TLSKeyLogger.cc \
 	TLSSessionResumptionSupport.cc \
 	TLSSNISupport.cc \
 	UDPIOEvent.cc \

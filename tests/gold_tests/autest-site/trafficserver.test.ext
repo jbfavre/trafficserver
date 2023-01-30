@@ -25,11 +25,23 @@ def make_id(s):
     return s.replace(".", "_").replace('-', '_')
 
 
-# this forms is for the global process define
+# A mapping from log type to the log name. 'stdout' and 'stderr' are handled
+# specially and are used to indicate the stdout and stderr streams,
+# respectively.
+default_log_data = {
+    'diags': 'diags.log',
+    'error': 'error.log',
+    'manager': 'manager.log'
+}
+
+# 'block_for_debug', if True, causes traffic_server to run with the --block option enabled, and effectively
+# disables timeouts that could be triggered by running traffic_server under a debugger.
 
 
 def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
-                   enable_tls=False, enable_cache=True, enable_quic=False):
+                   enable_tls=False, enable_cache=True, enable_quic=False,
+                   block_for_debug=False, log_data=default_log_data,
+                   use_traffic_out=True):
     #####################################
     # common locations
 
@@ -59,6 +71,29 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     ssl_dir = os.path.join(ts_dir, 'ssl')
     storage_dir = os.path.join(ts_dir, 'storage')
     cache_dir = os.path.join(ts_dir, 'cache')
+
+    ts_args = ''
+    if use_traffic_out:
+        # Bind stdout/err to traffic.out. This allows tests to wait upon
+        # content from the traffic.out file, something that cannot be done on
+        # process stdout/stderr in AuTest.
+        traffic_out = os.path.join(log_dir, 'traffic.out')
+        ts_args += f' --bind_stderr {traffic_out}'
+        ts_args += f' --bind_stdout {traffic_out}'
+
+    if block_for_debug:
+        ts_args += ' --block'
+
+    if 'traffic_manager' in command:
+        if '--tsArgs' in command:
+            # None of our tests do this, but if we eventually pass in --tsArgs
+            # at some point from a test, we'll need to figure out how to mix
+            # that with the arguments we're assembling for --tsArgs here.
+            host.WriteError('Do not know how to assemble --tsArgs.')
+        if ts_args:
+            command += f' --tsArgs "{ts_args}"'
+    elif 'traffic_server' in command:
+        command += ts_args
 
     # create process
     p = obj.Processes.Process(name, command)
@@ -175,23 +210,46 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     tmpname = os.path.join(log_dir, fname)
     p.Disk.File(tmpname, id=make_id(fname))
     # error.log
-    fname = "error.log"
-    tmpname = os.path.join(log_dir, fname)
-    p.Disk.File(tmpname, id=make_id(fname), exists=False)
+    fname = log_data['error']
+    if fname == 'stdout':
+        p.Disk.error_log = p.Streams.stdout
+    elif fname == 'stderr':
+        p.Disk.error_log = p.Streams.stderr
+    else:
+        tmpname = os.path.join(log_dir, fname)
+        p.Disk.File(tmpname, id='error_log')
     # diags.log
-    fname = "diags.log"
-    tmpname = os.path.join(log_dir, fname)
-    p.Disk.File(tmpname, id=make_id(fname))
+    fname = log_data['diags']
+    if fname == 'stdout':
+        p.Disk.diags_log = p.Streams.stdout
+    elif fname == 'stderr':
+        p.Disk.diags_log = p.Streams.stderr
+    else:
+        tmpname = os.path.join(log_dir, fname)
+        p.Disk.File(tmpname, id='diags_log')
     # add this test back once we have network namespaces working again
     p.Disk.diags_log.Content = Testers.ExcludesExpression(
-        "ERROR:", "diags.log should not contain errors")
+        "ERROR:", f"Diags log file {fname} should not contain errors")
     p.Disk.diags_log.Content += Testers.ExcludesExpression(
-        "FATAL:", "diags.log should not contain errors")
+        "FATAL:", f"Diags log file {fname} should not contain errors")
+    p.Disk.diags_log.Content += Testers.ExcludesExpression(
+        "Unrecognized configuration value",
+        f"Diags log file {fname} should not contain a warning about an unrecognized configuration")
 
-    if command == "traffic_manager":
-        fname = "manager.log"
-        tmpname = os.path.join(log_dir, fname)
-        p.Disk.File(tmpname, id=make_id(fname))
+    # traffic.out
+    fname = "traffic.out"
+    tmpname = os.path.join(log_dir, fname)
+    p.Disk.File(tmpname, id='traffic_out')
+
+    if "traffic_manager" in command:
+        fname = log_data['manager']
+        if fname == 'stdout':
+            p.Disk.manager_log = p.Streams.stdout
+        elif fname == 'stderr':
+            p.Disk.manager_log = p.Streams.stderr
+        else:
+            tmpname = os.path.join(log_dir, fname)
+            p.Disk.File(tmpname, id='manager_log')
 
     # config files
     def MakeConfigFile(self, fname):
@@ -209,11 +267,6 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     tmpname = os.path.join(config_dir, fname)
     p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
 
-    # for conf_remap_float, used by conf_remap plugin
-    fname = "delain.config"
-    tmpname = os.path.join(config_dir, fname)
-    p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
-
     fname = "hosting.config"
     tmpname = os.path.join(config_dir, fname)
     p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
@@ -222,7 +275,6 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     tmpname = os.path.join(config_dir, fname)
     p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
 
-    # magic file that should probally not exist
     fname = "logging.yaml"
     tmpname = os.path.join(config_dir, fname)
     p.Disk.File(tmpname, id=make_id(fname), typename="ats:config")
@@ -287,6 +339,14 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     get_port(p, "manager_port")
     get_port(p, "admin_port")
 
+    if enable_tls or enable_quic:
+        fname = "tls_session_keys.txt"
+        tmpname = os.path.join(log_dir, fname)
+        p.Disk.File(tmpname, id='tls_session_keys')
+        p.Disk.records_config.update({
+            'proxy.config.ssl.keylog_file': tmpname,
+        })
+
     if enable_cache:
         # In records.config, the cache is enabled by default so there's nothing
         # we have to do here to functionally enable it. However, the tests that
@@ -333,10 +393,19 @@ def MakeATSProcess(obj, name, command='traffic_server', select_ports=True,
     p.Env['PROXY_CONFIG_ADMIN_AUTOCONF_PORT'] = str(
         p.Variables.admin_port)  # support pre ATS 6.x
 
-    if command == "traffic_manager":
+    if 'traffic_manager' in command:
         p.ReturnCode = 2
     else:
         p.ReturnCode = 0
+
+    if block_for_debug:
+        p.Env['PROXY_BLOCK'] = '1'
+        # Cause traffic_server to wait effectviely indefinitely (10 hours) for the debugger to attach.
+        p.StartupTimeout = 10 * 60 * 60
+        # Hitting breakpoints may cause long delays in traffic_server transaction processing, so make
+        # the timeout for test processes (that may interact with traffic_server) effectively forever
+        # (10 hours).
+        obj.Variables.Autest.Process.TimeOut = 10 * 60 * 60
 
     return p
 
@@ -475,3 +544,4 @@ RegisterFileType(Config, "ats:config")
 RegisterFileType(RecordsConfig, "ats:config:records")
 ExtendTestRun(chownForATSProcess, name="ChownForATSProcess")
 ExtendTest(MakeATSProcess, name="MakeATSProcess")
+ExtendTestRun(MakeATSProcess, name="MakeATSProcess")

@@ -64,6 +64,7 @@ int cache_config_ram_cache_compress            = 0;
 int cache_config_ram_cache_compress_percent    = 90;
 int cache_config_ram_cache_use_seen_filter     = 1;
 int cache_config_http_max_alts                 = 3;
+int cache_config_log_alternate_eviction        = 0;
 int cache_config_dir_sync_frequency            = 60;
 int cache_config_permit_pinning                = 0;
 int cache_config_select_alternate              = 1;
@@ -453,6 +454,9 @@ CacheVC::set_http_info(CacheHTTPInfo *ainfo)
   MIMEField *field = ainfo->m_alt->m_response_hdr.field_find(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
   if (field && !field->value_get_int64()) {
     f.allow_empty_doc = 1;
+    // Set the object size here to zero in case this is a cache replace where the new object
+    // length is zero but the old object was not.
+    ainfo->object_size_set(0);
   } else {
     f.allow_empty_doc = 0;
   }
@@ -573,17 +577,12 @@ CacheProcessor::start_internal(int flags)
   ink_assert((int)TS_EVENT_CACHE_SCAN_OPERATION_BLOCKED == (int)CACHE_EVENT_SCAN_OPERATION_BLOCKED);
   ink_assert((int)TS_EVENT_CACHE_SCAN_OPERATION_FAILED == (int)CACHE_EVENT_SCAN_OPERATION_FAILED);
   ink_assert((int)TS_EVENT_CACHE_SCAN_DONE == (int)CACHE_EVENT_SCAN_DONE);
-
 #if AIO_MODE == AIO_MODE_NATIVE
-  int etype            = ET_NET;
-  int n_netthreads     = eventProcessor.n_threads_for_type[etype];
-  EThread **netthreads = eventProcessor.eventthread[etype];
-  for (int i = 0; i < n_netthreads; ++i) {
-    netthreads[i]->diskHandler = new DiskHandler();
-    netthreads[i]->schedule_imm(netthreads[i]->diskHandler);
+  for (EThread *et : eventProcessor.active_group_threads(ET_NET)) {
+    et->diskHandler = new DiskHandler();
+    et->schedule_imm(et->diskHandler);
   }
 #endif
-
   start_internal_flags = flags;
   clear                = !!(flags & PROCESSOR_RECONFIGURE) || auto_clear_flag;
   fix                  = !!(flags & PROCESSOR_FIX);
@@ -1089,13 +1088,13 @@ CacheProcessor::lookup(Continuation *cont, const CacheKey *key, CacheFragType fr
   return caches[frag_type]->lookup(cont, key, frag_type, hostname, host_len);
 }
 
-inkcoreapi Action *
+Action *
 CacheProcessor::open_read(Continuation *cont, const CacheKey *key, CacheFragType frag_type, const char *hostname, int hostlen)
 {
   return caches[frag_type]->open_read(cont, key, frag_type, hostname, hostlen);
 }
 
-inkcoreapi Action *
+Action *
 CacheProcessor::open_write(Continuation *cont, CacheKey *key, CacheFragType frag_type, int expected_size ATS_UNUSED, int options,
                            time_t pin_in_cache, char *hostname, int host_len)
 {
@@ -1438,7 +1437,7 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
 {
   uint32_t got_len         = 0;
   uint32_t max_sync_serial = header->sync_serial;
-  char *s, *e;
+  char *s, *e = nullptr;
   if (event == EVENT_IMMEDIATE) {
     if (header->sync_serial == 0) {
       io.aiocb.aio_buf = nullptr;
@@ -1781,11 +1780,7 @@ Vol::dir_init_done(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
     ink_assert(!gvol[vol_no]);
     gvol[vol_no] = this;
     SET_HANDLER(&Vol::aggWrite);
-    if (fd == -1) {
-      cache->vol_initialized(false);
-    } else {
-      cache->vol_initialized(true);
-    }
+    cache->vol_initialized(fd != -1);
     return EVENT_DONE;
   }
 }
@@ -1980,13 +1975,16 @@ CacheProcessor::mark_storage_offline(CacheDisk *d, ///< Target disk
     Warning("All storage devices offline, cache disabled");
     CacheProcessor::cache_ready = 0;
   } else { // check cache types specifically
-    if (theCache && !theCache->hosttable->gen_host_rec.vol_hash_table) {
-      unsigned int caches_ready = 0;
-      caches_ready              = caches_ready | (1 << CACHE_FRAG_TYPE_HTTP);
-      caches_ready              = caches_ready | (1 << CACHE_FRAG_TYPE_NONE);
-      caches_ready              = ~caches_ready;
-      CacheProcessor::cache_ready &= caches_ready;
-      Warning("all volumes for http cache are corrupt, http cache disabled");
+    if (theCache) {
+      ReplaceablePtr<CacheHostTable>::ScopedReader hosttable(&theCache->hosttable);
+      if (!hosttable->gen_host_rec.vol_hash_table) {
+        unsigned int caches_ready = 0;
+        caches_ready              = caches_ready | (1 << CACHE_FRAG_TYPE_HTTP);
+        caches_ready              = caches_ready | (1 << CACHE_FRAG_TYPE_NONE);
+        caches_ready              = ~caches_ready;
+        CacheProcessor::cache_ready &= caches_ready;
+        Warning("all volumes for http cache are corrupt, http cache disabled");
+      }
     }
   }
 
@@ -2055,9 +2053,13 @@ Cache::open_done()
     return 0;
   }
 
-  hosttable = new CacheHostTable(this, scheme);
-  hosttable->register_config_callback(&hosttable);
+  {
+    CacheHostTable *hosttable_raw = new CacheHostTable(this, scheme);
+    hosttable.reset(hosttable_raw);
+    hosttable_raw->register_config_callback(&hosttable);
+  }
 
+  ReplaceablePtr<CacheHostTable>::ScopedReader hosttable(&this->hosttable);
   if (hosttable->gen_host_rec.num_cachevols == 0) {
     ready = CACHE_INIT_FAILED;
   } else {
@@ -2275,8 +2277,7 @@ CacheVC::handleReadDone(int event, Event *e)
            (doc_len && static_cast<int64_t>(doc_len) < cache_config_ram_cache_cutoff) || !cache_config_ram_cache_cutoff);
         if (cutoff_check && !f.doc_from_ram_cache) {
           uint64_t o = dir_offset(&dir);
-          vol->ram_cache->put(read_key, buf.get(), doc->len, http_copy_hdr, static_cast<uint32_t>(o >> 32),
-                              static_cast<uint32_t>(o));
+          vol->ram_cache->put(read_key, buf.get(), doc->len, http_copy_hdr, o);
         }
         if (!doc_len) {
           // keep a pointer to it. In case the state machine decides to
@@ -2308,7 +2309,7 @@ CacheVC::handleRead(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   // check ram cache
   ink_assert(vol->mutex->thread_holding == this_ethread());
   int64_t o           = dir_offset(&dir);
-  int ram_hit_state   = vol->ram_cache->get(read_key, &buf, static_cast<uint32_t>(o >> 32), static_cast<uint32_t>(o));
+  int ram_hit_state   = vol->ram_cache->get(read_key, &buf, static_cast<uint64_t>(o));
   f.compressed_in_ram = (ram_hit_state > RAM_HIT_COMPRESS_NONE) ? 1 : 0;
   if (ram_hit_state >= RAM_HIT_COMPRESS_NONE) {
     goto LramHit;
@@ -2895,7 +2896,6 @@ cplist_reconfigure()
       }
 
       int64_t size_to_alloc = size_in_blocks - cp->size;
-      int disk_full         = 0;
       for (int i = 0; (i < gndisks) && size_to_alloc; i++) {
         int disk_no = sorted_vols[i];
         ink_assert(cp->disk_vols[sorted_vols[gndisks - 1]]);
@@ -2907,7 +2907,7 @@ cplist_reconfigure()
            them equal */
         int64_t size_diff = (cp->disk_vols[disk_no]) ? largest_vol - cp->disk_vols[disk_no]->size : largest_vol;
         size_diff         = (size_diff < size_to_alloc) ? size_diff : size_to_alloc;
-        /* if size_diff == 0, then then the disks have volumes of the
+        /* if size_diff == 0, then the disks have volumes of the
            same sizes, so we don't need to balance the disks */
         if (size_diff == 0) {
           break;
@@ -2927,10 +2927,6 @@ cplist_reconfigure()
             break;
           }
         } while ((size_diff > 0));
-
-        if (!dpb) {
-          disk_full++;
-        }
 
         size_to_alloc = size_in_blocks - cp->size;
       }
@@ -3017,9 +3013,10 @@ create_volume(int volume_number, off_t size_in_blocks, int scheme, CacheVol *cp)
 void
 rebuild_host_table(Cache *cache)
 {
-  build_vol_hash_table(&cache->hosttable->gen_host_rec);
-  if (cache->hosttable->m_numEntries != 0) {
-    CacheHostMatcher *hm   = cache->hosttable->getHostMatcher();
+  ReplaceablePtr<CacheHostTable>::ScopedWriter hosttable(&cache->hosttable);
+  build_vol_hash_table(&hosttable->gen_host_rec);
+  if (hosttable->m_numEntries != 0) {
+    CacheHostMatcher *hm   = hosttable->getHostMatcher();
     CacheHostRecord *h_rec = hm->getDataArray();
     int h_rec_len          = hm->getNumElements();
     int i;
@@ -3033,9 +3030,11 @@ rebuild_host_table(Cache *cache)
 Vol *
 Cache::key_to_vol(const CacheKey *key, const char *hostname, int host_len)
 {
-  uint32_t h                 = (key->slice32(2) >> DIR_TAG_WIDTH) % VOL_HASH_TABLE_SIZE;
-  unsigned short *hash_table = hosttable->gen_host_rec.vol_hash_table;
-  CacheHostRecord *host_rec  = &hosttable->gen_host_rec;
+  ReplaceablePtr<CacheHostTable>::ScopedReader hosttable(&this->hosttable);
+
+  uint32_t h                      = (key->slice32(2) >> DIR_TAG_WIDTH) % VOL_HASH_TABLE_SIZE;
+  unsigned short *hash_table      = hosttable->gen_host_rec.vol_hash_table;
+  const CacheHostRecord *host_rec = &hosttable->gen_host_rec;
 
   if (hosttable->m_numEntries > 0 && host_len) {
     CacheHostResult res;
@@ -3094,6 +3093,8 @@ register_cache_stats(RecRawStatBlock *rsb, const char *prefix)
   REG_INT("read.active", cache_read_active_stat);
   REG_INT("read.success", cache_read_success_stat);
   REG_INT("read.failure", cache_read_failure_stat);
+  REG_INT("read.seek.failure", cache_read_seek_fail_stat);
+  REG_INT("read.invalid", cache_read_invalid_stat);
   REG_INT("write.active", cache_write_active_stat);
   REG_INT("write.success", cache_write_success_stat);
   REG_INT("write.failure", cache_write_failure_stat);
@@ -3165,6 +3166,9 @@ ink_cache_init(ts::ModuleVersion v)
 
   REC_EstablishStaticConfigInt32(cache_config_http_max_alts, "proxy.config.cache.limits.http.max_alts");
   Debug("cache_init", "proxy.config.cache.limits.http.max_alts = %d", cache_config_http_max_alts);
+
+  REC_EstablishStaticConfigInt32(cache_config_log_alternate_eviction, "proxy.config.cache.log.alternate.eviction");
+  Debug("cache_init", "proxy.config.cache.log.alternate.eviction = %d", cache_config_log_alternate_eviction);
 
   REC_EstablishStaticConfigInteger(cache_config_ram_cache_cutoff, "proxy.config.cache.ram_cache_cutoff");
   Debug("cache_init", "cache_config_ram_cache_cutoff = %" PRId64 " = %" PRId64 "Mb", cache_config_ram_cache_cutoff,
@@ -3252,7 +3256,7 @@ CacheProcessor::open_write(Continuation *cont, int expected_size, const HttpCach
 }
 
 //----------------------------------------------------------------------------
-// Note: this should not be called from from the cluster processor, or bad
+// Note: this should not be called from the cluster processor, or bad
 // recursion could occur. This is merely a convenience wrapper.
 Action *
 CacheProcessor::remove(Continuation *cont, const HttpCacheKey *key, CacheFragType frag_type)

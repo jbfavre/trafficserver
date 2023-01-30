@@ -47,6 +47,8 @@ operator_factory(const std::string &op)
     o = new OperatorSetStatusReason();
   } else if (op == "set-destination") {
     o = new OperatorSetDestination();
+  } else if (op == "rm-destination") {
+    o = new OperatorRMDestination();
   } else if (op == "set-redirect") {
     o = new OperatorSetRedirect();
   } else if (op == "timeout-out") {
@@ -69,6 +71,11 @@ operator_factory(const std::string &op)
     o = new OperatorSetConnMark();
   } else if (op == "set-debug") {
     o = new OperatorSetDebug();
+  } else if (op == "set-body") {
+    o = new OperatorSetBody();
+  } else if (op == "set-http-cntl") {
+    o = new OperatorSetHttpCntl();
+
   } else {
     TSError("[%s] Unknown operator: %s", PLUGIN_NAME, op.c_str());
     return nullptr;
@@ -148,6 +155,8 @@ condition_factory(const std::string &cond)
     c = new ConditionSessionTransactCount();
   } else if (c_name == "TCP-INFO") {
     c = new ConditionTcpInfo();
+  } else if (c_name == "CACHE") {
+    c = new ConditionCache();
   } else {
     TSError("[%s] Unknown condition %s", PLUGIN_NAME, c_name.c_str());
     return nullptr;

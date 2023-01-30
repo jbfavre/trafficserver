@@ -42,7 +42,7 @@ public:
 
   uint8_t get_major() const;
   uint8_t get_minor() const;
-  int get_flat_version() const;
+  uint32_t get_flat_version() const;
 
 private:
   uint8_t vmajor = 0;
@@ -84,7 +84,7 @@ HTTPVersion::get_minor() const
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline int
+inline uint32_t
 HTTPVersion::get_flat_version() const
 {
   return vmajor << 16 | vminor;
@@ -152,3 +152,4 @@ constexpr HTTPVersion HTTP_0_9{0, 9};
 constexpr HTTPVersion HTTP_1_0{1, 0};
 constexpr HTTPVersion HTTP_1_1{1, 1};
 constexpr HTTPVersion HTTP_2_0{2, 0};
+constexpr HTTPVersion HTTP_3_0{3, 0};

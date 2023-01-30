@@ -71,9 +71,9 @@ typedef unsigned int CTypeResult;
 /* shut up the DEC compiler */
 #define is_http_field_value_BIT (((CTypeResult)1) << 31)
 
-extern ink_undoc_liapi const CTypeResult parseRulesCType[];
-inkcoreapi extern const char parseRulesCTypeToUpper[];
-inkcoreapi extern const char parseRulesCTypeToLower[];
+extern const CTypeResult parseRulesCType[];
+extern const char parseRulesCTypeToUpper[];
+extern const char parseRulesCTypeToLower[];
 
 class ParseRules
 {
@@ -128,7 +128,7 @@ public:
   static CTypeResult is_empty(char c);            // wslfcr,#
   static CTypeResult is_alnum(char c);            // 0-9,A-Z,a-z
   static CTypeResult is_space(char c);            // ' ' HT,VT,NP,CR,LF
-  static CTypeResult is_control(char c);          // 0x00-0x08, 0x0a-0x1f, 0x7f
+  static CTypeResult is_control(char c);          // 0-31 127
   static CTypeResult is_mime_sep(char c);         // ()<>,;\"/[]?{} \t
   static CTypeResult is_http_field_name(char c);  // not : or mime_sep except for @
   static CTypeResult is_http_field_value(char c); // not CR, LF, comma, or "
@@ -667,24 +667,14 @@ ParseRules::is_space(char c)
 #endif
 }
 
-/**
-   Return true if @c is a control char except HTAB(0x09) and SP(0x20).
-   If you need to check @c is HTAB or SP, use `ParseRules::is_ws`.
- */
 inline CTypeResult
 ParseRules::is_control(char c)
 {
 #ifndef COMPILE_PARSE_RULES
   return (parseRulesCType[(unsigned char)c] & is_control_BIT);
 #else
-  if (c == CHAR_HT || c == CHAR_SP) {
-    return false;
-  }
-
-  if (((unsigned char)c) < 0x20 || c == 0x7f) {
+  if (((unsigned char)c) < 32 || ((unsigned char)c) == 127)
     return true;
-  }
-
   return false;
 #endif
 }

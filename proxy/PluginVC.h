@@ -149,8 +149,8 @@ public:
   int main_handler(int event, void *data);
 
 private:
-  void process_read_side(bool);
-  void process_write_side(bool);
+  void process_read_side();
+  void process_write_side();
   void process_close();
   void process_timeout(Event **e, int event_to_send);
 
@@ -203,7 +203,8 @@ public:
 
   // Allocate a PluginVCCore object, passing the continuation which
   // will receive NET_EVENT_ACCEPT to accept the new session.
-  static PluginVCCore *alloc(Continuation *acceptor);
+  static PluginVCCore *alloc(Continuation *acceptor, int64_t buffer_index = BUFFER_SIZE_INDEX_32K,
+                             int64_t buffer_water_mark = DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK);
 
   int state_send_accept(int event, void *data);
   int state_send_accept_failed(int event, void *data);
@@ -246,17 +247,11 @@ public:
   PluginVC passive_vc;
 
 private:
-  void init();
+  void init(int64_t buffer_index = BUFFER_SIZE_INDEX_32K, int64_t buffer_water_mark = DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK);
   void destroy();
 
   Continuation *connect_to = nullptr;
   bool connected           = false;
-
-  MIOBuffer *p_to_a_buffer      = nullptr;
-  IOBufferReader *p_to_a_reader = nullptr;
-
-  MIOBuffer *a_to_p_buffer      = nullptr;
-  IOBufferReader *a_to_p_reader = nullptr;
 
   IpEndpoint passive_addr_struct;
   IpEndpoint active_addr_struct;
@@ -266,6 +261,8 @@ private:
 
   static int32_t nextid;
   unsigned id = 0;
+
+  uint64_t buffer_size = BUFFER_SIZE_FOR_INDEX(BUFFER_SIZE_INDEX_32K);
 };
 
 inline PluginVCCore::PluginVCCore() : active_vc(this), passive_vc(this)

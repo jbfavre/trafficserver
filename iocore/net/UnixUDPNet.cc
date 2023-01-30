@@ -39,7 +39,7 @@
 
 using UDPNetContHandler = int (UDPNetHandler::*)(int, void *);
 
-inkcoreapi ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
+ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
 EventType ET_UDP;
 
 //
@@ -505,7 +505,7 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
  *   *actual_len = recvfrom(fd,addr,buf->end(),len)
  *   if successful then
  *      buf->fill(*actual_len);
- *	    return ACTION_RESULT_DONE
+ *      return ACTION_RESULT_DONE
  *   else if nothing read
  *      *actual_len is 0
  *      create "UDP read continuation" C with 'cont's lock
@@ -637,8 +637,8 @@ UDPNetProcessor::CreateUDPSocket(int *resfd, sockaddr const *remote_addr, Action
     // No local address specified, so use family option if possible.
     int family = ats_is_ip(opt.ip_family) ? opt.ip_family : AF_INET;
     local_addr.setToAnyAddr(family);
-    is_any_address    = true;
-    local_addr.port() = htons(opt.local_port);
+    is_any_address                  = true;
+    local_addr.network_order_port() = htons(opt.local_port);
   }
 
   *resfd = -1;
@@ -698,7 +698,7 @@ UDPNetProcessor::CreateUDPSocket(int *resfd, sockaddr const *remote_addr, Action
     }
   }
 
-  if (local_addr.port() || !is_any_address) {
+  if (local_addr.network_order_port() || !is_any_address) {
     if (-1 == socketManager.ink_bind(fd, &local_addr.sa, ats_ip_size(&local_addr.sa))) {
       char buff[INET6_ADDRPORTSTRLEN];
       Debug("udpnet", "ink bind failed on %s", ats_ip_nptop(local_addr, buff, sizeof(buff)));
@@ -1035,14 +1035,14 @@ UDPNetHandler::UDPNetHandler()
 {
   nextCheck = Thread::get_hrtime_updated() + HRTIME_MSECONDS(1000);
   lastCheck = 0;
-  SET_HANDLER((UDPNetContHandler)&UDPNetHandler::startNetEvent);
+  SET_HANDLER(&UDPNetHandler::startNetEvent);
 }
 
 int
 UDPNetHandler::startNetEvent(int event, Event *e)
 {
   (void)event;
-  SET_HANDLER((UDPNetContHandler)&UDPNetHandler::mainNetEvent);
+  SET_HANDLER(&UDPNetHandler::mainNetEvent);
   trigger_event = e;
   e->schedule_every(-HRTIME_MSECONDS(UDP_NH_PERIOD));
   return EVENT_CONT;

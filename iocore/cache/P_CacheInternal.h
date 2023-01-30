@@ -28,6 +28,7 @@
 
 #include "HTTP.h"
 #include "P_CacheHttp.h"
+#include "P_CacheHosting.h"
 
 struct EvacuationBlock;
 
@@ -113,6 +114,8 @@ enum {
   cache_read_active_stat,
   cache_read_success_stat,
   cache_read_failure_stat,
+  cache_read_seek_fail_stat,
+  cache_read_invalid_stat,
   cache_write_active_stat,
   cache_write_success_stat,
   cache_write_failure_stat,
@@ -207,6 +210,7 @@ extern RecRawStatBlock *cache_rsb;
 // Configuration
 extern int cache_config_dir_sync_frequency;
 extern int cache_config_http_max_alts;
+extern int cache_config_log_alternate_eviction;
 extern int cache_config_permit_pinning;
 extern int cache_config_select_alternate;
 extern int cache_config_max_doc_size;
@@ -613,9 +617,9 @@ free_CacheVC(CacheVC *cont)
   cont->blocks.clear();
   cont->writer_buf.clear();
   cont->alternate_index = CACHE_ALT_INDEX_DEFAULT;
-  if (cont->scan_vol_map) {
-    ats_free(cont->scan_vol_map);
-  }
+
+  ats_free(cont->scan_vol_map);
+
   memset((char *)&cont->vio, 0, cont->size_to_init);
 #ifdef CACHE_STAT_PAGES
   ink_assert(!cont->stat_link.next && !cont->stat_link.prev);
@@ -984,19 +988,20 @@ struct Cache {
   int total_nvol            = 0;
   int ready                 = CACHE_INITIALIZING;
   int64_t cache_size        = 0; // in store block size
-  CacheHostTable *hosttable = nullptr;
   int total_initialized_vol = 0;
   CacheType scheme          = CACHE_NONE_TYPE;
+
+  ReplaceablePtr<CacheHostTable> hosttable;
 
   int open(bool reconfigure, bool fix);
   int close();
 
   Action *lookup(Continuation *cont, const CacheKey *key, CacheFragType type, const char *hostname, int host_len);
-  inkcoreapi Action *open_read(Continuation *cont, const CacheKey *key, CacheFragType type, const char *hostname, int len);
-  inkcoreapi Action *open_write(Continuation *cont, const CacheKey *key, CacheFragType frag_type, int options = 0,
-                                time_t pin_in_cache = (time_t)0, const char *hostname = nullptr, int host_len = 0);
-  inkcoreapi Action *remove(Continuation *cont, const CacheKey *key, CacheFragType type = CACHE_FRAG_TYPE_HTTP,
-                            const char *hostname = nullptr, int host_len = 0);
+  Action *open_read(Continuation *cont, const CacheKey *key, CacheFragType type, const char *hostname, int len);
+  Action *open_write(Continuation *cont, const CacheKey *key, CacheFragType frag_type, int options = 0,
+                     time_t pin_in_cache = (time_t)0, const char *hostname = nullptr, int host_len = 0);
+  Action *remove(Continuation *cont, const CacheKey *key, CacheFragType type = CACHE_FRAG_TYPE_HTTP, const char *hostname = nullptr,
+                 int host_len = 0);
   Action *scan(Continuation *cont, const char *hostname = nullptr, int host_len = 0, int KB_per_second = 2500);
 
   Action *open_read(Continuation *cont, const CacheKey *key, CacheHTTPHdr *request, const OverridableHttpConfigParams *params,
@@ -1021,7 +1026,7 @@ struct Cache {
 };
 
 extern Cache *theCache;
-inkcoreapi extern Cache *caches[NUM_CACHE_FRAG_TYPES];
+extern Cache *caches[NUM_CACHE_FRAG_TYPES];
 
 TS_INLINE void
 Cache::generate_key(CryptoHash *hash, CacheURL *url)

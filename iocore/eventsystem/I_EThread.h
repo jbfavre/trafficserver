@@ -43,6 +43,8 @@ struct DiskHandler;
 struct EventIO;
 
 class ServerSessionPool;
+class PreWarmQueue;
+
 class Event;
 class Continuation;
 
@@ -83,6 +85,7 @@ enum ThreadType {
 class EThread : public Thread
 {
 public:
+  static thread_local EThread *this_ethread_ptr;
   /** Handler for tail of event loop.
 
       The event loop should not spin. To avoid that a tail handler is called to block for a limited time.
@@ -349,6 +352,7 @@ public:
   Event *start_event = nullptr;
 
   ServerSessionPool *server_session_pool = nullptr;
+  PreWarmQueue *prewarm_queue            = nullptr;
 
   /** Default handler used until it is overridden.
 

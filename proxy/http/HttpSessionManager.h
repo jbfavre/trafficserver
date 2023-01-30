@@ -73,7 +73,10 @@ public:
     return m_ip_pool.count();
   }
 
-protected:
+private:
+  void removeSession(PoolableSession *ssn);
+  void addSession(PoolableSession *ssn);
+
   using IPTable   = IntrusiveHashMap<PoolableSession::IPLinkage>;
   using FQDNTable = IntrusiveHashMap<PoolableSession::FQDNLinkage>;
 
@@ -92,7 +95,7 @@ public:
   */
   HSMresult_t acquireSession(sockaddr const *addr, CryptoHash const &host_hash, TSServerSessionSharingMatchMask match_style,
                              HttpSM *sm, PoolableSession *&server_session);
-  /** Release a session to to pool.
+  /** Release a session to the pool.
    */
   void releaseSession(PoolableSession *ss);
 
@@ -110,7 +113,7 @@ class HttpSessionManager
 public:
   HttpSessionManager() {}
   ~HttpSessionManager() {}
-  HSMresult_t acquire_session(Continuation *cont, sockaddr const *addr, const char *hostname, ProxyTransaction *ua_txn, HttpSM *sm);
+  HSMresult_t acquire_session(HttpSM *sm, sockaddr const *addr, const char *hostname, ProxyTransaction *ua_txn);
   HSMresult_t release_session(PoolableSession *to_release);
   void purge_keepalives();
   void init();

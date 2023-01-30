@@ -23,6 +23,7 @@
  */
 #pragma once
 
+#include <optional>
 #include <string_view>
 #include <memory>
 #include <openssl/ssl.h>
@@ -40,10 +41,18 @@ public:
 
   int perform_sni_action();
   // Callback functions for OpenSSL libraries
-#if TS_USE_HELLO_CB
+#if TS_USE_HELLO_CB || defined(OPENSSL_IS_BORINGSSL)
+#ifdef OPENSSL_IS_BORINGSSL
+  void on_client_hello(const SSL_CLIENT_HELLO *client_hello);
+#else
   void on_client_hello(SSL *ssl, int *al, void *arg);
 #endif
+#endif
   void on_servername(SSL *ssl, int *al, void *arg);
+
+  struct HintsFromSNI {
+    std::optional<uint32_t> http2_buffer_water_mark;
+  } hints_from_sni;
 
 protected:
   virtual void _fire_ssl_servername_event() = 0;

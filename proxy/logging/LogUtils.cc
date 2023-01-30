@@ -296,6 +296,8 @@ escapify_url_common(Arena *arena, char *url, size_t len_in, int *len_out, char *
   // historically this is what the traffic_server has done.
   // Note that we leave codes beyond 127 unmodified.
   //
+  // NOTE: any updates to this table should result in an update to:
+  // tools/escape_mapper/escape_mapper.cc.
   static const unsigned char codes_to_escape[32] = {
     0xFF, 0xFF, 0xFF,
     0xFF,             // control
@@ -599,7 +601,7 @@ LogUtils::file_is_writeable(const char *full_filename, off_t *size_bytes, bool *
     if (e < 0) {
       ret_val = -1;
     } else {
-      if (limit_data.rlim_cur != static_cast<rlim_t> RLIM_INFINITY) {
+      if (limit_data.rlim_cur != static_cast<rlim_t>(RLIM_INFINITY)) {
         if (has_size_limit) {
           *has_size_limit = true;
         }
@@ -670,14 +672,9 @@ marshalMimeHdr(MIMEHdr *hdr, char *buf)
   ts::FixedBufferWriter bw(buf, bwSize);
 
   if (hdr) {
-    MIMEFieldIter mfIter;
-    const MIMEField *mfp = hdr->iter_get_first(&mfIter);
-
-    while (mfp) {
-      marshalStr(bw, *mfp, &MIMEField::name_get);
-      marshalStr(bw, *mfp, &MIMEField::value_get);
-
-      mfp = hdr->iter_get_next(&mfIter);
+    for (auto const &mfp : *hdr) {
+      marshalStr(bw, mfp, &MIMEField::name_get);
+      marshalStr(bw, mfp, &MIMEField::value_get);
     }
   }
 

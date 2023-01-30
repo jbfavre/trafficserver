@@ -25,6 +25,7 @@
 // TODO: Clean up the dependency mess, and get rid of this.
 
 #include "tscore/ink_platform.h"
+#include "tscore/ink_uuid.h"
 #include "LogObject.h"
 
 #if defined(solaris)
@@ -66,13 +67,22 @@ ConfigUpdateCbTable::invoke(const char * /* name ATS_UNUSED */)
 }
 
 struct Machine {
+  IpEndpoint ip;
+  IpEndpoint ip4;
+  IpEndpoint ip6;
+
+  std::string host_name{"test.host.com"};
+  std::string ip_hex_string;
+  ATSUuid uuid;
+
   static Machine *instance();
 };
+
 Machine *
 Machine::instance()
 {
-  ink_release_assert(false);
-  return nullptr;
+  static Machine _instance;
+  return &_instance;
 }
 
 NetAccept *
@@ -112,6 +122,7 @@ NetProcessor::AcceptOptions::reset()
   sockopt_flags         = 0;
   packet_mark           = 0;
   packet_tos            = 0;
+  packet_notsent_lowat  = 0;
   f_inbound_transparent = false;
   return *this;
 }

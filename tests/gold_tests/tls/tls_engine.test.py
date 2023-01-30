@@ -27,7 +27,10 @@ Test.Summary = '''
 Test tls via the async interface with the sample async_engine
 '''
 
-Test.SkipUnless(Condition.HasOpenSSLVersion('1.1.1'))
+Test.SkipUnless(
+    Condition.HasOpenSSLVersion('1.1.1'),
+    Condition.IsOpenSSL(),
+)
 
 # Define default ATS
 ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
@@ -60,7 +63,6 @@ ts.Disk.records_config.update({
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.exec_thread.autoconfig.scale': 1.0,
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.ssl.engine.conf_file': '{0}/ts/config/load_engine.cnf'.format(Test.RunDirectory),
     'proxy.config.ssl.async.handshake.enabled': 1,
     'proxy.config.diags.debug.enabled': 0,
@@ -97,4 +99,4 @@ tr.Processes.Default.StartBefore(Test.Processes.ts, ready=When.PortOpen(ts.Varia
 tr.Processes.Default.Streams.All = Testers.ContainsExpression(r"HTTP/(2|1\.1) 200", "Request succeeds")
 tr.StillRunningAfter = server
 
-ts.Streams.All += Testers.ContainsExpression("Send signal to ", "The Async engine triggers")
+ts.Disk.traffic_out.Content += Testers.ContainsExpression("Send signal to ", "The Async engine triggers")

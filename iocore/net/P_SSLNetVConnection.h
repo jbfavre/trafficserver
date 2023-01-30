@@ -49,6 +49,7 @@
 #include "P_ALPNSupport.h"
 #include "TLSSessionResumptionSupport.h"
 #include "TLSSNISupport.h"
+#include "TLSBasicSupport.h"
 #include "P_SSLUtils.h"
 #include "P_SSLConfig.h"
 
@@ -94,7 +95,11 @@ enum SSLHandshakeStatus { SSL_HANDSHAKE_ONGOING, SSL_HANDSHAKE_DONE, SSL_HANDSHA
 //  A VConnection for a network socket.
 //
 //////////////////////////////////////////////////////////////////
-class SSLNetVConnection : public UnixNetVConnection, public ALPNSupport, public TLSSessionResumptionSupport, public TLSSNISupport
+class SSLNetVConnection : public UnixNetVConnection,
+                          public ALPNSupport,
+                          public TLSSessionResumptionSupport,
+                          public TLSSNISupport,
+                          public TLSBasicSupport
 {
   typedef UnixNetVConnection super; ///< Parent type.
 
@@ -106,9 +111,9 @@ public:
   bool
   trackFirstHandshake() override
   {
-    bool retval = sslHandshakeBeginTime == 0;
+    bool retval = this->get_tls_handshake_begin_time() == 0;
     if (retval) {
-      sslHandshakeBeginTime = Thread::get_hrtime();
+      this->_record_tls_handshake_begin_time();
     }
     return retval;
   }
@@ -138,9 +143,6 @@ public:
   ////////////////////////////////////////////////////////////
   SSLNetVConnection();
   ~SSLNetVConnection() override {}
-  static int advertise_next_protocol(SSL *ssl, const unsigned char **out, unsigned *outlen, void *);
-  static int select_next_protocol(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
-                                  unsigned inlen, void *);
 
   bool
   getSSLClientRenegotiationAbort() const
@@ -275,43 +277,6 @@ public:
     return retval;
   }
 
-  const char *
-  getSSLProtocol() const
-  {
-    return ssl ? SSL_get_version(ssl) : nullptr;
-  }
-
-  const char *
-  getSSLCipherSuite() const
-  {
-    return ssl ? SSL_get_cipher_name(ssl) : nullptr;
-  }
-
-  const char *
-  getSSLCurve() const
-  {
-    if (!ssl) {
-      return nullptr;
-    }
-    ssl_curve_id curve;
-    if (getSSLSessionCacheHit()) {
-      curve = getSSLCurveNID();
-    } else {
-      curve = SSLGetCurveNID(ssl);
-    }
-#ifndef OPENSSL_IS_BORINGSSL
-    if (curve == NID_undef) {
-      return nullptr;
-    }
-    return OBJ_nid2sn(curve);
-#else
-    if (curve == 0) {
-      return nullptr;
-    }
-    return SSL_get_curve_name(curve);
-#endif
-  }
-
   bool
   has_tunnel_destination() const
   {
@@ -333,11 +298,13 @@ public:
   bool decrypt_tunnel() const;
   bool upstream_tls() const;
   SNIRoutingType tunnel_type() const;
+  YamlSNIConfig::TunnelPreWarm tunnel_prewarm() const;
 
   void
-  set_tunnel_destination(const std::string_view &destination, SNIRoutingType type)
+  set_tunnel_destination(const std::string_view &destination, SNIRoutingType type, YamlSNIConfig::TunnelPreWarm prewarm)
   {
-    _tunnel_type = type;
+    _tunnel_type    = type;
+    _tunnel_prewarm = prewarm;
 
     auto pos = destination.find(":");
     if (nullptr != tunnel_host) {
@@ -356,17 +323,17 @@ public:
   const char *protocol_contains(std::string_view tag) const override;
 
   /**
-   * Populate the current object based on the socket information in in the
+   * Populate the current object based on the socket information in the
    * con parameter and the ssl object in the arg parameter
    * This is logic is invoked when the NetVC object is created in a new thread context
    */
   int populate(Connection &con, Continuation *c, void *arg) override;
 
-  SSL *ssl                         = nullptr;
-  ink_hrtime sslHandshakeBeginTime = 0;
-  ink_hrtime sslHandshakeEndTime   = 0;
-  ink_hrtime sslLastWriteTime      = 0;
-  int64_t sslTotalBytesSent        = 0;
+  SSL *ssl                    = nullptr;
+  ink_hrtime sslLastWriteTime = 0;
+  int64_t sslTotalBytesSent   = 0;
+
+  std::shared_ptr<SSL_SESSION> client_sess = nullptr;
 
   // The serverName is either a pointer to the (null-terminated) name fetched from the
   // SSL object or the empty string.
@@ -468,6 +435,13 @@ public:
   }
 
 protected:
+  SSL *
+  _get_ssl_object() const override
+  {
+    return this->ssl;
+  }
+  ssl_curve_id _get_tls_curve() const override;
+
   const IpEndpoint &
   _getLocalEndpoint() override
   {
@@ -485,6 +459,7 @@ private:
 
   enum SSLHandshakeStatus sslHandshakeStatus = SSL_HANDSHAKE_ONGOING;
   bool sslClientRenegotiationAbort           = false;
+  bool first_ssl_connect                     = true;
   MIOBuffer *handShakeBuffer                 = nullptr;
   IOBufferReader *handShakeHolder            = nullptr;
   IOBufferReader *handShakeReader            = nullptr;
@@ -514,10 +489,13 @@ private:
     HANDSHAKE_HOOKS_DONE
   } sslHandshakeHookState = HANDSHAKE_HOOKS_PRE;
 
-  int64_t redoWriteSize       = 0;
-  char *tunnel_host           = nullptr;
-  in_port_t tunnel_port       = 0;
-  SNIRoutingType _tunnel_type = SNIRoutingType::NONE;
+  int64_t redoWriteSize = 0;
+
+  char *tunnel_host                            = nullptr;
+  in_port_t tunnel_port                        = 0;
+  SNIRoutingType _tunnel_type                  = SNIRoutingType::NONE;
+  YamlSNIConfig::TunnelPreWarm _tunnel_prewarm = YamlSNIConfig::TunnelPreWarm::UNSET;
+
   X509_STORE_CTX *verify_cert = nullptr;
 
   // Null-terminated string, or nullptr if there is no SNI server name.
@@ -530,6 +508,12 @@ private:
   void _make_ssl_connection(SSL_CTX *ctx);
   void _bindSSLObject();
   void _unbindSSLObject();
+
+  int _ssl_read_from_net(EThread *lthread, int64_t &ret);
+  ssl_error_t _ssl_read_buffer(void *buf, int64_t nbytes, int64_t &nread);
+  ssl_error_t _ssl_write_buffer(const void *buf, int64_t nbytes, int64_t &nwritten);
+  ssl_error_t _ssl_connect();
+  ssl_error_t _ssl_accept();
 };
 
 typedef int (SSLNetVConnection::*SSLNetVConnHandler)(int, void *);
@@ -543,6 +527,12 @@ inline SNIRoutingType
 SSLNetVConnection::tunnel_type() const
 {
   return _tunnel_type;
+}
+
+inline YamlSNIConfig::TunnelPreWarm
+SSLNetVConnection::tunnel_prewarm() const
+{
+  return _tunnel_prewarm;
 }
 
 /**

@@ -274,22 +274,6 @@ Span::~Span()
   }
 }
 
-static int
-get_int64(int fd, int64_t &data)
-{
-  char buf[PATH_NAME_MAX];
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-    return (-1);
-  }
-  // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-  // so the next statement should be a safe use of sscanf
-  // coverity[secure_coding]
-  if (sscanf(buf, "%" PRId64 "", &data) != 1) {
-    return (-1);
-  }
-  return 0;
-}
-
 int
 Store::remove(char *n)
 {
@@ -319,7 +303,6 @@ Result
 Store::read_config()
 {
   int n_dsstore   = 0;
-  int ln          = 0;
   int i           = 0;
   const char *err = nullptr;
   Span *sd = nullptr, *cur = nullptr;
@@ -342,10 +325,6 @@ Store::read_config()
   while ((len = ink_file_fd_readline(fd, sizeof(line), line)) > 0) {
     const char *path;
     const char *seed = nullptr;
-    // update lines
-
-    ++ln;
-
     // Because the SimpleTokenizer is a bit too simple, we have to normalize whitespace.
     for (char *spot = line, *limit = line + len; spot < limit; ++spot) {
       if (ParseRules::is_space(*spot)) {
@@ -753,202 +732,6 @@ Store::alloc(Store &s, unsigned int blocks, bool one_only, bool mmapable)
       }
     }
   }
-}
-
-int
-Span::write(int fd) const
-{
-  char buf[32];
-
-  if (ink_file_fd_writestring(fd, (pathname ? pathname.get() : ")")) == -1) {
-    return (-1);
-  }
-  if (ink_file_fd_writestring(fd, "\n") == -1) {
-    return (-1);
-  }
-
-  snprintf(buf, sizeof(buf), "%" PRId64 "\n", blocks);
-  if (ink_file_fd_writestring(fd, buf) == -1) {
-    return (-1);
-  }
-
-  snprintf(buf, sizeof(buf), "%d\n", file_pathname);
-  if (ink_file_fd_writestring(fd, buf) == -1) {
-    return (-1);
-  }
-
-  snprintf(buf, sizeof(buf), "%" PRId64 "\n", offset);
-  if (ink_file_fd_writestring(fd, buf) == -1) {
-    return (-1);
-  }
-
-  snprintf(buf, sizeof(buf), "%d\n", static_cast<int>(is_mmapable()));
-  if (ink_file_fd_writestring(fd, buf) == -1) {
-    return (-1);
-  }
-
-  return 0;
-}
-
-int
-Store::write(int fd, const char *name) const
-{
-  char buf[32];
-
-  if (ink_file_fd_writestring(fd, name) == -1) {
-    return (-1);
-  }
-  if (ink_file_fd_writestring(fd, "\n") == -1) {
-    return (-1);
-  }
-
-  snprintf(buf, sizeof(buf), "%d\n", n_disks);
-  if (ink_file_fd_writestring(fd, buf) == -1) {
-    return (-1);
-  }
-
-  for (unsigned i = 0; i < n_disks; i++) {
-    int n    = 0;
-    Span *sd = nullptr;
-    for (sd = disk[i]; sd; sd = sd->link.next) {
-      n++;
-    }
-
-    snprintf(buf, sizeof(buf), "%d\n", n);
-    if (ink_file_fd_writestring(fd, buf) == -1) {
-      return (-1);
-    }
-
-    for (sd = disk[i]; sd; sd = sd->link.next) {
-      if (sd->write(fd)) {
-        return -1;
-      }
-    }
-  }
-  return 0;
-}
-
-int
-Span::read(int fd)
-{
-  char buf[PATH_NAME_MAX], p[PATH_NAME_MAX];
-
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-    return (-1);
-  }
-  // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-  // so the next statement should be a safe use of sscanf
-  // coverity[secure_coding]
-  if (sscanf(buf, "%s", p) != 1) {
-    return (-1);
-  }
-  pathname = ats_strdup(p);
-  if (get_int64(fd, blocks) < 0) {
-    return -1;
-  }
-
-  int b = 0;
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-    return (-1);
-  }
-  // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-  // so the next statement should be a safe use of sscanf
-  // coverity[secure_coding]
-  if (sscanf(buf, "%d", &b) != 1) {
-    return (-1);
-  }
-  file_pathname = (b ? true : false);
-
-  if (get_int64(fd, offset) < 0) {
-    return -1;
-  }
-
-  int tmp;
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-    return (-1);
-  }
-  // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-  // so the next statement should be a safe use of sscanf
-  // coverity[secure_coding]
-  if (sscanf(buf, "%d", &tmp) != 1) {
-    return (-1);
-  }
-  set_mmapable(tmp != 0);
-
-  return (0);
-}
-
-int
-Store::read(int fd, char *aname)
-{
-  char *name = aname;
-  char tname[PATH_NAME_MAX];
-  char buf[PATH_NAME_MAX];
-  if (!aname) {
-    name = tname;
-  }
-
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-    return (-1);
-  }
-  // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-  // so the next statement should be a safe use of sscanf
-  // coverity[secure_coding]
-  if (sscanf(buf, "%s\n", name) != 1) {
-    return (-1);
-  }
-
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-    return (-1);
-  }
-  // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-  // so the next statement should be a safe use of sscanf
-  // coverity[secure_coding]
-  if (sscanf(buf, "%d\n", &n_disks) != 1) {
-    return (-1);
-  }
-
-  disk = static_cast<Span **>(ats_malloc(sizeof(Span *) * n_disks));
-  if (!disk) {
-    return -1;
-  }
-  memset(disk, 0, sizeof(Span *) * n_disks);
-  for (unsigned i = 0; i < n_disks; i++) {
-    int n = 0;
-
-    if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
-      return (-1);
-    }
-    // the above line will guarantee buf to be no longer than PATH_NAME_MAX
-    // so the next statement should be a safe use of sscanf
-    // coverity[secure_coding]
-    if (sscanf(buf, "%d\n", &n) != 1) {
-      return (-1);
-    }
-
-    Span *sd = nullptr;
-    while (n--) {
-      Span *last = sd;
-      sd         = new Span;
-
-      if (!last) {
-        disk[i] = sd;
-      } else {
-        last->link.next = sd;
-      }
-      if (sd->read(fd)) {
-        goto Lbail;
-      }
-    }
-  }
-  return 0;
-Lbail:
-  for (unsigned i = 0; i < n_disks; i++) {
-    if (disk[i]) {
-      delete disk[i];
-    }
-  }
-  return -1;
 }
 
 Span *

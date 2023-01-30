@@ -18,6 +18,7 @@ Verify correct log retention behavior.
 #  limitations under the License.
 
 import os
+import socket
 
 Test.Summary = '''
 Test the enforcement of proxy.config.log.max_space_mb_for_logs.
@@ -46,7 +47,7 @@ class TestLogRetention:
     }
 
     __server = None
-    __ts_counter = 1
+    __ts_counter = 0
     __server_is_started = False
 
     def __init__(self, records_config, run_description, command="traffic_manager"):
@@ -144,14 +145,17 @@ class TestLogRetention:
 
 
 #
-# Run 1: Verify that log deletion happens when no min_count is specified.
+# Test 0: Verify that log deletion happens when no min_count is specified.
 #
+specified_hostname = 'my_hostname'
 twelve_meg_log_space = {
     # The following configures a 12 MB log cap with a required 2 MB head room.
     # Thus the rotated log of just over 10 MB should be deleted because it
     # will not leave enough head room.
     'proxy.config.log.max_space_mb_headroom': 2,
     'proxy.config.log.max_space_mb_for_logs': 12,
+    # Verify that setting a hostname changes the hostname used in rolled logs.
+    'proxy.config.log.hostname': specified_hostname,
 }
 test = TestLogRetention(twelve_meg_log_space,
                         "Verify log rotation and deletion of the configured log file with no min_count.")
@@ -170,24 +174,24 @@ logging:
 )
 
 # Verify that each log type was registered for auto-deletion.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "Registering rotated log deletion for test_deletion.log with min roll count 0",
     "Verify test_deletion.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for error.log with min roll count 0",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for traffic.out with min roll count 0",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for diags.log with min roll count 0",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for manager.log with min roll count 0",
     "Verify manager.log auto-delete configuration")
 # Verify test_deletion was rotated and deleted.
-test.ts.Streams.stderr += Testers.ContainsExpression(
-    "The rolled logfile.*test_deletion.log_.*was auto-deleted.*bytes were reclaimed",
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
+    f"The rolled logfile.*test_deletion.log_{specified_hostname}.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed")
 
 test.tr.Processes.Default.Command = test.get_command_to_rotate_once()
@@ -198,7 +202,7 @@ test.tr.StillRunningAfter = test.server
 
 
 #
-# Test 2: Verify log deletion happens with a min_count of 1.
+# Test 1: Verify log deletion happens with a min_count of 1.
 #
 test = TestLogRetention(twelve_meg_log_space,
                         "Verify log rotation and deletion of the configured log file with a min_count of 1.")
@@ -218,25 +222,25 @@ logging:
 )
 
 # Verify that each log type was registered for auto-deletion.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "Registering rotated log deletion for test_deletion.log with min roll count 1",
     "Verify test_deletion.log auto-delete configuration")
 # Only the test_deletion should have its min_count overridden.
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for error.log with min roll count 0",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for traffic.out with min roll count 0",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for diags.log with min roll count 0",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for manager.log with min roll count 0",
     "Verify manager.log auto-delete configuration")
 # Verify test_deletion was rotated and deleted.
-test.ts.Streams.stderr += Testers.ContainsExpression(
-    "The rolled logfile.*test_deletion.log_.*was auto-deleted.*bytes were reclaimed",
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
+    f"The rolled logfile.*test_deletion.log_{specified_hostname}.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed")
 
 test.tr.Processes.Default.Command = test.get_command_to_rotate_once()
@@ -246,30 +250,30 @@ test.tr.StillRunningAfter = test.server
 
 
 #
-# Test 3: Verify log deletion happens for a plugin's logs.
+# Test 2: Verify log deletion happens for a plugin's logs.
 #
 test = TestLogRetention(twelve_meg_log_space,
                         "Verify log rotation and deletion of plugin logs.")
 Test.PrepareTestPlugin(os.path.join(Test.Variables.AtsTestPluginsDir, 'test_log_interface.so'), test.ts)
 
 # Verify that the plugin's logs and other core logs were registered for deletion.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "Registering rotated log deletion for test_log_interface.log with min roll count 0",
     "Verify test_log_interface.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for error.log with min roll count 0",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for traffic.out with min roll count 0",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for diags.log with min roll count 0",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for manager.log with min roll count 0",
     "Verify manager.log auto-delete configuration")
 # Verify test_deletion was rotated and deleted.
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "The rolled logfile.*test_log_interface.log_.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed")
 
@@ -279,7 +283,7 @@ test.tr.StillRunningAfter = test.ts
 test.tr.StillRunningAfter = test.server
 
 #
-# Test 4: Verify log deletion priority behavior.
+# Test 3: Verify log deletion priority behavior.
 #
 twenty_two_meg_log_space = {
     # The following configures a 22 MB log cap with a required 2 MB head room.
@@ -309,31 +313,35 @@ logging:
 )
 
 # Verify that each log type was registered for auto-deletion.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "Registering rotated log deletion for test_low_priority_deletion.log with min roll count 5",
     "Verify test_low_priority_deletion.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for test_high_priority_deletion.log with min roll count 1",
     "Verify test_high_priority_deletion.log auto-delete configuration")
 # Only the test_deletion should have its min_count overridden.
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for error.log with min roll count 0",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for traffic.out with min roll count 0",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for diags.log with min roll count 0",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for manager.log with min roll count 0",
     "Verify manager.log auto-delete configuration")
 # Verify test_deletion was rotated and deleted.
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "The rolled logfile.*test_low_priority_deletion.log_.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed from test_high_priority_deletion")
-test.ts.Streams.stderr += Testers.ContainsExpression(
-    "The rolled logfile.*test_high_priority_deletion.log_.*was auto-deleted.*bytes were reclaimed",
+
+# Verify that ATS derives the hostname correctly if the user does not specify a
+# hostname via 'proxy.config.log.hostname'.
+hostname = socket.gethostname()
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
+    f"The rolled logfile.*test_high_priority_deletion.log_{hostname}.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed from test_high_priority_deletion")
 
 test.tr.Processes.Default.Command = test.get_command_to_rotate_once()
@@ -342,7 +350,7 @@ test.tr.StillRunningAfter = test.ts
 test.tr.StillRunningAfter = test.server
 
 #
-# Test 5: Verify min_count configuration overrides.
+# Test 4: Verify min_count configuration overrides.
 #
 various_min_count_overrides = {
     'proxy.config.log.max_space_mb_for_logs': 22,
@@ -354,21 +362,21 @@ test = TestLogRetention(various_min_count_overrides,
                         "Verify that the various min_count configurations behave as expected")
 
 # Only the test_deletion should have its min_count overridden.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "Registering rotated log deletion for error.log with min roll count 3",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for traffic.out with min roll count 4",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for diags.log with min roll count 5",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for manager.log with min roll count 5",
     "Verify manager.log auto-delete configuration")
 # In case a future log is added, make sure the developer doesn't forget to
 # set the min count per configuration.
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "Registering .* with min roll count 0",
     "Verify nothing has a default min roll count of 0 per configuration")
 
@@ -381,11 +389,13 @@ test.tr.StillRunningAfter = test.server
 
 
 #
-# Test 6: Verify log deletion does not happen when it is disabled.
+# Test 5: Verify log deletion does not happen when it is disabled.
 #
 auto_delete_disabled = twelve_meg_log_space.copy()
 auto_delete_disabled.update({
     'proxy.config.log.auto_delete_rolled_files': 0,
+    # Verify that setting a hostname changes the hostname used in rolled logs.
+    'proxy.config.log.hostname': 'my_hostname',
 })
 test = TestLogRetention(auto_delete_disabled,
                         "Verify log deletion does not happen when auto-delet is disabled.")
@@ -405,24 +415,24 @@ logging:
 )
 
 # Verify that each log type was registered for auto-deletion.
-test.ts.Streams.stderr = Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content = Testers.ExcludesExpression(
     "Registering rotated log deletion for test_deletion.log with min roll count 1",
     "Verify test_deletion.log auto-delete configuration")
 # Only the test_deletion should have its min_count overridden.
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "Registering rotated log deletion for error.log with min roll count 0",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "Registering rotated log deletion for traffic.out with min roll count 0",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "Registering rotated log deletion for diags.log with min roll count 0",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "Registering rotated log deletion for manager.log with min roll count 0",
     "Verify manager.log auto-delete configuration")
 # Verify test_deletion was not deleted.
-test.ts.Streams.stderr += Testers.ExcludesExpression(
+test.ts.Disk.traffic_out.Content += Testers.ExcludesExpression(
     "The rolled logfile.*test_deletion.log_.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed")
 
@@ -432,7 +442,7 @@ test.tr.StillRunningAfter = test.ts
 test.tr.StillRunningAfter = test.server
 
 #
-# Test 7: Verify that max_roll_count is respected.
+# Test 6: Verify that max_roll_count is respected.
 #
 max_roll_count_of_2 = {
     'proxy.config.diags.debug.tags': 'log-file',
@@ -462,7 +472,7 @@ logging:
 )
 
 # Verify that trim happened for the rolled file.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "rolled logfile.*test_deletion.log.*old.* was auto-deleted",
     "Verify test_deletion.log was trimmed")
 
@@ -472,7 +482,7 @@ test.tr.StillRunningAfter = test.ts
 test.tr.StillRunningAfter = test.server
 
 #
-# Test 8: Verify log deletion happens after a config reload.
+# Test 7: Verify log deletion happens after a config reload.
 #
 test = TestLogRetention(twelve_meg_log_space,
                         "Verify log rotation and deletion after a config reload.")
@@ -490,23 +500,23 @@ logging:
 )
 
 # Verify that the plugin's logs and other core logs were registered for deletion.
-test.ts.Streams.stderr = Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content = Testers.ContainsExpression(
     "Registering rotated log deletion for test_deletion.log with min roll count 0",
     "Verify test_deletion.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for error.log with min roll count 0",
     "Verify error.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for traffic.out with min roll count 0",
     "Verify traffic.out auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for diags.log with min roll count 0",
     "Verify diags.log auto-delete configuration")
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Registering rotated log deletion for manager.log with min roll count 0",
     "Verify manager.log auto-delete configuration")
 # Verify test_deletion was rotated and deleted.
-test.ts.Streams.stderr += Testers.ContainsExpression(
+test.ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "The rolled logfile.*test_deletion.log_.*was auto-deleted.*bytes were reclaimed",
     "Verify that space was reclaimed")
 

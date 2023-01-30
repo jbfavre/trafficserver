@@ -51,11 +51,65 @@
 #define tsapi
 #endif
 
+/** Apply printf format string compile-time argument checking to a function.
+ *
+ *
+ * For example, given the following function from DiagsTypes.h:
+ *
+ * @code
+ * class Diags {
+ *
+ * ...
+ *
+ * void
+ * print(
+ *     const char *tag,
+ *     DiagsLevel level,
+ *     const SourceLocation *loc,
+ *     const char *fmt,
+ *     ...) const;
+ *
+ * ...
+ *
+ * };
+ * @endcode
+ *
+ * This macro can be used to apply compiler checking for ... against the fmt
+ * argument like so:
+ *
+ *
+ * @code
+ * class Diags {
+ *
+ * ...
+ *
+ * void
+ * print(
+ *     const char *tag,
+ *     DiagsLevel level,
+ *     const SourceLocation *loc,
+ *     const char *fmt,
+ *     ...) const TS_PRINTFLIKE(5, 6);
+ *
+ * ...
+ *
+ * };
+ * @endcode
+ *
+ * Note in this case, (5, 6) rather than (4, 5) is passed because `this`
+ * counts as the implicit first parameter of this member function.
+ *
+ * @param[in] fmt_index The index of the format string argument, with argument
+ * indexing starting at 1.
+ *
+ * @param[in] arg_index The index of the first format argument string, with
+ * argument indexing starting at 1.
+ */
 #if !defined(TS_PRINTFLIKE)
 #if defined(__GNUC__) || defined(__clang__)
-#define TS_PRINTFLIKE(fmt, arg) __attribute__((format(printf, fmt, arg)))
+#define TS_PRINTFLIKE(fmt_index, arg_index) __attribute__((format(printf, fmt_index, arg_index)))
 #else
-#define TS_PRINTFLIKE(fmt, arg)
+#define TS_PRINTFLIKE(fmt_index, arg_index)
 #endif
 #endif
 
@@ -384,6 +438,7 @@ typedef enum {
   TS_LIFECYCLE_MSG_HOOK,
   TS_LIFECYCLE_TASK_THREADS_READY_HOOK,
   TS_LIFECYCLE_SHUTDOWN_HOOK,
+  TS_LIFECYCLE_SSL_SECRET_HOOK,
   TS_LIFECYCLE_LAST_HOOK
 } TSLifecycleHookID;
 
@@ -497,6 +552,7 @@ typedef enum {
   TS_EVENT_SSL_VERIFY_SERVER = 60205,
   TS_EVENT_SSL_VERIFY_CLIENT = 60206,
   TS_EVENT_SSL_CLIENT_HELLO  = 60207,
+  TS_EVENT_SSL_SECRET        = 60208,
 
   TS_EVENT_MGMT_UPDATE = 60300
 } TSEvent;
@@ -586,6 +642,12 @@ typedef enum {
   TS_IOBUFFER_SIZE_INDEX_1M   = 13,
   TS_IOBUFFER_SIZE_INDEX_2M   = 14
 } TSIOBufferSizeIndex;
+
+typedef enum {
+  TS_IOBUFFER_WATER_MARK_UNDEFINED         = -1,
+  TS_IOBUFFER_WATER_MARK_PLUGIN_VC_DEFAULT = 0,     // mirror of DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK
+  TS_IOBUFFER_WATER_MARK_HTTP_DEFAULT      = 32768, // mirror of default_buffer_water_mark
+} TSIOBufferWaterMark;
 
 typedef enum {
   TS_ERROR   = -1,
@@ -793,7 +855,11 @@ typedef enum {
   TS_CONFIG_HTTP_SERVER_MIN_KEEP_ALIVE_CONNS,
   TS_CONFIG_HTTP_PER_SERVER_CONNECTION_MAX,
   TS_CONFIG_HTTP_PER_SERVER_CONNECTION_MATCH,
+#if TS_VERSION_MAJOR < 10
+  /* This is kept in the 9.x releases to preserve the ABI. Remove this in the
+   * 10 release. */
   TS_CONFIG_SSL_CLIENT_VERIFY_SERVER,
+#endif
   TS_CONFIG_SSL_CLIENT_VERIFY_SERVER_POLICY,
   TS_CONFIG_SSL_CLIENT_VERIFY_SERVER_PROPERTIES,
   TS_CONFIG_SSL_CLIENT_SNI_POLICY,
@@ -801,6 +867,13 @@ typedef enum {
   TS_CONFIG_SSL_CLIENT_CA_CERT_FILENAME,
   TS_CONFIG_HTTP_HOST_RESOLUTION_PREFERENCE,
   TS_CONFIG_HTTP_CONNECT_DEAD_POLICY,
+  TS_CONFIG_HTTP_MAX_PROXY_CYCLES,
+  TS_CONFIG_PLUGIN_VC_DEFAULT_BUFFER_INDEX,
+  TS_CONFIG_PLUGIN_VC_DEFAULT_BUFFER_WATER_MARK,
+  TS_CONFIG_NET_SOCK_NOTSENT_LOWAT,
+  TS_CONFIG_BODY_FACTORY_RESPONSE_SUPPRESSION_MODE,
+  TS_CONFIG_HTTP_ENABLE_PARENT_TIMEOUT_MARKDOWNS,
+  TS_CONFIG_HTTP_DISABLE_PARENT_MARKDOWNS,
   TS_CONFIG_LAST_ENTRY
 } TSOverridableConfigKey;
 
@@ -978,6 +1051,24 @@ typedef struct TSSslSessionID_s {
   size_t len;
   char bytes[TS_SSL_MAX_SSL_SESSION_ID_LENGTH];
 } TSSslSessionID;
+
+typedef struct TSSecretID_s {
+  const char *cert_name;
+  size_t cert_name_len;
+  const char *key_name;
+  size_t key_name_len;
+} TSSecretID;
+
+typedef enum { TS_CONNECT_UNDEFINED, TS_CONNECT_PLUGIN, TS_CONNECT_LAST_ENTRY } TSConnectType;
+
+typedef struct TSHttpConnectOptions_s {
+  TSConnectType connect_type;
+  struct sockaddr const *addr;
+  const char *tag;
+  int64_t id;
+  TSIOBufferSizeIndex buffer_index;
+  TSIOBufferWaterMark buffer_water_mark;
+} TSHttpConnectOptions;
 
 /* --------------------------------------------------------------------------
    Init */
@@ -1198,6 +1289,7 @@ extern tsapi const char *TS_HTTP_VALUE_CLOSE;
 extern tsapi const char *TS_HTTP_VALUE_COMPRESS;
 extern tsapi const char *TS_HTTP_VALUE_DEFLATE;
 extern tsapi const char *TS_HTTP_VALUE_GZIP;
+extern tsapi const char *TS_HTTP_VALUE_BROTLI;
 extern tsapi const char *TS_HTTP_VALUE_IDENTITY;
 extern tsapi const char *TS_HTTP_VALUE_KEEP_ALIVE;
 extern tsapi const char *TS_HTTP_VALUE_MAX_AGE;
@@ -1221,6 +1313,7 @@ extern tsapi int TS_HTTP_LEN_CLOSE;
 extern tsapi int TS_HTTP_LEN_COMPRESS;
 extern tsapi int TS_HTTP_LEN_DEFLATE;
 extern tsapi int TS_HTTP_LEN_GZIP;
+extern tsapi int TS_HTTP_LEN_BROTLI;
 extern tsapi int TS_HTTP_LEN_IDENTITY;
 extern tsapi int TS_HTTP_LEN_KEEP_ALIVE;
 extern tsapi int TS_HTTP_LEN_MAX_AGE;
@@ -1309,6 +1402,26 @@ extern tsapi const char *const TS_PROTO_TAG_IPV6;
 #define TS_NULL_MLOC ((TSMLoc)0)
 
 /* --------------------------------------------------------------------------
+   HostStatus types */
+
+typedef enum {
+  TS_HOST_STATUS_INIT,
+  TS_HOST_STATUS_DOWN,
+  TS_HOST_STATUS_UP,
+} TSHostStatus;
+
+/* MUST match proxy/HostStatus.h Reason.
+ * If a value is added here, it MUST be added there with the same value.
+ */
+typedef enum {
+  TS_HOST_STATUS_ACTIVE      = 0x1,
+  TS_HOST_STATUS_LOCAL       = 0x2,
+  TS_HOST_STATUS_MANUAL      = 0x4,
+  TS_HOST_STATUS_SELF_DETECT = 0x8,
+  TS_HOST_STATUS_ALL         = 0xf,
+} TSHostStatusReason;
+
+/* --------------------------------------------------------------------------
    Interface for the UUID APIs. https://www.ietf.org/rfc/rfc4122.txt. */
 typedef enum {
   TS_UUID_UNDEFINED = 0,
@@ -1322,6 +1435,17 @@ typedef enum {
 #define TS_UUID_STRING_LEN 36
 #define TS_CRUUID_STRING_LEN (TS_UUID_STRING_LEN + 19 + 1) /* UUID-len + len(uint64_t) + '-' */
 typedef struct tsapi_uuid *TSUuid;
+
+/* Various HTTP "control" modes */
+typedef enum {
+  TS_HTTP_CNTL_LOGGING_MODE,
+  TS_HTTP_CNTL_INTERCEPT_RETRY_MODE,
+  TS_HTTP_CNTL_RESPONSE_CACHEABLE,
+  TS_HTTP_CNTL_REQUEST_CACHEABLE,
+  TS_HTTP_CNTL_SERVER_NO_STORE,
+  TS_HTTP_CNTL_TXN_DEBUG,
+  TS_HTTP_CNTL_SKIP_REMAPPING
+} TSHttpCntlType;
 
 #ifdef __cplusplus
 namespace ts

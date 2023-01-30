@@ -121,10 +121,11 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 @BUILD_TESTS_TRUE@am__append_1 = RegressionHttpTransact.cc
-check_PROGRAMS = test_proxy_http$(EXEEXT)
+check_PROGRAMS = test_proxy_http$(EXEEXT) test_PreWarm$(EXEEXT)
 subdir = proxy/http
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_cc_for_build.m4 \
 	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
@@ -144,7 +145,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
-	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/mimalloc.m4 $(top_srcdir)/build/network.m4 \
+	$(top_srcdir)/build/nuraft.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
@@ -167,28 +169,41 @@ libhttp_a_LIBADD =
 am__libhttp_a_SOURCES_DIST = HttpSessionAccept.cc HttpSessionAccept.h \
 	HttpBodyFactory.cc HttpBodyFactory.h HttpCacheSM.cc \
 	HttpCacheSM.h Http1ClientSession.cc Http1ClientSession.h \
-	Http1Transaction.cc Http1Transaction.h HttpConfig.cc \
-	HttpConfig.h HttpConnectionCount.cc HttpConnectionCount.h \
-	HttpDebugNames.cc HttpDebugNames.h HttpPages.cc HttpPages.h \
+	Http1ClientTransaction.cc Http1Transaction.h \
+	Http1ClientTransaction.h Http1ServerTransaction.h \
+	Http1ServerTransaction.cc HttpConfig.cc HttpConfig.h \
+	HttpConnectionCount.cc HttpConnectionCount.h HttpDebugNames.cc \
+	HttpDebugNames.h HttpPages.cc HttpPages.h \
 	HttpProxyServerMain.cc HttpProxyServerMain.h HttpSM.cc \
 	HttpSM.h Http1ServerSession.cc Http1ServerSession.h \
 	HttpSessionManager.cc HttpSessionManager.h HttpTransact.cc \
 	HttpTransact.h HttpTransactCache.cc HttpTransactCache.h \
 	HttpTransactHeaders.cc HttpTransactHeaders.h HttpTunnel.cc \
-	HttpTunnel.h ForwardedConfig.cc RegressionHttpTransact.cc
+	HttpTunnel.h ForwardedConfig.cc PreWarmConfig.cc \
+	PreWarmManager.cc RegressionHttpTransact.cc
 @BUILD_TESTS_TRUE@am__objects_1 = RegressionHttpTransact.$(OBJEXT)
 am_libhttp_a_OBJECTS = HttpSessionAccept.$(OBJEXT) \
 	HttpBodyFactory.$(OBJEXT) HttpCacheSM.$(OBJEXT) \
-	Http1ClientSession.$(OBJEXT) Http1Transaction.$(OBJEXT) \
-	HttpConfig.$(OBJEXT) HttpConnectionCount.$(OBJEXT) \
-	HttpDebugNames.$(OBJEXT) HttpPages.$(OBJEXT) \
-	HttpProxyServerMain.$(OBJEXT) HttpSM.$(OBJEXT) \
-	Http1ServerSession.$(OBJEXT) HttpSessionManager.$(OBJEXT) \
-	HttpTransact.$(OBJEXT) HttpTransactCache.$(OBJEXT) \
-	HttpTransactHeaders.$(OBJEXT) HttpTunnel.$(OBJEXT) \
-	ForwardedConfig.$(OBJEXT) $(am__objects_1)
+	Http1ClientSession.$(OBJEXT) Http1ClientTransaction.$(OBJEXT) \
+	Http1ServerTransaction.$(OBJEXT) HttpConfig.$(OBJEXT) \
+	HttpConnectionCount.$(OBJEXT) HttpDebugNames.$(OBJEXT) \
+	HttpPages.$(OBJEXT) HttpProxyServerMain.$(OBJEXT) \
+	HttpSM.$(OBJEXT) Http1ServerSession.$(OBJEXT) \
+	HttpSessionManager.$(OBJEXT) HttpTransact.$(OBJEXT) \
+	HttpTransactCache.$(OBJEXT) HttpTransactHeaders.$(OBJEXT) \
+	HttpTunnel.$(OBJEXT) ForwardedConfig.$(OBJEXT) \
+	PreWarmConfig.$(OBJEXT) PreWarmManager.$(OBJEXT) \
+	$(am__objects_1)
 libhttp_a_OBJECTS = $(am_libhttp_a_OBJECTS)
 am__dirstamp = $(am__leading_dot)dirstamp
+am_test_PreWarm_OBJECTS =  \
+	unit_tests/test_PreWarm-test_PreWarm.$(OBJEXT)
+test_PreWarm_OBJECTS = $(am_test_PreWarm_OBJECTS)
+test_PreWarm_DEPENDENCIES = $(top_builddir)/src/tscore/libtscore.la
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
 am_test_proxy_http_OBJECTS =  \
 	unit_tests/test_proxy_http-unit_test_main.$(OBJEXT) \
 	unit_tests/test_proxy_http-test_ForwardedConfig.$(OBJEXT) \
@@ -206,10 +221,6 @@ test_proxy_http_DEPENDENCIES =  \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/iocore/utils/libinkutils.a
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
-am__v_lt_1 = 
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -227,19 +238,22 @@ depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/ForwardedConfig.Po \
 	./$(DEPDIR)/Http1ClientSession.Po \
+	./$(DEPDIR)/Http1ClientTransaction.Po \
 	./$(DEPDIR)/Http1ServerSession.Po \
-	./$(DEPDIR)/Http1Transaction.Po ./$(DEPDIR)/HttpBodyFactory.Po \
-	./$(DEPDIR)/HttpCacheSM.Po ./$(DEPDIR)/HttpConfig.Po \
-	./$(DEPDIR)/HttpConnectionCount.Po \
+	./$(DEPDIR)/Http1ServerTransaction.Po \
+	./$(DEPDIR)/HttpBodyFactory.Po ./$(DEPDIR)/HttpCacheSM.Po \
+	./$(DEPDIR)/HttpConfig.Po ./$(DEPDIR)/HttpConnectionCount.Po \
 	./$(DEPDIR)/HttpDebugNames.Po ./$(DEPDIR)/HttpPages.Po \
 	./$(DEPDIR)/HttpProxyServerMain.Po ./$(DEPDIR)/HttpSM.Po \
 	./$(DEPDIR)/HttpSessionAccept.Po \
 	./$(DEPDIR)/HttpSessionManager.Po ./$(DEPDIR)/HttpTransact.Po \
 	./$(DEPDIR)/HttpTransactCache.Po \
 	./$(DEPDIR)/HttpTransactHeaders.Po ./$(DEPDIR)/HttpTunnel.Po \
+	./$(DEPDIR)/PreWarmConfig.Po ./$(DEPDIR)/PreWarmManager.Po \
 	./$(DEPDIR)/RegressionHttpTransact.Po \
 	./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po \
 	./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po \
+	unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po \
 	unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po \
 	unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po \
 	unit_tests/$(DEPDIR)/test_proxy_http-unit_test_main.Po
@@ -280,8 +294,9 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libhttp_a_SOURCES) $(test_proxy_http_SOURCES)
-DIST_SOURCES = $(am__libhttp_a_SOURCES_DIST) \
+SOURCES = $(libhttp_a_SOURCES) $(test_PreWarm_SOURCES) \
+	$(test_proxy_http_SOURCES)
+DIST_SOURCES = $(am__libhttp_a_SOURCES_DIST) $(test_PreWarm_SOURCES) \
 	$(test_proxy_http_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
@@ -595,6 +610,7 @@ CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
+CC_FOR_BUILD = @CC_FOR_BUILD@
 CFLAGS = @CFLAGS@
 CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
@@ -612,6 +628,7 @@ CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
+CXX_FOR_BUILD = @CXX_FOR_BUILD@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -626,6 +643,7 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
+EXEEXT_FOR_BUILD = @EXEEXT_FOR_BUILD@
 FGREP = @FGREP@
 FILECMD = @FILECMD@
 FLEX_CFLAGS = @FLEX_CFLAGS@
@@ -683,11 +701,15 @@ MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NURAFT_INCLUDES = @NURAFT_INCLUDES@
+NURAFT_LDFLAGS = @NURAFT_LDFLAGS@
+NURAFT_LIBS = @NURAFT_LIBS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OPENSSL_INCLUDES = @OPENSSL_INCLUDES@
 OPENSSL_LDFLAGS = @OPENSSL_LDFLAGS@
 OPENSSL_LIBS = @OPENSSL_LIBS@
+OTEL_LIBS = @OTEL_LIBS@
 OTOOL = @OTOOL@
 OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
@@ -760,12 +782,10 @@ builddir = @builddir@
 cachedir = @cachedir@
 datadir = @datadir@
 datarootdir = @datarootdir@
-default_loopback_iface = @default_loopback_iface@
 default_stack_size = @default_stack_size@
 docdir = @docdir@
 dvidir = @dvidir@
 enable_fips = @enable_fips@
-enable_remote_cov_commit = @enable_remote_cov_commit@
 exec_prefix = @exec_prefix@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
@@ -795,13 +815,16 @@ has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
 has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
+has_otel = @has_otel@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_keylogging = @has_tls_keylogging@
 has_tls_session_ticket = @has_tls_session_ticket@
+has_verify_cert_store = @has_verify_cert_store@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -825,6 +848,7 @@ mandir = @mandir@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
+mimalloch = @mimalloch@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
 pdfdir = @pdfdir@
@@ -916,15 +940,18 @@ noinst_LIBRARIES = libhttp.a
 libhttp_a_SOURCES = HttpSessionAccept.cc HttpSessionAccept.h \
 	HttpBodyFactory.cc HttpBodyFactory.h HttpCacheSM.cc \
 	HttpCacheSM.h Http1ClientSession.cc Http1ClientSession.h \
-	Http1Transaction.cc Http1Transaction.h HttpConfig.cc \
-	HttpConfig.h HttpConnectionCount.cc HttpConnectionCount.h \
-	HttpDebugNames.cc HttpDebugNames.h HttpPages.cc HttpPages.h \
+	Http1ClientTransaction.cc Http1Transaction.h \
+	Http1ClientTransaction.h Http1ServerTransaction.h \
+	Http1ServerTransaction.cc HttpConfig.cc HttpConfig.h \
+	HttpConnectionCount.cc HttpConnectionCount.h HttpDebugNames.cc \
+	HttpDebugNames.h HttpPages.cc HttpPages.h \
 	HttpProxyServerMain.cc HttpProxyServerMain.h HttpSM.cc \
 	HttpSM.h Http1ServerSession.cc Http1ServerSession.h \
 	HttpSessionManager.cc HttpSessionManager.h HttpTransact.cc \
 	HttpTransact.h HttpTransactCache.cc HttpTransactCache.h \
 	HttpTransactHeaders.cc HttpTransactHeaders.h HttpTunnel.cc \
-	HttpTunnel.h ForwardedConfig.cc $(am__append_1)
+	HttpTunnel.h ForwardedConfig.cc PreWarmConfig.cc \
+	PreWarmManager.cc $(am__append_1)
 TESTS = $(check_PROGRAMS)
 test_proxy_http_CPPFLAGS = $(AM_CPPFLAGS)\
 	-I$(abs_top_srcdir)/tests/include
@@ -949,6 +976,16 @@ test_proxy_http_LDADD = \
 	$(top_builddir)/iocore/utils/libinkutils.a \
 	@HWLOC_LIBS@ \
 	@LIBCAP@
+
+test_PreWarm_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-I$(abs_top_srcdir)/tests/include
+
+test_PreWarm_LDADD = \
+	$(top_builddir)/src/tscore/libtscore.la
+
+test_PreWarm_SOURCES = \
+	unit_tests/test_PreWarm.cc
 
 all: all-recursive
 
@@ -1007,6 +1044,13 @@ unit_tests/$(am__dirstamp):
 unit_tests/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) unit_tests/$(DEPDIR)
 	@: > unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_PreWarm-test_PreWarm.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+
+test_PreWarm$(EXEEXT): $(test_PreWarm_OBJECTS) $(test_PreWarm_DEPENDENCIES) $(EXTRA_test_PreWarm_DEPENDENCIES) 
+	@rm -f test_PreWarm$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_PreWarm_OBJECTS) $(test_PreWarm_LDADD) $(LIBS)
 unit_tests/test_proxy_http-unit_test_main.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
@@ -1030,8 +1074,9 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ForwardedConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ClientSession.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ClientTransaction.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ServerSession.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1Transaction.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ServerTransaction.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpBodyFactory.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpCacheSM.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpConfig.Po@am__quote@ # am--include-marker
@@ -1046,9 +1091,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpTransactCache.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpTransactHeaders.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpTunnel.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PreWarmConfig.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PreWarmManager.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RegressionHttpTransact.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_proxy_http-unit_test_main.Po@am__quote@ # am--include-marker
@@ -1082,6 +1130,20 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
+
+unit_tests/test_PreWarm-test_PreWarm.o: unit_tests/test_PreWarm.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_PreWarm_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_PreWarm-test_PreWarm.o -MD -MP -MF unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Tpo -c -o unit_tests/test_PreWarm-test_PreWarm.o `test -f 'unit_tests/test_PreWarm.cc' || echo '$(srcdir)/'`unit_tests/test_PreWarm.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Tpo unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_PreWarm.cc' object='unit_tests/test_PreWarm-test_PreWarm.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_PreWarm_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_PreWarm-test_PreWarm.o `test -f 'unit_tests/test_PreWarm.cc' || echo '$(srcdir)/'`unit_tests/test_PreWarm.cc
+
+unit_tests/test_PreWarm-test_PreWarm.obj: unit_tests/test_PreWarm.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_PreWarm_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_PreWarm-test_PreWarm.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Tpo -c -o unit_tests/test_PreWarm-test_PreWarm.obj `if test -f 'unit_tests/test_PreWarm.cc'; then $(CYGPATH_W) 'unit_tests/test_PreWarm.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_PreWarm.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Tpo unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_PreWarm.cc' object='unit_tests/test_PreWarm-test_PreWarm.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_PreWarm_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_PreWarm-test_PreWarm.obj `if test -f 'unit_tests/test_PreWarm.cc'; then $(CYGPATH_W) 'unit_tests/test_PreWarm.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_PreWarm.cc'; fi`
 
 unit_tests/test_proxy_http-unit_test_main.o: unit_tests/unit_test_main.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_proxy_http_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_proxy_http-unit_test_main.o -MD -MP -MF unit_tests/$(DEPDIR)/test_proxy_http-unit_test_main.Tpo -c -o unit_tests/test_proxy_http-unit_test_main.o `test -f 'unit_tests/unit_test_main.cc' || echo '$(srcdir)/'`unit_tests/unit_test_main.cc
@@ -1407,6 +1469,13 @@ test_proxy_http.log: test_proxy_http$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_PreWarm.log: test_PreWarm$(EXEEXT)
+	@p='test_PreWarm$(EXEEXT)'; \
+	b='test_PreWarm'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 .test.log:
 	@p='$<'; \
 	$(am__set_b); \
@@ -1533,8 +1602,9 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 distclean: distclean-recursive
 		-rm -f ./$(DEPDIR)/ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/Http1ClientSession.Po
+	-rm -f ./$(DEPDIR)/Http1ClientTransaction.Po
 	-rm -f ./$(DEPDIR)/Http1ServerSession.Po
-	-rm -f ./$(DEPDIR)/Http1Transaction.Po
+	-rm -f ./$(DEPDIR)/Http1ServerTransaction.Po
 	-rm -f ./$(DEPDIR)/HttpBodyFactory.Po
 	-rm -f ./$(DEPDIR)/HttpCacheSM.Po
 	-rm -f ./$(DEPDIR)/HttpConfig.Po
@@ -1549,9 +1619,12 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/HttpTransactCache.Po
 	-rm -f ./$(DEPDIR)/HttpTransactHeaders.Po
 	-rm -f ./$(DEPDIR)/HttpTunnel.Po
+	-rm -f ./$(DEPDIR)/PreWarmConfig.Po
+	-rm -f ./$(DEPDIR)/PreWarmManager.Po
 	-rm -f ./$(DEPDIR)/RegressionHttpTransact.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po
+	-rm -f unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-unit_test_main.Po
@@ -1602,8 +1675,9 @@ installcheck-am:
 maintainer-clean: maintainer-clean-recursive
 		-rm -f ./$(DEPDIR)/ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/Http1ClientSession.Po
+	-rm -f ./$(DEPDIR)/Http1ClientTransaction.Po
 	-rm -f ./$(DEPDIR)/Http1ServerSession.Po
-	-rm -f ./$(DEPDIR)/Http1Transaction.Po
+	-rm -f ./$(DEPDIR)/Http1ServerTransaction.Po
 	-rm -f ./$(DEPDIR)/HttpBodyFactory.Po
 	-rm -f ./$(DEPDIR)/HttpCacheSM.Po
 	-rm -f ./$(DEPDIR)/HttpConfig.Po
@@ -1618,9 +1692,12 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/HttpTransactCache.Po
 	-rm -f ./$(DEPDIR)/HttpTransactHeaders.Po
 	-rm -f ./$(DEPDIR)/HttpTunnel.Po
+	-rm -f ./$(DEPDIR)/PreWarmConfig.Po
+	-rm -f ./$(DEPDIR)/PreWarmManager.Po
 	-rm -f ./$(DEPDIR)/RegressionHttpTransact.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po
+	-rm -f unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-unit_test_main.Po

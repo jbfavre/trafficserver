@@ -35,31 +35,46 @@ public:
   Http1Transaction(ProxySession *session) : super_type(session) {}
   ~Http1Transaction() = default;
 
-  ////////////////////
-  // Methods
-  void release(IOBufferReader *r) override;
-
-  bool allow_half_open() const override;
-  void transaction_done() override;
-  int get_transaction_id() const override;
-  void increment_client_transactions_stat() override;
-  void decrement_client_transactions_stat() override;
+  Http1Transaction() {}
 
   void reset();
+
+  ////////////////////
+  // Methods
+  int get_transaction_id() const override;
   void set_reader(IOBufferReader *reader);
+  void set_close_connection(HTTPHdr &hdr) const override;
 
   ////////////////////
   // Variables
 
 protected:
-  bool outbound_transparent{false};
 };
 
-//////////////////////////////////
-// INLINE
+inline int
+Http1Transaction::get_transaction_id() const
+{
+  // For HTTP/1 there is only one on-going transaction at a time per session/connection.  Therefore, the transaction count can be
+  // presumed not to increase during the lifetime of a transaction, thus this function will return a consistent unique transaction
+  // identifier.
+  //
+  return _proxy_ssn->get_transact_count();
+}
+
+inline void
+Http1Transaction::reset()
+{
+  _sm = nullptr;
+}
 
 inline void
 Http1Transaction::set_reader(IOBufferReader *reader)
 {
   _reader = reader;
+}
+
+inline void
+Http1Transaction::set_close_connection(HTTPHdr &hdr) const
+{
+  hdr.value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "close", 5);
 }

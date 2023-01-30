@@ -27,6 +27,8 @@
 
  */
 
+#include <memory>
+
 #include "HttpSM.h"
 #include "nexthop_test_stubs.h"
 
@@ -100,9 +102,9 @@ build_request(int64_t sm_id, HttpSM *sm, sockaddr_in *ip, const char *os_hostnam
   }
   sm->t_state.request_data.hdr = new HTTPHdr();
   sm->t_state.request_data.hdr->create(HTTP_TYPE_REQUEST, myHeap);
-  if (sm->t_state.request_data.hostname_str != nullptr) {
-    ats_free(sm->t_state.request_data.hostname_str);
-  }
+
+  ats_free(sm->t_state.request_data.hostname_str);
+
   sm->t_state.request_data.hostname_str = ats_strdup(os_hostname);
   sm->t_state.request_data.xact_start   = time(nullptr);
   ink_zero(sm->t_state.request_data.src_ip);
@@ -123,6 +125,18 @@ build_request(int64_t sm_id, HttpSM *sm, sockaddr_in *ip, const char *os_hostnam
   oride->parent_retry_time           = 1;
   oride->parent_fail_threshold       = 1;
   sm->t_state.txn_conf               = reinterpret_cast<OverridableHttpConfigParams *>(_my_txn_conf);
+}
+
+void
+GetConfigInteger(int *v, const char *n)
+{
+  if (v != nullptr && n != nullptr) {
+    if (strcmp(n, "proxy.config.http.parent_proxy.max_trans_retries") == 0) {
+      *v = 1;
+    } else {
+      *v = 0;
+    }
+  }
 }
 
 void
@@ -164,26 +178,10 @@ ConfigUpdateCbTable::invoke(char const *p)
 
 #include "I_Machine.h"
 
-static Machine *my_machine = nullptr;
-
-Machine::Machine(char const *hostname, sockaddr const *addr) {}
-Machine::~Machine()
-{
-  delete my_machine;
-}
-Machine *
-Machine::instance()
-{
-  if (my_machine == nullptr) {
-    my_machine = new Machine(nullptr, nullptr);
-  }
-  return my_machine;
-}
-bool
-Machine::is_self(const char *name)
-{
-  return false;
-}
+static bool StubMachineInit = []() -> bool {
+  Machine::init("localhost", nullptr);
+  return true;
+}();
 
 #include "HostStatus.h"
 
@@ -198,27 +196,27 @@ HostStatus::~HostStatus()
 }
 
 HostStatRec *
-HostStatus::getHostStatus(const char *name)
+HostStatus::getHostStatus(const std::string_view name)
 {
-  if (this->hosts_statuses[name] == nullptr) {
+  if (this->hosts_statuses[std::string(name)] == nullptr) {
     // for unit tests only, always return a record with HOST_STATUS_UP, if it wasn't set with setHostStatus
     static HostStatRec rec;
-    rec.status = HostStatus_t::HOST_STATUS_UP;
+    rec.status = TSHostStatus::TS_HOST_STATUS_UP;
     return &rec;
   }
-  return this->hosts_statuses[name];
+  return this->hosts_statuses[std::string(name)];
 }
 
 void
-HostStatus::setHostStatus(char const *host, HostStatus_t status, unsigned int down_time, unsigned int reason)
+HostStatus::setHostStatus(const std::string_view host, TSHostStatus status, unsigned int down_time, unsigned int reason)
 {
-  if (this->hosts_statuses[host] == nullptr) {
-    this->hosts_statuses[host] = new (HostStatRec);
+  if (this->hosts_statuses[std::string(host)] == nullptr) {
+    this->hosts_statuses[std::string(host)] = new (HostStatRec);
   }
-  this->hosts_statuses[host]->status          = status;
-  this->hosts_statuses[host]->reasons         = reason;
-  this->hosts_statuses[host]->local_down_time = down_time;
-  NH_Debug("next_hop", "setting host status for '%s' to %s", host, HostStatusNames[status]);
+  this->hosts_statuses[std::string(host)]->status          = status;
+  this->hosts_statuses[std::string(host)]->reasons         = reason;
+  this->hosts_statuses[std::string(host)]->local_down_time = down_time;
+  NH_Debug("next_hop", "setting host status for '%.*s' to %s", host.size(), host.data(), HostStatusNames[status]);
 }
 
 #include "I_UDPConnection.h"
@@ -229,5 +227,5 @@ UDPConnection::Release()
 }
 
 #include "P_UDPPacket.h"
-inkcoreapi ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
+ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
 // for UDPPacketInternal::free()

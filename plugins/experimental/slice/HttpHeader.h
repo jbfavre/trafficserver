@@ -36,7 +36,8 @@
 
 #include <string>
 
-static char const *const SLICER_MIME_FIELD_INFO = "X-Slicer-Info";
+constexpr std::string_view SLICE_CRR_HEADER = {"Slice-Crr-Status"};
+constexpr std::string_view SLICE_CRR_VAL    = "1";
 
 /**
   Designed to be a cheap throwaway struct which allows a

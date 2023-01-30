@@ -105,6 +105,8 @@ enum {
   HTTP2_STAT_MAX_PING_FRAMES_PER_MINUTE_EXCEEDED,
   HTTP2_STAT_MAX_PRIORITY_FRAMES_PER_MINUTE_EXCEEDED,
   HTTP2_STAT_INSUFFICIENT_AVG_WINDOW_UPDATE,
+  HTTP2_STAT_MAX_CONCURRENT_STREAMS_EXCEEDED_IN,
+  HTTP2_STAT_MAX_CONCURRENT_STREAMS_EXCEEDED_OUT,
 
   HTTP2_N_STATS // Terminal counter, NOT A STAT INDEX.
 };
@@ -394,6 +396,7 @@ public:
   static uint32_t push_diary_size;
   static uint32_t zombie_timeout_in;
   static float stream_error_rate_threshold;
+  static uint32_t stream_error_sampling_threshold;
   static uint32_t max_settings_per_frame;
   static uint32_t max_settings_per_minute;
   static uint32_t max_settings_frames_per_minute;
@@ -406,6 +409,7 @@ public:
   static uint32_t write_buffer_block_size;
   static float write_size_threshold;
   static uint32_t write_time_threshold;
+  static uint32_t buffer_water_mark;
 
   static void init();
 };

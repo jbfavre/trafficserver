@@ -33,6 +33,7 @@
 #include "tscore/ink_platform.h"
 #include "tscore/ink_sys_control.h"
 #include "tscore/ink_args.h"
+#include "tscore/ink_hw.h"
 #include "tscore/ink_lockfile.h"
 #include "tscore/ink_stack_trace.h"
 #include "tscore/ink_syslog.h"
@@ -122,7 +123,8 @@ extern "C" int plock(int);
 #define DEFAULT_COMMAND_FLAG 0
 
 #define DEFAULT_REMOTE_MANAGEMENT_FLAG 0
-#define DIAGS_LOG_FILENAME "diags.log"
+#define DEFAULT_DIAGS_LOG_FILENAME "diags.log"
+static char diags_log_filename[PATH_NAME_MAX] = DEFAULT_DIAGS_LOG_FILENAME;
 
 static const long MAX_LOGIN = ink_login_name_max();
 
@@ -163,16 +165,26 @@ int remote_management_flag      = DEFAULT_REMOTE_MANAGEMENT_FLAG;
 static char bind_stdout[512]    = "";
 static char bind_stderr[512]    = "";
 
-static char error_tags[1024]               = "";
-static char action_tags[1024]              = "";
-static int show_statistics                 = 0;
-static inkcoreapi DiagsConfig *diagsConfig = nullptr;
-HttpBodyFactory *body_factory              = nullptr;
+static char error_tags[1024]    = "";
+static char action_tags[1024]   = "";
+static int show_statistics      = 0;
+static DiagsConfig *diagsConfig = nullptr;
+HttpBodyFactory *body_factory   = nullptr;
 
 static int accept_mss           = 0;
 static int poll_timeout         = -1; // No value set.
 static int cmd_disable_freelist = 0;
 static bool signal_received[NSIG];
+
+/*
+To be able to attach with a debugger to traffic_server running in an Au test case, temporarily add the
+parameter block_for_debug=True to the call to Test.MakeATSProcess().  This means Au test will wait
+effectively indefinitely (10 hours) for traffic_server to initialize itself.  Run the modified Au test,
+attach the debugger to the traffic_server process, set one or more breakpoints, set the variable
+cmd_block to 0, then continue.  On linux, the command 'ps -ef | fgrep -e --block' will help identify the
+PID of the traffic_server process (second column of output).
+*/
+static int cmd_block = 0;
 
 // 1: the main thread delayed accepting, start accepting.
 // 0: delay accept, wait for cache initialization.
@@ -217,6 +229,7 @@ static ArgumentDescription argument_descriptions[] = {
   {"bind_stderr", '-', "Regular file to bind stderr to", "S512", &bind_stderr, "PROXY_BIND_STDERR", nullptr},
   {"accept_mss", '-', "MSS for client connections", "I", &accept_mss, nullptr, nullptr},
   {"poll_timeout", 't', "poll timeout in milliseconds", "I", &poll_timeout, nullptr, nullptr},
+  {"block", '-', "block for debug attach", "T", &cmd_block, nullptr, nullptr},
   HELP_ARGUMENT_DESCRIPTION(),
   VERSION_ARGUMENT_DESCRIPTION(),
   RUNROOT_ARGUMENT_DESCRIPTION(),
@@ -285,9 +298,9 @@ public:
       diags->set_std_output(StdStream::STDOUT, bind_stdout);
       diags->set_std_output(StdStream::STDERR, bind_stderr);
       if (diags->reseat_diagslog()) {
-        Note("Reseated %s", DIAGS_LOG_FILENAME);
+        Note("Reseated %s", diags_log_filename);
       } else {
-        Note("Could not reseat %s", DIAGS_LOG_FILENAME);
+        Note("Could not reseat %s", diags_log_filename);
       }
       // Reload any of the other moved log files (such as the ones in logging.yaml).
       Log::handle_log_rotation_request();
@@ -396,7 +409,7 @@ public:
     diags->config_roll_diagslog((RollingEnabledValues)diags_log_roll_enable, diags_log_roll_int, diags_log_roll_size);
 
     if (diags->should_roll_diagslog()) {
-      Note("Rolled %s", DIAGS_LOG_FILENAME);
+      Note("Rolled %s", diags_log_filename);
     }
     return EVENT_CONT;
   }
@@ -912,6 +925,13 @@ cmd_verify(char * /* cmd ATS_UNUSED */)
     Layout::get()->update_sysconfdir(conf_dir);
   }
 
+  if (!plugin_init(true)) {
+    exitStatus |= (1 << 2);
+    fprintf(stderr, "ERROR: Failed to load %s, exitStatus %d\n\n", ts::filename::PLUGIN, exitStatus);
+  } else {
+    fprintf(stderr, "INFO: Successfully loaded %s\n\n", ts::filename::PLUGIN);
+  }
+
   if (!urlRewriteVerify()) {
     exitStatus |= (1 << 0);
     fprintf(stderr, "ERROR: Failed to load %s, exitStatus %d\n\n", ts::filename::REMAP, exitStatus);
@@ -924,13 +944,6 @@ cmd_verify(char * /* cmd ATS_UNUSED */)
     fprintf(stderr, "ERROR: Failed to load %s, exitStatus %d\n\n", ts::filename::RECORDS, exitStatus);
   } else {
     fprintf(stderr, "INFO: Successfully loaded %s\n\n", ts::filename::RECORDS);
-  }
-
-  if (!plugin_init(true)) {
-    exitStatus |= (1 << 2);
-    fprintf(stderr, "ERROR: Failed to load %s, exitStatus %d\n\n", ts::filename::PLUGIN, exitStatus);
-  } else {
-    fprintf(stderr, "INFO: Successfully loaded %s\n\n", ts::filename::PLUGIN);
   }
 
   SSLInitializeLibrary();
@@ -1510,11 +1523,6 @@ syslog_log_configure()
 }
 
 static void
-check_system_constants()
-{
-}
-
-static void
 init_http_header()
 {
   url_init();
@@ -1735,9 +1743,6 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   pcre_malloc = ats_malloc;
   pcre_free   = ats_free;
 
-  // Verify system dependent 'constants'
-  check_system_constants();
-
   // Define the version info
   appVersionInfo.setup(PACKAGE_NAME, "traffic_server", PACKAGE_VERSION, __DATE__, __TIME__, BUILD_MACHINE, BUILD_PERSON, "");
 
@@ -1755,6 +1760,12 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   command_flag  = command_flag || *command_string;
   command_index = find_cmd_index(command_string);
   command_valid = command_flag && command_index >= 0;
+
+  // Attach point when TS is blocked for debugging is in this loop.
+  //
+  while (cmd_block) {
+    sleep(1);
+  }
 
   ink_freelist_init_ops(cmd_disable_freelist, cmd_disable_pfreelist);
 
@@ -1780,8 +1791,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   // re-start it again, TS will crash.
   // This is also needed for log rotation - setting up the file can cause privilege
   // related errors and if diagsConfig isn't get up yet that will crash on a NULL pointer.
-  diagsConfig = new DiagsConfig("Server", DIAGS_LOG_FILENAME, error_tags, action_tags, false);
-  diags       = diagsConfig->diags;
+  diagsConfig = new DiagsConfig("Server", DEFAULT_DIAGS_LOG_FILENAME, error_tags, action_tags, false);
   diags->set_std_output(StdStream::STDOUT, bind_stdout);
   diags->set_std_output(StdStream::STDERR, bind_stderr);
   if (is_debug_tag_set("diags")) {
@@ -1874,9 +1884,12 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   main_thread->set_specific();
 
   // Re-initialize diagsConfig based on records.config configuration
+  REC_ReadConfigString(diags_log_filename, "proxy.config.diags.logfile.filename", sizeof(diags_log_filename));
+  if (strnlen(diags_log_filename, sizeof(diags_log_filename)) == 0) {
+    strncpy(diags_log_filename, DEFAULT_DIAGS_LOG_FILENAME, sizeof(diags_log_filename));
+  }
   DiagsConfig *old_log = diagsConfig;
-  diagsConfig          = new DiagsConfig("Server", DIAGS_LOG_FILENAME, error_tags, action_tags, true);
-  diags                = diagsConfig->diags;
+  diagsConfig          = new DiagsConfig("Server", diags_log_filename, error_tags, action_tags, true);
   RecSetDiags(diags);
   diags->set_std_output(StdStream::STDOUT, bind_stdout);
   diags->set_std_output(StdStream::STDERR, bind_stderr);
@@ -1931,7 +1944,13 @@ main(int /* argc ATS_UNUSED */, const char **argv)
   } else if (HttpConfig::m_master.inbound_ip6.isValid()) {
     machine_addr.assign(HttpConfig::m_master.inbound_ip6);
   }
-  Machine::init(nullptr, &machine_addr.sa);
+  char *hostname = REC_ConfigReadString("proxy.config.log.hostname");
+  if (hostname != nullptr && std::string_view(hostname) == "localhost") {
+    // The default value was used. Let Machine::init derive the hostname.
+    hostname = nullptr;
+  }
+  Machine::init(hostname, &machine_addr.sa);
+  ats_free(hostname);
 
   RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.uuid", (char *)Machine::instance()->uuid.getString(),
                         RECP_NON_PERSISTENT);
@@ -2208,6 +2227,8 @@ main(int /* argc ATS_UNUSED */, const char **argv)
     change_uid_gid(user);
   }
 #endif
+
+  TSSystemState::initialization_done();
 
   while (!TSSystemState::is_event_system_shut_down()) {
     sleep(1);

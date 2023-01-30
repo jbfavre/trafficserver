@@ -63,12 +63,8 @@ static constexpr ts_time TS_TIME_ZERO;
 
  *===========================================================================*/
 
-#define MICRO_USER 1
-#define MICRO_SYS 2
-#define MICRO_REAL 3
 #define UNDEFINED_TIME ((time_t)0)
 
-uint64_t ink_microseconds(int which);
 double ink_time_wall_seconds();
 
 int cftime_replacement(char *s, int maxsize, const char *format, const time_t *clock);
@@ -76,8 +72,8 @@ int cftime_replacement(char *s, int maxsize, const char *format, const time_t *c
 
 ink_time_t convert_tm(const struct tm *tp);
 
-inkcoreapi char *ink_ctime_r(const ink_time_t *clock, char *buf);
-inkcoreapi struct tm *ink_localtime_r(const ink_time_t *clock, struct tm *res);
+char *ink_ctime_r(const ink_time_t *clock, char *buf);
+struct tm *ink_localtime_r(const ink_time_t *clock, struct tm *res);
 
 /*===========================================================================*
                               Inline Stuffage

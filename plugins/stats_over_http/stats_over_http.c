@@ -61,10 +61,6 @@
 /* global holding the path used for access to this JSON data */
 #define DEFAULT_URL_PATH "_stats"
 
-// TODO: replace with TS_HTTP_* when BROTLI is supported
-#define HTTP_VALUE_BR "br"
-#define HTTP_LEN_BR 2
-
 // from mod_deflate:
 // ZLIB's compression algorithm uses a
 // 0-9 based scale that GZIP does where '1' is 'Best speed'
@@ -248,20 +244,20 @@ stats_add_data_to_resp_buffer(const char *s, stats_state *my_state)
   return s_len;
 }
 
-static const char RESP_HEADER_JSON[] = "HTTP/1.0 200 Ok\r\nContent-Type: text/json\r\nCache-Control: no-cache\r\n\r\n";
+static const char RESP_HEADER_JSON[] = "HTTP/1.0 200 OK\r\nContent-Type: text/json\r\nCache-Control: no-cache\r\n\r\n";
 static const char RESP_HEADER_JSON_GZIP[] =
-  "HTTP/1.0 200 Ok\r\nContent-Type: text/json\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n\r\n";
+  "HTTP/1.0 200 OK\r\nContent-Type: text/json\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n\r\n";
 static const char RESP_HEADER_JSON_DEFLATE[] =
-  "HTTP/1.0 200 Ok\r\nContent-Type: text/json\r\nContent-Encoding: deflate\r\nCache-Control: no-cache\r\n\r\n";
+  "HTTP/1.0 200 OK\r\nContent-Type: text/json\r\nContent-Encoding: deflate\r\nCache-Control: no-cache\r\n\r\n";
 static const char RESP_HEADER_JSON_BR[] =
-  "HTTP/1.0 200 Ok\r\nContent-Type: text/json\r\nContent-Encoding: br\r\nCache-Control: no-cache\r\n\r\n";
-static const char RESP_HEADER_CSV[] = "HTTP/1.0 200 Ok\r\nContent-Type: text/csv\r\nCache-Control: no-cache\r\n\r\n";
+  "HTTP/1.0 200 OK\r\nContent-Type: text/json\r\nContent-Encoding: br\r\nCache-Control: no-cache\r\n\r\n";
+static const char RESP_HEADER_CSV[] = "HTTP/1.0 200 OK\r\nContent-Type: text/csv\r\nCache-Control: no-cache\r\n\r\n";
 static const char RESP_HEADER_CSV_GZIP[] =
-  "HTTP/1.0 200 Ok\r\nContent-Type: text/csv\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n\r\n";
+  "HTTP/1.0 200 OK\r\nContent-Type: text/csv\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n\r\n";
 static const char RESP_HEADER_CSV_DEFLATE[] =
-  "HTTP/1.0 200 Ok\r\nContent-Type: text/csv\r\nContent-Encoding: deflate\r\nCache-Control: no-cache\r\n\r\n";
+  "HTTP/1.0 200 OK\r\nContent-Type: text/csv\r\nContent-Encoding: deflate\r\nCache-Control: no-cache\r\n\r\n";
 static const char RESP_HEADER_CSV_BR[] =
-  "HTTP/1.0 200 Ok\r\nContent-Type: text/csv\r\nContent-Encoding: br\r\nCache-Control: no-cache\r\n\r\n";
+  "HTTP/1.0 200 OK\r\nContent-Type: text/csv\r\nContent-Encoding: br\r\nCache-Control: no-cache\r\n\r\n";
 
 static int
 stats_add_resp_header(stats_state *my_state)
@@ -592,7 +588,7 @@ stats_origin(TSCont contp ATS_UNUSED, TSEvent event ATS_UNUSED, void *edata)
     goto notforme;
   }
 
-  TSSkipRemappingSet(txnp, 1); // not strictly necessary, but speed is everything these days
+  TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_SKIP_REMAPPING, true); // not strictly necessary, but speed is everything these days
 
   /* This is us -- register our intercept */
   TSDebug(PLUGIN_NAME, "Intercepting request");
@@ -630,7 +626,7 @@ stats_origin(TSCont contp ATS_UNUSED, TSEvent event ATS_UNUSED, void *edata)
       my_state->encoding = init_gzip(my_state, GZIP_MODE);
     }
 #if HAVE_BROTLI_ENCODE_H
-    else if (len >= HTTP_LEN_BR && strstr(str, HTTP_VALUE_BR) != NULL) {
+    else if (len >= TS_HTTP_LEN_BROTLI && strstr(str, TS_HTTP_VALUE_BROTLI) != NULL) {
       TSDebug(PLUGIN_NAME, "Saw br in accept encoding");
       my_state->encoding = init_br(my_state);
     }

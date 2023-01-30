@@ -26,6 +26,7 @@
 
 **************************************************************************/
 #include "P_Net.h"
+#include "tscore/ink_defs.h"
 
 #define SET_NO_LINGER
 // set in the OS
@@ -34,137 +35,11 @@
 #define FIRST_RANDOM_PORT 16000
 #define LAST_RANDOM_PORT 32000
 
-#define ROUNDUP(x, y) ((((x) + ((y)-1)) / (y)) * (y))
-
 #if TS_USE_TPROXY
 #if !defined(IP_TRANSPARENT)
 unsigned int const IP_TRANSPARENT = 19;
 #endif
 #endif
-
-//
-// Functions
-//
-int
-Connection::setup_mc_send(sockaddr const *mc_addr, sockaddr const *my_addr, bool non_blocking, unsigned char mc_ttl,
-                          bool mc_loopback, Continuation *c)
-{
-  (void)c;
-  ink_assert(fd == NO_FD);
-  int res              = 0;
-  int enable_reuseaddr = 1;
-  in_addr_t mc_if      = ats_ip4_addr_cast(my_addr);
-
-  if ((res = socketManager.socket(my_addr->sa_family, SOCK_DGRAM, 0)) < 0) {
-    goto Lerror;
-  }
-
-  fd = res;
-
-  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char *>(&enable_reuseaddr), sizeof(enable_reuseaddr)) <
-             0)) {
-    goto Lerror;
-  }
-
-  if ((res = socketManager.ink_bind(fd, my_addr, ats_ip_size(my_addr), IPPROTO_UDP)) < 0) {
-    goto Lerror;
-  }
-
-  ats_ip_copy(&addr, mc_addr);
-
-  if ((res = safe_fcntl(fd, F_SETFD, FD_CLOEXEC)) < 0) {
-    goto Lerror;
-  }
-
-  if (non_blocking) {
-    if ((res = safe_nonblocking(fd)) < 0) {
-      goto Lerror;
-    }
-  }
-
-  // Set MultiCast TTL to specified value
-  if ((res = safe_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<char *>(&mc_ttl), sizeof(mc_ttl)) < 0)) {
-    goto Lerror;
-  }
-
-  // Set MultiCast Interface to specified value
-  if ((res = safe_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char *>(&mc_if), sizeof(mc_if)) < 0)) {
-    goto Lerror;
-  }
-
-  // Disable MultiCast loopback if requested
-  if (!mc_loopback) {
-    char loop = 0;
-
-    if ((res = safe_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0)) {
-      goto Lerror;
-    }
-  }
-  return 0;
-
-Lerror:
-  if (fd != NO_FD) {
-    close();
-  }
-  return res;
-}
-
-int
-Connection::setup_mc_receive(sockaddr const *mc_addr, sockaddr const *my_addr, bool non_blocking, Connection *sendChan,
-                             Continuation *c)
-{
-  ink_assert(fd == NO_FD);
-  (void)sendChan;
-  (void)c;
-  int res              = 0;
-  int enable_reuseaddr = 1;
-  IpAddr inaddr_any(INADDR_ANY);
-
-  if ((res = socketManager.socket(mc_addr->sa_family, SOCK_DGRAM, 0)) < 0) {
-    goto Lerror;
-  }
-
-  fd = res;
-
-  if ((res = safe_fcntl(fd, F_SETFD, FD_CLOEXEC)) < 0) {
-    goto Lerror;
-  }
-
-  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char *>(&enable_reuseaddr), sizeof(enable_reuseaddr)) <
-             0)) {
-    goto Lerror;
-  }
-
-  addr.assign(inaddr_any, ats_ip_port_cast(mc_addr));
-
-  if ((res = socketManager.ink_bind(fd, &addr.sa, ats_ip_size(&addr.sa), IPPROTO_TCP)) < 0) {
-    goto Lerror;
-  }
-
-  if (non_blocking) {
-    if ((res = safe_nonblocking(fd)) < 0) {
-      goto Lerror;
-    }
-  }
-
-  if (ats_is_ip4(&addr)) {
-    struct ip_mreq mc_request;
-    // Add ourselves to the MultiCast group
-    mc_request.imr_multiaddr.s_addr = ats_ip4_addr_cast(mc_addr);
-    mc_request.imr_interface.s_addr = ats_ip4_addr_cast(my_addr);
-
-    if ((res = safe_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<char *>(&mc_request), sizeof(mc_request)) < 0)) {
-      goto Lerror;
-    }
-  }
-  return 0;
-
-Lerror:
-  if (fd != NO_FD) {
-    close();
-  }
-  return res;
-}
 
 namespace
 {
@@ -259,8 +134,8 @@ Connection::open(NetVCOptions const &opt)
     // No local address specified, so use family option if possible.
     family = ats_is_ip(opt.ip_family) ? opt.ip_family : AF_INET;
     local_addr.setToAnyAddr(family);
-    is_any_address    = true;
-    local_addr.port() = htons(opt.local_port);
+    is_any_address                  = true;
+    local_addr.network_order_port() = htons(opt.local_port);
   }
 
   res = socketManager.socket(family, sock_type, 0);
@@ -321,7 +196,7 @@ Connection::open(NetVCOptions const &opt)
   // apply dynamic options
   apply_options(opt);
 
-  if (local_addr.port() || !is_any_address) {
+  if (local_addr.network_order_port() || !is_any_address) {
     if (-1 == socketManager.ink_bind(fd, &local_addr.sa, ats_ip_size(&local_addr.sa))) {
       return -errno;
     }
@@ -411,6 +286,13 @@ Connection::apply_options(NetVCOptions const &opt)
       safe_setsockopt(fd, SOL_SOCKET, SO_LINGER, reinterpret_cast<char *>(&l), sizeof(l));
       Debug("socket", "::open:: setsockopt() turn on SO_LINGER on socket");
     }
+#ifdef TCP_NOTSENT_LOWAT
+    if (opt.sockopt_flags & NetVCOptions::SOCK_OPT_TCP_NOTSENT_LOWAT) {
+      uint32_t lowat = opt.packet_notsent_lowat;
+      safe_setsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, reinterpret_cast<char *>(&lowat), sizeof(lowat));
+      Debug("socket", "::open:: setsockopt() set TCP_NOTSENT_LOWAT to %d", lowat);
+    }
+#endif
   }
 
 #if TS_HAS_SO_MARK

@@ -341,6 +341,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.cache.hosting_filename
  proxy.config.cache.ip_allow.filename
  proxy.config.cache.limits.http.max_alts
+ proxy.config.cache.log.alternate.eviction
  proxy.config.cache.max_disk_errors
  proxy.config.cache.max_doc_size
  proxy.config.cache.min_average_object_size
@@ -578,7 +579,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.client.cert.path
  proxy.config.ssl.client.private_key.filename
  proxy.config.ssl.client.private_key.path
- proxy.config.ssl.client.verify.server
  proxy.config.ssl.server.cert_chain.filename
  proxy.config.ssl.server.cert.path
  proxy.config.ssl.server.cipher_suite
@@ -590,6 +590,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.TLSv1_3
  proxy.config.ssl.server.multicert.filename
  proxy.config.ssl.server.private_key.path
+ proxy.config.ssl.keylog_file
  proxy.config.stat_collector.interval
  proxy.config.stat_collector.port
  proxy.config.syslog_facility

@@ -51,7 +51,7 @@ int diags_on_for_plugins         = 0;
 int DiagsConfigState::enabled[2] = {0, 0};
 
 // Global, used for all diagnostics
-inkcoreapi Diags *diags = nullptr;
+Diags *diags = nullptr;
 
 static bool regression_testing_on = false;
 

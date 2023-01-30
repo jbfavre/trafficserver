@@ -44,6 +44,7 @@
 #include "../ProxyTransaction.h"
 #include "HdrUtils.h"
 #include "tscore/History.h"
+#include "tscore/PendingAction.h"
 
 #define HTTP_API_CONTINUE (INK_API_EVENT_EVENTS_START + 0)
 #define HTTP_API_ERROR (INK_API_EVENT_EVENTS_START + 1)
@@ -61,6 +62,7 @@ static size_t const HTTP_SERVER_RESP_HDR_BUFFER_INDEX = BUFFER_SIZE_INDEX_8K;
 
 class Http1ServerSession;
 class AuthHttpAdapter;
+class PreWarmSM;
 
 class HttpSM;
 typedef int (HttpSM::*HttpSMHandler)(int event, void *data);
@@ -164,56 +166,7 @@ enum HttpPluginTunnel_t {
   HTTP_PLUGIN_AS_INTERCEPT,
 };
 
-class CoreUtils;
 class PluginVCCore;
-
-class PendingAction
-{
-public:
-  bool
-  is_empty() const
-  {
-    return pending_action == nullptr;
-  }
-  PendingAction &
-  operator=(Action *b)
-  {
-    // Don't do anything if the new action is _DONE
-    if (b != ACTION_RESULT_DONE) {
-      if (b != pending_action && pending_action != nullptr) {
-        pending_action->cancel();
-      }
-      pending_action = b;
-    }
-    return *this;
-  }
-  Continuation *
-  get_continuation() const
-  {
-    return pending_action ? pending_action->continuation : nullptr;
-  }
-  Action *
-  get() const
-  {
-    return pending_action;
-  }
-  void
-  clear_if_action_is(Action *current_action)
-  {
-    if (current_action == pending_action) {
-      pending_action = nullptr;
-    }
-  }
-  ~PendingAction()
-  {
-    if (pending_action) {
-      pending_action->cancel();
-    }
-  }
-
-private:
-  Action *pending_action = nullptr;
-};
 
 class PostDataBuffers
 {
@@ -250,7 +203,7 @@ public:
 class HttpSM : public Continuation, public PluginUserArgs<TS_USER_ARGS_TXN>
 {
   friend class HttpPagesHandler;
-  friend class CoreUtils;
+  friend class HttpTransact;
 
 public:
   HttpSM();
@@ -264,22 +217,20 @@ public:
 
   void init(bool from_early_data = false);
 
-  void attach_client_session(ProxyTransaction *client_vc_arg, IOBufferReader *buffer_reader);
+  void attach_client_session(ProxyTransaction *client_vc_arg);
 
-  // Called by httpSessionManager so that we can reset
-  //  the session timeouts and initiate a read while
+  // Called after the network connection has been completed
+  //  to set the session timeouts and initiate a read while
   //  holding the lock for the server session
-  void attach_server_session(PoolableSession *s);
+  void attach_server_session();
 
-  // Used to read attributes of
-  // the current active server session
-  PoolableSession *get_server_session() const;
+  PoolableSession *create_server_session(NetVConnection *netvc);
+  bool create_server_txn(PoolableSession *new_session);
 
-  ProxyTransaction *
-  get_ua_txn()
-  {
-    return ua_txn;
-  }
+  HTTPVersion get_server_version(HTTPHdr &hdr) const;
+
+  ProxyTransaction *get_ua_txn();
+  ProxyTransaction *get_server_txn();
 
   // Called by transact.  Updates are fire and forget
   //  so there are no callbacks and are safe to do
@@ -287,7 +238,7 @@ public:
   void do_hostdb_update_if_necessary();
 
   // Look at the configured policy and the current server connect_result
-  // to deterine whether this connection attempt should contribute to the
+  // to determine whether this connection attempt should contribute to the
   // dead server count
   bool track_connect_fail() const;
 
@@ -318,11 +269,7 @@ public:
 
   // Called by transact(HttpTransact::is_request_retryable), temporarily.
   // This function should be remove after #1994 fixed.
-  bool
-  is_post_transform_request()
-  {
-    return t_state.method == HTTP_WKSIDX_POST && post_transform_info.vc;
-  }
+  bool is_post_transform_request();
 
   // Called from InkAPI.cc which acquires the state machine lock
   //  before calling
@@ -330,11 +277,7 @@ public:
   int state_api_callout(int event, void *data);
 
   // Used for Http Stat Pages
-  HttpTunnel *
-  get_tunnel()
-  {
-    return &tunnel;
-  }
+  HttpTunnel *get_tunnel();
 
   // Debugging routines to dump the SM history, hdrs
   void dump_state_on_assert();
@@ -398,6 +341,7 @@ public:
   // See if we should allow the transaction
   // based on sni and host name header values
   void check_sni_host();
+  SNIRoutingType get_tunnel_type() const;
 
 protected:
   int reentrancy_count = 0;
@@ -406,30 +350,28 @@ protected:
 
   HttpVCTable vc_table;
 
-  HttpVCTableEntry *ua_entry = nullptr;
-
 public:
-  ProxyTransaction *ua_txn         = nullptr;
   BackgroundFill_t background_fill = BACKGROUND_FILL_NONE;
   void set_http_schedule(Continuation *);
   int get_http_schedule(int event, void *data);
 
   History<HISTORY_DEFAULT_SIZE> history;
 
+  ProxyTransaction *ua_txn = nullptr;
+
 protected:
-  IOBufferReader *ua_buffer_reader     = nullptr;
   IOBufferReader *ua_raw_buffer_reader = nullptr;
 
-  HttpVCTableEntry *server_entry     = nullptr;
-  Http1ServerSession *server_session = nullptr;
+  HttpVCTableEntry *ua_entry     = nullptr;
+  HttpVCTableEntry *server_entry = nullptr;
+  ProxyTransaction *server_txn   = nullptr;
 
   /* Because we don't want to take a session from a shared pool if we know that it will be private,
    * but we cannot set it to private until we have an attached server session.
    * So we use this variable to indicate that
    * we should create a new connection and then once we attach the session we'll mark it as private.
    */
-  bool will_be_private_ss              = false;
-  IOBufferReader *server_buffer_reader = nullptr;
+  bool will_be_private_ss = false;
 
   HttpTransformInfo transform_info;
   HttpTransformInfo post_transform_info;
@@ -535,7 +477,6 @@ protected:
   int write_header_into_buffer(HTTPHdr *h, MIOBuffer *b);
   int write_response_header_into_buffer(HTTPHdr *h, MIOBuffer *b);
   void setup_blind_tunnel_port();
-  void setup_client_header_nca();
   void setup_client_read_request_header();
   void setup_push_read_response_header();
   void setup_server_read_response_header();
@@ -555,13 +496,20 @@ protected:
   void issue_cache_update();
   void perform_cache_write_action();
   void perform_transform_cache_write_action();
-  void perform_nca_cache_action();
   void setup_blind_tunnel(bool send_response_hdr, IOBufferReader *initial = nullptr);
   HttpTunnelProducer *setup_server_transfer_to_transform();
   HttpTunnelProducer *setup_transfer_from_transform();
   HttpTunnelProducer *setup_cache_transfer_to_transform();
   HttpTunnelProducer *setup_transfer_from_transform_to_cache_only();
-  void setup_plugin_agents(HttpTunnelProducer *p);
+
+  /** Configure consumers for transform plugins.
+   *
+   * @param[in] p The Tunnel's producer for whom transform plugins' consumers
+   *   will be configured.
+   * @param[in] num_header_bytes The number of header bytes in the stream.
+   *   These will be skipped and not passed to the consumers of the data sink.
+   */
+  void setup_plugin_agents(HttpTunnelProducer *p, int num_header_bytes);
 
   HttpTransact::StateMachineAction_t last_action     = HttpTransact::SM_ACTION_UNDEFINED;
   int (HttpSM::*m_last_state)(int event, void *data) = nullptr;
@@ -573,6 +521,9 @@ protected:
   int find_server_buffer_size();
   int find_http_resp_buffer_size(int64_t cl);
   int64_t server_transfer_init(MIOBuffer *buf, int hdr_size);
+
+  /// Update the milestones to track time spent in the plugin API.
+  void milestone_update_api_time();
 
 public:
   // TODO:  Now that bodies can be empty, should the body counters be set to -1 ? TS-2213
@@ -594,6 +545,7 @@ public:
   bool client_ssl_reused              = false;
   bool client_connection_is_ssl       = false;
   bool is_internal                    = false;
+  bool server_ssl_reused              = false;
   bool server_connection_is_ssl       = false;
   bool is_waiting_for_full_body       = false;
   bool is_using_post_buffer           = false;
@@ -653,35 +605,12 @@ public:
 
 public:
   bool set_server_session_private(bool private_session);
-  bool
-  is_dying() const
-  {
-    return terminate_sm;
-  }
+  bool is_dying() const;
 
-  int
-  client_connection_id() const
-  {
-    return _client_connection_id;
-  }
-
-  int
-  client_transaction_id() const
-  {
-    return _client_transaction_id;
-  }
-
-  int
-  client_transaction_priority_weight() const
-  {
-    return _client_transaction_priority_weight;
-  }
-
-  int
-  client_transaction_priority_dependence() const
-  {
-    return _client_transaction_priority_dependence;
-  }
+  int client_connection_id() const;
+  int client_transaction_id() const;
+  int client_transaction_priority_weight() const;
+  int client_transaction_priority_dependence() const;
 
   ink_hrtime get_server_inactivity_timeout();
   ink_hrtime get_server_active_timeout();
@@ -692,8 +621,67 @@ private:
   PostDataBuffers _postbuf;
   int _client_connection_id = -1, _client_transaction_id = -1;
   int _client_transaction_priority_weight = -1, _client_transaction_priority_dependence = -1;
-  bool _from_early_data = false;
+  bool _from_early_data       = false;
+  SNIRoutingType _tunnel_type = SNIRoutingType::NONE;
+  PreWarmSM *_prewarm_sm      = nullptr;
 };
+
+////
+// Inline Functions
+//
+inline ProxyTransaction *
+HttpSM::get_ua_txn()
+{
+  return ua_txn;
+}
+
+inline ProxyTransaction *
+HttpSM::get_server_txn()
+{
+  return server_txn;
+}
+
+inline bool
+HttpSM::is_post_transform_request()
+{
+  return t_state.method == HTTP_WKSIDX_POST && post_transform_info.vc;
+}
+
+inline HttpTunnel *
+HttpSM::get_tunnel()
+{
+  return &tunnel;
+}
+
+inline bool
+HttpSM::is_dying() const
+{
+  return terminate_sm;
+}
+
+inline int
+HttpSM::client_connection_id() const
+{
+  return _client_connection_id;
+}
+
+inline int
+HttpSM::client_transaction_id() const
+{
+  return _client_transaction_id;
+}
+
+inline int
+HttpSM::client_transaction_priority_weight() const
+{
+  return _client_transaction_priority_weight;
+}
+
+inline int
+HttpSM::client_transaction_priority_dependence() const
+{
+  return _client_transaction_priority_dependence;
+}
 
 // Function to get the cache_sm object - YTS Team, yamsat
 inline HttpCacheSM &

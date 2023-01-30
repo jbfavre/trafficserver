@@ -442,7 +442,7 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   int signalled = 0;
 
   // signal write ready to allow user to fill the buffer
-  if (towrite != ntodo && buf.writer()->write_avail()) {
+  if (towrite != ntodo && !buf.writer()->high_water()) {
     if (write_signal_and_update(VC_EVENT_WRITE_READY, vc) != EVENT_CONT) {
       return;
     }
@@ -520,7 +520,7 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     }
 
     int e = 0;
-    if (!signalled) {
+    if (!signalled || (s->vio.ntodo() > 0 && !buf.writer()->high_water())) {
       e = VC_EVENT_WRITE_READY;
     } else if (wbe_event != vc->write_buffer_empty_event) {
       // @a signalled means we won't send an event, and the event values differing means we
@@ -633,18 +633,6 @@ UnixNetVConnection::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader 
   return &write.vio;
 }
 
-Continuation *
-UnixNetVConnection::read_vio_cont()
-{
-  return read.vio.cont;
-}
-
-Continuation *
-UnixNetVConnection::write_vio_cont()
-{
-  return write.vio.cont;
-}
-
 void
 UnixNetVConnection::do_io_close(int alerrno /* = -1 */)
 {
@@ -705,7 +693,7 @@ UnixNetVConnection::do_io_shutdown(ShutdownHowTo_t howto)
     read.vio.buffer.clear();
     read.vio.nbytes = 0;
     read.vio.cont   = nullptr;
-    f.shutdown |= NET_VC_SHUTDOWN_READ;
+    f.shutdown |= NetEvent::SHUTDOWN_READ;
     break;
   case IO_SHUTDOWN_WRITE:
     socketManager.shutdown((this)->con.fd, 1);
@@ -713,7 +701,7 @@ UnixNetVConnection::do_io_shutdown(ShutdownHowTo_t howto)
     write.vio.buffer.clear();
     write.vio.nbytes = 0;
     write.vio.cont   = nullptr;
-    f.shutdown |= NET_VC_SHUTDOWN_WRITE;
+    f.shutdown |= NetEvent::SHUTDOWN_WRITE;
     break;
   case IO_SHUTDOWN_READWRITE:
     socketManager.shutdown((this)->con.fd, 2);
@@ -725,67 +713,10 @@ UnixNetVConnection::do_io_shutdown(ShutdownHowTo_t howto)
     write.vio.nbytes = 0;
     read.vio.cont    = nullptr;
     write.vio.cont   = nullptr;
-    f.shutdown       = NET_VC_SHUTDOWN_READ | NET_VC_SHUTDOWN_WRITE;
+    f.shutdown       = NetEvent::SHUTDOWN_READ | NetEvent::SHUTDOWN_WRITE;
     break;
   default:
     ink_assert(!"not reached");
-  }
-}
-
-int
-OOB_callback::retry_OOB_send(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
-{
-  ink_assert(mutex->thread_holding == this_ethread());
-  // the NetVC and the OOB_callback share a mutex
-  server_vc->oob_ptr = nullptr;
-  server_vc->send_OOB(server_cont, data, length);
-  delete this;
-  return EVENT_DONE;
-}
-
-void
-UnixNetVConnection::cancel_OOB()
-{
-  UnixNetVConnection *u = this;
-  if (u->oob_ptr) {
-    if (u->oob_ptr->trigger) {
-      u->oob_ptr->trigger->cancel_action();
-      u->oob_ptr->trigger = nullptr;
-    }
-    delete u->oob_ptr;
-    u->oob_ptr = nullptr;
-  }
-}
-
-Action *
-UnixNetVConnection::send_OOB(Continuation *cont, char *buf, int len)
-{
-  UnixNetVConnection *u = this;
-  ink_assert(len > 0);
-  ink_assert(buf);
-  ink_assert(!u->oob_ptr);
-  int written;
-  ink_assert(cont->mutex->thread_holding == this_ethread());
-  written = socketManager.send(u->con.fd, buf, len, MSG_OOB);
-  if (written == len) {
-    cont->handleEvent(VC_EVENT_OOB_COMPLETE, nullptr);
-    return ACTION_RESULT_DONE;
-  } else if (!written) {
-    cont->handleEvent(VC_EVENT_EOS, nullptr);
-    return ACTION_RESULT_DONE;
-  }
-  if (written > 0 && written < len) {
-    u->oob_ptr          = new OOB_callback(mutex, this, cont, buf + written, len - written);
-    u->oob_ptr->trigger = mutex->thread_holding->schedule_in_local(u->oob_ptr, HRTIME_MSECONDS(10));
-    return u->oob_ptr->trigger;
-  } else {
-    // should be a rare case : taking a new continuation should not be
-    // expensive for this
-    written = -errno;
-    ink_assert(written == -EAGAIN || written == -ENOTCONN);
-    u->oob_ptr          = new OOB_callback(mutex, this, cont, buf, len);
-    u->oob_ptr->trigger = mutex->thread_holding->schedule_in_local(u->oob_ptr, HRTIME_MSECONDS(10));
-    return u->oob_ptr->trigger;
   }
 }
 
@@ -899,7 +830,7 @@ UnixNetVConnection::reenable_re(VIO *vio)
 
 UnixNetVConnection::UnixNetVConnection()
 {
-  SET_HANDLER((NetVConnHandler)&UnixNetVConnection::startEvent);
+  SET_HANDLER(&UnixNetVConnection::startEvent);
 }
 
 // Private methods
@@ -1097,7 +1028,7 @@ UnixNetVConnection::acceptEvent(int event, Event *e)
   SCOPED_MUTEX_LOCK(lock2, mutex, t);
 
   // Setup a timeout callback handler.
-  SET_HANDLER((NetVConnHandler)&UnixNetVConnection::mainEvent);
+  SET_HANDLER(&UnixNetVConnection::mainEvent);
 
   // Send this netvc to InactivityCop.
   nh->startCop(this);
@@ -1180,14 +1111,14 @@ UnixNetVConnection::mainEvent(int event, Event *e)
     return EVENT_DONE;
   }
 
-  if (read.vio.op == VIO::READ && !(f.shutdown & NET_VC_SHUTDOWN_READ)) {
+  if (read.vio.op == VIO::READ && !(f.shutdown & NetEvent::SHUTDOWN_READ)) {
     reader_cont = read.vio.cont;
     if (read_signal_and_update(signal_event, this) == EVENT_DONE) {
       return EVENT_DONE;
     }
   }
 
-  if (!*signal_timeout_at && !closed && write.vio.op == VIO::WRITE && !(f.shutdown & NET_VC_SHUTDOWN_WRITE) &&
+  if (!*signal_timeout_at && !closed && write.vio.op == VIO::WRITE && !(f.shutdown & NetEvent::SHUTDOWN_WRITE) &&
       reader_cont != write.vio.cont && writer_cont == write.vio.cont) {
     if (write_signal_and_update(signal_event, this) == EVENT_DONE) {
       return EVENT_DONE;
@@ -1361,8 +1292,6 @@ UnixNetVConnection::free(EThread *t)
 {
   ink_release_assert(t == this_ethread());
 
-  // cancel OOB
-  cancel_OOB();
   // close socket fd
   if (con.fd != NO_FD) {
     NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, -1);
@@ -1370,7 +1299,7 @@ UnixNetVConnection::free(EThread *t)
   con.close();
 
   clear();
-  SET_CONTINUATION_HANDLER(this, (NetVConnHandler)&UnixNetVConnection::startEvent);
+  SET_CONTINUATION_HANDLER(this, &UnixNetVConnection::startEvent);
   ink_assert(con.fd == NO_FD);
   ink_assert(t == this_ethread());
 

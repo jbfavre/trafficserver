@@ -63,9 +63,10 @@
   -------------------------------------------------------------------------*/
 
 LogFile::LogFile(const char *name, const char *header, LogFileFormat format, uint64_t signature, size_t ascii_buffer_size,
-                 size_t max_line_size, int pipe_buffer_size)
+                 size_t max_line_size, int pipe_buffer_size, LogEscapeType escape_type)
   : m_file_format(format),
     m_name(ats_strdup(name)),
+    m_escape_type(escape_type),
     m_header(ats_strdup(header)),
     m_signature(signature),
     m_max_line_size(max_line_size),
@@ -73,7 +74,9 @@ LogFile::LogFile(const char *name, const char *header, LogFileFormat format, uin
 {
   if (m_file_format != LOG_FILE_PIPE) {
     m_log = new BaseLogFile(name, m_signature);
-    m_log->set_hostname(Machine::instance()->hostname);
+    // Use Log::config->hostname rather than Machine::instance()->hostname
+    // because the former is reloadable.
+    m_log->set_hostname(Log::config->hostname);
   } else {
     m_log = nullptr;
   }
@@ -81,7 +84,7 @@ LogFile::LogFile(const char *name, const char *header, LogFileFormat format, uin
   m_fd                = -1;
   m_ascii_buffer_size = (ascii_buffer_size < max_line_size ? max_line_size : ascii_buffer_size);
 
-  Debug("log-file", "exiting LogFile constructor, m_name=%s, this=%p", m_name, this);
+  Debug("log-file", "exiting LogFile constructor, m_name=%s, this=%p, escape_type=%d", m_name, this, escape_type);
 }
 
 /*-------------------------------------------------------------------------
@@ -625,7 +628,7 @@ LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_
       }
 
       int bytes = LogBuffer::to_ascii(entry_header, format_type, &ascii_buffer[fmt_buf_bytes], m_max_line_size - 1, fieldlist_str,
-                                      printf_str, buffer_header->version, alt_format);
+                                      printf_str, buffer_header->version, alt_format, get_escape_type());
 
       if (bytes > 0) {
         fmt_buf_bytes += bytes;
@@ -718,7 +721,7 @@ LogFile::writeln(char *data, int len, int fd, const char *path)
     }
 
     if ((bytes_this_write = static_cast<int>(::writev(fd, (const struct iovec *)wvec, vcnt))) < 0) {
-      Warning("An error was encountered in writing to %s: %s.", ((path) ? path : "logfile"), strerror(errno));
+      SiteThrottledWarning("An error was encountered in writing to %s: %s.", ((path) ? path : "logfile"), strerror(errno));
     } else {
       total_bytes = bytes_this_write;
     }

@@ -27,11 +27,17 @@
 
 #include "P_Net.h"
 #include "P_SSLClientUtils.h"
+#include "P_SSLConfig.h"
+#include "P_SSLNetVConnection.h"
+#include "P_TLSKeyLogger.h"
 #include "YamlSNIConfig.h"
 #include "SSLDiags.h"
+#include "SSLSessionCache.h"
 
 #include <openssl/err.h>
 #include <openssl/pem.h>
+
+SSLOriginSessionCache *origin_sess_cache;
 
 int
 verify_callback(int signature_ok, X509_STORE_CTX *ctx)
@@ -41,7 +47,7 @@ verify_callback(int signature_ok, X509_STORE_CTX *ctx)
   int err;
   SSL *ssl;
 
-  SSLDebug("Entered verify cb");
+  Debug("ssl_verify", "Entered cert verify callback");
 
   /*
    * Retrieve the pointer to the SSL of the connection currently treated
@@ -53,7 +59,7 @@ verify_callback(int signature_ok, X509_STORE_CTX *ctx)
   // No enforcing, go away
   if (netvc == nullptr) {
     // No netvc, very bad.  Go away.  Things are not good.
-    SSLDebug("WARN, Netvc gone by in verify_callback");
+    Debug("ssl_verify", "WARNING, NetVC is NULL in cert verify callback");
     return false;
   } else if (netvc->options.verifyServerPolicy == YamlSNIConfig::Policy::DISABLED) {
     return true; // Tell them that all is well
@@ -69,7 +75,7 @@ verify_callback(int signature_ok, X509_STORE_CTX *ctx)
 
   if (check_sig) {
     if (!signature_ok) {
-      SSLDebug("verify error:num=%d:%s:depth=%d", err, X509_verify_cert_error_string(err), depth);
+      Debug("ssl_verify", "verification error:num=%d:%s:depth=%d", err, X509_verify_cert_error_string(err), depth);
       const char *sni_name;
       char buff[INET6_ADDRSTRLEN];
       ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
@@ -104,7 +110,7 @@ verify_callback(int signature_ok, X509_STORE_CTX *ctx)
       ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
     }
     if (validate_hostname(cert, sni_name, false, &matched_name)) {
-      SSLDebug("Hostname %s verified OK, matched %s", netvc->options.sni_servername.get(), matched_name);
+      Debug("ssl_verify", "Hostname %s verified OK, matched %s", sni_name, matched_name);
       ats_free(matched_name);
     } else { // Name validation failed
       // Get the server address if we did't already compute it
@@ -148,8 +154,28 @@ ssl_client_cert_callback(SSL *ssl, void * /*arg*/)
     // both are internal pointers
     X509 *cert = SSL_CTX_get0_certificate(ctx);
     netvc->set_sent_cert(cert != nullptr ? 2 : 1);
+    Debug("ssl_verify", "sent cert: %d", cert != nullptr ? 2 : 1);
   }
   return 1;
+}
+
+static int
+ssl_new_session_callback(SSL *ssl, SSL_SESSION *sess)
+{
+  std::string sni_addr = get_sni_addr(ssl);
+  if (!sni_addr.empty()) {
+    std::string lookup_key;
+    ts::bwprint(lookup_key, "{}:{}:{}", sni_addr.c_str(), SSL_get_SSL_CTX(ssl), get_verify_str(ssl));
+    origin_sess_cache->insert_session(lookup_key, sess, ssl);
+  } else {
+    if (is_debug_tag_set("ssl.origin_session_cache")) {
+      Debug("ssl.origin_session_cache", "Failed to fetch SNI/IP.");
+    }
+  }
+
+  // return 0 here since we're converting the sessions using i2d_SSL_SESSION,
+  // meaning if we return 1, openssl will keep an extra refcount on the session.
+  return 0;
 }
 
 SSL_CTX *
@@ -207,6 +233,17 @@ SSLInitClientContext(const SSLConfigParams *params)
 
   SSL_CTX_set_cert_cb(client_ctx, ssl_client_cert_callback, nullptr);
 
+  if (params->ssl_origin_session_cache == 1) {
+    SSL_CTX_set_session_cache_mode(client_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_AUTO_CLEAR | SSL_SESS_CACHE_NO_INTERNAL);
+    SSL_CTX_sess_set_new_cb(client_ctx, ssl_new_session_callback);
+  }
+
+#if TS_HAS_TLS_KEYLOGGING
+  if (unlikely(TLSKeyLogger::is_enabled())) {
+    SSL_CTX_set_keylog_callback(client_ctx, TLSKeyLogger::ssl_keylog_cb);
+  }
+#endif
+
   return client_ctx;
 
 fail:
@@ -231,7 +268,8 @@ SSLCreateClientContext(const struct SSLConfigParams *params, const char *ca_bund
   }
 
   if (!SSL_CTX_use_certificate_chain_file(ctx.get(), cert_path)) {
-    SSLError("SSLCreateClientContext(): failed to load client certificate.");
+    SSLError("SSLCreateClientContext(): failed to load client certificate: %s",
+             (!cert_path || cert_path[0] == '\0') ? "[empty file name]" : cert_path);
     return nullptr;
   }
 
@@ -240,17 +278,23 @@ SSLCreateClientContext(const struct SSLConfigParams *params, const char *ca_bund
   }
 
   if (!SSL_CTX_use_PrivateKey_file(ctx.get(), key_path, SSL_FILETYPE_PEM)) {
-    SSLError("SSLCreateClientContext(): failed to load client private key.");
+    SSLError("SSLCreateClientContext(): failed to load client private key: %s",
+             (!key_path || key_path[0] == '\0') ? "[empty file]" : key_path);
     return nullptr;
   }
 
   if (!SSL_CTX_check_private_key(ctx.get())) {
-    SSLError("SSLCreateClientContext(): client private key does not match client certificate.");
+    SSLError("SSLCreateClientContext(): client private key: %s does not match client certificate: %s",
+             (!key_path || key_path[0] == '\0') ? "[empty file]" : key_path,
+             (!cert_path || cert_path[0] == '\0') ? "[empty file]" : cert_path);
     return nullptr;
   }
 
   if (ca_bundle_file || ca_bundle_path) {
     if (!SSL_CTX_load_verify_locations(ctx.get(), ca_bundle_file, ca_bundle_path)) {
+      SSLError("SSLCreateClientContext(): Invalid CA Certificate file: %s or CA Certificate path: %s",
+               (!ca_bundle_file || ca_bundle_file[0] == '\0') ? "[empty file name]" : ca_bundle_file,
+               (!ca_bundle_path || ca_bundle_path[0] == '\0') ? "[empty path]" : ca_bundle_path);
       SSLError("SSLCreateClientContext(): Invalid client CA cert file/CA path.");
       return nullptr;
     }

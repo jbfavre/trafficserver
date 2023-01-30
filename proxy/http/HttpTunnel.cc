@@ -270,7 +270,7 @@ ChunkedHandler::read_trailer()
       } else if (ParseRules::is_lf(*tmp)) {
         // For a LF to signal we are done reading the
         //   trailer, the line must have either been blank
-        //   or must have have only had a CR on it
+        //   or must have only had a CR on it
         if (state == CHUNK_READ_TRAILER_CR || state == CHUNK_READ_TRAILER_BLANK) {
           state = CHUNK_READ_DONE;
           Debug("http_chunk", "completed read of trailers");
@@ -503,8 +503,29 @@ HttpTunnel::kill_tunnel()
     ink_assert(producer.alive == false);
   }
   active = false;
+  this->mark_tls_tunnel_inactive();
   this->deallocate_buffers();
   this->reset();
+}
+
+void
+HttpTunnel::abort_tunnel()
+{
+  active = false;
+  deallocate_buffers();
+  for (auto &producer : producers) {
+    if (producer.alive && producer.vc) {
+      producer.vc->do_io_read(this, 0, nullptr);
+    }
+    producer.alive = false;
+  }
+  for (auto &consumer : consumers) {
+    if (consumer.alive && consumer.vc) {
+      consumer.vc->do_io_write(this, 0, nullptr);
+    }
+    consumer.alive = false;
+  }
+  reset();
 }
 
 HttpTunnelProducer *
@@ -1118,7 +1139,7 @@ HttpTunnel::producer_handler(int event, HttpTunnelProducer *p)
 
     // If we were in PRECOMPLETE when this function was called
     // and we are doing chunking, then we just wrote the last
-    // chunk in the the function call above.  We are done with the
+    // chunk in the function call above.  We are done with the
     // tunnel.
     if (event == HTTP_TUNNEL_EVENT_PRECOMPLETE) {
       event = VC_EVENT_EOS;
@@ -1153,11 +1174,15 @@ HttpTunnel::producer_handler(int event, HttpTunnelProducer *p)
     }
   } // end of added logic for partial copy of POST
 
-  Debug("http_redirect", "[HttpTunnel::producer_handler] enable_redirection: [%d %d %d] event: %d, state: %d", p->alive == true,
+  Debug("http_redirect", "[%" PRId64 "] enable_redirection: [%d %d %d] event: %d, state: %d", sm->sm_id, p->alive == true,
         sm->enable_redirection, (p->self_consumer && p->self_consumer->alive == true), event, p->chunked_handler.state);
 
   switch (event) {
   case VC_EVENT_READ_READY:
+    if (sm->get_tunnel_type() != SNIRoutingType::NONE) {
+      mark_tls_tunnel_active();
+    }
+
     // Data read from producer, reenable consumers
     for (c = p->consumer_list.head; c; c = c->link.next) {
       if (c->alive && c->write_vio) {
@@ -1256,7 +1281,7 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer *c)
 
     if (backlog >= flow_state.high_water) {
       if (is_debug_tag_set("http_tunnel")) {
-        Debug("http_tunnel", "Throttle   %p %" PRId64 " / %" PRId64, p, backlog, p->backlog());
+        Debug("http_tunnel", "[%" PRId64 "] Throttle   %p %" PRId64 " / %" PRId64, sm->sm_id, p, backlog, p->backlog());
       }
       p->throttle(); // p becomes srcp for future calls to this method
     } else {
@@ -1271,7 +1296,7 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer *c)
         }
         if (backlog < flow_state.low_water) {
           if (is_debug_tag_set("http_tunnel")) {
-            Debug("http_tunnel", "Unthrottle %p %" PRId64 " / %" PRId64, p, backlog, p->backlog());
+            Debug("http_tunnel", "[%" PRId64 "] Unthrottle %p %" PRId64 " / %" PRId64, sm->sm_id, p, backlog, p->backlog());
           }
           srcp->unthrottle();
           if (srcp->read_vio) {
@@ -1618,6 +1643,14 @@ HttpTunnel::close_vc(HttpTunnelConsumer *c)
 int
 HttpTunnel::main_handler(int event, void *data)
 {
+  if (event == HTTP_TUNNEL_EVENT_ACTIVITY_CHECK) {
+    if (!_is_tls_tunnel_active()) {
+      mark_tls_tunnel_inactive();
+    }
+
+    return EVENT_DONE;
+  }
+
   HttpTunnelProducer *p = nullptr;
   HttpTunnelConsumer *c = nullptr;
   bool sm_callback      = false;
@@ -1677,4 +1710,71 @@ HttpTunnel::update_stats_after_abort(HttpTunnelType_t t)
 void
 HttpTunnel::internal_error()
 {
+}
+
+void
+HttpTunnel::mark_tls_tunnel_active()
+{
+  _tls_tunnel_last_update = Thread::get_hrtime();
+
+  if (_tls_tunnel_active) {
+    return;
+  }
+
+  _tls_tunnel_active = true;
+  HTTP_INCREMENT_DYN_STAT(tunnel_current_active_connections_stat);
+
+  _schedule_tls_tunnel_activity_check_event();
+}
+
+void
+HttpTunnel::mark_tls_tunnel_inactive()
+{
+  if (!_tls_tunnel_active) {
+    return;
+  }
+
+  _tls_tunnel_active = false;
+  HTTP_DECREMENT_DYN_STAT(tunnel_current_active_connections_stat);
+
+  if (_tls_tunnel_activity_check_event) {
+    _tls_tunnel_activity_check_event->cancel();
+    _tls_tunnel_activity_check_event = nullptr;
+  }
+}
+
+void
+HttpTunnel::_schedule_tls_tunnel_activity_check_event()
+{
+  if (_tls_tunnel_activity_check_event) {
+    return;
+  }
+
+  ink_hrtime period = HRTIME_SECONDS(sm->t_state.txn_conf->tunnel_activity_check_period);
+
+  if (period > 0) {
+    EThread *ethread                 = this_ethread();
+    _tls_tunnel_activity_check_event = ethread->schedule_every_local(this, period, HTTP_TUNNEL_EVENT_ACTIVITY_CHECK);
+  }
+}
+
+bool
+HttpTunnel::_is_tls_tunnel_active() const
+{
+  ink_hrtime period = HRTIME_SECONDS(sm->t_state.txn_conf->tunnel_activity_check_period);
+
+  // This should not be called if period is 0
+  ink_release_assert(period > 0);
+
+  ink_hrtime now = Thread::get_hrtime();
+
+  Debug("http_tunnel", "now=%" PRId64 " last_update=%" PRId64, now, _tls_tunnel_last_update);
+
+  // In some cases, m_tls_tunnel_last_update could be larger than now, because it's using cached current time.
+  // - e.g. comparing Thread::cur_time of different threads.
+  if (_tls_tunnel_last_update >= now || now - _tls_tunnel_last_update <= period) {
+    return true;
+  }
+
+  return false;
 }

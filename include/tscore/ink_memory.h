@@ -50,10 +50,10 @@
 
 #if TS_HAS_JEMALLOC
 #include <jemalloc/jemalloc.h>
-#else
-#if HAVE_MALLOC_H
+#elif TS_HAS_MIMALLOC
+#include <mimalloc.h>
+#elif HAVE_MALLOC_H
 #include <malloc.h>
-#endif // ! HAVE_MALLOC_H
 #endif // ! TS_HAS_JEMALLOC
 
 #ifndef MADV_NORMAL
@@ -99,7 +99,6 @@ void *ats_realloc(void *ptr, size_t size);
 void *ats_memalign(size_t alignment, size_t size);
 void ats_free(void *ptr);
 void *ats_free_null(void *ptr);
-int ats_mallopt(int param, int value);
 
 int ats_msync(caddr_t addr, size_t len, caddr_t end, int flags);
 int ats_madvise(caddr_t addr, size_t len, int flags);
@@ -237,7 +236,6 @@ can_safely_shift_left(T value, int num_places)
 
     @see ats_scoped_fd
     @see ats_scoped_mem
-    @see ats_scoped_obj
 
     For example, if you open a file descriptor and have to do other checks which result in having to call
     @c close in each @c if clause.
@@ -582,36 +580,6 @@ public:
   operator=(T *ptr)
   {
     super::operator=(ptr);
-    return *this;
-  }
-};
-
-/** Specialization of @c ats_scoped_resource for objects.
-    This handles a pointer to an object created by @c new and destroyed by @c delete.
-*/
-
-template <typename T /// Underlying (not pointer) type.
-          >
-class ats_scoped_obj : public ats_scoped_resource<detail::SCOPED_OBJECT_TRAITS<T>>
-{
-public:
-  typedef ats_scoped_resource<detail::SCOPED_OBJECT_TRAITS<T>> super; ///< Super type.
-  typedef ats_scoped_obj self;                                        ///< Self reference.
-
-  /// Default constructor - an empty container.
-  ats_scoped_obj() : super() {}
-  /// Construct with contained resource.
-  explicit ats_scoped_obj(T *obj) : super(obj) {}
-  self &
-  operator=(T *obj)
-  {
-    super::operator=(obj);
-    return *this;
-  }
-
-  T *
-  operator->() const
-  {
     return *this;
   }
 };

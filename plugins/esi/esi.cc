@@ -169,13 +169,13 @@ class TSStatSystem : public StatSystem
 {
 public:
   void
-  create(int handle)
+  create(int handle) override
   {
     g_stat_indices[handle] = TSStatCreate(Stats::STAT_NAMES[handle], TS_RECORDDATATYPE_INT, TS_STAT_PERSISTENT, TS_STAT_SYNC_COUNT);
   }
 
   void
-  increment(int handle, int step = 1)
+  increment(int handle, int step = 1) override
   {
     TSStatIntIncrement(g_stat_indices[handle], step);
   }
@@ -1290,6 +1290,20 @@ isTxnTransformable(TSHttpTxn txnp, bool is_cache_txn, bool *intercept_header, bo
   if (header_obtained != TS_SUCCESS) {
     TSError("[esi][%s] Couldn't get txn header", __FUNCTION__);
     return false;
+  }
+
+  // if origin returns status 304, check cached response instead
+  int response_status;
+  if (is_cache_txn == false) {
+    response_status = TSHttpHdrStatusGet(bufp, hdr_loc);
+    if (response_status == TS_HTTP_STATUS_NOT_MODIFIED) {
+      TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
+      header_obtained = TSHttpTxnCachedRespGet(txnp, &bufp, &hdr_loc);
+      if (header_obtained != TS_SUCCESS) {
+        TSError("[esi][%s] Couldn't get txn cache response header", __FUNCTION__);
+        return false;
+      }
+    }
   }
 
   do {

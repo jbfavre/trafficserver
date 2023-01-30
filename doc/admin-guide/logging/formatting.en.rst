@@ -39,7 +39,8 @@ fairly simple: every format must contain a ``Format`` attribute, which is the
 string defining the contents of each line in the log, and may also contain an
 optional ``Interval`` attribute defining the log aggregation interval for
 any logs which use the format (see :ref:`admin-logging-type-summary` for more
-information).
+information). It may also contain an optional ``escape`` attribute defining the
+escape of log fields. Possible values for ``escape`` are ``json`` or ``none``.
 
 The return value from the ``format`` function is the log format object which
 may then be supplied to the appropriate ``log.*`` functions that define your
@@ -170,7 +171,8 @@ crsc  Proxy Cache    Cache Result Sub-Code. More specific code to complement the
                      Cache Result Code.
 chm   Proxy Cache    Cache Hit-Miss status. Specifies the level of cache from
                      which this request was served by |TS|. Currently supports
-                     only RAM (``HIT_RAM``) vs disk (``HIT_DISK``).
+                     only RAM (``HIT_RAM``), disk (``HIT_DISK``) and Read While Write (``HIT_RWW``).
+                     HIT_RWW could imply either HIT_RAM or HIT_DISK.
 cwr   Proxy Cache    Cache Write Result. Specifies the result of attempting to
                      write to cache: not relevant (``-``), no cache write
                      (``WL_MISS``), write interrupted (``INTR``), error while
@@ -538,10 +540,12 @@ Field Source           Description
 ===== ================ ============================================================
 piid  Proxy Plugin     Plugin ID for the current transaction. This is set for
                        plugin driven transactions via
-                       :c:func:`TSHttpConnectWithPluginId`.
+                       :c:func:`TSHttpConnectWithPluginId`. or
+                       :c:func:`TSHttpConnectPlugin`.
 pitag Proxy Plugin     Plugin tag for the current transaction. This is set for
                        plugin driven transactions via
-                       :c:func:`TSHttpConnectWithPluginId`.
+                       :c:func:`TSHttpConnectWithPluginId`. or
+                       :c:func:`TSHttpConnectPlugin`.
 cqint Client Request   If a request was generated internally (via a plugin), then
                        this has a value of ``1``, otherwise ``0``. This can be
                        useful when tracking internal only requests, such as those
@@ -633,6 +637,9 @@ cqssu  Client Request SSL Elliptic Curve used by |TS| to communicate with the
 cqssa  Client Request ALPN Protocol ID negotiated with the client.
 pqssl  Proxy Request  Indicates whether the connection from |TS| to the origin
                       was over SSL or not.
+pqssr  Proxy Request  SSL session ticket reused status from |TS| to the origin;
+                      indicates if the current request hit the SSL session ticket
+                      and avoided a full SSL handshake.
 pscert Proxy Request  1 if origin requested certificate from |TS| during TLS
                       handshake but no client certificate was defined. 2 if origin
                       requested certificate from |TS| during TLS handshake and a
@@ -810,17 +817,20 @@ paths), from transactions processed by |TS|.
 ===== ============== ==========================================================
 Field Source         Description
 ===== ============== ==========================================================
-cqu   Proxy Request  URI of the client request to |TS| (a subset of cqtx_). In
-                     reverse proxy mode, |TS| logs the rewritten/mapped URL
-                     (according to the rules in :file:`remap.config`), not the
-                     pristine/unmapped URL.
-cquc  Client Request Canonical URL from the client request to |TS|. This field
+cqu   Proxy Request  URL of the proxy request from |TS| to the origin. If a
+                     remap rule is used (:file:`remap.config`), the original
+                     client URL is replaced with the URL in the target of the
+                     remap rule.
+cquc  Proxy Request  Canonical URL from the proxy request to origin. This field
                      differs from cqu_ by having its contents URL-escaped
                      (spaces and various other characters are replaced by
                      percent-escaped entity codes).
-cqup  Proxy Request  Path component from the remapped client request.
-cqus  Client Request URL scheme from the client request.
+cqup  Proxy Request  Path component from the proxy request.
+cqus  Proxy Request  URL scheme from the proxy request.
 cquuc Client Request Canonical (prior to remapping) effective URL from client request.
+                     It is possible that plugins prior to the remap phase have
+                     changed the client request, so this field may not match the
+                     original incoming client request.
 cquup Client Request Canonical (prior to remapping) path component from the
                      client request. Compare with cqup_.
 cquuh Client Request Unmapped URL host from the client request.
@@ -871,3 +881,8 @@ Some examples below ::
   '%<cqup[0:30]>' // the first 30 characters of <cqup>.
   '%<cqup[-10:]>' // the last 10 characters of <cqup>.
   '%<cqup[:-5]>'  // everything except the last 5 characters of <cqup>.
+
+Note when ``escape`` in ``format`` is set to ``json``, the start is the
+position before escaping JSON strings, and escaped values are sliced at
+the length (= end - start). If slicing cuts in the middle of escaped
+characters, the whole character is removed.

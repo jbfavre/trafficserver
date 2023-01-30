@@ -39,37 +39,31 @@ TSDECL(tunnel_route);
 TSDECL(forward_route);
 TSDECL(partial_blind_route);
 TSDECL(tunnel_alpn);
+TSDECL(tunnel_prewarm);
+TSDECL(tunnel_prewarm_min);
+TSDECL(tunnel_prewarm_max);
+TSDECL(tunnel_prewarm_rate);
+TSDECL(tunnel_prewarm_connect_timeout);
+TSDECL(tunnel_prewarm_inactive_timeout);
+TSDECL(tunnel_prewarm_srv);
 TSDECL(verify_server_policy);
 TSDECL(verify_server_properties);
 TSDECL(verify_origin_server);
 TSDECL(client_cert);
 TSDECL(client_key);
+TSDECL(client_sni_policy);
 TSDECL(ip_allow);
 TSDECL(valid_tls_versions_in);
 TSDECL(http2);
+TSDECL(http2_buffer_water_mark);
 TSDECL(host_sni_policy);
 #undef TSDECL
 
-const int start = 0;
 struct YamlSNIConfig {
-  enum class Action {
-    disable_h2 = start,
-    verify_client,
-    verify_client_ca_certs,
-    tunnel_route,             // blind tunnel action
-    forward_route,            // decrypt data and then blind tunnel action
-    partial_blind_route,      // decrypt data; partial blind routing
-    verify_server_policy,     // this applies to server side vc only
-    verify_server_properties, // this applies to server side vc only
-    client_cert,
-    h2,             // this applies to client side only
-    host_sni_policy // Applies to client side only
-  };
-  enum class Level { NONE = 0, MODERATE, STRICT };
   enum class Policy : uint8_t { DISABLED = 0, PERMISSIVE, ENFORCED, UNSET };
   enum class Property : uint8_t { NONE = 0, SIGNATURE_MASK = 0x1, NAME_MASK = 0x2, ALL_MASK = 0x3, UNSET };
   enum class TLSProtocol : uint8_t { TLSv1 = 0, TLSv1_1, TLSv1_2, TLSv1_3, TLS_MAX = TLSv1_3 };
-  enum class Control : uint8_t { NONE = 0, ENABLE, DISABLE };
+  enum class TunnelPreWarm : uint8_t { DISABLED = 0, ENABLED, UNSET };
 
   YamlSNIConfig() {}
 
@@ -86,10 +80,20 @@ struct YamlSNIConfig {
     Property verify_server_properties = Property::UNSET;
     std::string client_cert;
     std::string client_key;
+    std::string client_sni_policy;
     std::string ip_allow;
     bool protocol_unset = true;
     unsigned long protocol_mask;
     std::vector<int> tunnel_alpn{};
+    std::optional<int> http2_buffer_water_mark;
+
+    bool tunnel_prewarm_srv                  = false;
+    uint32_t tunnel_prewarm_min              = 0;
+    int32_t tunnel_prewarm_max               = -1;
+    double tunnel_prewarm_rate               = 1.0;
+    uint32_t tunnel_prewarm_connect_timeout  = 0;
+    uint32_t tunnel_prewarm_inactive_timeout = 0;
+    TunnelPreWarm tunnel_prewarm             = TunnelPreWarm::UNSET;
 
     void EnableProtocol(YamlSNIConfig::TLSProtocol proto);
   };

@@ -242,7 +242,7 @@ void
 QUICNetVConnection::init(QUICVersion version, QUICConnectionId peer_cid, QUICConnectionId original_cid, UDPConnection *udp_con,
                          QUICPacketHandler *packet_handler, QUICResetTokenTable *rtable)
 {
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::startEvent);
+  SET_HANDLER(&QUICNetVConnection::startEvent);
   this->_initial_version             = version;
   this->_udp_con                     = udp_con;
   this->_packet_handler              = packet_handler;
@@ -267,7 +267,7 @@ QUICNetVConnection::init(QUICVersion version, QUICConnectionId peer_cid, QUICCon
                          QUICConnectionId retry_cid, UDPConnection *udp_con, QUICPacketHandler *packet_handler,
                          QUICResetTokenTable *rtable, QUICConnectionTable *ctable)
 {
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::acceptEvent);
+  SET_HANDLER(&QUICNetVConnection::acceptEvent);
   this->_initial_version             = version;
   this->_udp_con                     = udp_con;
   this->_packet_handler              = packet_handler;
@@ -366,7 +366,7 @@ QUICNetVConnection::acceptEvent(int event, Event *e)
   this->read.enabled = 1;
 
   // Handshake callback handler.
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_pre_handshake);
+  SET_HANDLER(&QUICNetVConnection::state_pre_handshake);
 
   // Send this netvc to InactivityCop.
   nh->startCop(this);
@@ -437,6 +437,7 @@ QUICNetVConnection::start()
     this->_ack_frame_manager.set_ack_delay_exponent(this->_quic_config->ack_delay_exponent_out());
     this->_hs_protocol       = this->_setup_handshake_protocol(this->_quic_config->client_ssl_ctx());
     this->_handshake_handler = new QUICHandshake(this->_initial_version, this, this->_hs_protocol);
+    this->_record_tls_handshake_begin_time();
     this->_handshake_handler->start(tp_config, &this->_packet_factory, this->_quic_config->vn_exercise_enabled());
     this->_handshake_handler->do_handshake();
     this->_ack_frame_manager.set_max_ack_delay(this->_quic_config->max_ack_delay_out());
@@ -515,6 +516,8 @@ QUICNetVConnection::free(EThread *t)
   */
   this->_context->trigger(QUICContext::CallbackEvent::CONNECTION_CLOSE);
   ALPNSupport::clear();
+  TLSSessionResumptionSupport::clear();
+  TLSBasicSupport::clear();
   this->_packet_handler->close_connection(this);
 }
 
@@ -573,7 +576,7 @@ QUICNetVConnection::connectUp(EThread *t, int fd)
   this->thread   = this_ethread();
   ink_assert(nh->mutex->thread_holding == this->thread);
 
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_pre_handshake);
+  SET_HANDLER(&QUICNetVConnection::state_pre_handshake);
 
   if ((res = nh->startIO(this)) < 0) {
     // FIXME: startIO only return 0 now! what should we do if it failed ?
@@ -1060,7 +1063,10 @@ QUICNetVConnection::populate_protocol(std::string_view *results, int n) const
   if (n > retval) {
     results[retval++] = IP_PROTO_TAG_QUIC;
     if (n > retval) {
-      retval += super::populate_protocol(results + retval, n - retval);
+      results[retval++] = IP_PROTO_TAG_TLS_1_3;
+      if (n > retval) {
+        retval += super::populate_protocol(results + retval, n - retval);
+      }
     }
   }
   return retval;
@@ -1069,36 +1075,16 @@ QUICNetVConnection::populate_protocol(std::string_view *results, int n) const
 const char *
 QUICNetVConnection::protocol_contains(std::string_view prefix) const
 {
-  const char *retval   = nullptr;
-  std::string_view tag = IP_PROTO_TAG_QUIC;
-  if (prefix.size() <= tag.size() && strncmp(tag.data(), prefix.data(), prefix.size()) == 0) {
-    retval = tag.data();
+  const char *retval = nullptr;
+  if (prefix.size() <= IP_PROTO_TAG_QUIC.size() && strncmp(IP_PROTO_TAG_QUIC.data(), prefix.data(), prefix.size()) == 0) {
+    retval = IP_PROTO_TAG_QUIC.data();
+  } else if (prefix.size() <= IP_PROTO_TAG_TLS_1_3.size() &&
+             strncmp(IP_PROTO_TAG_TLS_1_3.data(), prefix.data(), prefix.size()) == 0) {
+    retval = IP_PROTO_TAG_TLS_1_3.data();
   } else {
     retval = super::protocol_contains(prefix);
   }
   return retval;
-}
-
-// ALPN TLS extension callback. Given the client's set of offered
-// protocols, we have to select a protocol to use for this session.
-int
-QUICNetVConnection::select_next_protocol(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
-                                         unsigned inlen) const
-{
-  const unsigned char *npnptr = nullptr;
-  unsigned int npnsize        = 0;
-  if (this->getNPN(&npnptr, &npnsize)) {
-    // SSL_select_next_proto chooses the first server-offered protocol that appears in the clients protocol set, ie. the
-    // server selects the protocol. This is a n^2 search, so it's preferable to keep the protocol set short.
-    if (SSL_select_next_proto(const_cast<unsigned char **>(out), outlen, npnptr, npnsize, in, inlen) == OPENSSL_NPN_NEGOTIATED) {
-      Debug("ssl", "selected ALPN protocol %.*s", (int)(*outlen), *out);
-      return SSL_TLSEXT_ERR_OK;
-    }
-  }
-
-  *out    = nullptr;
-  *outlen = 0;
-  return SSL_TLSEXT_ERR_NOACK;
 }
 
 bool
@@ -1264,6 +1250,7 @@ QUICNetVConnection::_state_handshake_process_initial_packet(const QUICInitialPac
     if (this->_quic_config->quantum_readiness_test_enabled_in()) {
       tp_config.add_tp(QUANTUM_TEST_ID, QUANTUM_TEST_VALUE, sizeof(QUANTUM_TEST_VALUE));
     }
+    this->_record_tls_handshake_begin_time();
     error = this->_handshake_handler->start(tp_config, packet, &this->_packet_factory, this->_alt_con_manager->preferred_address());
 
     // If version negotiation was failed and VERSION NEGOTIATION packet was sent, nothing to do.
@@ -2151,7 +2138,7 @@ void
 QUICNetVConnection::_switch_to_handshake_state()
 {
   QUICConDebug("Enter state_handshake");
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_handshake);
+  SET_HANDLER(&QUICNetVConnection::state_handshake);
 }
 
 void
@@ -2160,8 +2147,9 @@ QUICNetVConnection::_switch_to_established_state()
   if (this->_complete_handshake_if_possible() == 0) {
     QUICConDebug("Enter state_connection_established");
     QUICConDebug("Negotiated cipher suite: %s", this->_handshake_handler->negotiated_cipher_suite());
+    this->_record_tls_handshake_end_time();
 
-    SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_connection_established);
+    SET_HANDLER(&QUICNetVConnection::state_connection_established);
 
     std::shared_ptr<const QUICTransportParameters> remote_tp = this->_handshake_handler->remote_transport_parameters();
     std::shared_ptr<const QUICTransportParameters> local_tp  = this->_handshake_handler->local_transport_parameters();
@@ -2213,7 +2201,7 @@ QUICNetVConnection::_switch_to_closing_state(QUICConnectionErrorUPtr error)
   ink_hrtime rto = this->_rtt_measure.current_pto_period();
 
   QUICConDebug("Enter state_connection_closing");
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_connection_closing);
+  SET_HANDLER(&QUICNetVConnection::state_connection_closing);
 
   // This states SHOULD persist for three times the
   // current Retransmission Timeout (RTO) interval as defined in
@@ -2241,7 +2229,7 @@ QUICNetVConnection::_switch_to_draining_state(QUICConnectionErrorUPtr error)
   ink_hrtime rto = this->_rtt_measure.current_pto_period();
 
   QUICConDebug("Enter state_connection_draining");
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_connection_draining);
+  SET_HANDLER(&QUICNetVConnection::state_connection_draining);
 
   // This states SHOULD persist for three times the
   // current Retransmission Timeout (RTO) interval as defined in
@@ -2259,7 +2247,7 @@ QUICNetVConnection::_switch_to_close_state()
     QUICConDebug("Switching state without handshake completion");
   }
   QUICConDebug("Enter state_connection_closed");
-  SET_HANDLER((NetVConnHandler)&QUICNetVConnection::state_connection_closed);
+  SET_HANDLER(&QUICNetVConnection::state_connection_closed);
   this->_schedule_closed_event();
 }
 
@@ -2335,10 +2323,12 @@ QUICNetVConnection::_setup_handshake_protocol(const shared_SSL_CTX &ctx)
 {
   // Initialize handshake protocol specific stuff
   // For QUICv1 TLS is the only option
-  QUICTLS *tls = new QUICTLS(this->_pp_key_info, ctx.get(), this->direction(), this->options,
-                             this->_quic_config->client_session_file(), this->_quic_config->client_keylog_file());
+  QUICTLS *tls =
+    new QUICTLS(this->_pp_key_info, ctx.get(), this->direction(), this->options, this->_quic_config->client_session_file());
   SSL_set_ex_data(tls->ssl_handle(), QUIC::ssl_quic_qc_index, static_cast<QUICConnection *>(this));
+  TLSBasicSupport::bind(tls->ssl_handle(), this);
   TLSSessionResumptionSupport::bind(tls->ssl_handle(), this);
+  ALPNSupport::bind(tls->ssl_handle(), this);
 
   return tls;
 }
@@ -2450,6 +2440,22 @@ QUICNetVConnection::_handle_periodic_ack_event()
     // we have ack to send
     // FIXME: should sent depend on socket event.
     this->_schedule_packet_write_ready();
+  }
+}
+
+SSL *
+QUICNetVConnection::_get_ssl_object() const
+{
+  return static_cast<QUICTLS *>(this->_hs_protocol)->ssl_handle();
+}
+
+ssl_curve_id
+QUICNetVConnection::_get_tls_curve() const
+{
+  if (this->getSSLSessionCacheHit()) {
+    return this->getSSLCurveNID();
+  } else {
+    return SSLGetCurveNID(this->_get_ssl_object());
   }
 }
 

@@ -26,6 +26,13 @@ HTTP state machine with extra data that can be accessed by the
 logging interface. The connection is treated as an HTTP transaction
 as if it came from a client.
 
+.. note::
+
+   This is a convenience function for :c:func:`TSHttpConnectPlugin` to provide
+   a simpler interface and backward compatibility for existing implementations.
+   When this function is used instead of `TSHttpConnectPlugin`, default buffer
+   index and watermark values will be used when creating IOBuffers.
+
 Synopsis
 ========
 
@@ -45,7 +52,7 @@ stack via the loopback interface.
 
 :arg:`addr`
    This is the network address of the target of the connection.
-   This includes the port which should be stored in the :c:type:`sockaddr`
+   This includes the port which should be stored in the :code:`sockaddr`
    structure pointed at by :arg:`addr`.
 
 :arg:`tag`
@@ -99,6 +106,7 @@ real client connection to Traffic Server.
 See Also
 ========
 
+:manpage:`TSHttpConnectPlugin(3ts)`,
 :manpage:`TSHttpConnect(3ts)`,
 :manpage:`TSNetConnect(3ts)`,
 :manpage:`TSAPI(3ts)`

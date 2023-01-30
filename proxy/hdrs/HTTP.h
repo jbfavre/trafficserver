@@ -102,7 +102,7 @@ enum HTTPWarningCode {
   HTTP_WARNING_CODE_MISC_WARNING           = 199
 };
 
-/* squild log codes
+/* squid log codes
    There is code (e.g. logstats) that depends on these errors coming at the end of this enum */
 enum SquidLogCode {
   SQUID_LOG_EMPTY                     = '0',
@@ -151,6 +151,7 @@ enum SquidLogCode {
   SQUID_LOG_ERR_NO_RELAY              = 'C',
   SQUID_LOG_ERR_DISK_IO               = 'D',
   SQUID_LOG_ERR_ZERO_SIZE_OBJECT      = 'E',
+  SQUID_LOG_TCP_CF_HIT                = 'F', // Collapsed forwarding HIT also known as Read while write hit
   SQUID_LOG_ERR_PROXY_DENIED          = 'G',
   SQUID_LOG_ERR_WEBFETCH_DETECTED     = 'H',
   SQUID_LOG_ERR_FUTURE_1              = 'I',
@@ -159,13 +160,13 @@ enum SquidLogCode {
   SQUID_LOG_ERR_UNKNOWN               = 'Z'
 };
 
-// squild log subcodes
+// squid log subcodes
 enum SquidSubcode {
   SQUID_SUBCODE_EMPTY                     = '0',
   SQUID_SUBCODE_NUM_REDIRECTIONS_EXCEEDED = '1',
 };
 
-/* squid hieratchy codes */
+/* squid hierarchy codes */
 enum SquidHierarchyCode {
   SQUID_HIER_EMPTY                           = '0',
   SQUID_HIER_NONE                            = '1',
@@ -233,7 +234,8 @@ enum SquidHitMissCode {
   SQUID_HIT_SSD     = SQUID_HIT_LEVEL_2,
   SQUID_HIT_DISK    = SQUID_HIT_LEVEL_3,
   SQUID_HIT_CLUSTER = SQUID_HIT_LEVEL_4,
-  SQUID_HIT_NET     = SQUID_HIT_LEVEL_5
+  SQUID_HIT_NET     = SQUID_HIT_LEVEL_5,
+  SQUID_HIT_RWW     = SQUID_HIT_LEVEL_6
 };
 
 enum HTTPType {
@@ -365,6 +367,7 @@ extern const char *HTTP_VALUE_CLOSE;
 extern const char *HTTP_VALUE_COMPRESS;
 extern const char *HTTP_VALUE_DEFLATE;
 extern const char *HTTP_VALUE_GZIP;
+extern const char *HTTP_VALUE_BROTLI;
 extern const char *HTTP_VALUE_IDENTITY;
 extern const char *HTTP_VALUE_KEEP_ALIVE;
 extern const char *HTTP_VALUE_MAX_AGE;
@@ -389,6 +392,7 @@ extern int HTTP_LEN_CLOSE;
 extern int HTTP_LEN_COMPRESS;
 extern int HTTP_LEN_DEFLATE;
 extern int HTTP_LEN_GZIP;
+extern int HTTP_LEN_BROTLI;
 extern int HTTP_LEN_IDENTITY;
 extern int HTTP_LEN_KEEP_ALIVE;
 extern int HTTP_LEN_MAX_AGE;
@@ -413,20 +417,20 @@ void http_hdr_adjust(HTTPHdrImpl *hdrp, int32_t offset, int32_t length, int32_t 
 /* Public */
 void http_init();
 
-inkcoreapi HTTPHdrImpl *http_hdr_create(HdrHeap *heap, HTTPType polarity);
+HTTPHdrImpl *http_hdr_create(HdrHeap *heap, HTTPType polarity);
 void http_hdr_init(HdrHeap *heap, HTTPHdrImpl *hh, HTTPType polarity);
 HTTPHdrImpl *http_hdr_clone(HTTPHdrImpl *s_hh, HdrHeap *s_heap, HdrHeap *d_heap);
 void http_hdr_copy_onto(HTTPHdrImpl *s_hh, HdrHeap *s_heap, HTTPHdrImpl *d_hh, HdrHeap *d_heap, bool inherit_strs);
 
-inkcoreapi int http_hdr_print(HdrHeap *heap, HTTPHdrImpl *hh, char *buf, int bufsize, int *bufindex, int *dumpoffset);
+int http_hdr_print(HdrHeap *heap, HTTPHdrImpl *hh, char *buf, int bufsize, int *bufindex, int *dumpoffset);
 
 void http_hdr_describe(HdrHeapObjImpl *obj, bool recurse = true);
 
-inkcoreapi bool http_hdr_version_set(HTTPHdrImpl *hh, const HTTPVersion &ver);
+bool http_hdr_version_set(HTTPHdrImpl *hh, const HTTPVersion &ver);
 
 const char *http_hdr_method_get(HTTPHdrImpl *hh, int *length);
-inkcoreapi void http_hdr_method_set(HdrHeap *heap, HTTPHdrImpl *hh, const char *method, int16_t method_wks_idx, int method_length,
-                                    bool must_copy);
+void http_hdr_method_set(HdrHeap *heap, HTTPHdrImpl *hh, const char *method, int16_t method_wks_idx, int method_length,
+                         bool must_copy);
 
 void http_hdr_url_set(HdrHeap *heap, HTTPHdrImpl *hh, URLImpl *url);
 
@@ -507,7 +511,7 @@ public:
   void version_set(HTTPVersion version);
 
   const char *method_get(int *length);
-  int method_get_wksidx();
+  int method_get_wksidx() const;
   void method_set(const char *value, int length);
 
   URL *url_create(URL *url);
@@ -599,7 +603,6 @@ public:
   const char *scheme_get(int *length ///< Storage for path length.
   );
   void url_set(URL *url);
-  void url_set_as_server_url(URL *url);
   void url_set(const char *str, int length);
 
   /// Check location of target host.
@@ -956,7 +959,7 @@ HTTPHdr::method_get(int *length)
 }
 
 inline int
-HTTPHdr::method_get_wksidx()
+HTTPHdr::method_get_wksidx() const
 {
   ink_assert(valid());
   ink_assert(m_http->m_polarity == HTTP_TYPE_REQUEST);
@@ -1038,19 +1041,6 @@ HTTPHdr::url_set(URL *url)
 
   URLImpl *url_impl = m_http->u.req.m_url_impl;
   ::url_copy_onto(url->m_url_impl, url->m_heap, url_impl, m_heap, true);
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-inline void
-HTTPHdr::url_set_as_server_url(URL *url)
-{
-  ink_assert(valid());
-  ink_assert(m_http->m_polarity == HTTP_TYPE_REQUEST);
-
-  URLImpl *url_impl = m_http->u.req.m_url_impl;
-  ::url_copy_onto_as_server_url(url->m_url_impl, url->m_heap, url_impl, m_heap, true);
 }
 
 /*-------------------------------------------------------------------------
@@ -1343,8 +1333,8 @@ public:
   void copy_frag_offsets_from(HTTPInfo *src);
   HTTPInfo &operator=(const HTTPInfo &m);
 
-  inkcoreapi int marshal_length();
-  inkcoreapi int marshal(char *buf, int len);
+  int marshal_length();
+  int marshal(char *buf, int len);
   static int unmarshal(char *buf, int len, RefCountObj *block_ref);
   static int unmarshal_v24_1(char *buf, int len, RefCountObj *block_ref);
   void set_buffer_reference(RefCountObj *block_ref);

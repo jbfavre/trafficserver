@@ -69,7 +69,6 @@ public:
     /// Are frequent accepts expected?
     /// Default: @c false.
     bool frequent_accept;
-    bool backdoor;
 
     /// Socket receive buffer size.
     /// 0 => OS default.
@@ -85,6 +84,7 @@ public:
     uint32_t sockopt_flags;
     uint32_t packet_mark;
     uint32_t packet_tos;
+    uint32_t packet_notsent_lowat;
 
     int tfo_queue_length;
 
@@ -134,7 +134,7 @@ public:
     @return Action, that can be cancelled to cancel the accept. The
       port becomes free immediately.
    */
-  inkcoreapi virtual Action *accept(Continuation *cont, AcceptOptions const &opt = DEFAULT_ACCEPT_OPTIONS);
+  virtual Action *accept(Continuation *cont, AcceptOptions const &opt = DEFAULT_ACCEPT_OPTIONS);
 
   /**
     Accepts incoming connections on port. Accept connections on port.
@@ -182,7 +182,7 @@ public:
 
   */
 
-  inkcoreapi Action *connect_re(Continuation *cont, sockaddr const *addr, NetVCOptions *options = nullptr);
+  Action *connect_re(Continuation *cont, sockaddr const *addr, NetVCOptions *options = nullptr);
 
   /**
     Initializes the net processor. This must be called before the event threads are started.
@@ -192,7 +192,7 @@ public:
 
   virtual void init_socks() = 0;
 
-  inkcoreapi virtual NetVConnection *allocate_vc(EThread *) = 0;
+  virtual NetVConnection *allocate_vc(EThread *) = 0;
 
   /** Private constructor. */
   NetProcessor(){};
@@ -247,7 +247,7 @@ private:
   @endcode
 
 */
-extern inkcoreapi NetProcessor &netProcessor;
+extern NetProcessor &netProcessor;
 
 /**
   Global netProcessor singleton object for making ssl enabled net
@@ -256,5 +256,5 @@ extern inkcoreapi NetProcessor &netProcessor;
   over ssl.
 
 */
-extern inkcoreapi NetProcessor &sslNetProcessor;
-extern inkcoreapi NetProcessor &quicNetProcessor;
+extern NetProcessor &sslNetProcessor;
+extern NetProcessor &quicNetProcessor;

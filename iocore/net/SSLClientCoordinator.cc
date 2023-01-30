@@ -35,6 +35,7 @@ SSLClientCoordinator::reconfigure()
   // into it.
   SSLConfig::reconfigure();
   SNIConfig::reconfigure();
+  SSLCertificateConfig::reconfigure();
 }
 
 void
@@ -48,7 +49,13 @@ SSLClientCoordinator::startup()
   sslClientUpdate->attach("proxy.config.ssl.client.cert.filename");
   sslClientUpdate->attach("proxy.config.ssl.client.private_key.path");
   sslClientUpdate->attach("proxy.config.ssl.client.private_key.filename");
+  sslClientUpdate->attach("proxy.config.ssl.keylog_file");
   SSLConfig::startup();
   sslClientUpdate->attach("proxy.config.ssl.servername.filename");
   SNIConfig::startup();
+  sslClientUpdate->attach("proxy.config.ssl.server.multicert.filename");
+  sslClientUpdate->attach("proxy.config.ssl.server.cert.path");
+  sslClientUpdate->attach("proxy.config.ssl.server.private_key.path");
+  sslClientUpdate->attach("proxy.config.ssl.server.cert_chain.filename");
+  sslClientUpdate->attach("proxy.config.ssl.server.session_ticket.enable");
 }

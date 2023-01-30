@@ -38,7 +38,6 @@ ts.Disk.records_config.update({
     'proxy.config.diags.debug.tags': 'ssl_verify_test',
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.ssl.client.verify.server.policy': 'ENFORCED',
     'proxy.config.ssl.client.verify.server.properties': 'NONE',
     'proxy.config.url_remap.pristine_host_hdr': 1
@@ -93,7 +92,7 @@ tr3.Processes.Default.Command = "curl --resolve \"bar.com:{0}:127.0.0.1\" -k  ht
 tr3.Processes.Default.ReturnCode = 0
 tr3.Processes.Default.Streams.stdout = Testers.ExcludesExpression("Could Not Connect", "Curl attempt should have failed")
 
-# Over riding the built in ERROR check since we expect tr2 to fail
+# Overriding the built in ERROR check since we expect tr2 to fail
 ts.Disk.diags_log.Content = Testers.ContainsExpression(
     "WARNING: TS_EVENT_SSL_VERIFY_SERVER plugin failed the origin certificate check for 127.0.0.1.  Action=Terminate SNI=random.com",
     "random.com should fail")
@@ -102,15 +101,16 @@ ts.Disk.diags_log.Content += Testers.ContainsExpression(
     "bar.com should fail but continue")
 ts.Disk.diags_log.Content += Testers.ExcludesExpression("SNI=foo.com", "foo.com should not fail in any way")
 
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Server verify callback 0 [\da-fx]+? - event is good SNI=foo.com good HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Server verify callback 1 [\da-fx]+? - event is good SNI=foo.com good HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Server verify callback 0 [\da-fx]+? - event is good SNI=random.com error HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Server verify callback 1 [\da-fx]+? - event is good SNI=random.com error HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Server verify callback 0 [\da-fx]+? - event is good SNI=bar.com error HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Server verify callback 1 [\da-fx]+? - event is good SNI=bar.com error HS", "verify callback happens 2 times")
+ts.Disk.traffic_out.Content += Testers.ContainsExpression("Server verify callback SNI APIs match=true", "verify SNI names match")

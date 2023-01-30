@@ -22,13 +22,24 @@
 Lua Plugin
 **********
 
-This module embeds Lua, via the standard Lua 5.1 interpreter, into |ATS|. With
+This module embeds Lua, via the LuaJIT engine (>2.0.4), into |ATS|. With
 this module, we can implement ATS plugin by writing Lua script instead of C
 code. Lua code executed using this module can be 100% non-blocking because the
 powerful Lua coroutines have been integrated into the ATS event model.
 
-Synopsis
-========
+Installation
+============
+
+This plugin is only built if LuaJIT (>2.0.4) is installed. The configure option
+
+::
+
+    --with-luajit=<path to luajit prefix>
+
+can be used to specify a LuaJIT install. Otherwise, configure will use pkg-config to find a viable installation.
+
+Example Scripts
+===============
 
 **test_hdr.lua**
 
@@ -64,20 +75,24 @@ Synopsis
         return 0
     end
 
-
-Installation
-============
-
-This plugin is only built if LuaJIT (>2.0.4) is installed. The configure option
+**test_global_hdr.lua**
 
 ::
 
-    --with-luajit=<path to luajit prefix>
+    function send_response()
+        ts.client_response.header['Rhost'] = ts.ctx['rhost']
+        return 0
+    end
 
-can be used to specify a LuaJIT install. Otherwise, configure will use pkg-config to find a viable installation.
+    function do_global_read_request()
+        local req_host = ts.client_request.header.Host
+        ts.ctx['rhost'] = string.reverse(req_host)
+        ts.hook(TS_LUA_HOOK_SEND_RESPONSE_HDR, send_response)
+    end
 
-Configuration
-=============
+
+Usage with Example Scripts
+==========================
 
 This module acts as remap plugin of Traffic Server, so we should realize 'do_remap' or 'do_os_response' function in each
 lua script. The path referencing a file with the lua script can be relative to the configuration directory or an absolute
@@ -114,6 +129,10 @@ We can write this in plugin.config:
 ::
 
     tslua.so /etc/trafficserver/script/test_global_hdr.lua
+
+
+Configuration for number of Lua states
+======================================
 
 We can also define the number of Lua states to be used for the plugin. If it is used as global plugin, we can write the
 following in plugin.config
@@ -158,6 +177,16 @@ enabled. The default value of '0' means disabled.
 ::
 
     map http://a.tbcdn.cn/ http://inner.tbcdn.cn/ @plugin=/XXX/tslua.so @pparam=--ljgc=1
+
+
+Configuration for JIT mode
+==========================
+
+We can also turn off JIT mode for LuaJIT when it is acting as global plugin for Traffic Server. The default is on (1). We can write this in plugin.config to turn off JIT
+
+::
+
+    tslua.so --jit=0 /etc/trafficserver/script/test_global_hdr.lua
 
 
 Profiling
@@ -270,6 +299,24 @@ Here is an example:
 We should write this TAG in records.config(If TAG is missing, default TAG will be set):
 
 ``CONFIG proxy.config.diags.debug.tags STRING TAG``
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.is_debug_tag_set
+-------------------
+**syntax:** *ts.is_debug_tag_set(TAG?)*
+
+**context:** global
+
+**description**: Returns '1' if debug TAG is enabled(the default TAG is **ts_lua**).
+
+Here is an example:
+
+::
+
+       if ts.is_debug_tag_set() then
+           ts.debug("hello world")
+       end
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
@@ -909,6 +956,16 @@ Then ``GET /st HTTP/1.1\r\nHost: b.tb.cn\r\nUser-Agent: Mozilla/5.0\r\n...`` wil
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
+ts.client_request.header_table
+------------------------------
+**syntax:** *VALUE = ts.client_request.header_table[HEADER]*
+
+**context:** do_remap/do_os_response or do_global_* or later
+
+**description:** get the current client request's HEADER as a table.
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
 ts.client_request.get_headers
 -----------------------------
 **syntax:** *ts.client_request.get_headers()*
@@ -1520,6 +1577,16 @@ Here is an example:
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
+ts.cached_response.header_table
+-------------------------------
+**syntax:** *VALUE = ts.cached_response.header_table[HEADER]*
+
+**context:** function @ TS_LUA_HOOK_CACHE_LOOKUP_COMPLETE hook point or later
+
+**description:** get the current cached response's HEADER as a table.
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
 ts.cached_response.get_headers
 ------------------------------
 **syntax:** *ts.cached_response.get_headers()*
@@ -1725,6 +1792,16 @@ Then ``GET /st HTTP/1.1\r\nHost: b.tb.cn\r\nUser-Agent: Mozilla/5.0\r\n...`` wil
 
 ``Mozilla/5.0``
 
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.server_request.header_table
+------------------------------
+**syntax:** *VALUE = ts.server_request.header_table[HEADER]*
+
+**context:** function @ TS_LUA_HOOK_SEND_REQUEST_HDR hook point or later
+
+**description:** get the current server request's HEADER as a table.
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
@@ -2403,6 +2480,16 @@ We will get the output:
 
 :ref:`TOP <admin-plugins-ts-lua>`'
 
+ts.server_response.header_table
+-------------------------------
+**syntax:** *VALUE = ts.server_response.header_table[HEADER]*
+
+**context:** function @ TS_LUA_HOOK_READ_RESPONSE_HDR hook point or later.
+
+**description:** get the current server response's HEADER as a table.
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
 ts.server_response.get_headers
 ------------------------------
 **syntax:** *ts.server_response.get_headers()*
@@ -2550,6 +2637,35 @@ Here is an example:
 We will get the output:
 
 ``text/html``
+
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.client_response.header_table
+-------------------------------
+**syntax:** *VALUE = ts.client_response.header_table[HEADER]*
+
+**context:** function @ TS_LUA_HOOK_SEND_RESPONSE_HDR hook point.
+
+**description:** get the current client response's HEADER as a table.
+
+Here is an example:
+
+::
+
+    function send_response()
+        local hdrs = ts.client_response.header_table['Set-Cookie'] or {}
+        for k, v in pairs(hdrs) do
+            ts.debug(k..': '..v)
+        end
+    end
+
+    function do_remap()
+        ts.hook(TS_LUA_HOOK_SEND_RESPONSE_HDR, send_response)
+        return 0
+    end
+
+If there are multiple 'Set-Cookie' response header, they will be printed as debug message.
 
 
 :ref:`TOP <admin-plugins-ts-lua>`
@@ -2710,7 +2826,7 @@ ts.http.resp_transform.get_upstream_bytes
 -----------------------------------------
 **syntax:** *ts.http.resp_transform.get_upstream_bytes()*
 
-**context:** transform handler
+**context:** transform handler for response
 
 **description**: This function can be used to retrieve the total bytes to be received from the upstream. If we got
 chunked response body from origin server, TS_LUA_INT64_MAX will be returned.
@@ -2754,7 +2870,7 @@ ts.http.resp_transform.get_upstream_watermark_bytes
 ---------------------------------------------------
 **syntax:** *ts.http.resp_transform.get_upstream_watermark_bytes()*
 
-**context:** transform handler
+**context:** transform handler for response
 
 **description**: This function can be used to retrieve the current watermark bytes for the upstream transform buffer.
 
@@ -2765,7 +2881,7 @@ ts.http.resp_transform.set_upstream_watermark_bytes
 ---------------------------------------------------
 **syntax:** *ts.http.resp_transform.set_upstream_watermark_bytes(NUMBER)*
 
-**context:** transform handler
+**context:** transform handler for response
 
 **description**: This function can be used to set the watermark bytes of the upstream transform buffer.
 
@@ -2778,12 +2894,92 @@ ts.http.resp_transform.set_downstream_bytes
 -------------------------------------------
 **syntax:** *ts.http.resp_transform.set_downstream_bytes(NUMBER)*
 
-**context:** transform handler
+**context:** transform handler for response
 
 **description**: This function can be used to set the total bytes to be sent to the downstream.
 
 Sometimes we want to set Content-Length header in client_response, and this function should be called before any real
 data is returned from the transform handler.
+
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.http.req_transform.get_downstream_bytes
+------------------------------------------
+**syntax:** *ts.http.req_transform.get_downstream_bytes()*
+
+**context:** transform handler for request
+
+**description**: This function can be used to retrieve the total bytes to be received from downstream.
+
+Here is an example:
+
+::
+
+    function transform_print(data, eos)
+      ts.ctx['reqbody'] = ts.ctx['reqbody'] .. data
+
+      if ts.ctx['len_set'] == nil then
+        local sz = ts.http.req_transform.get_downstream_bytes()
+        ts.http.req_transform.set_upstream_bytes(sz)
+        ts.ctx['len_set'] = true
+      end
+
+      if (eos == 1) then
+        ts.debug('End of Stream and the reqbody is ... ')
+        ts.debug(ts.ctx['reqbody'])
+      end
+
+      return data, eos
+    end
+
+    function do_remap()
+      if (ts.client_request.get_method() == 'POST') then
+        ts.ctx['reqbody'] = ''
+        ts.hook(TS_LUA_REQUEST_TRANSFORM, transform_print)
+      end
+
+      return 0
+    end
+
+The above example also shows the use of eos passed as a parameter to transform function. It indicates the end of the
+data stream to the transform function.
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.http.req_transform.get_downstream_watermark_bytes
+----------------------------------------------------
+**syntax:** *ts.http.req_transform.get_downstream_watermark_bytes()*
+
+**context:** transform handler for request
+
+**description**: This function can be used to retrieve the current watermark bytes for the downstream transform buffer.
+
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.http.req_transform.set_downstream_watermark_bytes
+----------------------------------------------------
+**syntax:** *ts.http.req_transform.set_downstream_watermark_bytes(NUMBER)*
+
+**context:** transform handler for request
+
+**description**: This function can be used to set the watermark bytes of the downstream transform buffer.
+
+Setting the watermark bytes above 32kb may improve the performance of the transform handler.
+
+
+:ref:`TOP <admin-plugins-ts-lua>`
+
+ts.http.req_transform.set_upstream_bytes
+----------------------------------------
+**syntax:** *ts.http.req_transform.set_upstream_bytes(NUMBER)*
+
+**context:** transform handler for request
+
+**description**: This function can be used to set the total bytes to be sent to the upstream.
+
+This function should be called before any real data is returned from the transform handler.
 
 
 :ref:`TOP <admin-plugins-ts-lua>`
@@ -3844,6 +4040,7 @@ Http config constants
     TS_LUA_CONFIG_HTTP_RESPONSE_SERVER_ENABLED
     TS_LUA_CONFIG_HTTP_INSERT_SQUID_X_FORWARDED_FOR
     TS_LUA_CONFIG_HTTP_INSERT_FORWARDED
+    TS_LUA_CONFIG_HTTP_PROXY_PROTOCOL_OUT
     TS_LUA_CONFIG_HTTP_SEND_HTTP11_REQUESTS
     TS_LUA_CONFIG_HTTP_CACHE_HTTP
     TS_LUA_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE
@@ -3866,13 +4063,14 @@ Http config constants
     TS_LUA_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_IN
     TS_LUA_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT
     TS_LUA_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT
+    TS_LUA_CONFIG_HTTP_SERVER_MIN_KEEP_ALIVE_CONNS
     TS_LUA_CONFIG_HTTP_PER_SERVER_CONNECTION_MAX
     TS_LUA_CONFIG_HTTP_PER_SERVER_CONNECTION_MATCH
     TS_LUA_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES
     TS_LUA_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES_DEAD_SERVER
+    TS_LUA_CONFIG_HTTP_CONNECT_DEAD_POLICY
     TS_LUA_CONFIG_HTTP_CONNECT_ATTEMPTS_RR_RETRIES
     TS_LUA_CONFIG_HTTP_CONNECT_ATTEMPTS_TIMEOUT
-    TS_LUA_CONFIG_HTTP_POST_CONNECT_ATTEMPTS_TIMEOUT
     TS_LUA_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME
     TS_LUA_CONFIG_HTTP_DOWN_SERVER_ABORT_THRESHOLD
     TS_LUA_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS
@@ -3911,6 +4109,7 @@ Http config constants
     TS_LUA_CONFIG_HTTP_CACHE_MAX_OPEN_WRITE_RETRIES
     TS_LUA_CONFIG_HTTP_REDIRECT_USE_ORIG_CACHE_KEY
     TS_LUA_CONFIG_HTTP_ATTACH_SERVER_SESSION_TO_CLIENT
+    TS_LUA_CONFIG_HTTP_MAX_PROXY_CYCLES
     TS_LUA_CONFIG_WEBSOCKET_NO_ACTIVITY_TIMEOUT
     TS_LUA_CONFIG_WEBSOCKET_ACTIVE_TIMEOUT
     TS_LUA_CONFIG_HTTP_UNCACHEABLE_REQUESTS_BYPASS_PARENT
@@ -3928,16 +4127,19 @@ Http config constants
     TS_LUA_CONFIG_HTTP_PARENT_PROXY_FAIL_THRESHOLD
     TS_LUA_CONFIG_HTTP_PARENT_PROXY_RETRY_TIME
     TS_LUA_CONFIG_HTTP_PER_PARENT_CONNECT_ATTEMPTS
-    TS_LUA_CONFIG_HTTP_PARENT_CONNECT_ATTEMPT_TIMEOUT
     TS_LUA_CONFIG_HTTP_ALLOW_MULTI_RANGE
     TS_LUA_CONFIG_HTTP_REQUEST_BUFFER_ENABLED
     TS_LUA_CONFIG_HTTP_ALLOW_HALF_OPEN
-    TS_LUA_CONFIG_SSL_CLIENT_VERIFY_SERVER
     TS_LUA_CONFIG_SSL_CLIENT_VERIFY_SERVER_POLICY
     TS_LUA_CONFIG_SSL_CLIENT_VERIFY_SERVER_PROPERTIES
     TS_LUA_CONFIG_SSL_CLIENT_SNI_POLICY
     TS_LUA_CONFIG_SSL_CLIENT_PRIVATE_KEY_FILENAME
     TS_LUA_CONFIG_SSL_CLIENT_CA_CERT_FILENAME
+    TS_LUA_CONFIG_HTTP_HOST_RESOLUTION_PREFERENCE
+    TS_LUA_CONFIG_PLUGIN_VC_DEFAULT_BUFFER_INDEX
+    TS_LUA_CONFIG_PLUGIN_VC_DEFAULT_BUFFER_WATER_MARK
+    TS_LUA_CONFIG_NET_SOCK_NOTSENT_LOWAT
+    TS_LUA_CONFIG_BODY_FACTORY_RESPONSE_SUPPRESSION_MODE
     TS_LUA_CONFIG_LAST_ENTRY
 
 :ref:`TOP <admin-plugins-ts-lua>`
@@ -4096,11 +4298,11 @@ ts.http.cntl_get
 
 **context:** do_remap/do_os_response or do_global_* or later.
 
-**description:** This function can be used to retrieve the value of control channel.
+**description:** This function can be used to retrieve the value of various control mechanisms in HTTP transaction.
 
 ::
 
-    val = ts.http.cntl_get(TS_LUA_HTTP_CNTL_GET_LOGGING_MODE)
+    val = ts.http.cntl_get(TS_LUA_HTTP_CNTL_LOGGING_MODE)
 
 
 :ref:`TOP <admin-plugins-ts-lua>`
@@ -4111,30 +4313,33 @@ ts.http.cntl_set
 
 **context:** do_remap/do_os_response or do_global_* or later.
 
-**description:** This function can be used to set the value of control channel.
+**description:** This function can be used to set the value of various control mechanisms in HTTP transaction.
 
 Here is an example:
 
 ::
 
     function do_remap()
-        ts.http.cntl_set(TS_LUA_HTTP_CNTL_SET_LOGGING_MODE, 0)      -- do not log the request
+        ts.http.cntl_set(TS_LUA_HTTP_CNTL_LOGGING_MODE, 0)      -- do not log the request
         return 0
     end
 
 
 :ref:`TOP <admin-plugins-ts-lua>`
 
-Http control channel constants
-------------------------------
+Http control mechanism constants
+--------------------------------
 **context:** do_remap/do_os_response or do_global_* or later
 
 ::
 
-    TS_LUA_HTTP_CNTL_GET_LOGGING_MODE
-    TS_LUA_HTTP_CNTL_SET_LOGGING_MODE
-    TS_LUA_HTTP_CNTL_GET_INTERCEPT_RETRY_MODE
-    TS_LUA_HTTP_CNTL_SET_INTERCEPT_RETRY_MODE
+    TS_LUA_HTTP_CNTL_LOGGING_MODE
+    TS_LUA_HTTP_CNTL_INTERCEPT_RETRY_MODE
+    TS_LUA_HTTP_CNTL_RESPONSE_CACHEABLE
+    TS_LUA_HTTP_CNTL_REQUEST_CACHEABLE
+    TS_LUA_HTTP_CNTL_SERVER_NO_STORE
+    TS_LUA_HTTP_CNTL_TXN_DEBUG
+    TS_LUA_HTTP_CNTL_SKIP_REMAPPING
 
 
 :ref:`TOP <admin-plugins-ts-lua>`

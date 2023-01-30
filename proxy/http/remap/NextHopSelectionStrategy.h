@@ -23,24 +23,40 @@
 
 #pragma once
 
-#include "ts/nexthop.h"
+#include <utility>
+
+#include "ts/parentselectdefs.h"
 #include "ParentSelection.h"
+#include "HttpTransact.h"
 
 #ifndef _NH_UNIT_TESTS_
 #define NH_Debug(tag, ...) Debug(tag, __VA_ARGS__)
 #define NH_Error(...) DiagsError(DL_Error, __VA_ARGS__)
 #define NH_Note(...) DiagsError(DL_Note, __VA_ARGS__)
 #define NH_Warn(...) DiagsError(DL_Warning, __VA_ARGS__)
+#define NH_GetConfig(v, n) REC_ReadConfigInteger(v, n)
 #else
 #include "unit-tests/nexthop_test_stubs.h"
 #endif /* _NH_UNIT_TESTS_ */
 
 constexpr const char *NH_DEBUG_TAG = "next_hop";
 
-namespace YAML
+namespace ts
 {
-class Node;
+namespace Yaml
+{
+  class Map;
 }
+} // namespace ts
+
+enum NHCmd { NH_MARK_UP, NH_MARK_DOWN };
+
+struct NHHealthStatus {
+  virtual bool isNextHopAvailable(TSHttpTxn txn, const char *hostname, const int port, void *ih = nullptr) = 0;
+  virtual void markNextHop(TSHttpTxn txn, const char *hostname, const int port, const NHCmd status, void *ih = nullptr,
+                           const time_t now = 0)                                                           = 0;
+  virtual ~NHHealthStatus() {}
+};
 
 enum NHPolicyType {
   NH_UNDEFINED = 0,
@@ -53,7 +69,7 @@ enum NHPolicyType {
 
 enum NHSchemeType { NH_SCHEME_NONE = 0, NH_SCHEME_HTTP, NH_SCHEME_HTTPS };
 
-enum NHRingMode { NH_ALTERNATE_RING = 0, NH_EXHAUST_RING };
+enum NHRingMode { NH_ALTERNATE_RING = 0, NH_EXHAUST_RING, NH_PEERING_RING };
 
 enum NH_HHealthCheck { NH_ACTIVE, NH_PASSIVE };
 
@@ -84,67 +100,32 @@ struct HealthChecks {
 };
 
 struct NHProtocol {
-  NHSchemeType scheme;
-  uint32_t port;
+  NHSchemeType scheme = NH_SCHEME_NONE;
+  uint32_t port       = 0;
   std::string health_check_url;
 };
 
-struct HostRecord : ATSConsistentHashNode {
-  std::mutex _mutex;
+struct HostRecordCfg {
   std::string hostname;
-  time_t failedAt;
-  uint32_t failCount;
-  time_t upAt;
-  float weight;
-  std::string hash_string;
-  int host_index;
-  int group_index;
   std::vector<std::shared_ptr<NHProtocol>> protocols;
+  float weight{0};
+  std::string hash_string;
+};
 
-  // construct without locking the _mutex.
-  HostRecord()
-  {
-    hostname    = "";
-    failedAt    = 0;
-    failCount   = 0;
-    upAt        = 0;
-    weight      = 0;
-    hash_string = "";
-    host_index  = -1;
-    group_index = -1;
-    available   = true;
-  }
+struct HostRecord : public ATSConsistentHashNode, public HostRecordCfg {
+  std::mutex _mutex;
+  std::atomic<time_t> failedAt{0};
+  std::atomic<uint32_t> failCount{0};
+  std::atomic<time_t> upAt{0};
+  int host_index{-1};
+  int group_index{-1};
+  bool self{false};
 
-  // copy constructor to avoid copying the _mutex.
-  HostRecord(const HostRecord &o)
-  {
-    hostname    = o.hostname;
-    failedAt    = o.failedAt;
-    failCount   = o.failCount;
-    upAt        = o.upAt;
-    weight      = o.weight;
-    hash_string = o.hash_string;
-    host_index  = -1;
-    group_index = -1;
-    available   = true;
-    protocols   = o.protocols;
-  }
+  explicit HostRecord(HostRecordCfg &&o) : HostRecordCfg(std::move(o)) {}
 
-  // assign without copying the _mutex.
-  HostRecord &
-  operator=(const HostRecord &o)
-  {
-    hostname    = o.hostname;
-    failedAt    = o.failedAt;
-    upAt        = o.upAt;
-    weight      = o.weight;
-    hash_string = o.hash_string;
-    host_index  = o.host_index;
-    group_index = o.group_index;
-    available   = o.available;
-    protocols   = o.protocols;
-    return *this;
-  }
+  // No copying or moving.
+  HostRecord(const HostRecord &) = delete;
+  HostRecord &operator=(const HostRecord &) = delete;
 
   // locks the record when marking this host down.
   void
@@ -212,33 +193,36 @@ private:
 class NextHopSelectionStrategy
 {
 public:
-  NextHopSelectionStrategy();
-  NextHopSelectionStrategy(const std::string_view &name, const NHPolicyType &type);
+  NextHopSelectionStrategy() = delete;
+  NextHopSelectionStrategy(const std::string_view &name, const NHPolicyType &type, ts::Yaml::Map &n);
   virtual ~NextHopSelectionStrategy(){};
-  bool Init(const YAML::Node &n);
   virtual void findNextHop(TSHttpTxn txnp, void *ih = nullptr, time_t now = 0) = 0;
   void markNextHop(TSHttpTxn txnp, const char *hostname, const int port, const NHCmd status, void *ih = nullptr,
                    const time_t now = 0);
   bool nextHopExists(TSHttpTxn txnp, void *ih = nullptr);
 
-  virtual bool responseIsRetryable(unsigned int current_retry_attempts, HTTPStatus response_code);
-  virtual bool onFailureMarkParentDown(HTTPStatus response_code);
+  virtual ParentRetry_t responseIsRetryable(int64_t sm_id, HttpTransact::CurrentInfo &current_info, HTTPStatus response_code);
+
+  void retryComplete(TSHttpTxn txn, const char *hostname, const int port);
 
   std::string strategy_name;
   bool go_direct           = true;
   bool parent_is_proxy     = true;
   bool ignore_self_detect  = false;
+  bool cache_peer_result   = true;
   NHPolicyType policy_type = NH_UNDEFINED;
   NHSchemeType scheme      = NH_SCHEME_NONE;
   NHRingMode ring_mode     = NH_ALTERNATE_RING;
-  ResponseCodes resp_codes;
+  ResponseCodes resp_codes;     // simple retry codes
+  ResponseCodes markdown_codes; // unavailable server retry and markdown codes
   HealthChecks health_checks;
   NextHopHealthStatus passive_health;
   std::vector<std::vector<std::shared_ptr<HostRecord>>> host_groups;
-  uint32_t max_simple_retries = 1;
-  uint32_t groups             = 0;
-  uint32_t grp_index          = 0;
-  uint32_t hst_index          = 0;
-  uint32_t num_parents        = 0;
-  uint32_t distance           = 0; // index into the strategies list.
+  uint32_t max_simple_retries      = 1;
+  uint32_t max_unavailable_retries = 1;
+  uint32_t groups                  = 0;
+  uint32_t grp_index               = 0;
+  uint32_t hst_index               = 0;
+  uint32_t num_parents             = 0;
+  uint32_t distance                = 0; // index into the strategies list.
 };

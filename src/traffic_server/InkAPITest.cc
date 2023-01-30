@@ -83,6 +83,8 @@
 #define ERROR_BODY "TESTING ERROR PAGE"
 #define TRANSFORM_APPEND_STRING "This is a transformed response"
 
+extern int dns_failover_period;
+
 //////////////////////////////////////////////////////////////////////////////
 // STRUCTURES
 //////////////////////////////////////////////////////////////////////////////
@@ -3423,7 +3425,7 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
     if (test->hook_mask == 1) {
       test->hook_mask |= 2;
     }
-    TSSkipRemappingSet(static_cast<TSHttpTxn>(data), 1);
+    TSHttpTxnCntlSet(static_cast<TSHttpTxn>(data), TS_HTTP_CNTL_SKIP_REMAPPING, true);
     checkHttpTxnClientReqGet(test, data);
 
     TSHttpTxnReenable(static_cast<TSHttpTxn>(data), TS_EVENT_HTTP_CONTINUE);
@@ -6973,7 +6975,7 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
     break;
 
   case TS_EVENT_HTTP_TXN_START:
-    TSSkipRemappingSet(static_cast<TSHttpTxn>(edata), 1);
+    TSHttpTxnCntlSet(static_cast<TSHttpTxn>(edata), TS_HTTP_CNTL_SKIP_REMAPPING, true);
     SDK_RPRINT(data->test, "TSHttpSsnReenable", "TestCase", TC_PASS, "ok");
     data->test_passed_ssn_reenable++;
     {
@@ -7245,7 +7247,7 @@ parent_proxy_handler(TSCont contp, TSEvent event, void *edata)
     TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
     TSHttpTxnHookAdd(txnp, TS_HTTP_TXN_CLOSE_HOOK, contp);
 
-    TSSkipRemappingSet(txnp, 1);
+    TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_SKIP_REMAPPING, true);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     break;
 
@@ -7406,7 +7408,7 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
     txnp = static_cast<TSHttpTxn>(edata);
-    TSSkipRemappingSet(txnp, 1);
+    TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_SKIP_REMAPPING, true);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     break;
 
@@ -7876,7 +7878,7 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
     txnp = static_cast<TSHttpTxn>(edata);
-    TSSkipRemappingSet(txnp, 1);
+    TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_SKIP_REMAPPING, true);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     break;
   case TS_EVENT_HTTP_READ_RESPONSE_HDR:
@@ -8165,7 +8167,7 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
     txnp = static_cast<TSHttpTxn>(edata);
-    TSSkipRemappingSet(txnp, 1);
+    TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_SKIP_REMAPPING, true);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     break;
 
@@ -8527,6 +8529,11 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_TSHttpConnectIntercept)(RegressionTest *test, 
 EXCLUSIVE_REGRESSION_TEST(SDK_API_TSHttpConnectServerIntercept)(RegressionTest *test, int /* atype ATS_UNUSED */, int *pstatus)
 {
   *pstatus = REGRESSION_TEST_INPROGRESS;
+  // These tests don't actually require DNS resolution, but if there are issues
+  // connecting to the DNS server then the test will fail due to error events
+  // from the communication arising. We avoid this by simply extending the DNS
+  // failover period to a very large value.
+  dns_failover_period = 1000;
 
   TSDebug(UTDBG_TAG, "Starting test TSHttpConnectServerIntercept");
 
@@ -8689,14 +8696,23 @@ std::array<std::string_view, TS_CONFIG_LAST_ENTRY> SDK_Overridable_Configs = {
    OutboundConnTrack::CONFIG_VAR_MIN,
    OutboundConnTrack::CONFIG_VAR_MAX,
    OutboundConnTrack::CONFIG_VAR_MATCH,
+#if TS_VERSION_MAJOR < 10
    "proxy.config.ssl.client.verify.server",
+#endif
    "proxy.config.ssl.client.verify.server.policy",
    "proxy.config.ssl.client.verify.server.properties",
    "proxy.config.ssl.client.sni_policy",
    "proxy.config.ssl.client.private_key.filename",
    "proxy.config.ssl.client.CA.cert.filename",
    "proxy.config.hostdb.ip_resolve",
-   "proxy.config.http.connect.dead.policy"}};
+   "proxy.config.http.connect.dead.policy",
+   "proxy.config.http.max_proxy_cycles",
+   "proxy.config.plugin.vc.default_buffer_index",
+   "proxy.config.plugin.vc.default_buffer_water_mark",
+   "proxy.config.net.sock_notsent_lowat",
+   "proxy.config.body_factory.response_suppression_mode",
+   "proxy.config.http.parent_proxy.enable_parent_timeout_markdowns",
+   "proxy.config.http.parent_proxy.disable_parent_markdowns"}};
 
 extern ClassAllocator<HttpSM> httpSMAllocator;
 
@@ -8719,6 +8735,14 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS)(RegressionTest *test, int /* atype 
   *pstatus = REGRESSION_TEST_INPROGRESS;
   for (int i = 0; i < static_cast<int>(SDK_Overridable_Configs.size()); ++i) {
     std::string_view conf{SDK_Overridable_Configs[i]};
+#if TS_VERSION_MAJOR < 10
+    if (conf == "proxy.config.ssl.client.verify.server") {
+      // TODO: remove this in 10.x. Kept here because we keep the
+      // `TS_CONFIG_SSL_CLIENT_VERIFY_SERVER` in 9.x to preserve ABI
+      // compatibility in the 9.x releases.
+      continue;
+    }
+#endif
 
     if (TS_SUCCESS == TSHttpTxnConfigFind(conf.data(), -1, &key, &type)) {
       if (key != i) {

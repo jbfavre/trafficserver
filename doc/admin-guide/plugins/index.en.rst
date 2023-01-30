@@ -60,6 +60,7 @@ Plugins that are considered stable are installed by default in |TS| releases.
    Generator <generator.en>
    Header Rewrite <header_rewrite.en>
    Health Checks <healthchecks.en>
+   HTTP Stats <http_stats.en>
    Lua <lua.en>
    Regex Remap <regex_remap.en>
    Regex Revalidate <regex_revalidate.en>
@@ -113,6 +114,9 @@ Plugins that are considered stable are installed by default in |TS| releases.
 :doc:`Health Checks <healthchecks.en>`
     Define service health check links.
 
+:doc:`HTTP Stats <http_stats.en>`
+    A remap-based plugin that provides an HTTP interface to all |TS| statistics.
+
 :doc:`Lua <lua.en>`
    Allows plugins to be written in Lua instead of C code.
 
@@ -165,11 +169,16 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
    MP4 <mp4.en>
    Multiplexer <multiplexer.en>
    MySQL Remap <mysql_remap.en>
+   OpenTelemetry Tracer <otel_tracer.en>
+   Parent Select <parent_select.en>
    Rate Limit <rate_limit.en>
-   Signed URLs <url_sig.en>
+   Remap Stats <remap_stats.en>
+   URI Signing <uri_signing.en>
+   Legacy Signed URLs <url_sig.en>
    Slice <slice.en>
    SSL Headers <sslheaders.en>
    SSL Session Reuse <ssl_session_reuse.en>
+   STEK Share <stek_share.en>
    System Statistics <system_stats.en>
    Traffic Dump <traffic_dump.en>
    WebP Transform <webp_transform.en>
@@ -227,18 +236,36 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 :doc:`MySQL Remap <mysql_remap.en>`
    Allows dynamic remaps from a MySQL database.
 
+:doc:`OpenTelemetry Tracer <otel_tracer.en>`
+   Allows Trafficserver to participate in OpenTelemetry distributed tracing system
+
 :doc:`Prefetch <prefetch.en>`
    Pre-fetch objects based on the requested URL path pattern.
 
+:doc:`Parent Select <parent_select.en>`
+   This remap plugin allows selection of parent proxies or origins during requests. This
+   provides the same functionality as the core :file:`parent.config` and :file:`strategies.yaml` config files.
+
 :doc:`Rate Limit <rate_limit.en>`
    Simple transaction rate limiting.
+
+:doc:`Remap Stats <remap_stats.en>`
+   This global plugin adds remap stats to the stats.
 
 :doc:`Remap Purge <remap_purge.en>`
    This remap plugin allows the administrator to easily setup remotely
    controlled ``PURGE`` for the content of an entire remap rule.
 
-:doc:`Signed URLs <url_sig.en>`
+:doc:`URI Signing <uri_signing.en>`
+   Adds support for verifying URL signatures for incoming requests to either deny or redirect access,
+   implementing the IETF URI Signing draft RFC.
+
+:doc:`Legacy Signed URLs <url_sig.en>`
    Adds support for verifying URL signatures for incoming requests to either deny or redirect access.
+
+   .. note::
+
+    URL Sig is old and unlikely to be standardized. Prefer URI Signing.
 
 :doc:`Slice <slice.en>`
    Slice full file or range based requests into deterministic chunks, allowing large files to be
@@ -250,6 +277,9 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 
 :doc:`SSL Headers <sslheaders.en>`
    Populate request headers with SSL session information.
+
+:doc:`STEK Share <stek_share.en>`
+    Coordinates STEK (Session Ticket Encryption Key) between ATS instances running in a group.
 
 :doc:`System Stats <system_stats.en>`
     Inserts system statistics in to the stats list

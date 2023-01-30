@@ -59,8 +59,8 @@ ProxyTransaction::new_transaction(bool from_early_data)
     }
   }
 
-  this->increment_client_transactions_stat();
-  _sm->attach_client_session(this, _reader);
+  this->increment_transactions_stat();
+  _sm->attach_client_session(this);
 }
 
 bool
@@ -183,7 +183,7 @@ void
 ProxyTransaction::transaction_done()
 {
   SCOPED_MUTEX_LOCK(lock, this->mutex, this_ethread());
-  this->decrement_client_transactions_stat();
+  this->decrement_transactions_stat();
 }
 
 // Implement VConnection interface.
@@ -223,8 +223,28 @@ ProxyTransaction::has_request_body(int64_t request_content_length, bool is_chunk
   return request_content_length > 0 || is_chunked;
 }
 
+void
+ProxyTransaction::attach_transaction(HttpSM *attach_sm)
+{
+  _sm = attach_sm;
+}
+
+HTTPVersion
+ProxyTransaction::get_version(HTTPHdr &hdr) const
+{
+  return hdr.version_get();
+}
+
 bool
 ProxyTransaction::allow_half_open() const
 {
   return false;
+}
+
+// Most protocols will not want to set the Connection: header
+// For H2 it will initiate the drain logic.  So we make do nothing
+// the default action.
+void
+ProxyTransaction::set_close_connection(HTTPHdr &hdr) const
+{
 }

@@ -42,7 +42,6 @@ ts.Disk.records_config.update({
     'proxy.config.diags.debug.tags': 'ssl_client_verify_test',
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.exec_thread.autoconfig.scale': 1.0,
     'proxy.config.ssl.CA.cert.filename': '{0}/signer.pem'.format(ts.Variables.SSLDir),
     'proxy.config.url_remap.pristine_host_hdr': 1
@@ -105,11 +104,11 @@ tr3.Processes.Default.Command = "curl --tls-max 1.2 -k --cert ./server.pem --key
 tr3.Processes.Default.ReturnCode = 35
 tr3.Processes.Default.Streams.all = Testers.ContainsExpression("error", "Curl attempt should have failed")
 
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Client verify callback 0 [\da-fx]+? - event is good good HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Client verify callback 1 [\da-fx]+? - event is good good HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Client verify callback 0 [\da-fx]+? - event is good error HS", "verify callback happens 2 times")
-ts.Streams.All += Testers.ContainsExpression(
+ts.Disk.traffic_out.Content += Testers.ContainsExpression(
     "Client verify callback 1 [\da-fx]+? - event is good error HS", "verify callback happens 2 times")

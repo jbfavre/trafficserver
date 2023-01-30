@@ -48,6 +48,8 @@ libhttp_remap_a_SOURCES = \
 	NextHopStrategyFactory.cc \
 	RemapConfig.cc \
 	RemapConfig.h \
+        RemapHitCount.cc \
+        RemapHitCount.h \
 	RemapPluginInfo.cc \
 	RemapPluginInfo.h \
 	PluginDso.cc \
@@ -131,7 +133,6 @@ test_NextHopStrategyFactory_CPPFLAGS = \
 	@YAMLCPP_INCLUDES@
 
 test_NextHopStrategyFactory_LDADD = \
-  $(top_builddir)/src/tscpp/util/libtscpputil.la \
   $(top_builddir)/src/tscore/libtscore.la \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
@@ -139,6 +140,7 @@ test_NextHopStrategyFactory_LDADD = \
   $(top_builddir)/proxy/logging/liblogging.a \
   $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/iocore/utils/libinkutils.a \
+  $(top_builddir)/src/tscpp/util/libtscpputil.la \
 	@YAMLCPP_LIBS@ \
 	@HWLOC_LIBS@
 
@@ -162,7 +164,6 @@ test_NextHopRoundRobin_CPPFLAGS = \
 	@YAMLCPP_INCLUDES@
 
 test_NextHopRoundRobin_LDADD = \
-  $(top_builddir)/src/tscpp/util/libtscpputil.la \
   $(top_builddir)/src/tscore/libtscore.la \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
@@ -170,19 +171,20 @@ test_NextHopRoundRobin_LDADD = \
   $(top_builddir)/proxy/logging/liblogging.a \
   $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/iocore/utils/libinkutils.a \
+  $(top_builddir)/src/tscpp/util/libtscpputil.la \
 	@YAMLCPP_LIBS@ \
 	@HWLOC_LIBS@
 
-test_NextHopRoundRobin_LDFLAGS = $(AM_LDFLAGS) -L$(top_builddir)/src/tscore/.libs -ltscore
+test_NextHopRoundRobin_LDFLAGS = $(AM_LDFLAGS) -L$(top_builddir)/src/tscore/.libs -ltscore -L$(top_builddir)/src/tscpp/util/.libs -ltscpputil
 
 test_NextHopRoundRobin_SOURCES = \
+	unit-tests/test_NextHopRoundRobin.cc \
+	unit-tests/nexthop_test_stubs.cc \
 	NextHopSelectionStrategy.cc \
 	NextHopStrategyFactory.cc \
 	NextHopRoundRobin.cc \
 	NextHopConsistentHash.cc \
-	NextHopHealthStatus.cc \
-	unit-tests/test_NextHopRoundRobin.cc \
-	unit-tests/nexthop_test_stubs.cc
+	NextHopHealthStatus.cc
 
 test_NextHopConsistentHash_CPPFLAGS = \
 	$(AM_CPPFLAGS) \
@@ -193,7 +195,6 @@ test_NextHopConsistentHash_CPPFLAGS = \
 	@YAMLCPP_INCLUDES@
 
 test_NextHopConsistentHash_LDADD = \
-  $(top_builddir)/src/tscpp/util/libtscpputil.la \
   $(top_builddir)/src/tscore/libtscore.la \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
@@ -201,6 +202,7 @@ test_NextHopConsistentHash_LDADD = \
   $(top_builddir)/proxy/logging/liblogging.a \
   $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/iocore/utils/libinkutils.a \
+  $(top_builddir)/src/tscpp/util/libtscpputil.la \
 	@YAMLCPP_LIBS@ \
 	@HWLOC_LIBS@
 

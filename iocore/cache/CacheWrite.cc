@@ -98,6 +98,41 @@ CacheVC::updateVector(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       if (od->move_resident_alt && get_alternate_index(write_vector, od->single_doc_key) == 0) {
         od->move_resident_alt = false;
       }
+      if (cache_config_log_alternate_eviction) {
+        // Initially there was an attempt to make alternate eviction a log
+        // field. However it was discovered this could not work because this
+        // code, in which alternates are evicted, happens during the processing
+        // of IO which happens after transaction logs are emitted and after the
+        // HttpSM is destructed. Instead, therefore, alternate eviction logging
+        // was implemented for diags.log with the
+        // proxy.config.cache.log.alternate.eviction toggle.
+        CacheHTTPInfo *info = write_vector->get(0);
+        HTTPHdr *request    = info->request_get();
+        if (request->valid()) {
+          // Marking the request's target as dirty will guarantee that the
+          // internal members of the request used for printing the URL will be
+          // coherent and valid by the time it is printed.
+          request->mark_target_dirty();
+          // In contrast to url_string_get, this url_print interface doesn't
+          // use HTTPHdr's m_heap which is not valid at this point because the
+          // HttpSM is most likely gone.
+          int url_length = request->url_printed_length();
+          ats_scoped_mem<char> url_text;
+          url_text   = static_cast<char *>(ats_malloc(url_length + 1));
+          int index  = 0;
+          int offset = 0;
+          // url_print does not NULL terminate, so url_length instead of url_length + 1.
+          int ret                    = request->url_print(url_text.get(), url_length, &index, &offset);
+          url_text.get()[url_length] = '\0';
+          if (ret == 0) {
+            Note("Could not print URL of evicted alternate.");
+          } else {
+            Status("The maximum number of alternates was exceeded for a resource. "
+                   "An alternate was evicted for URL: %.*s",
+                   url_length, url_text.get());
+          }
+        }
+      }
       write_vector->remove(0, true);
     }
     if (vec) {
@@ -164,7 +199,7 @@ CacheVC::updateVector(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
    - f.update. Used only if the write_vector needs to be written to disk.
      Used to set the length of the alternate to total_len.
    - write_vector. Used only if frag_type == CACHE_FRAG_TYPE_HTTP &&
-     (f.use_fist_key || f.evac_vector) is set. Write_vector is written to disk
+     (f.use_first_key || f.evac_vector) is set. Write_vector is written to disk
    - alternate_index. Used only if write_vector needs to be written to disk.
      Used to find out the VC's alternate in the write_vector and set its
      length to tatal_len.
@@ -253,6 +288,13 @@ iobufferblock_memcpy(char *p, int len, IOBufferBlock *ab, int offset)
 EvacuationBlock *
 Vol::force_evacuate_head(Dir *evac_dir, int pinned)
 {
+  auto bucket = dir_evac_bucket(evac_dir);
+  if (!evac_bucket_valid(bucket)) {
+    DDebug("cache_evac", "dir_evac_bucket out of bounds, skipping evacuate: %" PRId64 "(%d), %d, %d", bucket, evacuate_size,
+           (int)dir_offset(evac_dir), (int)dir_phase(evac_dir));
+    return nullptr;
+  }
+
   // build an evacuation block for the object
   EvacuationBlock *b = evacuation_block_exists(evac_dir, this);
   // if we have already started evacuating this document, its too late
@@ -265,7 +307,7 @@ Vol::force_evacuate_head(Dir *evac_dir, int pinned)
     b      = new_EvacuationBlock(mutex->thread_holding);
     b->dir = *evac_dir;
     DDebug("cache_evac", "force: %d, %d", (int)dir_offset(evac_dir), (int)dir_phase(evac_dir));
-    evacuate[dir_evac_bucket(evac_dir)].push(b);
+    evacuate[bucket].push(b);
   }
   b->f.pinned        = pinned;
   b->f.evacuate_head = 1;
@@ -423,7 +465,7 @@ CacheVC::evacuateReadHead(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */
     }
     alternate_tmp = vector.get(alternate_index);
     doc_len       = alternate_tmp->object_size_get();
-    Debug("cache_evac", "evacuateReadHead http earliest %X first: %X len: %" PRId64, first_key.slice32(0), earliest_key.slice32(0),
+    Debug("cache_evac", "evacuateReadHead http earliest %X first: %X len: %" PRId64, earliest_key.slice32(0), first_key.slice32(0),
           doc_len);
   } else {
     // non-http document
@@ -433,8 +475,8 @@ CacheVC::evacuateReadHead(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */
       goto Ldone;
     }
     doc_len = doc->total_len;
-    DDebug("cache_evac", "evacuateReadHead non-http earliest %X first: %X len: %" PRId64, first_key.slice32(0),
-           earliest_key.slice32(0), doc_len);
+    DDebug("cache_evac", "evacuateReadHead non-http earliest %X first: %X len: %" PRId64, earliest_key.slice32(0),
+           first_key.slice32(0), doc_len);
   }
   if (doc_len == total_len) {
     // the whole document has been evacuated. Insert the directory
@@ -465,7 +507,7 @@ CacheVC::evacuateDocDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
          (int)dir_phase(&overwrite_dir), (int)dir_offset(&dir), (int)dir_phase(&dir));
   int i = dir_evac_bucket(&overwrite_dir);
   // nasty beeping race condition, need to have the EvacuationBlock here
-  EvacuationBlock *b = vol->evacuate[i].head;
+  EvacuationBlock *b = vol->evac_bucket_valid(i) ? vol->evacuate[i].head : nullptr;
   for (; b; b = b->link.next) {
     if (dir_offset(&b->dir) == dir_offset(&overwrite_dir)) {
       // If the document is single fragment (although not tied to the vector),
@@ -521,8 +563,7 @@ CacheVC::evacuateDocDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
           }
           if (dir_overwrite(&doc->first_key, vol, &dir, &overwrite_dir)) {
             int64_t o = dir_offset(&overwrite_dir), n = dir_offset(&dir);
-            vol->ram_cache->fixup(&doc->first_key, static_cast<uint32_t>(o >> 32), static_cast<uint32_t>(o),
-                                  static_cast<uint32_t>(n >> 32), static_cast<uint32_t>(n));
+            vol->ram_cache->fixup(&doc->first_key, static_cast<uint64_t>(o), static_cast<uint64_t>(n));
           }
         } else {
           DDebug("cache_evac", "evacuating earliest: %X %d", (int)doc->key.slice32(0), (int)dir_offset(&overwrite_dir));
@@ -617,6 +658,7 @@ Vol::evacuateDocReadDone(int event, Event *e)
   Doc *doc = reinterpret_cast<Doc *>(doc_evacuator->buf->data());
   CacheKey next_key;
   EvacuationBlock *b = nullptr;
+  auto bucket        = dir_evac_bucket(&doc_evacuator->overwrite_dir);
   if (doc->magic != DOC_MAGIC) {
     Debug("cache_evac", "DOC magic: %X %d", (int)dir_tag(&doc_evacuator->overwrite_dir),
           (int)dir_offset(&doc_evacuator->overwrite_dir));
@@ -626,7 +668,9 @@ Vol::evacuateDocReadDone(int event, Event *e)
   DDebug("cache_evac", "evacuateDocReadDone %X offset %d", (int)doc->key.slice32(0),
          (int)dir_offset(&doc_evacuator->overwrite_dir));
 
-  b = evacuate[dir_evac_bucket(&doc_evacuator->overwrite_dir)].head;
+  if (evac_bucket_valid(bucket)) {
+    b = evacuate[bucket].head;
+  }
   while (b) {
     if (dir_offset(&b->dir) == dir_offset(&doc_evacuator->overwrite_dir)) {
       break;
@@ -894,7 +938,7 @@ agg_copy(char *p, CacheVC *vc)
 inline void
 Vol::evacuate_cleanup_blocks(int i)
 {
-  EvacuationBlock *b = evacuate[i].head;
+  EvacuationBlock *b = evac_bucket_valid(i) ? evacuate[i].head : nullptr;
   while (b) {
     if (b->f.done && ((header->phase != dir_phase(&b->dir) && header->write_pos > this->vol_offset(&b->dir)) ||
                       (header->phase == dir_phase(&b->dir) && header->write_pos <= this->vol_offset(&b->dir)))) {
@@ -1638,7 +1682,7 @@ CacheVC::openWriteStartBegin(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED
   }
 }
 
-// main entry point for writing of of non-http documents
+// main entry point for writing of non-http documents
 Action *
 Cache::open_write(Continuation *cont, const CacheKey *key, CacheFragType frag_type, int options, time_t apin_in_cache,
                   const char *hostname, int host_len)

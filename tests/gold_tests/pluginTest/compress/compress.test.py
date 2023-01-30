@@ -148,7 +148,7 @@ for i in range(3):
     tr.Processes.Default.ReturnCode = 0
     tr.Processes.Default.Command = curl(ts, i, "deflate")
 
-# Test Aceept-Encoding normalization.
+# Test Accept-Encoding normalization.
 
 tr = Test.AddTestRun()
 tr.Processes.Default.ReturnCode = 0

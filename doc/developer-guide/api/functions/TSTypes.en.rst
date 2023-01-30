@@ -78,6 +78,42 @@ more widely. Those are described on this page.
 
    A 64 bit time value, measured in nanoseconds.
 
+.. type:: TSHttpConnectOptions
+
+   A type that encapsulates options passed into the :func:`TSHttpConnectPlugin` function.
+
+   .. member:: TSConnectType connect_type
+
+      The type of data represented in the struct.
+
+   .. member:: sockaddr const *addr
+
+      Network address of the target of the connection.
+
+   .. member:: const char *tag
+
+      Tag that is passed through to the HTTP state machine.
+
+   .. member:: int64_t id
+
+      Numeric identifier passed through to the HTTP state machine.
+
+   .. member:: TSIOBufferSizeIndex buffer_index
+
+      A numeric buffer size index used to derive actual sizes used when constructing
+      IOBuffers; see :type:`TSIOBufferSizeIndex`.
+
+   .. member:: TSIOBufferWaterMark buffer_water_mark
+
+      A numeric value specifying the minimum number of bytes that must be written to
+      an IOBuffer before any continuation is called back to read from the buffer.
+      See the :c:func:`TSIOBufferWaterMarkGet` and :c:func:`TSIOBufferWaterMarkSet`
+      functions for further detail.
+
+.. type:: TSConnectType
+
+   Enumeration that specifies the type of data within a :c:type:`TSHttpConnectOptions` structure.
+
 .. type:: TSHttpParser
 
 .. type:: TSHttpSsn
@@ -95,6 +131,10 @@ more widely. Those are described on this page.
 .. type:: TSIOBufferReader
 
 .. type:: TSIOBufferSizeIndex
+
+.. type:: TSIOBufferWaterMark
+
+   An enumeration that contains valid watermark values, currently only defaults.
 
 .. type:: TSLifecycleHookID
 
@@ -187,6 +227,26 @@ more widely. Those are described on this page.
 
       Flag for using the remapped URL as an explicit redirection. This can be set by the remap plugin.
 
+.. type:: TSSecretID
+
+   Contains the data for a TLS certificate and key.
+
+   .. member:: const char * cert_name;
+
+      The TLS certificate name.
+
+   .. member:: size_t cert_name_len;
+
+      The length of the TLS certificate name.
+
+   .. member:: const char * key_name;
+
+      The name of the TLS key.
+
+   .. member:: size_t key_name_len;
+
+      The length of the name of the TLS key.
+
 .. type:: TSSslX509
 
     This type represents the :code:`X509` object created from an SSL certificate.
@@ -221,11 +281,11 @@ more widely. Those are described on this page.
 
    An enum for the supported types of user arguments.
 
-.. type:: TSUuidVersion
+.. enum:: TSUuidVersion
 
    A version value for at :type:`TSUuid`.
 
-   .. member:: TS_UUID_V4
+   .. enumerator:: TS_UUID_V4
 
       A version 4 UUID. Currently only this value is used.
 

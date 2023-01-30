@@ -41,6 +41,7 @@
 #include "YamlSNIConfig.h"
 
 #include "P_SSLUtils.h"
+#include "P_SSLSecret.h"
 
 struct SSLCertLookup;
 struct ssl_ticket_key_block;
@@ -78,6 +79,8 @@ struct SSLConfigParams : public ConfigInfo {
   int configExitOnLoadError;
   int clientCertLevel;
   int verify_depth;
+  int ssl_origin_session_cache;
+  int ssl_origin_session_cache_size;
   int ssl_session_cache; // SSL_SESSION_CACHE_MODE
   int ssl_session_cache_size;
   int ssl_session_cache_num_buckets;
@@ -103,6 +106,8 @@ struct SSLConfigParams : public ConfigInfo {
   char *server_groups_list;
   char *client_groups_list;
 
+  char *keylog_file;
+
   static uint32_t server_max_early_data;
   static uint32_t server_recv_max_early_data;
   static bool server_allow_early_data_params;
@@ -117,7 +122,10 @@ struct SSLConfigParams : public ConfigInfo {
   static int ssl_ocsp_update_period;
   static int ssl_handshake_timeout_in;
   char *ssl_ocsp_response_path_only;
+  static char *ssl_ocsp_user_agent;
 
+  static int origin_session_cache;
+  static size_t origin_session_cache_size;
   static size_t session_cache_number_buckets;
   static size_t session_cache_max_bucket_size;
   static bool session_cache_skip_on_lock_contention;
@@ -140,9 +148,16 @@ struct SSLConfigParams : public ConfigInfo {
   mutable std::unordered_map<std::string, CTX_MAP> top_level_ctx_map;
   mutable ink_mutex ctxMapLock;
 
+  mutable SSLSecret secrets;
+
   shared_SSL_CTX getClientSSL_CTX() const;
+  shared_SSL_CTX getCTX(const std::string &client_cert, const std::string &key_file, const char *ca_bundle_file,
+                        const char *ca_bundle_path) const;
   shared_SSL_CTX getCTX(const char *client_cert, const char *key_file, const char *ca_bundle_file,
                         const char *ca_bundle_path) const;
+  void updateCTX(const std::string &secret_string_name) const;
+
+  void clearCTX(const std::string &client_cert) const;
 
   void cleanupCTXTable();
 
@@ -162,11 +177,22 @@ struct SSLConfig {
   static void startup();
   static void reconfigure();
   static SSLConfigParams *acquire();
+  static SSLConfigParams *load_acquire();
   static void release(SSLConfigParams *params);
+  static void load_release(SSLConfigParams *params);
+
+  // These methods manipulate the double buffering of the configs
+  // The "loading" version is only active during loading.  Once
+  // it is fliped to the active by comit_config_id, it/ becomes the
+  // version accessble to the rest of the system.
+  static int get_config_index();
+  static int get_loading_config_index();
+  static void commit_config_id();
   typedef ConfigProcessor::scoped_config<SSLConfig, SSLConfigParams> scoped_config;
 
 private:
-  static int configid;
+  static int config_index;
+  static int configids[2];
 };
 
 struct SSLCertificateConfig {
@@ -186,7 +212,7 @@ struct SSLTicketParams : public ConfigInfo {
   time_t load_time                              = 0;
   char *ticket_key_filename;
   bool LoadTicket(bool &nochange);
-  void LoadTicketData(char *ticket_data, int ticket_data_len);
+  bool LoadTicketData(char *ticket_data, int ticket_data_len);
   void cleanup();
 
   ~SSLTicketParams() override { cleanup(); }
@@ -218,3 +244,4 @@ private:
 };
 
 extern SSLSessionCache *session_cache;
+extern SSLOriginSessionCache *origin_sess_cache;

@@ -113,6 +113,25 @@ private:
   Value _value;
 };
 
+// All the header operators share a base class
+class OperatorRMDestination : public Operator
+{
+public:
+  OperatorRMDestination() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorRMDestination"); }
+
+  // noncopyable
+  OperatorRMDestination(const OperatorRMDestination &) = delete;
+  void operator=(const OperatorRMDestination &) = delete;
+
+  void initialize(Parser &p) override;
+
+protected:
+  void exec(const Resources &res) const override;
+
+private:
+  UrlQualifiers _url_qual = URL_QUAL_NONE;
+};
+
 class OperatorSetRedirect : public Operator
 {
 public:
@@ -384,4 +403,43 @@ public:
 protected:
   void initialize_hooks() override;
   void exec(const Resources &res) const override;
+};
+
+class OperatorSetBody : public Operator
+{
+public:
+  OperatorSetBody() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetBody"); }
+
+  // noncopyable
+  OperatorSetBody(const OperatorSetBody &) = delete;
+  void operator=(const OperatorSetBody &) = delete;
+
+  void initialize(Parser &p) override;
+
+protected:
+  void initialize_hooks() override;
+  void exec(const Resources &res) const override;
+
+private:
+  Value _value;
+};
+
+class OperatorSetHttpCntl : public Operator
+{
+public:
+  OperatorSetHttpCntl() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSetHttpCntl"); }
+
+  // noncopyable
+  OperatorSetHttpCntl(const OperatorSetHttpCntl &) = delete;
+  void operator=(const OperatorSetHttpCntl &) = delete;
+
+  void initialize(Parser &p) override;
+
+protected:
+  void initialize_hooks() override;
+  void exec(const Resources &res) const override;
+
+private:
+  bool _flag = false;
+  TSHttpCntlType _cntl_qual;
 };

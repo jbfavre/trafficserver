@@ -57,8 +57,6 @@ ts.Disk.records_config.update({
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.cache.enable_read_while_writer': 0,
-    'proxy.config.ssl.client.verify.server': 0,
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.http2.max_concurrent_streams_in': 65535
 })
 
@@ -82,8 +80,8 @@ numberOfRequests = 25
 tr = Test.AddTestRun()
 
 # Create a bunch of curl commands to be executed in parallel. Default.Process is set in SpawnCommands.
-# On Fedora 28/29, it seems that curl will occaisionally timeout after a couple seconds and return exitcode 2
-# Examinig the packet capture shows that Traffic Server dutifully sends the response
+# On Fedora 28/29, it seems that curl will occasionally timeout after a couple seconds and return exitcode 2
+# Examining the packet capture shows that Traffic Server dutifully sends the response
 ps = tr.SpawnCommands(cmdstr=cmd, count=numberOfRequests, retcode=Any(0, 2))
 tr.Processes.Default.Env = ts.Env
 tr.Processes.Default.ReturnCode = Any(0, 2)
@@ -111,10 +109,13 @@ tr.StillRunningAfter = ts
 
 def make_done_stat_ready(tsenv):
     def done_stat_ready(process, hasRunFor, **kw):
-        retval = subprocess.run("traffic_ctl metric get continuations_verify.test.done > done  2> /dev/null", shell=True, env=tsenv)
-        if retval.returncode == 0:
-            retval = subprocess.run("grep 1 done > /dev/null", shell=True, env=tsenv)
-        return retval.returncode == 0
+        retval = subprocess.run(
+            "traffic_ctl metric get continuations_verify.test.done",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=tsenv)
+        return retval.returncode == 0 and b'1' in retval.stdout
 
     return done_stat_ready
 
@@ -122,7 +123,7 @@ def make_done_stat_ready(tsenv):
 # number of sessions/transactions opened and closed are equal
 tr = Test.AddTestRun("Check Ssn")
 server2.StartupTimeout = 60
-# Again, here the imporant thing is the ready function not the server2 process
+# Again, here the important thing is the ready function not the server2 process
 tr.Processes.Default.StartBefore(server2, ready=make_done_stat_ready(ts.Env))
 tr.Processes.Default.Command = comparator_command.format('ssn')
 tr.Processes.Default.ReturnCode = 0

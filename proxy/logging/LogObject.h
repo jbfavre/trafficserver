@@ -100,7 +100,6 @@ public:
   ~LogObject() override;
 
   void add_filter(LogFilter *filter, bool copy = true);
-  void set_filter_list(const LogFilterList &list, bool copy = true);
 
   inline void
   set_fmt_timestamps()
@@ -123,16 +122,6 @@ public:
   int va_log(LogAccess *lad, const char *fmt, va_list ap);
 
   unsigned roll_files(long time_now = 0);
-
-  inline int
-  add_to_flush_queue(LogBuffer *buffer)
-  {
-    int idx = m_buffer_manager_idx++ % m_flush_threads;
-
-    m_buffer_manager[idx].add_to_flush_queue(buffer);
-
-    return idx;
-  }
 
   inline size_t
   preproc_buffers(int idx = -1)
@@ -311,13 +300,12 @@ private:
 class TextLogObject : public LogObject
 {
 public:
-  inkcoreapi TextLogObject(const char *name, const char *log_dir, bool timestamps, const char *header,
-                           Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec,
-                           int rolling_offset_hr, int rolling_size_mb, int rolling_max_count, int rolling_min_count,
-                           bool reopen_after_rolling);
+  TextLogObject(const char *name, const char *log_dir, bool timestamps, const char *header,
+                Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec, int rolling_offset_hr,
+                int rolling_size_mb, int rolling_max_count, int rolling_min_count, bool reopen_after_rolling);
 
-  inkcoreapi int write(const char *format, ...) TS_PRINTFLIKE(2, 3);
-  inkcoreapi int va_write(const char *format, va_list ap);
+  int write(const char *format, ...) TS_PRINTFLIKE(2, 3);
+  int va_write(const char *format, va_list ap);
 
   static const LogFormat *textfmt;
 };
@@ -352,7 +340,7 @@ public:
   ink_mutex *_APImutex; // synchronize access to array of API objects
 private:
   int _manage_object(LogObject *log_object, bool is_api_object, int maxConflicts);
-  static bool _has_internal_filename_conflict(const char *filename, LogObjectList &objects);
+  static bool _has_internal_filename_conflict(std::string_view filename, LogObjectList &objects);
   int _solve_filename_conflicts(LogObject *log_obj, int maxConflicts);
   int _solve_internal_filename_conflicts(LogObject *log_obj, int maxConflicts, int fileNum = 0);
   void _filename_resolution_abort(const char *fname);

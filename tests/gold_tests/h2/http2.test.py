@@ -17,6 +17,8 @@
 #  limitations under the License.
 
 import os
+import sys
+
 Test.Summary = '''
 Test a basic remap of a http/2 connection
 '''
@@ -128,8 +130,6 @@ ts.Disk.records_config.update({
     'proxy.config.diags.debug.tags': 'http',
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
-    'proxy.config.ssl.client.verify.server': 0,
-    'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2',
     'proxy.config.http2.active_timeout_in': 3,
     'proxy.config.http2.max_concurrent_streams_in': 65535,
 })
@@ -145,7 +145,7 @@ ts.Setup.CopyAs('h2active_timeout.py', Test.RunDirectory)
 
 # Test Case 1:  basic H2 interaction
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'python3 h2client.py -p {0}'.format(ts.Variables.ssl_port)
+tr.Processes.Default.Command = f'{sys.executable} h2client.py -p {ts.Variables.ssl_port}'
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.StartBefore(server)
 tr.Processes.Default.StartBefore(Test.Processes.ts)
@@ -154,14 +154,14 @@ tr.StillRunningAfter = server
 
 # Test Case 2: Make sure all the big file gets back.  Regression test for issue 1646
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'python3 h2bigclient.py -p {0}'.format(ts.Variables.ssl_port)
+tr.Processes.Default.Command = f'{sys.executable} h2bigclient.py -p {ts.Variables.ssl_port}'
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stdout = "gold/bigfile.gold"
 tr.StillRunningAfter = server
 
 # Test Case 3: Chunked content
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'python3 h2chunked.py -p {0}  -u /test2'.format(ts.Variables.ssl_port)
+tr.Processes.Default.Command = f'{sys.executable} h2chunked.py -p {ts.Variables.ssl_port}  -u /test2'
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stdout = "gold/chunked.gold"
 tr.StillRunningAfter = server
@@ -170,21 +170,22 @@ tr.StillRunningAfter = server
 # Test Case 4: Multiple request
 # client_path = os.path.join(Test.Variables.AtsTestToolsDir, 'traffic-replay/')
 # tr = Test.AddTestRun()
-# tr.Processes.Default.Command = "python3 {0} -type {1} -log_dir {2} -port {3} -host '127.0.0.1' -s_port {4} -v -colorize False".format(
-#     client_path, 'h2', server.Variables.DataDir, ts.Variables.port, ts.Variables.ssl_port)
+# tr.Processes.Default.Command = \
+#     (f"{sys.executable} {client_path} -type h2 -log_dir {server.Variables.DataDir} "
+#      f"-port {ts.Variables.port} -host '127.0.0.1' -s_port {ts.Variables.ssl_port} -v -colorize False")
 # tr.Processes.Default.ReturnCode = 0
 # tr.Processes.Default.Streams.stdout = "gold/replay.gold"
 # tr.StillRunningAfter = server
 
 # Test Case 5: h2_active_timeout
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'python3 h2active_timeout.py -p {0} -d 4'.format(ts.Variables.ssl_port)
+tr.Processes.Default.Command = f'{sys.executable} h2active_timeout.py -p {ts.Variables.ssl_port} -d 4'
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.All = "gold/active_timeout.gold"
 tr.StillRunningAfter = server
 
 # Test Case 6: Post with chunked body
-# While HTTP/2 does not support Tranfer-encoding we pass that into curl to encourage it to not set the content length
+# While HTTP/2 does not support Transfer-encoding we pass that into curl to encourage it to not set the content length
 # on the post body
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl -s -k -H "Transfer-Encoding: chunked" -d "{0}" https://127.0.0.1:{1}/postchunked'.format(
@@ -194,7 +195,7 @@ tr.Processes.Default.Streams.All = "gold/post_chunked.gold"
 tr.StillRunningAfter = server
 
 # Test Case 7: Post with big chunked body
-# While HTTP/2 does not support Tranfer-encoding we pass that into curl to encourage it to not set the content length
+# While HTTP/2 does not support Transfer-encoding we pass that into curl to encourage it to not set the content length
 # on the post body
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl -s -k -H "Transfer-Encoding: chunked" -d @big_post_body https://127.0.0.1:{0}/bigpostchunked'.format(

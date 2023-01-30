@@ -27,7 +27,7 @@ AC_DEFUN([TS_CHECK_CRYPTO], [
   AX_CHECK_OPENSSL([
     enable_crypto=yes
   ], [
-    AC_ERROR(failed to find OpenSSL)
+    AC_MSG_ERROR(failed to find OpenSSL)
     enable_crypto=no
   ])
 
@@ -45,7 +45,8 @@ dnl Check OpenSSL Version
 dnl
 AC_DEFUN([TS_CHECK_CRYPTO_VERSION], [
   AC_MSG_CHECKING([OpenSSL version])
-  AC_TRY_RUN([
+  AC_RUN_IFELSE([AC_LANG_SOURCE(
+  [
 #include <openssl/opensslv.h>
 int main() {
   if (OPENSSL_VERSION_NUMBER < 0x1000200fL) {
@@ -53,9 +54,9 @@ int main() {
   }
   return 0;
 }
-],
-  [AC_MSG_RESULT([ok])],
-  [AC_MSG_FAILURE([requires an OpenSSL version 1.0.2 or greater])])
+  ])],
+  [AC_MSG_RESULT([ok])], [AC_MSG_FAILURE([requires OpenSSL version 1.0.2 or greater])], [AC_MSG_RESULT([assuming ok])]
+  )
 ])
 
 dnl
@@ -295,6 +296,21 @@ AC_DEFUN([TS_CHECK_CRYPTO_OCSP], [
 dnl
 dnl Since OpenSSL 1.1.1
 dnl
+AC_DEFUN([TS_CHECK_CRYPTO_KEYLOGGING], [
+  _keylogging_saved_LIBS=$LIBS
+  TS_ADDTO(LIBS, [$OPENSSL_LIBS])
+  AC_CHECK_FUNCS(SSL_CTX_set_keylog_callback, [enable_tls_keylogging=yes], [enable_tls_keylogging=no])
+  LIBS=$_keylogging_saved_LIBS
+
+  AC_MSG_CHECKING(whether to enable TLS keylogging support)
+  AC_MSG_RESULT([$enable_tls_keylogging])
+  TS_ARG_ENABLE_VAR([has], [tls-keylogging])
+  AC_SUBST(has_tls_keylogging)
+])
+
+dnl
+dnl Since OpenSSL 1.1.1
+dnl
 AC_DEFUN([TS_CHECK_CRYPTO_SET_CIPHERSUITES], [
   _set_ciphersuites_saved_LIBS=$LIBS
 
@@ -383,4 +399,47 @@ AC_DEFUN([TS_CHECK_SESSION_TICKET], [
   AC_MSG_RESULT([$session_ticket_check])
 
   AC_SUBST(has_tls_session_ticket)
+])
+
+dnl SSL_set1_verify_cert_store macro is for OpenSSL 1.1.1
+dnl SSL_set1_verify_cert_store function is for BoringSSL
+AC_DEFUN([TS_CHECK_VERIFY_CERT_STORE], [
+  _saved_LIBS=$LIBS
+
+  TS_ADDTO(LIBS, [$OPENSSL_LIBS])
+  AC_CHECK_HEADERS(openssl/ssl.h)
+  verify_cert_store_check=no
+  has_verify_cert_store=0
+  AC_MSG_CHECKING([for SSL_set1_verify_cert_store macro])
+  AC_COMPILE_IFELSE(
+    [AC_LANG_PROGRAM([[#include <openssl/ssl.h>]],
+                     [[
+                     #ifndef SSL_set1_verify_cert_store
+                     #error
+                     #endif
+                     ]])
+    ],
+    [
+      verify_cert_store_check=yes
+      has_verify_cert_store=1
+    ],
+    []
+  )
+  AC_MSG_RESULT([$verify_cert_store_check])
+
+  AC_CHECK_FUNCS(
+    SSL_set1_verify_cert_store,
+    [
+      verify_cert_store_check=yes
+      has_verify_cert_store=1
+    ],
+    []
+  )
+
+  LIBS=$_saved_LIBS
+
+  AC_MSG_CHECKING([for setting verify cert store APIs])
+  AC_MSG_RESULT([$verify_cert_store_check])
+
+  AC_SUBST(has_verify_cert_store)
 ])

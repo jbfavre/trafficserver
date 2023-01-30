@@ -1010,6 +1010,70 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 #
 #  Licensed to the Apache Software Foundation (ASF) under one
 #  or more contributor license agreements.  See the NOTICE file
@@ -1135,7 +1199,8 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 	esi/processor_test$(EXEEXT) esi/utils_test$(EXEEXT) \
 	esi/vars_test$(EXEEXT) esi/gzip_test$(EXEEXT) \
 	header_rewrite/header_rewrite_test$(EXEEXT) \
-	s3_auth/test_s3auth$(EXEEXT) $(am__EXEEXT_1) $(am__EXEEXT_2)
+	prefetch/test_evaluate$(EXEEXT) s3_auth/test_s3auth$(EXEEXT) \
+	$(am__EXEEXT_1) $(am__EXEEXT_2)
 @HAS_MAXMINDDB_TRUE@am__append_1 = header_rewrite/conditions_geo_maxmind.cc
 @HAS_GEOIP_TRUE@am__append_2 = header_rewrite/conditions_geo_geoip.cc
 @HAS_GEOIP_TRUE@am__append_3 = $(GEOIP_LIBS)
@@ -1154,7 +1219,9 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/fq_pacing/fq_pacing.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/geoip_acl/geoip_acl.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/header_freq/header_freq.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/parent_select/parent_select.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/hook-trace/hook-trace.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/http_stats/http_stats.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/icap/icap.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/inliner/inliner.la
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_10 = experimental/access_control/test_access_control \
@@ -1164,10 +1231,13 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/test_config \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/test_sslheaders \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/traffic_dump/test_traffic_dump
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_11 = @YAMLCPP_INCLUDES@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_11 = @YAMLCPP_INCLUDES@ \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	@YAMLCPP_INCLUDES@ \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(TS_INCLUDES)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@am__append_12 = experimental/maxmind_acl/maxmind_acl.la
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@am__append_13 = @YAMLCPP_INCLUDES@
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_14 = experimental/memcache/tsmemcache.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@am__append_14 = experimental/otel_tracer/otel_tracer.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_15 = experimental/memcache/tsmemcache.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/memory_profile/memory_profile.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/metalink/metalink.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/money_trace/money_trace.la \
@@ -1183,20 +1253,25 @@ check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/traffic_dump/traffic_dump.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/tls_bridge/tls_bridge.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/url_sig/url_sig.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_15 = experimental/sslheaders/libsslhdr.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_JA3_PLUGIN_TRUE@am__append_16 = experimental/ja3_fingerprint/ja3_fingerprint.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_17 = experimental/uri_signing/uri_signing.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_18 = experimental/uri_signing/test_uri_signing
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_16 = experimental/sslheaders/libsslhdr.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_JA3_PLUGIN_TRUE@am__append_17 = experimental/ja3_fingerprint/ja3_fingerprint.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_18 = experimental/uri_signing/uri_signing.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_URI_SIGNING_PLUGIN_TRUE@am__append_19 = experimental/uri_signing/test_uri_signing
 
 # Only build if LIB_HIREDIS is set to a non-empty value
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_SSL_SESSION_REUSE_PLUGIN_TRUE@am__append_19 = experimental/ssl_session_reuse/ssl_session_reuse.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@am__append_20 = experimental/cache_key_genid/cache_key_genid.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am__append_21 = experimental/webp_transform/webp_transform.la \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_SSL_SESSION_REUSE_PLUGIN_TRUE@am__append_20 = experimental/ssl_session_reuse/ssl_session_reuse.la
+
+# Only build if NURAFT_LIBS is set to a non-empty value
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@am__append_21 = experimental/stek_share/stek_share.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@am__append_22 = @NURAFT_INCLUDES@ @YAMLCPP_INCLUDES@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@am__append_23 = experimental/cache_key_genid/cache_key_genid.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@am__append_24 = experimental/webp_transform/webp_transform.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_IMAGE_MAGICK_PLUGINS_TRUE@	experimental/magick/magick.la
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@am__append_22 = experimental/mysql_remap/mysql_remap.la
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@am__append_25 = experimental/mysql_remap/mysql_remap.la
 subdir = plugins
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_cc_for_build.m4 \
 	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
@@ -1216,7 +1291,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
-	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/mimalloc.m4 $(top_srcdir)/build/network.m4 \
+	$(top_srcdir)/build/nuraft.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
@@ -1488,6 +1564,14 @@ experimental_hook_trace_hook_trace_la_OBJECTS =  \
 	$(am_experimental_hook_trace_hook_trace_la_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_hook_trace_hook_trace_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
+experimental_http_stats_http_stats_la_LIBADD =
+am__experimental_http_stats_http_stats_la_SOURCES_DIST =  \
+	experimental/http_stats/http_stats.cc
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_http_stats_http_stats_la_OBJECTS = experimental/http_stats/http_stats.lo
+experimental_http_stats_http_stats_la_OBJECTS =  \
+	$(am_experimental_http_stats_http_stats_la_OBJECTS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_http_stats_http_stats_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
 experimental_icap_icap_la_LIBADD =
 am__experimental_icap_icap_la_SOURCES_DIST =  \
 	experimental/icap/icap_plugin.cc
@@ -1615,17 +1699,55 @@ experimental_mysql_remap_mysql_remap_la_LINK = $(LIBTOOL) $(AM_V_lt) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@am_experimental_mysql_remap_mysql_remap_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	-rpath \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	$(pkglibdir)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@experimental_otel_tracer_otel_tracer_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
+am__experimental_otel_tracer_otel_tracer_la_SOURCES_DIST =  \
+	experimental/otel_tracer/otel_tracer.cc \
+	experimental/otel_tracer/tracer_common.h
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@am_experimental_otel_tracer_otel_tracer_la_OBJECTS = experimental/otel_tracer/otel_tracer.lo
+experimental_otel_tracer_otel_tracer_la_OBJECTS =  \
+	$(am_experimental_otel_tracer_otel_tracer_la_OBJECTS)
+experimental_otel_tracer_otel_tracer_la_LINK = $(LIBTOOL) $(AM_V_lt) \
+	--tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
+	$(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) \
+	$(experimental_otel_tracer_otel_tracer_la_LDFLAGS) $(LDFLAGS) \
+	-o $@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@am_experimental_otel_tracer_otel_tracer_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@	-rpath \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@	$(pkglibdir)
+experimental_parent_select_parent_select_la_LIBADD =
+am__experimental_parent_select_parent_select_la_SOURCES_DIST =  \
+	experimental/parent_select/strategy.cc \
+	experimental/parent_select/healthstatus.cc \
+	experimental/parent_select/consistenthash.cc \
+	experimental/parent_select/consistenthash_config.cc \
+	experimental/parent_select/parent_select.cc
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_parent_select_parent_select_la_OBJECTS = experimental/parent_select/strategy.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/parent_select/healthstatus.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/parent_select/consistenthash.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/parent_select/consistenthash_config.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/parent_select/parent_select.lo
+experimental_parent_select_parent_select_la_OBJECTS =  \
+	$(am_experimental_parent_select_parent_select_la_OBJECTS)
+experimental_parent_select_parent_select_la_LINK = $(LIBTOOL) \
+	$(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=link $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) \
+	$(experimental_parent_select_parent_select_la_LDFLAGS) \
+	$(LDFLAGS) -o $@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_parent_select_parent_select_la_rpath =  \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
 experimental_rate_limit_rate_limit_la_LIBADD =
 am__experimental_rate_limit_rate_limit_la_SOURCES_DIST =  \
 	experimental/rate_limit/rate_limit.cc \
 	experimental/rate_limit/txn_limiter.cc \
 	experimental/rate_limit/sni_limiter.cc \
 	experimental/rate_limit/sni_selector.cc \
+	experimental/rate_limit/ip_reputation.cc \
 	experimental/rate_limit/utilities.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_rate_limit_rate_limit_la_OBJECTS = experimental/rate_limit/rate_limit.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/txn_limiter.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/sni_limiter.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/sni_selector.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/ip_reputation.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/rate_limit/utilities.lo
 experimental_rate_limit_rate_limit_la_OBJECTS =  \
 	$(am_experimental_rate_limit_rate_limit_la_OBJECTS)
@@ -1660,6 +1782,7 @@ am__experimental_slice_slice_la_SOURCES_DIST =  \
 	experimental/slice/HttpHeader.cc \
 	experimental/slice/HttpHeader.h \
 	experimental/slice/intercept.cc experimental/slice/intercept.h \
+	experimental/slice/prefetch.cc experimental/slice/prefetch.h \
 	experimental/slice/Range.cc experimental/slice/Range.h \
 	experimental/slice/response.cc experimental/slice/response.h \
 	experimental/slice/server.cc experimental/slice/server.h \
@@ -1673,6 +1796,7 @@ am__experimental_slice_slice_la_SOURCES_DIST =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/ContentRange.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/HttpHeader.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/intercept.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/prefetch.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/Range.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/response.lo \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/slice/server.lo \
@@ -1739,6 +1863,31 @@ experimental_statichit_statichit_la_OBJECTS =  \
 	$(am_experimental_statichit_statichit_la_OBJECTS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_statichit_statichit_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
+experimental_stek_share_stek_share_la_DEPENDENCIES =
+am__experimental_stek_share_stek_share_la_SOURCES_DIST =  \
+	experimental/stek_share/common.cc \
+	experimental/stek_share/common.h \
+	experimental/stek_share/log_store.cc \
+	experimental/stek_share/log_store.h \
+	experimental/stek_share/state_machine.h \
+	experimental/stek_share/state_manager.h \
+	experimental/stek_share/stek_share.cc \
+	experimental/stek_share/stek_share.h \
+	experimental/stek_share/stek_utils.cc \
+	experimental/stek_share/stek_utils.h
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@am_experimental_stek_share_stek_share_la_OBJECTS = experimental/stek_share/common.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/log_store.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/stek_share.lo \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/stek_utils.lo
+experimental_stek_share_stek_share_la_OBJECTS =  \
+	$(am_experimental_stek_share_stek_share_la_OBJECTS)
+experimental_stek_share_stek_share_la_LINK = $(LIBTOOL) $(AM_V_lt) \
+	--tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
+	$(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) \
+	$(experimental_stek_share_stek_share_la_LDFLAGS) $(LDFLAGS) -o \
+	$@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@am_experimental_stek_share_stek_share_la_rpath = -rpath \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	$(pkglibdir)
 experimental_stream_editor_stream_editor_la_LIBADD =
 am__experimental_stream_editor_stream_editor_la_SOURCES_DIST =  \
 	experimental/stream_editor/stream_editor.cc
@@ -1847,10 +1996,12 @@ am__header_rewrite_header_rewrite_la_SOURCES_DIST =  \
 	header_rewrite/operator.cc header_rewrite/operator.h \
 	header_rewrite/operators.cc header_rewrite/operators.h \
 	header_rewrite/regex_helper.cc header_rewrite/regex_helper.h \
-	header_rewrite/resources.cc header_rewrite/resources.h \
-	header_rewrite/ruleset.cc header_rewrite/ruleset.h \
-	header_rewrite/statement.cc header_rewrite/statement.h \
-	header_rewrite/value.cc header_rewrite/value.h \
+	header_rewrite/ipranges_helper.cc \
+	header_rewrite/ipranges_helper.h header_rewrite/resources.cc \
+	header_rewrite/resources.h header_rewrite/ruleset.cc \
+	header_rewrite/ruleset.h header_rewrite/statement.cc \
+	header_rewrite/statement.h header_rewrite/value.cc \
+	header_rewrite/value.h \
 	header_rewrite/conditions_geo_maxmind.cc \
 	header_rewrite/conditions_geo_geoip.cc
 @HAS_MAXMINDDB_TRUE@am__objects_1 =  \
@@ -1862,9 +2013,9 @@ am_header_rewrite_header_rewrite_la_OBJECTS =  \
 	header_rewrite/factory.lo header_rewrite/header_rewrite.lo \
 	header_rewrite/lulu.lo header_rewrite/operator.lo \
 	header_rewrite/operators.lo header_rewrite/regex_helper.lo \
-	header_rewrite/resources.lo header_rewrite/ruleset.lo \
-	header_rewrite/statement.lo header_rewrite/value.lo \
-	$(am__objects_1) $(am__objects_2)
+	header_rewrite/ipranges_helper.lo header_rewrite/resources.lo \
+	header_rewrite/ruleset.lo header_rewrite/statement.lo \
+	header_rewrite/value.lo $(am__objects_1) $(am__objects_2)
 header_rewrite_header_rewrite_la_OBJECTS =  \
 	$(am_header_rewrite_header_rewrite_la_OBJECTS)
 header_rewrite_parser_la_LIBADD =
@@ -1946,7 +2097,7 @@ am_prefetch_prefetch_la_OBJECTS = prefetch/plugin.lo \
 	prefetch/common.lo prefetch/configs.lo prefetch/fetch.lo \
 	prefetch/headers.lo prefetch/pattern.lo \
 	prefetch/fetch_policy.lo prefetch/fetch_policy_simple.lo \
-	prefetch/fetch_policy_lru.lo
+	prefetch/fetch_policy_lru.lo prefetch/evaluate.lo
 prefetch_prefetch_la_OBJECTS = $(am_prefetch_prefetch_la_OBJECTS)
 regex_remap_regex_remap_la_LIBADD =
 am_regex_remap_regex_remap_la_OBJECTS = regex_remap/regex_remap.lo
@@ -2145,6 +2296,12 @@ header_rewrite_header_rewrite_test_OBJECTS =  \
 header_rewrite_header_rewrite_test_DEPENDENCIES =  \
 	header_rewrite/parser.la $(am__DEPENDENCIES_2) \
 	$(am__DEPENDENCIES_3)
+am_prefetch_test_evaluate_OBJECTS =  \
+	prefetch/test/evaluate-test_evaluate.$(OBJEXT) \
+	prefetch/test_evaluate-evaluate.$(OBJEXT) \
+	prefetch/test_evaluate-common.$(OBJEXT)
+prefetch_test_evaluate_OBJECTS = $(am_prefetch_test_evaluate_OBJECTS)
+prefetch_test_evaluate_LDADD = $(LDADD)
 am_s3_auth_test_s3auth_OBJECTS =  \
 	s3_auth/unit_tests/test_s3auth-test_aws_auth_v4.$(OBJEXT) \
 	s3_auth/test_s3auth-aws_auth_v4.$(OBJEXT)
@@ -2244,6 +2401,7 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo \
 	experimental/header_freq/$(DEPDIR)/header_freq.Plo \
 	experimental/hook-trace/$(DEPDIR)/hook-trace.Plo \
+	experimental/http_stats/$(DEPDIR)/http_stats.Plo \
 	experimental/icap/$(DEPDIR)/icap_plugin.Plo \
 	experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo \
 	experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo \
@@ -2265,6 +2423,13 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo \
 	experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo \
 	experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo \
+	experimental/otel_tracer/$(DEPDIR)/otel_tracer.Plo \
+	experimental/parent_select/$(DEPDIR)/consistenthash.Plo \
+	experimental/parent_select/$(DEPDIR)/consistenthash_config.Plo \
+	experimental/parent_select/$(DEPDIR)/healthstatus.Plo \
+	experimental/parent_select/$(DEPDIR)/parent_select.Plo \
+	experimental/parent_select/$(DEPDIR)/strategy.Plo \
+	experimental/rate_limit/$(DEPDIR)/ip_reputation.Plo \
 	experimental/rate_limit/$(DEPDIR)/rate_limit.Plo \
 	experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo \
 	experimental/rate_limit/$(DEPDIR)/sni_selector.Plo \
@@ -2278,6 +2443,7 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/slice/$(DEPDIR)/Range.Plo \
 	experimental/slice/$(DEPDIR)/client.Plo \
 	experimental/slice/$(DEPDIR)/intercept.Plo \
+	experimental/slice/$(DEPDIR)/prefetch.Plo \
 	experimental/slice/$(DEPDIR)/response.Plo \
 	experimental/slice/$(DEPDIR)/server.Plo \
 	experimental/slice/$(DEPDIR)/slice.Plo \
@@ -2307,6 +2473,10 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po \
 	experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po \
 	experimental/statichit/$(DEPDIR)/statichit.Plo \
+	experimental/stek_share/$(DEPDIR)/common.Plo \
+	experimental/stek_share/$(DEPDIR)/log_store.Plo \
+	experimental/stek_share/$(DEPDIR)/stek_share.Plo \
+	experimental/stek_share/$(DEPDIR)/stek_utils.Plo \
 	experimental/stream_editor/$(DEPDIR)/stream_editor.Plo \
 	experimental/system_stats/$(DEPDIR)/system_stats.Plo \
 	experimental/tls_bridge/$(DEPDIR)/regex.Plo \
@@ -2346,6 +2516,7 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	header_rewrite/$(DEPDIR)/factory.Plo \
 	header_rewrite/$(DEPDIR)/header_rewrite.Plo \
 	header_rewrite/$(DEPDIR)/header_rewrite_test.Po \
+	header_rewrite/$(DEPDIR)/ipranges_helper.Plo \
 	header_rewrite/$(DEPDIR)/lulu.Plo \
 	header_rewrite/$(DEPDIR)/operator.Plo \
 	header_rewrite/$(DEPDIR)/operators.Plo \
@@ -2393,12 +2564,15 @@ am__depfiles_remade = authproxy/$(DEPDIR)/authproxy.Plo \
 	multiplexer/$(DEPDIR)/multiplexer_la-post.Plo \
 	multiplexer/$(DEPDIR)/multiplexer_la-ts.Plo \
 	prefetch/$(DEPDIR)/common.Plo prefetch/$(DEPDIR)/configs.Plo \
-	prefetch/$(DEPDIR)/fetch.Plo \
+	prefetch/$(DEPDIR)/evaluate.Plo prefetch/$(DEPDIR)/fetch.Plo \
 	prefetch/$(DEPDIR)/fetch_policy.Plo \
 	prefetch/$(DEPDIR)/fetch_policy_lru.Plo \
 	prefetch/$(DEPDIR)/fetch_policy_simple.Plo \
 	prefetch/$(DEPDIR)/headers.Plo prefetch/$(DEPDIR)/pattern.Plo \
 	prefetch/$(DEPDIR)/plugin.Plo \
+	prefetch/$(DEPDIR)/test_evaluate-common.Po \
+	prefetch/$(DEPDIR)/test_evaluate-evaluate.Po \
+	prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Po \
 	regex_remap/$(DEPDIR)/regex_remap.Plo \
 	regex_revalidate/$(DEPDIR)/regex_revalidate.Plo \
 	remap_purge/$(DEPDIR)/remap_purge.Plo \
@@ -2469,6 +2643,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_geoip_acl_geoip_acl_la_SOURCES) \
 	$(experimental_header_freq_header_freq_la_SOURCES) \
 	$(experimental_hook_trace_hook_trace_la_SOURCES) \
+	$(experimental_http_stats_http_stats_la_SOURCES) \
 	$(experimental_icap_icap_la_SOURCES) \
 	$(experimental_inliner_inliner_la_SOURCES) \
 	$(experimental_ja3_fingerprint_ja3_fingerprint_la_SOURCES) \
@@ -2480,6 +2655,8 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_money_trace_money_trace_la_SOURCES) \
 	$(experimental_mp4_mp4_la_SOURCES) \
 	$(experimental_mysql_remap_mysql_remap_la_SOURCES) \
+	$(experimental_otel_tracer_otel_tracer_la_SOURCES) \
+	$(experimental_parent_select_parent_select_la_SOURCES) \
 	$(experimental_rate_limit_rate_limit_la_SOURCES) \
 	$(experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES) \
 	$(experimental_remap_stats_remap_stats_la_SOURCES) \
@@ -2488,6 +2665,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_sslheaders_libsslhdr_la_SOURCES) \
 	$(experimental_sslheaders_sslheaders_la_SOURCES) \
 	$(experimental_statichit_statichit_la_SOURCES) \
+	$(experimental_stek_share_stek_share_la_SOURCES) \
 	$(experimental_stream_editor_stream_editor_la_SOURCES) \
 	$(experimental_system_stats_system_stats_la_SOURCES) \
 	$(experimental_tls_bridge_tls_bridge_la_SOURCES) \
@@ -2521,6 +2699,7 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(experimental_traffic_dump_test_traffic_dump_SOURCES) \
 	$(experimental_uri_signing_test_uri_signing_SOURCES) \
 	$(header_rewrite_header_rewrite_test_SOURCES) \
+	$(prefetch_test_evaluate_SOURCES) \
 	$(s3_auth_test_s3auth_SOURCES)
 DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(background_fetch_background_fetch_la_SOURCES) \
@@ -2545,6 +2724,7 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_geoip_acl_geoip_acl_la_SOURCES_DIST) \
 	$(am__experimental_header_freq_header_freq_la_SOURCES_DIST) \
 	$(am__experimental_hook_trace_hook_trace_la_SOURCES_DIST) \
+	$(am__experimental_http_stats_http_stats_la_SOURCES_DIST) \
 	$(am__experimental_icap_icap_la_SOURCES_DIST) \
 	$(am__experimental_inliner_inliner_la_SOURCES_DIST) \
 	$(am__experimental_ja3_fingerprint_ja3_fingerprint_la_SOURCES_DIST) \
@@ -2556,6 +2736,8 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_money_trace_money_trace_la_SOURCES_DIST) \
 	$(am__experimental_mp4_mp4_la_SOURCES_DIST) \
 	$(am__experimental_mysql_remap_mysql_remap_la_SOURCES_DIST) \
+	$(am__experimental_otel_tracer_otel_tracer_la_SOURCES_DIST) \
+	$(am__experimental_parent_select_parent_select_la_SOURCES_DIST) \
 	$(am__experimental_rate_limit_rate_limit_la_SOURCES_DIST) \
 	$(am__experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES_DIST) \
 	$(am__experimental_remap_stats_remap_stats_la_SOURCES_DIST) \
@@ -2564,6 +2746,7 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_sslheaders_libsslhdr_la_SOURCES_DIST) \
 	$(am__experimental_sslheaders_sslheaders_la_SOURCES_DIST) \
 	$(am__experimental_statichit_statichit_la_SOURCES_DIST) \
+	$(am__experimental_stek_share_stek_share_la_SOURCES_DIST) \
 	$(am__experimental_stream_editor_stream_editor_la_SOURCES_DIST) \
 	$(am__experimental_system_stats_system_stats_la_SOURCES_DIST) \
 	$(am__experimental_tls_bridge_tls_bridge_la_SOURCES_DIST) \
@@ -2598,6 +2781,7 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(am__experimental_traffic_dump_test_traffic_dump_SOURCES_DIST) \
 	$(am__experimental_uri_signing_test_uri_signing_SOURCES_DIST) \
 	$(header_rewrite_header_rewrite_test_SOURCES) \
+	$(prefetch_test_evaluate_SOURCES) \
 	$(s3_auth_test_s3auth_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
@@ -2838,6 +3022,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/experimental/geoip_acl/Makefile.inc \
 	$(srcdir)/experimental/header_freq/Makefile.inc \
 	$(srcdir)/experimental/hook-trace/Makefile.inc \
+	$(srcdir)/experimental/http_stats/Makefile.inc \
 	$(srcdir)/experimental/icap/Makefile.inc \
 	$(srcdir)/experimental/inliner/Makefile.inc \
 	$(srcdir)/experimental/ja3_fingerprint/Makefile.inc \
@@ -2849,6 +3034,8 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/experimental/money_trace/Makefile.inc \
 	$(srcdir)/experimental/mp4/Makefile.inc \
 	$(srcdir)/experimental/mysql_remap/Makefile.inc \
+	$(srcdir)/experimental/otel_tracer/Makefile.inc \
+	$(srcdir)/experimental/parent_select/Makefile.inc \
 	$(srcdir)/experimental/rate_limit/Makefile.inc \
 	$(srcdir)/experimental/redo_cache_lookup/Makefile.inc \
 	$(srcdir)/experimental/remap_stats/Makefile.inc \
@@ -2856,6 +3043,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/experimental/ssl_session_reuse/Makefile.inc \
 	$(srcdir)/experimental/sslheaders/Makefile.inc \
 	$(srcdir)/experimental/statichit/Makefile.inc \
+	$(srcdir)/experimental/stek_share/Makefile.inc \
 	$(srcdir)/experimental/stream_editor/Makefile.inc \
 	$(srcdir)/experimental/system_stats/Makefile.inc \
 	$(srcdir)/experimental/tls_bridge/Makefile.inc \
@@ -2917,7 +3105,7 @@ AM_CFLAGS = @AM_CFLAGS@
 # TS_PLUGIN variables that can be used to construct the necessary automake
 # syntax.
 AM_CPPFLAGS = @AM_CPPFLAGS@ $(TS_PLUGIN_CPPFLAGS) $(am__append_11) \
-	$(am__append_13)
+	$(am__append_13) $(am__append_22)
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AM_LDFLAGS = @AM_LDFLAGS@ $(TS_PLUGIN_LD_FLAGS)
@@ -2939,6 +3127,7 @@ CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
+CC_FOR_BUILD = @CC_FOR_BUILD@
 CFLAGS = @CFLAGS@
 CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
@@ -2956,6 +3145,7 @@ CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
+CXX_FOR_BUILD = @CXX_FOR_BUILD@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -2970,6 +3160,7 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
+EXEEXT_FOR_BUILD = @EXEEXT_FOR_BUILD@
 FGREP = @FGREP@
 FILECMD = @FILECMD@
 FLEX_CFLAGS = @FLEX_CFLAGS@
@@ -3027,11 +3218,15 @@ MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NURAFT_INCLUDES = @NURAFT_INCLUDES@
+NURAFT_LDFLAGS = @NURAFT_LDFLAGS@
+NURAFT_LIBS = @NURAFT_LIBS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OPENSSL_INCLUDES = @OPENSSL_INCLUDES@
 OPENSSL_LDFLAGS = @OPENSSL_LDFLAGS@
 OPENSSL_LIBS = @OPENSSL_LIBS@
+OTEL_LIBS = @OTEL_LIBS@
 OTOOL = @OTOOL@
 OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
@@ -3104,12 +3299,10 @@ builddir = @builddir@
 cachedir = @cachedir@
 datadir = @datadir@
 datarootdir = @datarootdir@
-default_loopback_iface = @default_loopback_iface@
 default_stack_size = @default_stack_size@
 docdir = @docdir@
 dvidir = @dvidir@
 enable_fips = @enable_fips@
-enable_remote_cov_commit = @enable_remote_cov_commit@
 exec_prefix = @exec_prefix@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
@@ -3139,13 +3332,16 @@ has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
 has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
+has_otel = @has_otel@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_keylogging = @has_tls_keylogging@
 has_tls_session_ticket = @has_tls_session_ticket@
+has_verify_cert_store = @has_verify_cert_store@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -3169,6 +3365,7 @@ mandir = @mandir@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
+mimalloch = @mimalloch@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
 pdfdir = @pdfdir@
@@ -3272,7 +3469,7 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
 noinst_LTLIBRARIES = esi/libesicore.la esi/libtest.la \
-	header_rewrite/parser.la $(am__append_15)
+	header_rewrite/parser.la $(am__append_16)
 pkglib_LTLIBRARIES = authproxy/authproxy.la \
 	background_fetch/background_fetch.la cachekey/cachekey.la \
 	cache_promote/cache_promote.la \
@@ -3289,9 +3486,9 @@ pkglib_LTLIBRARIES = authproxy/authproxy.la \
 	server_push_preload/server_push_preload.la \
 	stats_over_http/stats_over_http.la tcpinfo/tcpinfo.la \
 	xdebug/xdebug.la $(am__append_9) $(am__append_12) \
-	$(am__append_14) $(am__append_16) $(am__append_17) \
-	$(am__append_19) $(am__append_20) $(am__append_21) \
-	$(am__append_22)
+	$(am__append_14) $(am__append_15) $(am__append_17) \
+	$(am__append_18) $(am__append_20) $(am__append_21) \
+	$(am__append_23) $(am__append_24) $(am__append_25)
 SUBDIRS = 
 authproxy_authproxy_la_SOURCES = \
 	authproxy/authproxy.cc \
@@ -3443,11 +3640,12 @@ header_rewrite_header_rewrite_la_SOURCES =  \
 	header_rewrite/operator.cc header_rewrite/operator.h \
 	header_rewrite/operators.cc header_rewrite/operators.h \
 	header_rewrite/regex_helper.cc header_rewrite/regex_helper.h \
-	header_rewrite/resources.cc header_rewrite/resources.h \
-	header_rewrite/ruleset.cc header_rewrite/ruleset.h \
-	header_rewrite/statement.cc header_rewrite/statement.h \
-	header_rewrite/value.cc header_rewrite/value.h $(am__append_1) \
-	$(am__append_2)
+	header_rewrite/ipranges_helper.cc \
+	header_rewrite/ipranges_helper.h header_rewrite/resources.cc \
+	header_rewrite/resources.h header_rewrite/ruleset.cc \
+	header_rewrite/ruleset.h header_rewrite/statement.cc \
+	header_rewrite/statement.h header_rewrite/value.cc \
+	header_rewrite/value.h $(am__append_1) $(am__append_2)
 header_rewrite_parser_la_SOURCES = \
 	header_rewrite/parser.cc \
 	header_rewrite/parser.h
@@ -3514,8 +3712,11 @@ prefetch_prefetch_la_SOURCES = \
   prefetch/pattern.cc \
   prefetch/fetch_policy.cc \
   prefetch/fetch_policy_simple.cc \
-  prefetch/fetch_policy_lru.cc
+  prefetch/fetch_policy_lru.cc \
+  prefetch/evaluate.cc
 
+prefetch_test_evaluate_CPPFLAGS = $(AM_CPPFLAGS) -I$(abs_top_srcdir)/tests/include -DPREFETCH_UNIT_TEST
+prefetch_test_evaluate_SOURCES = prefetch/test/test_evaluate.cc prefetch/evaluate.cc prefetch/common.cc
 regex_remap_regex_remap_la_SOURCES = regex_remap/regex_remap.cc
 regex_revalidate_regex_revalidate_la_SOURCES = regex_revalidate/regex_revalidate.c
 remap_purge_remap_purge_la_SOURCES = \
@@ -3607,8 +3808,21 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_header_freq_header_freq_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/header_freq/header_freq.cc
 
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_parent_select_parent_select_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/parent_select/strategy.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/parent_select/healthstatus.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/parent_select/consistenthash.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/parent_select/consistenthash_config.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/parent_select/parent_select.cc
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_parent_select_parent_select_la_LDFLAGS = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  $(AM_LDFLAGS)
+
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_hook_trace_hook_trace_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/hook-trace/hook-trace.cc
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_http_stats_http_stats_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/http_stats/http_stats.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_icap_icap_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/icap/icap_plugin.cc
@@ -3630,6 +3844,14 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@experimental_maxmind_acl_maxmind_acl_la_LIBADD = $(MAXMINDDB_LIBS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@experimental_maxmind_acl_maxmind_acl_la_LDFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MAXMINDDB_TRUE@	$(AM_LDFLAGS)
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@experimental_otel_tracer_otel_tracer_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@  experimental/otel_tracer/otel_tracer.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@  experimental/otel_tracer/tracer_common.h
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@experimental_otel_tracer_otel_tracer_la_LIBADD = $(OTEL_LIBS)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@experimental_otel_tracer_otel_tracer_la_LDFLAGS = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_OTEL_TRUE@        $(AM_LDFLAGS)
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_memcache_tsmemcache_la_CPPFLAGS = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  $(AM_CPPFLAGS) \
@@ -3668,6 +3890,7 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/txn_limiter.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/sni_limiter.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/sni_selector.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/ip_reputation.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/rate_limit/utilities.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_redo_cache_lookup_redo_cache_lookup_la_SOURCES = \
@@ -3694,6 +3917,8 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/HttpHeader.h \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/intercept.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/intercept.h \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/prefetch.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/prefetch.h \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/Range.cc \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/Range.h \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@  experimental/slice/response.cc \
@@ -3855,6 +4080,20 @@ xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_SSL_SESSION_REUSE_PLUGIN_TRUE@    experimental/ssl_session_reuse/src/subscriber.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_SSL_SESSION_REUSE_PLUGIN_TRUE@experimental_ssl_session_reuse_ssl_session_reuse_la_LIBADD = @LIB_HIREDIS@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@experimental_stek_share_stek_share_la_SOURCES = \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@  experimental/stek_share/common.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/common.h \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/log_store.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/log_store.h \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/state_machine.h \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/state_manager.h \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/stek_share.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/stek_share.h \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/stek_utils.cc \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@	experimental/stek_share/stek_utils.h
+
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@experimental_stek_share_stek_share_la_LDFLAGS = $(AM_LDFLAGS) @YAMLCPP_LDFLAGS@
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_STEK_SHARE_PLUGIN_TRUE@experimental_stek_share_stek_share_la_LIBADD = @NURAFT_LIBS@ @YAMLCPP_LIBS@
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@experimental_cache_key_genid_cache_key_genid_la_SOURCES = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@  experimental/cache_key_genid/cache_key_genid.c
 
@@ -3903,7 +4142,7 @@ all: all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cache_fill/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/icap/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/rate_limit/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cache_fill/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/parent_select/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/http_stats/Makefile.inc $(srcdir)/experimental/icap/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/otel_tracer/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/rate_limit/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/stek_share/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -3923,7 +4162,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__maybe_remake_depfiles);; \
 	esac;
-$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cache_fill/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/icap/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/rate_limit/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__empty):
+$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/cachekey/Makefile.inc $(srcdir)/cache_promote/Makefile.inc $(srcdir)/cache_range_requests/Makefile.inc $(srcdir)/certifier/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/escalate/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/compress/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/lua/Makefile.inc $(srcdir)/multiplexer/Makefile.inc $(srcdir)/prefetch/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/remap_purge/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/server_push_preload/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/access_control/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/cache_fill/Makefile.inc $(srcdir)/experimental/cert_reporting_tool/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/cookie_remap/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/fq_pacing/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/parent_select/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/http_stats/Makefile.inc $(srcdir)/experimental/icap/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/maxmind_acl/Makefile.inc $(srcdir)/experimental/otel_tracer/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/memory_profile/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/rate_limit/Makefile.inc $(srcdir)/experimental/redo_cache_lookup/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/slice/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/statichit/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/system_stats/Makefile.inc $(srcdir)/experimental/traffic_dump/Makefile.inc $(srcdir)/experimental/tls_bridge/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/ja3_fingerprint/Makefile.inc $(srcdir)/experimental/uri_signing/Makefile.inc $(srcdir)/experimental/ssl_session_reuse/Makefile.inc $(srcdir)/experimental/stek_share/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/magick/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -4371,6 +4610,18 @@ experimental/hook-trace/hook-trace.lo:  \
 
 experimental/hook-trace/hook-trace.la: $(experimental_hook_trace_hook_trace_la_OBJECTS) $(experimental_hook_trace_hook_trace_la_DEPENDENCIES) $(EXTRA_experimental_hook_trace_hook_trace_la_DEPENDENCIES) experimental/hook-trace/$(am__dirstamp)
 	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_hook_trace_hook_trace_la_rpath) $(experimental_hook_trace_hook_trace_la_OBJECTS) $(experimental_hook_trace_hook_trace_la_LIBADD) $(LIBS)
+experimental/http_stats/$(am__dirstamp):
+	@$(MKDIR_P) experimental/http_stats
+	@: > experimental/http_stats/$(am__dirstamp)
+experimental/http_stats/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/http_stats/$(DEPDIR)
+	@: > experimental/http_stats/$(DEPDIR)/$(am__dirstamp)
+experimental/http_stats/http_stats.lo:  \
+	experimental/http_stats/$(am__dirstamp) \
+	experimental/http_stats/$(DEPDIR)/$(am__dirstamp)
+
+experimental/http_stats/http_stats.la: $(experimental_http_stats_http_stats_la_OBJECTS) $(experimental_http_stats_http_stats_la_DEPENDENCIES) $(EXTRA_experimental_http_stats_http_stats_la_DEPENDENCIES) experimental/http_stats/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_http_stats_http_stats_la_rpath) $(experimental_http_stats_http_stats_la_OBJECTS) $(experimental_http_stats_http_stats_la_LIBADD) $(LIBS)
 experimental/icap/$(am__dirstamp):
 	@$(MKDIR_P) experimental/icap
 	@: > experimental/icap/$(am__dirstamp)
@@ -4536,6 +4787,42 @@ experimental/mysql_remap/lib/iniparser.lo:  \
 
 experimental/mysql_remap/mysql_remap.la: $(experimental_mysql_remap_mysql_remap_la_OBJECTS) $(experimental_mysql_remap_mysql_remap_la_DEPENDENCIES) $(EXTRA_experimental_mysql_remap_mysql_remap_la_DEPENDENCIES) experimental/mysql_remap/$(am__dirstamp)
 	$(AM_V_CXXLD)$(experimental_mysql_remap_mysql_remap_la_LINK) $(am_experimental_mysql_remap_mysql_remap_la_rpath) $(experimental_mysql_remap_mysql_remap_la_OBJECTS) $(experimental_mysql_remap_mysql_remap_la_LIBADD) $(LIBS)
+experimental/otel_tracer/$(am__dirstamp):
+	@$(MKDIR_P) experimental/otel_tracer
+	@: > experimental/otel_tracer/$(am__dirstamp)
+experimental/otel_tracer/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/otel_tracer/$(DEPDIR)
+	@: > experimental/otel_tracer/$(DEPDIR)/$(am__dirstamp)
+experimental/otel_tracer/otel_tracer.lo:  \
+	experimental/otel_tracer/$(am__dirstamp) \
+	experimental/otel_tracer/$(DEPDIR)/$(am__dirstamp)
+
+experimental/otel_tracer/otel_tracer.la: $(experimental_otel_tracer_otel_tracer_la_OBJECTS) $(experimental_otel_tracer_otel_tracer_la_DEPENDENCIES) $(EXTRA_experimental_otel_tracer_otel_tracer_la_DEPENDENCIES) experimental/otel_tracer/$(am__dirstamp)
+	$(AM_V_CXXLD)$(experimental_otel_tracer_otel_tracer_la_LINK) $(am_experimental_otel_tracer_otel_tracer_la_rpath) $(experimental_otel_tracer_otel_tracer_la_OBJECTS) $(experimental_otel_tracer_otel_tracer_la_LIBADD) $(LIBS)
+experimental/parent_select/$(am__dirstamp):
+	@$(MKDIR_P) experimental/parent_select
+	@: > experimental/parent_select/$(am__dirstamp)
+experimental/parent_select/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/parent_select/$(DEPDIR)
+	@: > experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+experimental/parent_select/strategy.lo:  \
+	experimental/parent_select/$(am__dirstamp) \
+	experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+experimental/parent_select/healthstatus.lo:  \
+	experimental/parent_select/$(am__dirstamp) \
+	experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+experimental/parent_select/consistenthash.lo:  \
+	experimental/parent_select/$(am__dirstamp) \
+	experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+experimental/parent_select/consistenthash_config.lo:  \
+	experimental/parent_select/$(am__dirstamp) \
+	experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+experimental/parent_select/parent_select.lo:  \
+	experimental/parent_select/$(am__dirstamp) \
+	experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+
+experimental/parent_select/parent_select.la: $(experimental_parent_select_parent_select_la_OBJECTS) $(experimental_parent_select_parent_select_la_DEPENDENCIES) $(EXTRA_experimental_parent_select_parent_select_la_DEPENDENCIES) experimental/parent_select/$(am__dirstamp)
+	$(AM_V_CXXLD)$(experimental_parent_select_parent_select_la_LINK) $(am_experimental_parent_select_parent_select_la_rpath) $(experimental_parent_select_parent_select_la_OBJECTS) $(experimental_parent_select_parent_select_la_LIBADD) $(LIBS)
 experimental/rate_limit/$(am__dirstamp):
 	@$(MKDIR_P) experimental/rate_limit
 	@: > experimental/rate_limit/$(am__dirstamp)
@@ -4552,6 +4839,9 @@ experimental/rate_limit/sni_limiter.lo:  \
 	experimental/rate_limit/$(am__dirstamp) \
 	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
 experimental/rate_limit/sni_selector.lo:  \
+	experimental/rate_limit/$(am__dirstamp) \
+	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
+experimental/rate_limit/ip_reputation.lo:  \
 	experimental/rate_limit/$(am__dirstamp) \
 	experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
 experimental/rate_limit/utilities.lo:  \
@@ -4600,6 +4890,8 @@ experimental/slice/ContentRange.lo:  \
 experimental/slice/HttpHeader.lo: experimental/slice/$(am__dirstamp) \
 	experimental/slice/$(DEPDIR)/$(am__dirstamp)
 experimental/slice/intercept.lo: experimental/slice/$(am__dirstamp) \
+	experimental/slice/$(DEPDIR)/$(am__dirstamp)
+experimental/slice/prefetch.lo: experimental/slice/$(am__dirstamp) \
 	experimental/slice/$(DEPDIR)/$(am__dirstamp)
 experimental/slice/Range.lo: experimental/slice/$(am__dirstamp) \
 	experimental/slice/$(DEPDIR)/$(am__dirstamp)
@@ -4697,6 +4989,27 @@ experimental/statichit/statichit.lo:  \
 
 experimental/statichit/statichit.la: $(experimental_statichit_statichit_la_OBJECTS) $(experimental_statichit_statichit_la_DEPENDENCIES) $(EXTRA_experimental_statichit_statichit_la_DEPENDENCIES) experimental/statichit/$(am__dirstamp)
 	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_statichit_statichit_la_rpath) $(experimental_statichit_statichit_la_OBJECTS) $(experimental_statichit_statichit_la_LIBADD) $(LIBS)
+experimental/stek_share/$(am__dirstamp):
+	@$(MKDIR_P) experimental/stek_share
+	@: > experimental/stek_share/$(am__dirstamp)
+experimental/stek_share/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) experimental/stek_share/$(DEPDIR)
+	@: > experimental/stek_share/$(DEPDIR)/$(am__dirstamp)
+experimental/stek_share/common.lo:  \
+	experimental/stek_share/$(am__dirstamp) \
+	experimental/stek_share/$(DEPDIR)/$(am__dirstamp)
+experimental/stek_share/log_store.lo:  \
+	experimental/stek_share/$(am__dirstamp) \
+	experimental/stek_share/$(DEPDIR)/$(am__dirstamp)
+experimental/stek_share/stek_share.lo:  \
+	experimental/stek_share/$(am__dirstamp) \
+	experimental/stek_share/$(DEPDIR)/$(am__dirstamp)
+experimental/stek_share/stek_utils.lo:  \
+	experimental/stek_share/$(am__dirstamp) \
+	experimental/stek_share/$(DEPDIR)/$(am__dirstamp)
+
+experimental/stek_share/stek_share.la: $(experimental_stek_share_stek_share_la_OBJECTS) $(experimental_stek_share_stek_share_la_DEPENDENCIES) $(EXTRA_experimental_stek_share_stek_share_la_DEPENDENCIES) experimental/stek_share/$(am__dirstamp)
+	$(AM_V_CXXLD)$(experimental_stek_share_stek_share_la_LINK) $(am_experimental_stek_share_stek_share_la_rpath) $(experimental_stek_share_stek_share_la_OBJECTS) $(experimental_stek_share_stek_share_la_LIBADD) $(LIBS)
 experimental/stream_editor/$(am__dirstamp):
 	@$(MKDIR_P) experimental/stream_editor
 	@: > experimental/stream_editor/$(am__dirstamp)
@@ -4845,6 +5158,8 @@ header_rewrite/operator.lo: header_rewrite/$(am__dirstamp) \
 header_rewrite/operators.lo: header_rewrite/$(am__dirstamp) \
 	header_rewrite/$(DEPDIR)/$(am__dirstamp)
 header_rewrite/regex_helper.lo: header_rewrite/$(am__dirstamp) \
+	header_rewrite/$(DEPDIR)/$(am__dirstamp)
+header_rewrite/ipranges_helper.lo: header_rewrite/$(am__dirstamp) \
 	header_rewrite/$(DEPDIR)/$(am__dirstamp)
 header_rewrite/resources.lo: header_rewrite/$(am__dirstamp) \
 	header_rewrite/$(DEPDIR)/$(am__dirstamp)
@@ -5004,6 +5319,8 @@ prefetch/fetch_policy.lo: prefetch/$(am__dirstamp) \
 prefetch/fetch_policy_simple.lo: prefetch/$(am__dirstamp) \
 	prefetch/$(DEPDIR)/$(am__dirstamp)
 prefetch/fetch_policy_lru.lo: prefetch/$(am__dirstamp) \
+	prefetch/$(DEPDIR)/$(am__dirstamp)
+prefetch/evaluate.lo: prefetch/$(am__dirstamp) \
 	prefetch/$(DEPDIR)/$(am__dirstamp)
 
 prefetch/prefetch.la: $(prefetch_prefetch_la_OBJECTS) $(prefetch_prefetch_la_DEPENDENCIES) $(EXTRA_prefetch_prefetch_la_DEPENDENCIES) prefetch/$(am__dirstamp)
@@ -5292,6 +5609,23 @@ header_rewrite/header_rewrite_test.$(OBJEXT):  \
 header_rewrite/header_rewrite_test$(EXEEXT): $(header_rewrite_header_rewrite_test_OBJECTS) $(header_rewrite_header_rewrite_test_DEPENDENCIES) $(EXTRA_header_rewrite_header_rewrite_test_DEPENDENCIES) header_rewrite/$(am__dirstamp)
 	@rm -f header_rewrite/header_rewrite_test$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(header_rewrite_header_rewrite_test_OBJECTS) $(header_rewrite_header_rewrite_test_LDADD) $(LIBS)
+prefetch/test/$(am__dirstamp):
+	@$(MKDIR_P) prefetch/test
+	@: > prefetch/test/$(am__dirstamp)
+prefetch/test/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) prefetch/test/$(DEPDIR)
+	@: > prefetch/test/$(DEPDIR)/$(am__dirstamp)
+prefetch/test/evaluate-test_evaluate.$(OBJEXT):  \
+	prefetch/test/$(am__dirstamp) \
+	prefetch/test/$(DEPDIR)/$(am__dirstamp)
+prefetch/test_evaluate-evaluate.$(OBJEXT): prefetch/$(am__dirstamp) \
+	prefetch/$(DEPDIR)/$(am__dirstamp)
+prefetch/test_evaluate-common.$(OBJEXT): prefetch/$(am__dirstamp) \
+	prefetch/$(DEPDIR)/$(am__dirstamp)
+
+prefetch/test_evaluate$(EXEEXT): $(prefetch_test_evaluate_OBJECTS) $(prefetch_test_evaluate_DEPENDENCIES) $(EXTRA_prefetch_test_evaluate_DEPENDENCIES) prefetch/$(am__dirstamp)
+	@rm -f prefetch/test_evaluate$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(prefetch_test_evaluate_OBJECTS) $(prefetch_test_evaluate_LDADD) $(LIBS)
 s3_auth/unit_tests/$(am__dirstamp):
 	@$(MKDIR_P) s3_auth/unit_tests
 	@: > s3_auth/unit_tests/$(am__dirstamp)
@@ -5361,6 +5695,8 @@ mostlyclean-compile:
 	-rm -f experimental/header_freq/*.lo
 	-rm -f experimental/hook-trace/*.$(OBJEXT)
 	-rm -f experimental/hook-trace/*.lo
+	-rm -f experimental/http_stats/*.$(OBJEXT)
+	-rm -f experimental/http_stats/*.lo
 	-rm -f experimental/icap/*.$(OBJEXT)
 	-rm -f experimental/icap/*.lo
 	-rm -f experimental/inliner/*.$(OBJEXT)
@@ -5385,6 +5721,10 @@ mostlyclean-compile:
 	-rm -f experimental/mysql_remap/*.lo
 	-rm -f experimental/mysql_remap/lib/*.$(OBJEXT)
 	-rm -f experimental/mysql_remap/lib/*.lo
+	-rm -f experimental/otel_tracer/*.$(OBJEXT)
+	-rm -f experimental/otel_tracer/*.lo
+	-rm -f experimental/parent_select/*.$(OBJEXT)
+	-rm -f experimental/parent_select/*.lo
 	-rm -f experimental/rate_limit/*.$(OBJEXT)
 	-rm -f experimental/rate_limit/*.lo
 	-rm -f experimental/redo_cache_lookup/*.$(OBJEXT)
@@ -5401,6 +5741,8 @@ mostlyclean-compile:
 	-rm -f experimental/sslheaders/unit_tests/*.$(OBJEXT)
 	-rm -f experimental/statichit/*.$(OBJEXT)
 	-rm -f experimental/statichit/*.lo
+	-rm -f experimental/stek_share/*.$(OBJEXT)
+	-rm -f experimental/stek_share/*.lo
 	-rm -f experimental/stream_editor/*.$(OBJEXT)
 	-rm -f experimental/stream_editor/*.lo
 	-rm -f experimental/system_stats/*.$(OBJEXT)
@@ -5431,6 +5773,7 @@ mostlyclean-compile:
 	-rm -f multiplexer/*.lo
 	-rm -f prefetch/*.$(OBJEXT)
 	-rm -f prefetch/*.lo
+	-rm -f prefetch/test/*.$(OBJEXT)
 	-rm -f regex_remap/*.$(OBJEXT)
 	-rm -f regex_remap/*.lo
 	-rm -f regex_revalidate/*.$(OBJEXT)
@@ -5533,6 +5876,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/header_freq/$(DEPDIR)/header_freq.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/hook-trace/$(DEPDIR)/hook-trace.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/http_stats/$(DEPDIR)/http_stats.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/icap/$(DEPDIR)/icap_plugin.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo@am__quote@ # am--include-marker
@@ -5554,6 +5898,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/otel_tracer/$(DEPDIR)/otel_tracer.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/parent_select/$(DEPDIR)/consistenthash.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/parent_select/$(DEPDIR)/consistenthash_config.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/parent_select/$(DEPDIR)/healthstatus.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/parent_select/$(DEPDIR)/parent_select.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/parent_select/$(DEPDIR)/strategy.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/ip_reputation.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/rate_limit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/rate_limit/$(DEPDIR)/sni_selector.Plo@am__quote@ # am--include-marker
@@ -5567,6 +5918,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/Range.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/client.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/intercept.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/prefetch.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/response.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/server.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/slice/$(DEPDIR)/slice.Plo@am__quote@ # am--include-marker
@@ -5596,6 +5948,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/statichit/$(DEPDIR)/statichit.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/stek_share/$(DEPDIR)/common.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/stek_share/$(DEPDIR)/log_store.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/stek_share/$(DEPDIR)/stek_share.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@experimental/stek_share/$(DEPDIR)/stek_utils.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/stream_editor/$(DEPDIR)/stream_editor.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/system_stats/$(DEPDIR)/system_stats.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/tls_bridge/$(DEPDIR)/regex.Plo@am__quote@ # am--include-marker
@@ -5635,6 +5991,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/factory.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/header_rewrite.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/header_rewrite_test.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/ipranges_helper.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/lulu.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/operator.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/operators.Plo@am__quote@ # am--include-marker
@@ -5683,6 +6040,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@multiplexer/$(DEPDIR)/multiplexer_la-ts.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/common.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/configs.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/evaluate.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/fetch.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/fetch_policy.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/fetch_policy_lru.Plo@am__quote@ # am--include-marker
@@ -5690,6 +6048,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/headers.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/pattern.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/plugin.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/test_evaluate-common.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@prefetch/$(DEPDIR)/test_evaluate-evaluate.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@regex_remap/$(DEPDIR)/regex_remap.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@regex_revalidate/$(DEPDIR)/regex_revalidate.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@remap_purge/$(DEPDIR)/remap_purge.Plo@am__quote@ # am--include-marker
@@ -6757,6 +7118,48 @@ experimental/uri_signing/unit_tests/test_uri_signing-uri_signing_test.obj: exper
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_uri_signing_test_uri_signing_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/uri_signing/unit_tests/test_uri_signing-uri_signing_test.obj `if test -f 'experimental/uri_signing/unit_tests/uri_signing_test.cc'; then $(CYGPATH_W) 'experimental/uri_signing/unit_tests/uri_signing_test.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/uri_signing/unit_tests/uri_signing_test.cc'; fi`
 
+prefetch/test/evaluate-test_evaluate.o: prefetch/test/test_evaluate.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT prefetch/test/evaluate-test_evaluate.o -MD -MP -MF prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Tpo -c -o prefetch/test/evaluate-test_evaluate.o `test -f 'prefetch/test/test_evaluate.cc' || echo '$(srcdir)/'`prefetch/test/test_evaluate.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Tpo prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='prefetch/test/test_evaluate.cc' object='prefetch/test/evaluate-test_evaluate.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o prefetch/test/evaluate-test_evaluate.o `test -f 'prefetch/test/test_evaluate.cc' || echo '$(srcdir)/'`prefetch/test/test_evaluate.cc
+
+prefetch/test/evaluate-test_evaluate.obj: prefetch/test/test_evaluate.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT prefetch/test/evaluate-test_evaluate.obj -MD -MP -MF prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Tpo -c -o prefetch/test/evaluate-test_evaluate.obj `if test -f 'prefetch/test/test_evaluate.cc'; then $(CYGPATH_W) 'prefetch/test/test_evaluate.cc'; else $(CYGPATH_W) '$(srcdir)/prefetch/test/test_evaluate.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Tpo prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='prefetch/test/test_evaluate.cc' object='prefetch/test/evaluate-test_evaluate.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o prefetch/test/evaluate-test_evaluate.obj `if test -f 'prefetch/test/test_evaluate.cc'; then $(CYGPATH_W) 'prefetch/test/test_evaluate.cc'; else $(CYGPATH_W) '$(srcdir)/prefetch/test/test_evaluate.cc'; fi`
+
+prefetch/test_evaluate-evaluate.o: prefetch/evaluate.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT prefetch/test_evaluate-evaluate.o -MD -MP -MF prefetch/$(DEPDIR)/test_evaluate-evaluate.Tpo -c -o prefetch/test_evaluate-evaluate.o `test -f 'prefetch/evaluate.cc' || echo '$(srcdir)/'`prefetch/evaluate.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) prefetch/$(DEPDIR)/test_evaluate-evaluate.Tpo prefetch/$(DEPDIR)/test_evaluate-evaluate.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='prefetch/evaluate.cc' object='prefetch/test_evaluate-evaluate.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o prefetch/test_evaluate-evaluate.o `test -f 'prefetch/evaluate.cc' || echo '$(srcdir)/'`prefetch/evaluate.cc
+
+prefetch/test_evaluate-evaluate.obj: prefetch/evaluate.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT prefetch/test_evaluate-evaluate.obj -MD -MP -MF prefetch/$(DEPDIR)/test_evaluate-evaluate.Tpo -c -o prefetch/test_evaluate-evaluate.obj `if test -f 'prefetch/evaluate.cc'; then $(CYGPATH_W) 'prefetch/evaluate.cc'; else $(CYGPATH_W) '$(srcdir)/prefetch/evaluate.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) prefetch/$(DEPDIR)/test_evaluate-evaluate.Tpo prefetch/$(DEPDIR)/test_evaluate-evaluate.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='prefetch/evaluate.cc' object='prefetch/test_evaluate-evaluate.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o prefetch/test_evaluate-evaluate.obj `if test -f 'prefetch/evaluate.cc'; then $(CYGPATH_W) 'prefetch/evaluate.cc'; else $(CYGPATH_W) '$(srcdir)/prefetch/evaluate.cc'; fi`
+
+prefetch/test_evaluate-common.o: prefetch/common.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT prefetch/test_evaluate-common.o -MD -MP -MF prefetch/$(DEPDIR)/test_evaluate-common.Tpo -c -o prefetch/test_evaluate-common.o `test -f 'prefetch/common.cc' || echo '$(srcdir)/'`prefetch/common.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) prefetch/$(DEPDIR)/test_evaluate-common.Tpo prefetch/$(DEPDIR)/test_evaluate-common.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='prefetch/common.cc' object='prefetch/test_evaluate-common.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o prefetch/test_evaluate-common.o `test -f 'prefetch/common.cc' || echo '$(srcdir)/'`prefetch/common.cc
+
+prefetch/test_evaluate-common.obj: prefetch/common.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT prefetch/test_evaluate-common.obj -MD -MP -MF prefetch/$(DEPDIR)/test_evaluate-common.Tpo -c -o prefetch/test_evaluate-common.obj `if test -f 'prefetch/common.cc'; then $(CYGPATH_W) 'prefetch/common.cc'; else $(CYGPATH_W) '$(srcdir)/prefetch/common.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) prefetch/$(DEPDIR)/test_evaluate-common.Tpo prefetch/$(DEPDIR)/test_evaluate-common.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='prefetch/common.cc' object='prefetch/test_evaluate-common.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(prefetch_test_evaluate_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o prefetch/test_evaluate-common.obj `if test -f 'prefetch/common.cc'; then $(CYGPATH_W) 'prefetch/common.cc'; else $(CYGPATH_W) '$(srcdir)/prefetch/common.cc'; fi`
+
 s3_auth/unit_tests/test_s3auth-test_aws_auth_v4.o: s3_auth/unit_tests/test_aws_auth_v4.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(s3_auth_test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/unit_tests/test_s3auth-test_aws_auth_v4.o -MD -MP -MF s3_auth/unit_tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Tpo -c -o s3_auth/unit_tests/test_s3auth-test_aws_auth_v4.o `test -f 's3_auth/unit_tests/test_aws_auth_v4.cc' || echo '$(srcdir)/'`s3_auth/unit_tests/test_aws_auth_v4.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/unit_tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Tpo s3_auth/unit_tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Po
@@ -6815,6 +7218,7 @@ clean-libtool:
 	-rm -rf experimental/geoip_acl/.libs experimental/geoip_acl/_libs
 	-rm -rf experimental/header_freq/.libs experimental/header_freq/_libs
 	-rm -rf experimental/hook-trace/.libs experimental/hook-trace/_libs
+	-rm -rf experimental/http_stats/.libs experimental/http_stats/_libs
 	-rm -rf experimental/icap/.libs experimental/icap/_libs
 	-rm -rf experimental/inliner/.libs experimental/inliner/_libs
 	-rm -rf experimental/ja3_fingerprint/.libs experimental/ja3_fingerprint/_libs
@@ -6827,6 +7231,8 @@ clean-libtool:
 	-rm -rf experimental/mp4/.libs experimental/mp4/_libs
 	-rm -rf experimental/mysql_remap/.libs experimental/mysql_remap/_libs
 	-rm -rf experimental/mysql_remap/lib/.libs experimental/mysql_remap/lib/_libs
+	-rm -rf experimental/otel_tracer/.libs experimental/otel_tracer/_libs
+	-rm -rf experimental/parent_select/.libs experimental/parent_select/_libs
 	-rm -rf experimental/rate_limit/.libs experimental/rate_limit/_libs
 	-rm -rf experimental/redo_cache_lookup/.libs experimental/redo_cache_lookup/_libs
 	-rm -rf experimental/remap_stats/.libs experimental/remap_stats/_libs
@@ -6835,6 +7241,7 @@ clean-libtool:
 	-rm -rf experimental/ssl_session_reuse/src/.libs experimental/ssl_session_reuse/src/_libs
 	-rm -rf experimental/sslheaders/.libs experimental/sslheaders/_libs
 	-rm -rf experimental/statichit/.libs experimental/statichit/_libs
+	-rm -rf experimental/stek_share/.libs experimental/stek_share/_libs
 	-rm -rf experimental/stream_editor/.libs experimental/stream_editor/_libs
 	-rm -rf experimental/system_stats/.libs experimental/system_stats/_libs
 	-rm -rf experimental/tls_bridge/.libs experimental/tls_bridge/_libs
@@ -7148,6 +7555,13 @@ header_rewrite/header_rewrite_test.log: header_rewrite/header_rewrite_test$(EXEE
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+prefetch/test_evaluate.log: prefetch/test_evaluate$(EXEEXT)
+	@p='prefetch/test_evaluate$(EXEEXT)'; \
+	b='prefetch/test_evaluate'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 s3_auth/test_s3auth.log: s3_auth/test_s3auth$(EXEEXT)
 	@p='s3_auth/test_s3auth$(EXEEXT)'; \
 	b='s3_auth/test_s3auth'; \
@@ -7374,6 +7788,8 @@ distclean-generic:
 	-rm -f experimental/header_freq/$(am__dirstamp)
 	-rm -f experimental/hook-trace/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/hook-trace/$(am__dirstamp)
+	-rm -f experimental/http_stats/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/http_stats/$(am__dirstamp)
 	-rm -f experimental/icap/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/icap/$(am__dirstamp)
 	-rm -f experimental/inliner/$(DEPDIR)/$(am__dirstamp)
@@ -7398,6 +7814,10 @@ distclean-generic:
 	-rm -f experimental/mysql_remap/$(am__dirstamp)
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/mysql_remap/lib/$(am__dirstamp)
+	-rm -f experimental/otel_tracer/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/otel_tracer/$(am__dirstamp)
+	-rm -f experimental/parent_select/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/parent_select/$(am__dirstamp)
 	-rm -f experimental/rate_limit/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/rate_limit/$(am__dirstamp)
 	-rm -f experimental/redo_cache_lookup/$(DEPDIR)/$(am__dirstamp)
@@ -7417,6 +7837,8 @@ distclean-generic:
 	-rm -f experimental/sslheaders/unit_tests/$(am__dirstamp)
 	-rm -f experimental/statichit/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/statichit/$(am__dirstamp)
+	-rm -f experimental/stek_share/$(DEPDIR)/$(am__dirstamp)
+	-rm -f experimental/stek_share/$(am__dirstamp)
 	-rm -f experimental/stream_editor/$(DEPDIR)/$(am__dirstamp)
 	-rm -f experimental/stream_editor/$(am__dirstamp)
 	-rm -f experimental/system_stats/$(DEPDIR)/$(am__dirstamp)
@@ -7449,6 +7871,8 @@ distclean-generic:
 	-rm -f multiplexer/$(am__dirstamp)
 	-rm -f prefetch/$(DEPDIR)/$(am__dirstamp)
 	-rm -f prefetch/$(am__dirstamp)
+	-rm -f prefetch/test/$(DEPDIR)/$(am__dirstamp)
+	-rm -f prefetch/test/$(am__dirstamp)
 	-rm -f regex_remap/$(DEPDIR)/$(am__dirstamp)
 	-rm -f regex_remap/$(am__dirstamp)
 	-rm -f regex_revalidate/$(DEPDIR)/$(am__dirstamp)
@@ -7562,6 +7986,7 @@ distclean: distclean-recursive
 	-rm -f experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo
 	-rm -f experimental/header_freq/$(DEPDIR)/header_freq.Plo
 	-rm -f experimental/hook-trace/$(DEPDIR)/hook-trace.Plo
+	-rm -f experimental/http_stats/$(DEPDIR)/http_stats.Plo
 	-rm -f experimental/icap/$(DEPDIR)/icap_plugin.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo
@@ -7583,6 +8008,13 @@ distclean: distclean-recursive
 	-rm -f experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo
+	-rm -f experimental/otel_tracer/$(DEPDIR)/otel_tracer.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/consistenthash.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/consistenthash_config.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/healthstatus.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/parent_select.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/strategy.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/ip_reputation.Plo
 	-rm -f experimental/rate_limit/$(DEPDIR)/rate_limit.Plo
 	-rm -f experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo
 	-rm -f experimental/rate_limit/$(DEPDIR)/sni_selector.Plo
@@ -7596,6 +8028,7 @@ distclean: distclean-recursive
 	-rm -f experimental/slice/$(DEPDIR)/Range.Plo
 	-rm -f experimental/slice/$(DEPDIR)/client.Plo
 	-rm -f experimental/slice/$(DEPDIR)/intercept.Plo
+	-rm -f experimental/slice/$(DEPDIR)/prefetch.Plo
 	-rm -f experimental/slice/$(DEPDIR)/response.Plo
 	-rm -f experimental/slice/$(DEPDIR)/server.Plo
 	-rm -f experimental/slice/$(DEPDIR)/slice.Plo
@@ -7625,6 +8058,10 @@ distclean: distclean-recursive
 	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
 	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po
 	-rm -f experimental/statichit/$(DEPDIR)/statichit.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/common.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/log_store.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/stek_share.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/stek_utils.Plo
 	-rm -f experimental/stream_editor/$(DEPDIR)/stream_editor.Plo
 	-rm -f experimental/system_stats/$(DEPDIR)/system_stats.Plo
 	-rm -f experimental/tls_bridge/$(DEPDIR)/regex.Plo
@@ -7664,6 +8101,7 @@ distclean: distclean-recursive
 	-rm -f header_rewrite/$(DEPDIR)/factory.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite_test.Po
+	-rm -f header_rewrite/$(DEPDIR)/ipranges_helper.Plo
 	-rm -f header_rewrite/$(DEPDIR)/lulu.Plo
 	-rm -f header_rewrite/$(DEPDIR)/operator.Plo
 	-rm -f header_rewrite/$(DEPDIR)/operators.Plo
@@ -7712,6 +8150,7 @@ distclean: distclean-recursive
 	-rm -f multiplexer/$(DEPDIR)/multiplexer_la-ts.Plo
 	-rm -f prefetch/$(DEPDIR)/common.Plo
 	-rm -f prefetch/$(DEPDIR)/configs.Plo
+	-rm -f prefetch/$(DEPDIR)/evaluate.Plo
 	-rm -f prefetch/$(DEPDIR)/fetch.Plo
 	-rm -f prefetch/$(DEPDIR)/fetch_policy.Plo
 	-rm -f prefetch/$(DEPDIR)/fetch_policy_lru.Plo
@@ -7719,6 +8158,9 @@ distclean: distclean-recursive
 	-rm -f prefetch/$(DEPDIR)/headers.Plo
 	-rm -f prefetch/$(DEPDIR)/pattern.Plo
 	-rm -f prefetch/$(DEPDIR)/plugin.Plo
+	-rm -f prefetch/$(DEPDIR)/test_evaluate-common.Po
+	-rm -f prefetch/$(DEPDIR)/test_evaluate-evaluate.Po
+	-rm -f prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Po
 	-rm -f regex_remap/$(DEPDIR)/regex_remap.Plo
 	-rm -f regex_revalidate/$(DEPDIR)/regex_revalidate.Plo
 	-rm -f remap_purge/$(DEPDIR)/remap_purge.Plo
@@ -7856,6 +8298,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/geoip_acl/$(DEPDIR)/geoip_acl.Plo
 	-rm -f experimental/header_freq/$(DEPDIR)/header_freq.Plo
 	-rm -f experimental/hook-trace/$(DEPDIR)/hook-trace.Plo
+	-rm -f experimental/http_stats/$(DEPDIR)/http_stats.Plo
 	-rm -f experimental/icap/$(DEPDIR)/icap_plugin.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-ats-inliner.Plo
 	-rm -f experimental/inliner/$(DEPDIR)/inliner_la-cache.Plo
@@ -7877,6 +8320,13 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/mysql_remap/$(DEPDIR)/mysql_remap.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/dictionary.Plo
 	-rm -f experimental/mysql_remap/lib/$(DEPDIR)/iniparser.Plo
+	-rm -f experimental/otel_tracer/$(DEPDIR)/otel_tracer.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/consistenthash.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/consistenthash_config.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/healthstatus.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/parent_select.Plo
+	-rm -f experimental/parent_select/$(DEPDIR)/strategy.Plo
+	-rm -f experimental/rate_limit/$(DEPDIR)/ip_reputation.Plo
 	-rm -f experimental/rate_limit/$(DEPDIR)/rate_limit.Plo
 	-rm -f experimental/rate_limit/$(DEPDIR)/sni_limiter.Plo
 	-rm -f experimental/rate_limit/$(DEPDIR)/sni_selector.Plo
@@ -7890,6 +8340,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/slice/$(DEPDIR)/Range.Plo
 	-rm -f experimental/slice/$(DEPDIR)/client.Plo
 	-rm -f experimental/slice/$(DEPDIR)/intercept.Plo
+	-rm -f experimental/slice/$(DEPDIR)/prefetch.Plo
 	-rm -f experimental/slice/$(DEPDIR)/response.Plo
 	-rm -f experimental/slice/$(DEPDIR)/server.Plo
 	-rm -f experimental/slice/$(DEPDIR)/slice.Plo
@@ -7919,6 +8370,10 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-test_sslheaders.Po
 	-rm -f experimental/sslheaders/unit_tests/$(DEPDIR)/test_sslheaders-unit_test_main.Po
 	-rm -f experimental/statichit/$(DEPDIR)/statichit.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/common.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/log_store.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/stek_share.Plo
+	-rm -f experimental/stek_share/$(DEPDIR)/stek_utils.Plo
 	-rm -f experimental/stream_editor/$(DEPDIR)/stream_editor.Plo
 	-rm -f experimental/system_stats/$(DEPDIR)/system_stats.Plo
 	-rm -f experimental/tls_bridge/$(DEPDIR)/regex.Plo
@@ -7958,6 +8413,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f header_rewrite/$(DEPDIR)/factory.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite.Plo
 	-rm -f header_rewrite/$(DEPDIR)/header_rewrite_test.Po
+	-rm -f header_rewrite/$(DEPDIR)/ipranges_helper.Plo
 	-rm -f header_rewrite/$(DEPDIR)/lulu.Plo
 	-rm -f header_rewrite/$(DEPDIR)/operator.Plo
 	-rm -f header_rewrite/$(DEPDIR)/operators.Plo
@@ -8006,6 +8462,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f multiplexer/$(DEPDIR)/multiplexer_la-ts.Plo
 	-rm -f prefetch/$(DEPDIR)/common.Plo
 	-rm -f prefetch/$(DEPDIR)/configs.Plo
+	-rm -f prefetch/$(DEPDIR)/evaluate.Plo
 	-rm -f prefetch/$(DEPDIR)/fetch.Plo
 	-rm -f prefetch/$(DEPDIR)/fetch_policy.Plo
 	-rm -f prefetch/$(DEPDIR)/fetch_policy_lru.Plo
@@ -8013,6 +8470,9 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f prefetch/$(DEPDIR)/headers.Plo
 	-rm -f prefetch/$(DEPDIR)/pattern.Plo
 	-rm -f prefetch/$(DEPDIR)/plugin.Plo
+	-rm -f prefetch/$(DEPDIR)/test_evaluate-common.Po
+	-rm -f prefetch/$(DEPDIR)/test_evaluate-evaluate.Po
+	-rm -f prefetch/test/$(DEPDIR)/evaluate-test_evaluate.Po
 	-rm -f regex_remap/$(DEPDIR)/regex_remap.Plo
 	-rm -f regex_revalidate/$(DEPDIR)/regex_revalidate.Plo
 	-rm -f remap_purge/$(DEPDIR)/remap_purge.Plo

@@ -57,7 +57,7 @@ NextHopHealthStatus::isNextHopAvailable(TSHttpTxn txn, const char *hostname, con
   }
 
   std::shared_ptr p = iter->second;
-  return p->available;
+  return p->available.load();
 }
 
 /**
@@ -103,38 +103,37 @@ NextHopHealthStatus::markNextHop(TSHttpTxn txn, const char *hostname, const int 
   switch (status) {
   // Mark the host up.
   case NH_MARK_UP:
-    if (!h->available) {
+    if (!h->available.load()) {
       h->set_available();
       NH_Note("[%" PRId64 "] http parent proxy %s restored", sm_id, hostname);
     }
     break;
   // Mark the host down.
   case NH_MARK_DOWN:
-    if (h->failedAt == 0 || result.retry == true) {
+    if (h->failedAt.load() == 0 || result.retry == true) {
       { // lock guard
         std::lock_guard<std::mutex> guard(h->_mutex);
-        if (h->failedAt == 0) {
+        if (h->failedAt.load() == 0) {
           h->failedAt = _now;
           if (result.retry == false) {
             new_fail_count = h->failCount = 1;
           }
         } else if (result.retry == true) {
-          h->failedAt = _now;
+          h->failedAt    = _now;
+          new_fail_count = h->failCount += 1;
         }
       } // end lock guard
       NH_Note("[%" PRId64 "] NextHop %s marked as down %s", sm_id, (result.retry) ? "retry" : "initially", h->hostname.c_str());
     } else {
-      int old_count = 0;
       // if the last failure was outside the retry window, set the failcount to 1 and failedAt to now.
       { // lock guard
         std::lock_guard<std::mutex> lock(h->_mutex);
-        if ((h->failedAt + retry_time) < static_cast<unsigned>(_now)) {
-          h->failCount = 1;
-          h->failedAt  = _now;
+        if ((h->failedAt.load() + retry_time) < static_cast<unsigned>(_now)) {
+          new_fail_count = h->failCount = 1;
+          h->failedAt                   = _now;
         } else {
-          old_count = h->failCount = 1;
+          new_fail_count = h->failCount += 1;
         }
-        new_fail_count = old_count + 1;
       } // end of lock_guard
       NH_Debug(NH_DEBUG_TAG, "[%" PRId64 "] Parent fail count increased to %d for %s", sm_id, new_fail_count, h->hostname.c_str());
     }
@@ -144,7 +143,7 @@ NextHopHealthStatus::markNextHop(TSHttpTxn txn, const char *hostname, const int 
       NH_Note("[%" PRId64 "] Failure threshold met failcount:%d >= threshold:%" PRId64 ", http parent proxy %s marked down", sm_id,
               new_fail_count, fail_threshold, h->hostname.c_str());
       NH_Debug(NH_DEBUG_TAG, "[%" PRId64 "] NextHop %s marked unavailable, h->available=%s", sm_id, h->hostname.c_str(),
-               (h->available) ? "true" : "false");
+               (h->available.load()) ? "true" : "false");
     }
     break;
   }

@@ -40,17 +40,10 @@ QUICPPProtector_impl = QUICPacketPayloadProtector_boringssl.cc
 QUICTLS_impl = QUICTLS_boringssl.cc
 QUICKeyGenerator_impl = QUICKeyGenerator_boringssl.cc
 else
-if ENABLE_QUIC_OLD_API
-QUICPHProtector_impl = QUICPacketHeaderProtector_legacy.cc
-QUICPPProtector_impl = QUICPacketPayloadProtector_legacy.cc
-QUICTLS_impl = QUICTLS_legacy.cc
-QUICKeyGenerator_impl = QUICKeyGenerator_legacy.cc
-else
 QUICPHProtector_impl = QUICPacketHeaderProtector_openssl.cc
 QUICPPProtector_impl = QUICPacketPayloadProtector_openssl.cc
 QUICTLS_impl = QUICTLS_openssl.cc
 QUICKeyGenerator_impl = QUICKeyGenerator_openssl.cc
-endif
 endif
 
 QLog_impl = qlog/QLogEvent.cc qlog/QLogFrame.cc qlog/QLog.cc
@@ -69,6 +62,8 @@ libquic_a_SOURCES = \
   QUICNewRenoCongestionController.cc \
   QUICFlowController.cc \
   QUICStreamState.cc \
+  QUICStreamAdapter.cc \
+  QUICStreamVCAdapter.cc \
   QUICStream.cc \
   QUICHandshake.cc \
   QUICPacketHeaderProtector.cc \
@@ -99,6 +94,7 @@ libquic_a_SOURCES = \
   QUICFrameGenerator.cc \
   QUICFrameRetransmitter.cc \
   QUICAddrVerifyState.cc \
+  QUICTransferProgressProvider.cc \
   QUICBidirectionalStream.cc \
   QUICCryptoStream.cc \
   QUICUnidirectionalStream.cc \
@@ -152,6 +148,7 @@ test_LDADD = \
   $(top_builddir)/src/tscore/libtscore.la \
   $(top_builddir)/src/tscpp/util/libtscpputil.la \
   $(top_builddir)/proxy/ParentSelectionStrategy.o \
+  $(top_builddir)/iocore/net/TLSKeyLogger.o \
   @HWLOC_LIBS@ @OPENSSL_LIBS@ @LIBPCRE@ @YAMLCPP_LIBS@
 
 test_event_main_SOURCES = \

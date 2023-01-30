@@ -44,8 +44,8 @@ server = Test.MakeOriginServer("server")
 # Define ATS and configure
 ts = Test.MakeATSProcess("ts", command="traffic_manager", select_ports=True)
 
-# **testname is required**
-#testName = "regex_reval"
+Test.testName = "regex_revalidate"
+Test.Setup.Copy("metrics.sh")
 
 # default root
 request_header_0 = {"headers":
@@ -135,7 +135,7 @@ curl_and_args = 'curl -s -D - -v -H "x-debug: x-cache" -H "Host: www.example.com
 
 path1_rule = 'path1 {}\n'.format(int(time.time()) + 600)
 
-# Define first revistion for when trafficserver starts
+# Define first revision for when trafficserver starts
 ts.Disk.File(regex_revalidate_conf_path, typename="ats:config").AddLines([
     "# Empty\n"
 ])
@@ -147,7 +147,7 @@ ts.Disk.remap_config.AddLine(
 # minimal configuration
 ts.Disk.records_config.update({
     'proxy.config.diags.debug.enabled': 1,
-    'proxy.config.diags.debug.tags': 'regex_revalidate',
+    'proxy.config.diags.debug.tags': 'http|regex_revalidate',
     #    'proxy.config.diags.debug.enabled': 0,
     'proxy.config.http.insert_age_in_response': 0,
     'proxy.config.http.response_via_str': 3,
@@ -185,6 +185,10 @@ tr.StillRunningAfter = ts
 
 # 4 Stage - Reload new regex_revalidate
 tr = Test.AddTestRun("Reload config add path1")
+# Need a sufficient delay so that the modification time difference of the new config file versus
+# the old is greater than the granularity of the time stamp used.  (The config file write
+# happens after the delay.)
+tr.DelayStart = 1
 tr.Disk.File(regex_revalidate_conf_path, typename="ats:config").AddLines([
     path1_rule
 ])
@@ -214,6 +218,10 @@ tr.StillRunningAfter = ts
 
 # 7 Stage - Reload new regex_revalidate
 tr = Test.AddTestRun("Reload config add path2")
+# Need a sufficient delay so that the modification time difference of the new config file versus
+# the old is greater than the granularity of the time stamp used.  (The config file write
+# happens after the delay.)
+tr.DelayStart = 1
 tr.Disk.File(regex_revalidate_conf_path, typename="ats:config").AddLines([
     path1_rule,
     'path2 {}\n'.format(int(time.time()) + 700)
@@ -247,6 +255,10 @@ tr.StillRunningAfter = ts
 
 # 10 Stage - regex_revalidate rewrite rule early expire
 tr = Test.AddTestRun("Reload config change path2")
+# Need a sufficient delay so that the modification time difference of the new config file versus
+# the old is greater than the granularity of the time stamp used.  (The config file write
+# happens after the delay.)
+tr.DelayStart = 1
 tr.Disk.File(regex_revalidate_conf_path, typename="ats:config").AddLines([
     path1_rule,
     'path2 {}\n'.format(int(time.time()) - 100),
@@ -266,4 +278,12 @@ tr.DelayStart = 5
 tr.Processes.Default.Command = curl_and_args + ' http://127.0.0.1:{}/path2a'.format(ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stdout = "gold/regex_reval-stale.gold"
+tr.StillRunningAfter = ts
+
+# 12 Stats check
+tr = Test.AddTestRun("Check stats")
+tr.DelayStart = 5
+tr.Processes.Default.Command = "bash -c ./metrics.sh"
+tr.Processes.Default.Env = ts.Env
+tr.Processes.Default.ReturnCode = 0
 tr.StillRunningAfter = ts

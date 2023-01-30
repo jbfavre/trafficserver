@@ -72,7 +72,7 @@ struct LogBufferHeader {
   uint32_t log_object_flags;     // log object flags
   uint64_t log_object_signature; // log object signature
 #if defined(LOG_BUFFER_TRACKING)
-  uint32_t int id;
+  uint32_t id;
 #endif // defined(LOG_BUFFER_TRACKING)
 
   // all offsets are computed from the start of the buffer (ie, "this"),
@@ -189,10 +189,10 @@ public:
   // static functions
   static size_t max_entry_bytes();
   static int to_ascii(LogEntryHeader *entry, LogFormatType type, char *buf, int max_len, const char *symbol_str, char *printf_str,
-                      unsigned buffer_version, const char *alt_format = nullptr);
+                      unsigned buffer_version, const char *alt_format = nullptr, LogEscapeType escape_type = LOG_ESCAPE_NONE);
   static int resolve_custom_entry(LogFieldList *fieldlist, char *printf_str, char *read_from, char *write_to, int write_to_len,
                                   long timestamp, long timestamp_us, unsigned buffer_version, LogFieldList *alt_fieldlist = nullptr,
-                                  char *alt_printf_str = nullptr);
+                                  char *alt_printf_str = nullptr, LogEscapeType escape_type = LOG_ESCAPE_NONE);
 
   static void
   destroy(LogBuffer *&lb)

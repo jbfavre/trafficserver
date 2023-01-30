@@ -120,7 +120,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-noinst_PROGRAMS = CompileParseRules$(EXEEXT)
+noinst_PROGRAMS = CompileParseRules$(EXEEXT) \
+	freelist_benchmark$(EXEEXT)
 check_PROGRAMS = test_geometry$(EXEEXT) \
 	test_X509HostnameValidator$(EXEEXT) test_tscore$(EXEEXT) \
 	$(am__EXEEXT_1)
@@ -134,6 +135,7 @@ check_PROGRAMS = test_geometry$(EXEEXT) \
 subdir = src/tscore
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
+	$(top_srcdir)/build/ax_cc_for_build.m4 \
 	$(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
@@ -153,7 +155,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 \
 	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
-	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/mimalloc.m4 $(top_srcdir)/build/network.m4 \
+	$(top_srcdir)/build/nuraft.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcmalloc.m4 \
 	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
@@ -201,21 +204,21 @@ libtscore_la_DEPENDENCIES =  \
 am__libtscore_la_SOURCES_DIST = AcidPtr.cc Arena.cc ArgParser.cc \
 	BaseLogFile.cc BufferWriterFormat.cc ConsistentHash.cc \
 	ContFlags.cc CryptoHash.cc Diags.cc Errata.cc EventNotify.cc \
-	Extendible.cc fastlz.c Hash.cc HashFNV.cc HashMD5.cc \
-	HashSip.cc HostLookup.cc hugepages.cc ink_args.cc \
-	ink_assert.cc ink_base64.cc ink_cap.cc ink_code.cc ink_defs.cc \
-	InkErrno.cc ink_error.cc ink_file.cc ink_hrtime.cc ink_inet.cc \
+	Extendible.cc Hash.cc HashFNV.cc HashMD5.cc HashSip.cc \
+	HostLookup.cc hugepages.cc ink_args.cc ink_assert.cc \
+	ink_base64.cc ink_cap.cc ink_code.cc ink_defs.cc InkErrno.cc \
+	ink_error.cc ink_file.cc ink_hrtime.cc ink_hw.cc ink_inet.cc \
 	ink_memory.cc ink_mutex.cc ink_queue.cc ink_queue_utils.cc \
 	ink_rand.cc ink_res_init.cc ink_res_mkquery.cc ink_resource.cc \
 	ink_rwlock.cc ink_sock.cc ink_sprintf.cc ink_stack_trace.cc \
 	ink_string.cc ink_string++.cc ink_sys_control.cc ink_syslog.cc \
 	ink_thread.cc ink_time.cc ink_uuid.cc IpMap.cc IpMapConf.cc \
 	JeAllocator.cc Layout.cc llqueue.cc lockfile.cc \
-	MatcherUtils.cc MemArena.cc MMH.cc ParseRules.cc RbTree.cc \
-	Regex.cc Regression.cc runroot.cc signals.cc SourceLocation.cc \
-	TextBuffer.cc Tokenizer.cc ts_file.cc Version.cc \
-	X509HostnameValidator.cc HKDF_openssl.cc HKDF_openssl3.cc \
-	HKDF_boringssl.cc
+	MatcherUtils.cc MemArena.cc MMH.cc ParseRules.cc Random.cc \
+	RbTree.cc Regex.cc Regression.cc runroot.cc signals.cc \
+	SourceLocation.cc TextBuffer.cc LogMessage.cc Throttler.cc \
+	Tokenizer.cc ts_file.cc Version.cc X509HostnameValidator.cc \
+	HKDF_openssl.cc HKDF_openssl3.cc HKDF_boringssl.cc
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_FALSE@am__objects_1 = HKDF_openssl.lo
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_TRUE@am__objects_1 = HKDF_openssl3.lo
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_TRUE@am__objects_1 =  \
@@ -224,20 +227,21 @@ am__libtscore_la_SOURCES_DIST = AcidPtr.cc Arena.cc ArgParser.cc \
 am_libtscore_la_OBJECTS = AcidPtr.lo Arena.lo ArgParser.lo \
 	BaseLogFile.lo BufferWriterFormat.lo ConsistentHash.lo \
 	ContFlags.lo CryptoHash.lo Diags.lo Errata.lo EventNotify.lo \
-	Extendible.lo fastlz.lo Hash.lo HashFNV.lo HashMD5.lo \
-	HashSip.lo HostLookup.lo hugepages.lo ink_args.lo \
-	ink_assert.lo ink_base64.lo ink_cap.lo ink_code.lo ink_defs.lo \
-	InkErrno.lo ink_error.lo ink_file.lo ink_hrtime.lo ink_inet.lo \
+	Extendible.lo Hash.lo HashFNV.lo HashMD5.lo HashSip.lo \
+	HostLookup.lo hugepages.lo ink_args.lo ink_assert.lo \
+	ink_base64.lo ink_cap.lo ink_code.lo ink_defs.lo InkErrno.lo \
+	ink_error.lo ink_file.lo ink_hrtime.lo ink_hw.lo ink_inet.lo \
 	ink_memory.lo ink_mutex.lo ink_queue.lo ink_queue_utils.lo \
 	ink_rand.lo ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
 	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
 	ink_string.lo ink_string++.lo ink_sys_control.lo ink_syslog.lo \
 	ink_thread.lo ink_time.lo ink_uuid.lo IpMap.lo IpMapConf.lo \
 	JeAllocator.lo Layout.lo llqueue.lo lockfile.lo \
-	MatcherUtils.lo MemArena.lo MMH.lo ParseRules.lo RbTree.lo \
-	Regex.lo Regression.lo runroot.lo signals.lo SourceLocation.lo \
-	TextBuffer.lo Tokenizer.lo ts_file.lo Version.lo \
-	X509HostnameValidator.lo $(am__objects_2)
+	MatcherUtils.lo MemArena.lo MMH.lo ParseRules.lo Random.lo \
+	RbTree.lo Regex.lo Regression.lo runroot.lo signals.lo \
+	SourceLocation.lo TextBuffer.lo LogMessage.lo Throttler.lo \
+	Tokenizer.lo ts_file.lo Version.lo X509HostnameValidator.lo \
+	$(am__objects_2)
 libtscore_la_OBJECTS = $(am_libtscore_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -250,6 +254,14 @@ am_CompileParseRules_OBJECTS = CompileParseRules.$(OBJEXT)
 CompileParseRules_OBJECTS = $(am_CompileParseRules_OBJECTS)
 CompileParseRules_LDADD = $(LDADD)
 am__dirstamp = $(am__leading_dot)dirstamp
+am_freelist_benchmark_OBJECTS =  \
+	unit_tests/freelist_benchmark-freelist_benchmark.$(OBJEXT)
+freelist_benchmark_OBJECTS = $(am_freelist_benchmark_OBJECTS)
+freelist_benchmark_DEPENDENCIES = libtscore.la
+freelist_benchmark_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(freelist_benchmark_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 am_test_X509HostnameValidator_OBJECTS = unit_tests/test_X509HostnameValidator-test_X509HostnameValidator.$(OBJEXT)
 test_X509HostnameValidator_OBJECTS =  \
 	$(am_test_X509HostnameValidator_OBJECTS)
@@ -277,12 +289,15 @@ am__test_tscore_SOURCES_DIST = unit_tests/unit_test_main.cc \
 	unit_tests/test_IntrusivePtr.cc unit_tests/test_IpMap.cc \
 	unit_tests/test_layout.cc unit_tests/test_List.cc \
 	unit_tests/test_MemArena.cc unit_tests/test_MT_hashtable.cc \
-	unit_tests/test_ParseRules.cc unit_tests/test_PriorityQueue.cc \
-	unit_tests/test_Ptr.cc unit_tests/test_Regex.cc \
-	unit_tests/test_Scalar.cc unit_tests/test_scoped_resource.cc \
-	unit_tests/test_Tokenizer.cc unit_tests/test_ts_file.cc \
-	unit_tests/test_Version.cc unit_tests/test_Errata.cc \
-	unit_tests/test_HKDF.cc
+	unit_tests/test_ParseRules.cc \
+	unit_tests/test_PluginUserArgs.cc \
+	unit_tests/test_PriorityQueue.cc unit_tests/test_Ptr.cc \
+	unit_tests/test_Regex.cc unit_tests/test_Scalar.cc \
+	unit_tests/test_scoped_resource.cc \
+	unit_tests/test_Throttler.cc unit_tests/test_Tokenizer.cc \
+	unit_tests/test_ts_file.cc unit_tests/test_Version.cc \
+	unit_tests/test_Errata.cc unit_tests/test_MMH.cc \
+	unit_tests/test_Random.cc unit_tests/test_HKDF.cc
 @HAS_HKDF_TRUE@am__objects_3 =  \
 @HAS_HKDF_TRUE@	unit_tests/test_tscore-test_HKDF.$(OBJEXT)
 am_test_tscore_OBJECTS =  \
@@ -304,15 +319,19 @@ am_test_tscore_OBJECTS =  \
 	unit_tests/test_tscore-test_MemArena.$(OBJEXT) \
 	unit_tests/test_tscore-test_MT_hashtable.$(OBJEXT) \
 	unit_tests/test_tscore-test_ParseRules.$(OBJEXT) \
+	unit_tests/test_tscore-test_PluginUserArgs.$(OBJEXT) \
 	unit_tests/test_tscore-test_PriorityQueue.$(OBJEXT) \
 	unit_tests/test_tscore-test_Ptr.$(OBJEXT) \
 	unit_tests/test_tscore-test_Regex.$(OBJEXT) \
 	unit_tests/test_tscore-test_Scalar.$(OBJEXT) \
 	unit_tests/test_tscore-test_scoped_resource.$(OBJEXT) \
+	unit_tests/test_tscore-test_Throttler.$(OBJEXT) \
 	unit_tests/test_tscore-test_Tokenizer.$(OBJEXT) \
 	unit_tests/test_tscore-test_ts_file.$(OBJEXT) \
 	unit_tests/test_tscore-test_Version.$(OBJEXT) \
-	unit_tests/test_tscore-test_Errata.$(OBJEXT) $(am__objects_3)
+	unit_tests/test_tscore-test_Errata.$(OBJEXT) \
+	unit_tests/test_tscore-test_MMH.$(OBJEXT) \
+	unit_tests/test_tscore-test_Random.$(OBJEXT) $(am__objects_3)
 test_tscore_OBJECTS = $(am_test_tscore_OBJECTS)
 test_tscore_DEPENDENCIES = libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
@@ -349,18 +368,20 @@ am__depfiles_remade = ./$(DEPDIR)/AcidPtr.Plo ./$(DEPDIR)/Arena.Plo \
 	./$(DEPDIR)/HostLookup.Plo ./$(DEPDIR)/InkErrno.Plo \
 	./$(DEPDIR)/IpMap.Plo ./$(DEPDIR)/IpMapConf.Plo \
 	./$(DEPDIR)/JeAllocator.Plo ./$(DEPDIR)/Layout.Plo \
-	./$(DEPDIR)/MMH.Plo ./$(DEPDIR)/MatcherUtils.Plo \
-	./$(DEPDIR)/MemArena.Plo ./$(DEPDIR)/ParseRules.Plo \
+	./$(DEPDIR)/LogMessage.Plo ./$(DEPDIR)/MMH.Plo \
+	./$(DEPDIR)/MatcherUtils.Plo ./$(DEPDIR)/MemArena.Plo \
+	./$(DEPDIR)/ParseRules.Plo ./$(DEPDIR)/Random.Plo \
 	./$(DEPDIR)/RbTree.Plo ./$(DEPDIR)/Regex.Plo \
 	./$(DEPDIR)/Regression.Plo ./$(DEPDIR)/SourceLocation.Plo \
-	./$(DEPDIR)/TextBuffer.Plo ./$(DEPDIR)/Tokenizer.Plo \
-	./$(DEPDIR)/Version.Plo ./$(DEPDIR)/X509HostnameValidator.Plo \
-	./$(DEPDIR)/fastlz.Plo ./$(DEPDIR)/hugepages.Plo \
-	./$(DEPDIR)/ink_args.Plo ./$(DEPDIR)/ink_assert.Plo \
-	./$(DEPDIR)/ink_base64.Plo ./$(DEPDIR)/ink_cap.Plo \
-	./$(DEPDIR)/ink_code.Plo ./$(DEPDIR)/ink_defs.Plo \
-	./$(DEPDIR)/ink_error.Plo ./$(DEPDIR)/ink_file.Plo \
-	./$(DEPDIR)/ink_hrtime.Plo ./$(DEPDIR)/ink_inet.Plo \
+	./$(DEPDIR)/TextBuffer.Plo ./$(DEPDIR)/Throttler.Plo \
+	./$(DEPDIR)/Tokenizer.Plo ./$(DEPDIR)/Version.Plo \
+	./$(DEPDIR)/X509HostnameValidator.Plo \
+	./$(DEPDIR)/hugepages.Plo ./$(DEPDIR)/ink_args.Plo \
+	./$(DEPDIR)/ink_assert.Plo ./$(DEPDIR)/ink_base64.Plo \
+	./$(DEPDIR)/ink_cap.Plo ./$(DEPDIR)/ink_code.Plo \
+	./$(DEPDIR)/ink_defs.Plo ./$(DEPDIR)/ink_error.Plo \
+	./$(DEPDIR)/ink_file.Plo ./$(DEPDIR)/ink_hrtime.Plo \
+	./$(DEPDIR)/ink_hw.Plo ./$(DEPDIR)/ink_inet.Plo \
 	./$(DEPDIR)/ink_memory.Plo ./$(DEPDIR)/ink_mutex.Plo \
 	./$(DEPDIR)/ink_queue.Plo ./$(DEPDIR)/ink_queue_utils.Plo \
 	./$(DEPDIR)/ink_rand.Plo ./$(DEPDIR)/ink_res_init.Plo \
@@ -375,6 +396,7 @@ am__depfiles_remade = ./$(DEPDIR)/AcidPtr.Plo ./$(DEPDIR)/Arena.Plo \
 	./$(DEPDIR)/signals.Plo ./$(DEPDIR)/test_atomic.Po \
 	./$(DEPDIR)/test_freelist.Po ./$(DEPDIR)/test_geometry.Po \
 	./$(DEPDIR)/ts_file.Plo \
+	unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Po \
 	unit_tests/$(DEPDIR)/test_X509HostnameValidator-test_X509HostnameValidator.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_AcidPtr.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_ArgParser.Po \
@@ -388,13 +410,17 @@ am__depfiles_remade = ./$(DEPDIR)/AcidPtr.Plo ./$(DEPDIR)/Arena.Plo \
 	unit_tests/$(DEPDIR)/test_tscore-test_IntrusivePtr.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_IpMap.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_List.Po \
+	unit_tests/$(DEPDIR)/test_tscore-test_MMH.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_MT_hashtable.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_MemArena.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_ParseRules.Po \
+	unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_Ptr.Po \
+	unit_tests/$(DEPDIR)/test_tscore-test_Random.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_Regex.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_Scalar.Po \
+	unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_Version.Po \
 	unit_tests/$(DEPDIR)/test_tscore-test_arena.Po \
@@ -405,24 +431,6 @@ am__depfiles_remade = ./$(DEPDIR)/AcidPtr.Plo ./$(DEPDIR)/Arena.Plo \
 	unit_tests/$(DEPDIR)/test_tscore-test_ts_file.Po \
 	unit_tests/$(DEPDIR)/test_tscore-unit_test_main.Po
 am__mv = mv -f
-COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) \
-	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
-	$(AM_CFLAGS) $(CFLAGS)
-AM_V_CC = $(am__v_CC_@AM_V@)
-am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
-am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
-CCLD = $(CC)
-LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-AM_V_CCLD = $(am__v_CCLD_@AM_V@)
-am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
-am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
@@ -442,11 +450,12 @@ am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
 SOURCES = $(libtscore_la_SOURCES) $(CompileParseRules_SOURCES) \
+	$(freelist_benchmark_SOURCES) \
 	$(test_X509HostnameValidator_SOURCES) $(test_atomic_SOURCES) \
 	$(test_freelist_SOURCES) $(test_geometry_SOURCES) \
 	$(test_tscore_SOURCES)
 DIST_SOURCES = $(am__libtscore_la_SOURCES_DIST) \
-	$(CompileParseRules_SOURCES) \
+	$(CompileParseRules_SOURCES) $(freelist_benchmark_SOURCES) \
 	$(test_X509HostnameValidator_SOURCES) $(test_atomic_SOURCES) \
 	$(test_freelist_SOURCES) $(test_geometry_SOURCES) \
 	$(am__test_tscore_SOURCES_DIST)
@@ -686,6 +695,7 @@ CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
+CC_FOR_BUILD = @CC_FOR_BUILD@
 CFLAGS = @CFLAGS@
 CFLAGS_HIREDIS = @CFLAGS_HIREDIS@
 CLANG_TIDY = @CLANG_TIDY@
@@ -703,6 +713,7 @@ CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
+CXX_FOR_BUILD = @CXX_FOR_BUILD@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -717,6 +728,7 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
+EXEEXT_FOR_BUILD = @EXEEXT_FOR_BUILD@
 FGREP = @FGREP@
 FILECMD = @FILECMD@
 FLEX_CFLAGS = @FLEX_CFLAGS@
@@ -774,11 +786,15 @@ MAXMINDDB_LIBS = @MAXMINDDB_LIBS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NURAFT_INCLUDES = @NURAFT_INCLUDES@
+NURAFT_LDFLAGS = @NURAFT_LDFLAGS@
+NURAFT_LIBS = @NURAFT_LIBS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OPENSSL_INCLUDES = @OPENSSL_INCLUDES@
 OPENSSL_LDFLAGS = @OPENSSL_LDFLAGS@
 OPENSSL_LIBS = @OPENSSL_LIBS@
+OTEL_LIBS = @OTEL_LIBS@
 OTOOL = @OTOOL@
 OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
@@ -851,12 +867,10 @@ builddir = @builddir@
 cachedir = @cachedir@
 datadir = @datadir@
 datarootdir = @datarootdir@
-default_loopback_iface = @default_loopback_iface@
 default_stack_size = @default_stack_size@
 docdir = @docdir@
 dvidir = @dvidir@
 enable_fips = @enable_fips@
-enable_remote_cov_commit = @enable_remote_cov_commit@
 exec_prefix = @exec_prefix@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
@@ -886,13 +900,16 @@ has_kyotocabinet = @has_kyotocabinet@
 has_luajit = @has_luajit@
 has_maxminddb = @has_maxminddb@
 has_mysql = @has_mysql@
+has_otel = @has_otel@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_tls_early_data = @has_tls_early_data@
+has_tls_keylogging = @has_tls_keylogging@
 has_tls_session_ticket = @has_tls_session_ticket@
+has_verify_cert_store = @has_verify_cert_store@
 has_wccp = @has_wccp@
 host = @host@
 host_alias = @host_alias@
@@ -916,6 +933,7 @@ mandir = @mandir@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
+mimalloch = @mimalloch@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
 pdfdir = @pdfdir@
@@ -1002,6 +1020,7 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $^))
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CXX_Files) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(Clang_Tidy_CC_Files) -- $(COMPILE) -x c
 TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=$(abs_top_srcdir)/ci/asan_leak_suppression/unit_tests.txt
+BUILT_SOURCES = ParseRules.cc
 TESTS = $(check_PROGRAMS)
 lib_LTLIBRARIES = libtscore.la
 libtscore_la_LDFLAGS = @AM_LDFLAGS@ -no-undefined -version-info @TS_LIBTOOL_VERSION@ @YAMLCPP_LDFLAGS@
@@ -1019,20 +1038,21 @@ libtscore_la_LIBADD = \
 libtscore_la_SOURCES = AcidPtr.cc Arena.cc ArgParser.cc BaseLogFile.cc \
 	BufferWriterFormat.cc ConsistentHash.cc ContFlags.cc \
 	CryptoHash.cc Diags.cc Errata.cc EventNotify.cc Extendible.cc \
-	fastlz.c Hash.cc HashFNV.cc HashMD5.cc HashSip.cc \
-	HostLookup.cc hugepages.cc ink_args.cc ink_assert.cc \
-	ink_base64.cc ink_cap.cc ink_code.cc ink_defs.cc InkErrno.cc \
-	ink_error.cc ink_file.cc ink_hrtime.cc ink_inet.cc \
-	ink_memory.cc ink_mutex.cc ink_queue.cc ink_queue_utils.cc \
-	ink_rand.cc ink_res_init.cc ink_res_mkquery.cc ink_resource.cc \
+	Hash.cc HashFNV.cc HashMD5.cc HashSip.cc HostLookup.cc \
+	hugepages.cc ink_args.cc ink_assert.cc ink_base64.cc \
+	ink_cap.cc ink_code.cc ink_defs.cc InkErrno.cc ink_error.cc \
+	ink_file.cc ink_hrtime.cc ink_hw.cc ink_inet.cc ink_memory.cc \
+	ink_mutex.cc ink_queue.cc ink_queue_utils.cc ink_rand.cc \
+	ink_res_init.cc ink_res_mkquery.cc ink_resource.cc \
 	ink_rwlock.cc ink_sock.cc ink_sprintf.cc ink_stack_trace.cc \
 	ink_string.cc ink_string++.cc ink_sys_control.cc ink_syslog.cc \
 	ink_thread.cc ink_time.cc ink_uuid.cc IpMap.cc IpMapConf.cc \
 	JeAllocator.cc Layout.cc llqueue.cc lockfile.cc \
-	MatcherUtils.cc MemArena.cc MMH.cc ParseRules.cc RbTree.cc \
-	Regex.cc Regression.cc runroot.cc signals.cc SourceLocation.cc \
-	TextBuffer.cc Tokenizer.cc ts_file.cc Version.cc \
-	X509HostnameValidator.cc $(am__append_2)
+	MatcherUtils.cc MemArena.cc MMH.cc ParseRules.cc Random.cc \
+	RbTree.cc Regex.cc Regression.cc runroot.cc signals.cc \
+	SourceLocation.cc TextBuffer.cc LogMessage.cc Throttler.cc \
+	Tokenizer.cc ts_file.cc Version.cc X509HostnameValidator.cc \
+	$(am__append_2)
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_FALSE@HKDF_impl = HKDF_openssl.cc
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_FALSE@@OPENSSL_IS_OPENSSL3_TRUE@HKDF_impl = HKDF_openssl3.cc
 @HAS_HKDF_TRUE@@OPENSSL_IS_BORINGSSL_TRUE@HKDF_impl = HKDF_boringssl.cc
@@ -1060,17 +1080,24 @@ test_tscore_SOURCES = unit_tests/unit_test_main.cc \
 	unit_tests/test_IntrusivePtr.cc unit_tests/test_IpMap.cc \
 	unit_tests/test_layout.cc unit_tests/test_List.cc \
 	unit_tests/test_MemArena.cc unit_tests/test_MT_hashtable.cc \
-	unit_tests/test_ParseRules.cc unit_tests/test_PriorityQueue.cc \
-	unit_tests/test_Ptr.cc unit_tests/test_Regex.cc \
-	unit_tests/test_Scalar.cc unit_tests/test_scoped_resource.cc \
-	unit_tests/test_Tokenizer.cc unit_tests/test_ts_file.cc \
-	unit_tests/test_Version.cc unit_tests/test_Errata.cc \
-	$(am__append_3)
+	unit_tests/test_ParseRules.cc \
+	unit_tests/test_PluginUserArgs.cc \
+	unit_tests/test_PriorityQueue.cc unit_tests/test_Ptr.cc \
+	unit_tests/test_Regex.cc unit_tests/test_Scalar.cc \
+	unit_tests/test_scoped_resource.cc \
+	unit_tests/test_Throttler.cc unit_tests/test_Tokenizer.cc \
+	unit_tests/test_ts_file.cc unit_tests/test_Version.cc \
+	unit_tests/test_Errata.cc unit_tests/test_MMH.cc \
+	unit_tests/test_Random.cc $(am__append_3)
+freelist_benchmark_CXXFLAGS = -Wno-array-bounds $(AM_CXXFLAGS) -I$(abs_top_srcdir)/tests/include
+freelist_benchmark_LDADD = libtscore.la @HWLOC_LIBS@
+freelist_benchmark_SOURCES = unit_tests/freelist_benchmark.cc
 CompileParseRules_SOURCES = CompileParseRules.cc
-all: all-am
+all: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
+.SUFFIXES: .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -1167,6 +1194,13 @@ unit_tests/$(am__dirstamp):
 unit_tests/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) unit_tests/$(DEPDIR)
 	@: > unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/freelist_benchmark-freelist_benchmark.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+
+freelist_benchmark$(EXEEXT): $(freelist_benchmark_OBJECTS) $(freelist_benchmark_DEPENDENCIES) $(EXTRA_freelist_benchmark_DEPENDENCIES) 
+	@rm -f freelist_benchmark$(EXEEXT)
+	$(AM_V_CXXLD)$(freelist_benchmark_LINK) $(freelist_benchmark_OBJECTS) $(freelist_benchmark_LDADD) $(LIBS)
 unit_tests/test_X509HostnameValidator-test_X509HostnameValidator.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
@@ -1240,6 +1274,9 @@ unit_tests/test_tscore-test_MT_hashtable.$(OBJEXT):  \
 unit_tests/test_tscore-test_ParseRules.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscore-test_PluginUserArgs.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscore-test_PriorityQueue.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
@@ -1254,6 +1291,9 @@ unit_tests/test_tscore-test_Scalar.$(OBJEXT):  \
 unit_tests/test_tscore-test_scoped_resource.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscore-test_Throttler.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscore-test_Tokenizer.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
@@ -1264,6 +1304,11 @@ unit_tests/test_tscore-test_Version.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscore-test_Errata.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscore-test_MMH.$(OBJEXT): unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_tscore-test_Random.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
 unit_tests/test_tscore-test_HKDF.$(OBJEXT):  \
@@ -1307,19 +1352,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMapConf.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/JeAllocator.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Layout.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/LogMessage.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MMH.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MatcherUtils.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MemArena.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ParseRules.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Random.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RbTree.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Regex.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Regression.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SourceLocation.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TextBuffer.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Throttler.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Tokenizer.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Version.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/X509HostnameValidator.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fastlz.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hugepages.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_args.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_assert.Plo@am__quote@ # am--include-marker
@@ -1330,6 +1377,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_error.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_file.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_hrtime.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_hw.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_inet.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_memory.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_mutex.Plo@am__quote@ # am--include-marker
@@ -1358,6 +1406,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_freelist.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_geometry.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ts_file.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_X509HostnameValidator-test_X509HostnameValidator.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_AcidPtr.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_ArgParser.Po@am__quote@ # am--include-marker
@@ -1371,13 +1420,17 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_IntrusivePtr.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_IpMap.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_List.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_MMH.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_MT_hashtable.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_MemArena.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_ParseRules.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Ptr.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Random.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Regex.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Scalar.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_Version.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_tscore-test_arena.Po@am__quote@ # am--include-marker
@@ -1393,30 +1446,6 @@ $(am__depfiles_remade):
 	@echo '# dummy' >$@-t && $(am__mv) $@-t $@
 
 am--depfiles: $(am__depfiles_remade)
-
-.c.o:
-@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
-@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ $<
-
-.c.obj:
-@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
-@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
-
-.c.lo:
-@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.lo$$||'`;\
-@am__fastdepCC_TRUE@	$(LTCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
-@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -1441,6 +1470,20 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
+
+unit_tests/freelist_benchmark-freelist_benchmark.o: unit_tests/freelist_benchmark.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(freelist_benchmark_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/freelist_benchmark-freelist_benchmark.o -MD -MP -MF unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Tpo -c -o unit_tests/freelist_benchmark-freelist_benchmark.o `test -f 'unit_tests/freelist_benchmark.cc' || echo '$(srcdir)/'`unit_tests/freelist_benchmark.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Tpo unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/freelist_benchmark.cc' object='unit_tests/freelist_benchmark-freelist_benchmark.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(freelist_benchmark_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/freelist_benchmark-freelist_benchmark.o `test -f 'unit_tests/freelist_benchmark.cc' || echo '$(srcdir)/'`unit_tests/freelist_benchmark.cc
+
+unit_tests/freelist_benchmark-freelist_benchmark.obj: unit_tests/freelist_benchmark.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(freelist_benchmark_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/freelist_benchmark-freelist_benchmark.obj -MD -MP -MF unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Tpo -c -o unit_tests/freelist_benchmark-freelist_benchmark.obj `if test -f 'unit_tests/freelist_benchmark.cc'; then $(CYGPATH_W) 'unit_tests/freelist_benchmark.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/freelist_benchmark.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Tpo unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/freelist_benchmark.cc' object='unit_tests/freelist_benchmark-freelist_benchmark.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(freelist_benchmark_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/freelist_benchmark-freelist_benchmark.obj `if test -f 'unit_tests/freelist_benchmark.cc'; then $(CYGPATH_W) 'unit_tests/freelist_benchmark.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/freelist_benchmark.cc'; fi`
 
 unit_tests/test_X509HostnameValidator-test_X509HostnameValidator.o: unit_tests/test_X509HostnameValidator.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_X509HostnameValidator_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_X509HostnameValidator-test_X509HostnameValidator.o -MD -MP -MF unit_tests/$(DEPDIR)/test_X509HostnameValidator-test_X509HostnameValidator.Tpo -c -o unit_tests/test_X509HostnameValidator-test_X509HostnameValidator.o `test -f 'unit_tests/test_X509HostnameValidator.cc' || echo '$(srcdir)/'`unit_tests/test_X509HostnameValidator.cc
@@ -1708,6 +1751,20 @@ unit_tests/test_tscore-test_ParseRules.obj: unit_tests/test_ParseRules.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_ParseRules.obj `if test -f 'unit_tests/test_ParseRules.cc'; then $(CYGPATH_W) 'unit_tests/test_ParseRules.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_ParseRules.cc'; fi`
 
+unit_tests/test_tscore-test_PluginUserArgs.o: unit_tests/test_PluginUserArgs.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_PluginUserArgs.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Tpo -c -o unit_tests/test_tscore-test_PluginUserArgs.o `test -f 'unit_tests/test_PluginUserArgs.cc' || echo '$(srcdir)/'`unit_tests/test_PluginUserArgs.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Tpo unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_PluginUserArgs.cc' object='unit_tests/test_tscore-test_PluginUserArgs.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_PluginUserArgs.o `test -f 'unit_tests/test_PluginUserArgs.cc' || echo '$(srcdir)/'`unit_tests/test_PluginUserArgs.cc
+
+unit_tests/test_tscore-test_PluginUserArgs.obj: unit_tests/test_PluginUserArgs.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_PluginUserArgs.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Tpo -c -o unit_tests/test_tscore-test_PluginUserArgs.obj `if test -f 'unit_tests/test_PluginUserArgs.cc'; then $(CYGPATH_W) 'unit_tests/test_PluginUserArgs.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_PluginUserArgs.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Tpo unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_PluginUserArgs.cc' object='unit_tests/test_tscore-test_PluginUserArgs.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_PluginUserArgs.obj `if test -f 'unit_tests/test_PluginUserArgs.cc'; then $(CYGPATH_W) 'unit_tests/test_PluginUserArgs.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_PluginUserArgs.cc'; fi`
+
 unit_tests/test_tscore-test_PriorityQueue.o: unit_tests/test_PriorityQueue.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_PriorityQueue.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Tpo -c -o unit_tests/test_tscore-test_PriorityQueue.o `test -f 'unit_tests/test_PriorityQueue.cc' || echo '$(srcdir)/'`unit_tests/test_PriorityQueue.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Tpo unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Po
@@ -1778,6 +1835,20 @@ unit_tests/test_tscore-test_scoped_resource.obj: unit_tests/test_scoped_resource
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_scoped_resource.obj `if test -f 'unit_tests/test_scoped_resource.cc'; then $(CYGPATH_W) 'unit_tests/test_scoped_resource.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_scoped_resource.cc'; fi`
 
+unit_tests/test_tscore-test_Throttler.o: unit_tests/test_Throttler.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_Throttler.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Tpo -c -o unit_tests/test_tscore-test_Throttler.o `test -f 'unit_tests/test_Throttler.cc' || echo '$(srcdir)/'`unit_tests/test_Throttler.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Tpo unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Throttler.cc' object='unit_tests/test_tscore-test_Throttler.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_Throttler.o `test -f 'unit_tests/test_Throttler.cc' || echo '$(srcdir)/'`unit_tests/test_Throttler.cc
+
+unit_tests/test_tscore-test_Throttler.obj: unit_tests/test_Throttler.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_Throttler.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Tpo -c -o unit_tests/test_tscore-test_Throttler.obj `if test -f 'unit_tests/test_Throttler.cc'; then $(CYGPATH_W) 'unit_tests/test_Throttler.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Throttler.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Tpo unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Throttler.cc' object='unit_tests/test_tscore-test_Throttler.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_Throttler.obj `if test -f 'unit_tests/test_Throttler.cc'; then $(CYGPATH_W) 'unit_tests/test_Throttler.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Throttler.cc'; fi`
+
 unit_tests/test_tscore-test_Tokenizer.o: unit_tests/test_Tokenizer.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_Tokenizer.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Tpo -c -o unit_tests/test_tscore-test_Tokenizer.o `test -f 'unit_tests/test_Tokenizer.cc' || echo '$(srcdir)/'`unit_tests/test_Tokenizer.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Tpo unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Po
@@ -1833,6 +1904,34 @@ unit_tests/test_tscore-test_Errata.obj: unit_tests/test_Errata.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Errata.cc' object='unit_tests/test_tscore-test_Errata.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_Errata.obj `if test -f 'unit_tests/test_Errata.cc'; then $(CYGPATH_W) 'unit_tests/test_Errata.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Errata.cc'; fi`
+
+unit_tests/test_tscore-test_MMH.o: unit_tests/test_MMH.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_MMH.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_MMH.Tpo -c -o unit_tests/test_tscore-test_MMH.o `test -f 'unit_tests/test_MMH.cc' || echo '$(srcdir)/'`unit_tests/test_MMH.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_MMH.Tpo unit_tests/$(DEPDIR)/test_tscore-test_MMH.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_MMH.cc' object='unit_tests/test_tscore-test_MMH.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_MMH.o `test -f 'unit_tests/test_MMH.cc' || echo '$(srcdir)/'`unit_tests/test_MMH.cc
+
+unit_tests/test_tscore-test_MMH.obj: unit_tests/test_MMH.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_MMH.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_MMH.Tpo -c -o unit_tests/test_tscore-test_MMH.obj `if test -f 'unit_tests/test_MMH.cc'; then $(CYGPATH_W) 'unit_tests/test_MMH.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_MMH.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_MMH.Tpo unit_tests/$(DEPDIR)/test_tscore-test_MMH.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_MMH.cc' object='unit_tests/test_tscore-test_MMH.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_MMH.obj `if test -f 'unit_tests/test_MMH.cc'; then $(CYGPATH_W) 'unit_tests/test_MMH.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_MMH.cc'; fi`
+
+unit_tests/test_tscore-test_Random.o: unit_tests/test_Random.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_Random.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_Random.Tpo -c -o unit_tests/test_tscore-test_Random.o `test -f 'unit_tests/test_Random.cc' || echo '$(srcdir)/'`unit_tests/test_Random.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_Random.Tpo unit_tests/$(DEPDIR)/test_tscore-test_Random.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Random.cc' object='unit_tests/test_tscore-test_Random.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_Random.o `test -f 'unit_tests/test_Random.cc' || echo '$(srcdir)/'`unit_tests/test_Random.cc
+
+unit_tests/test_tscore-test_Random.obj: unit_tests/test_Random.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_Random.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_Random.Tpo -c -o unit_tests/test_tscore-test_Random.obj `if test -f 'unit_tests/test_Random.cc'; then $(CYGPATH_W) 'unit_tests/test_Random.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Random.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_tscore-test_Random.Tpo unit_tests/$(DEPDIR)/test_tscore-test_Random.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Random.cc' object='unit_tests/test_tscore-test_Random.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_tscore-test_Random.obj `if test -f 'unit_tests/test_Random.cc'; then $(CYGPATH_W) 'unit_tests/test_Random.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Random.cc'; fi`
 
 unit_tests/test_tscore-test_HKDF.o: unit_tests/test_HKDF.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tscore_CPPFLAGS) $(CPPFLAGS) $(test_tscore_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_tscore-test_HKDF.o -MD -MP -MF unit_tests/$(DEPDIR)/test_tscore-test_HKDF.Tpo -c -o unit_tests/test_tscore-test_HKDF.o `test -f 'unit_tests/test_HKDF.cc' || echo '$(srcdir)/'`unit_tests/test_HKDF.cc
@@ -2133,7 +2232,8 @@ distdir-am: $(DISTFILES)
 check-am: all-am
 	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
-check: check-am
+check: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(PROGRAMS) $(LTLIBRARIES)
 install-checkPROGRAMS: install-libLTLIBRARIES
 
@@ -2141,8 +2241,10 @@ installdirs:
 	for dir in "$(DESTDIR)$(libdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-install: install-am
-install-exec: install-exec-am
+install: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-am
+install-exec: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
 
@@ -2176,6 +2278,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clang-tidy: clang-tidy-am
 
 clang-tidy-am: clang-tidy-local
@@ -2212,19 +2315,21 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/IpMapConf.Plo
 	-rm -f ./$(DEPDIR)/JeAllocator.Plo
 	-rm -f ./$(DEPDIR)/Layout.Plo
+	-rm -f ./$(DEPDIR)/LogMessage.Plo
 	-rm -f ./$(DEPDIR)/MMH.Plo
 	-rm -f ./$(DEPDIR)/MatcherUtils.Plo
 	-rm -f ./$(DEPDIR)/MemArena.Plo
 	-rm -f ./$(DEPDIR)/ParseRules.Plo
+	-rm -f ./$(DEPDIR)/Random.Plo
 	-rm -f ./$(DEPDIR)/RbTree.Plo
 	-rm -f ./$(DEPDIR)/Regex.Plo
 	-rm -f ./$(DEPDIR)/Regression.Plo
 	-rm -f ./$(DEPDIR)/SourceLocation.Plo
 	-rm -f ./$(DEPDIR)/TextBuffer.Plo
+	-rm -f ./$(DEPDIR)/Throttler.Plo
 	-rm -f ./$(DEPDIR)/Tokenizer.Plo
 	-rm -f ./$(DEPDIR)/Version.Plo
 	-rm -f ./$(DEPDIR)/X509HostnameValidator.Plo
-	-rm -f ./$(DEPDIR)/fastlz.Plo
 	-rm -f ./$(DEPDIR)/hugepages.Plo
 	-rm -f ./$(DEPDIR)/ink_args.Plo
 	-rm -f ./$(DEPDIR)/ink_assert.Plo
@@ -2235,6 +2340,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/ink_error.Plo
 	-rm -f ./$(DEPDIR)/ink_file.Plo
 	-rm -f ./$(DEPDIR)/ink_hrtime.Plo
+	-rm -f ./$(DEPDIR)/ink_hw.Plo
 	-rm -f ./$(DEPDIR)/ink_inet.Plo
 	-rm -f ./$(DEPDIR)/ink_memory.Plo
 	-rm -f ./$(DEPDIR)/ink_mutex.Plo
@@ -2263,6 +2369,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/test_freelist.Po
 	-rm -f ./$(DEPDIR)/test_geometry.Po
 	-rm -f ./$(DEPDIR)/ts_file.Plo
+	-rm -f unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Po
 	-rm -f unit_tests/$(DEPDIR)/test_X509HostnameValidator-test_X509HostnameValidator.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_AcidPtr.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ArgParser.Po
@@ -2276,13 +2383,17 @@ distclean: distclean-am
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_IntrusivePtr.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_IpMap.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_List.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_MMH.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_MT_hashtable.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_MemArena.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ParseRules.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Ptr.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Random.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Regex.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Scalar.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Version.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_arena.Po
@@ -2363,19 +2474,21 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/IpMapConf.Plo
 	-rm -f ./$(DEPDIR)/JeAllocator.Plo
 	-rm -f ./$(DEPDIR)/Layout.Plo
+	-rm -f ./$(DEPDIR)/LogMessage.Plo
 	-rm -f ./$(DEPDIR)/MMH.Plo
 	-rm -f ./$(DEPDIR)/MatcherUtils.Plo
 	-rm -f ./$(DEPDIR)/MemArena.Plo
 	-rm -f ./$(DEPDIR)/ParseRules.Plo
+	-rm -f ./$(DEPDIR)/Random.Plo
 	-rm -f ./$(DEPDIR)/RbTree.Plo
 	-rm -f ./$(DEPDIR)/Regex.Plo
 	-rm -f ./$(DEPDIR)/Regression.Plo
 	-rm -f ./$(DEPDIR)/SourceLocation.Plo
 	-rm -f ./$(DEPDIR)/TextBuffer.Plo
+	-rm -f ./$(DEPDIR)/Throttler.Plo
 	-rm -f ./$(DEPDIR)/Tokenizer.Plo
 	-rm -f ./$(DEPDIR)/Version.Plo
 	-rm -f ./$(DEPDIR)/X509HostnameValidator.Plo
-	-rm -f ./$(DEPDIR)/fastlz.Plo
 	-rm -f ./$(DEPDIR)/hugepages.Plo
 	-rm -f ./$(DEPDIR)/ink_args.Plo
 	-rm -f ./$(DEPDIR)/ink_assert.Plo
@@ -2386,6 +2499,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/ink_error.Plo
 	-rm -f ./$(DEPDIR)/ink_file.Plo
 	-rm -f ./$(DEPDIR)/ink_hrtime.Plo
+	-rm -f ./$(DEPDIR)/ink_hw.Plo
 	-rm -f ./$(DEPDIR)/ink_inet.Plo
 	-rm -f ./$(DEPDIR)/ink_memory.Plo
 	-rm -f ./$(DEPDIR)/ink_mutex.Plo
@@ -2414,6 +2528,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/test_freelist.Po
 	-rm -f ./$(DEPDIR)/test_geometry.Po
 	-rm -f ./$(DEPDIR)/ts_file.Plo
+	-rm -f unit_tests/$(DEPDIR)/freelist_benchmark-freelist_benchmark.Po
 	-rm -f unit_tests/$(DEPDIR)/test_X509HostnameValidator-test_X509HostnameValidator.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_AcidPtr.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ArgParser.Po
@@ -2427,13 +2542,17 @@ maintainer-clean: maintainer-clean-am
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_IntrusivePtr.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_IpMap.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_List.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_MMH.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_MT_hashtable.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_MemArena.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_ParseRules.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_PluginUserArgs.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_PriorityQueue.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Ptr.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Random.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Regex.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Scalar.Po
+	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Throttler.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Tokenizer.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_Version.Po
 	-rm -f unit_tests/$(DEPDIR)/test_tscore-test_arena.Po
@@ -2461,7 +2580,8 @@ ps-am:
 
 uninstall-am: uninstall-libLTLIBRARIES
 
-.MAKE: check-am install-am install-strip
+.MAKE: all check check-am install install-am install-exec \
+	install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-TESTS \
 	check-am clang-tidy-am clang-tidy-local clean \
@@ -2490,6 +2610,9 @@ $(srcdir)/ParseRules.cc: ParseRulesCType
 
 ParseRulesCType: CompileParseRules
 	LSAN_OPTIONS='detect_leaks=0' ./CompileParseRules
+
+CompileParseRules$(BUILD_EXEEXT): $(CompileParseRules_OBJECTS)
+	$(CXX_FOR_BUILD) $(AM_CXXFLAGS) $(CPPFLAGS) -I$(top_builddir)/include -I$(abs_top_srcdir)/include -o $@ $(abs_top_srcdir)/src/tscore/CompileParseRules.cc
 
 clean-local:
 	rm -f ParseRulesCType ParseRulesCTypeToLower ParseRulesCTypeToUpper

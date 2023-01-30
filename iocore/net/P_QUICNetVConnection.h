@@ -38,6 +38,7 @@
 #include "P_UnixNet.h"
 #include "P_UDPNet.h"
 #include "P_ALPNSupport.h"
+#include "TLSBasicSupport.h"
 #include "TLSSessionResumptionSupport.h"
 #include "tscore/ink_apidefs.h"
 #include "tscore/List.h"
@@ -140,6 +141,7 @@ class QUICNetVConnection : public UnixNetVConnection,
                            public QUICConnection,
                            public RefCountObj,
                            public ALPNSupport,
+                           public TLSBasicSupport,
                            public TLSSessionResumptionSupport
 {
   using super = UnixNetVConnection; ///< Parent type.
@@ -186,9 +188,6 @@ public:
   int populate_protocol(std::string_view *results, int n) const override;
   const char *protocol_contains(std::string_view tag) const override;
 
-  int select_next_protocol(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
-                           unsigned inlen) const override;
-
   // QUICConnection
   QUICStreamManager *stream_manager() override;
   void close_quic_connection(QUICConnectionErrorUPtr error) override;
@@ -227,6 +226,11 @@ public:
   SLINK(QUICNetVConnection, closed_alink);
 
 protected:
+  // TLSBasicSupport
+  SSL *_get_ssl_object() const override;
+  ssl_curve_id _get_tls_curve() const override;
+
+  // TLSSessionResumptionSupport
   const IpEndpoint &_getLocalEndpoint() override;
 
 private:
