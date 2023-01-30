@@ -1,3 +1,11 @@
+Description: Workaround obsolete python3-sphinxcontrib.plantuml
+ Removing :align: sphinx commands as it's only supported in >0.6.0
+Author: Jean Baptiste Favre <jbfavre@debian.org>
+Origin: other
+Reviewed-by: Jean Baptiste Favre <jbfavre@debian.org>
+Last-Update: 2023-01-30
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/doc/admin-guide/configuration/cache-basics.en.rst
 +++ b/doc/admin-guide/configuration/cache-basics.en.rst
 @@ -54,7 +54,6 @@ overview illustrates how Traffic Server

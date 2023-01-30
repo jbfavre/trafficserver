@@ -1,3 +1,10 @@
+Description: Fix docutils deprecated function
+Author: Jean Baptiste Favre <jbfavre@debian.org>
+Origin: other
+Reviewed-by: Jean Baptiste Favre <jbfavre@debian.org>
+Last-Update: 2023-01-30
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/doc/ext/traffic-server.py
 +++ b/doc/ext/traffic-server.py
 @@ -106,7 +106,7 @@ class TSConfVar(std.Target):
