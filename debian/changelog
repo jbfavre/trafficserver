@@ -1,3 +1,12 @@
+trafficserver (9.2.0+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.2.0+ds
+  * Refresh d/patches for 9.2.0 release
+  * Add patch to workaround docutils deprecated function warning
+  * Add a patch to workaround obsolete python3-sphinxcontrib.plantuml version
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 30 Jan 2023 08:59:51 +0100
+
 trafficserver (9.1.4+ds-1) unstable; urgency=medium
 
   * New upstream version 9.1.4+ds
