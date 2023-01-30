@@ -21,7 +21,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  def make_github_link(name, rawtext, text, lineno, inliner, options=None, content=None):
 --- a/doc/Makefile.am
 +++ b/doc/Makefile.am
-@@ -51,7 +51,7 @@ I18NSPHINXOPTS  = $(SPHINXOPTS)
+@@ -55,7 +55,7 @@ I18NSPHINXOPTS  = $(SPHINXOPTS)
  # The PAPER setting variables requires recursive make variable expansion, which automake
  # detects as non-portable. We bounce this through a shell script and do the expansion there.
  SBUILD = PAPEROPT_a4="$(PAPEROPT_a4)" PAPEROPT_letter="$(PAPEROPT_letter)" PAPER="$(PAPER)" \

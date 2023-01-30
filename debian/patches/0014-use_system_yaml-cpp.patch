@@ -17,10 +17,10 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
          proxy/http
 --- a/configure.ac
 +++ b/configure.ac
-@@ -2282,7 +2282,6 @@ AC_CONFIG_FILES([
-   include/ts/apidefs.h
-   include/tscore/ink_config.h
+@@ -2315,7 +2315,6 @@ AC_CONFIG_FILES([
+   lib/records/Makefile
    src/wccp/Makefile
+   lib/fastlz/Makefile
 -  lib/yamlcpp/Makefile
    mgmt/Makefile
    mgmt/api/Makefile
@@ -45,13 +45,3 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  install-data-local:
 -	$(MAKE) -C yamlcpp install
  endif
---- a/mgmt/Makefile.am
-+++ b/mgmt/Makefile.am
-@@ -34,6 +34,7 @@ AM_CPPFLAGS += \
- 	-I$(abs_top_srcdir)/proxy \
- 	-I$(abs_top_srcdir)/proxy/http \
- 	-I$(abs_top_srcdir)/proxy/hdrs \
-+	@YAMLCPP_INCLUDES@ \
- 	$(TS_INCLUDES)
- 
- libmgmt_c_la_SOURCES = \
