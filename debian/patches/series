@@ -5,3 +5,4 @@
 0014-use_system_yaml-cpp.patch
 0019-fix-test_http_proxy.patch
 0020-fix-sphinx-warning.patch
+0021-workaround-obsolete-plantuml.patch
