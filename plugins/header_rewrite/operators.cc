@@ -21,11 +21,11 @@
 //
 #include <arpa/inet.h>
 #include <cstring>
+#include <algorithm>
 
 #include "ts/ts.h"
 
 #include "operators.h"
-#include "expander.h"
 #include "ts/apidefs.h"
 
 // OperatorConfig
@@ -78,7 +78,7 @@ OperatorSetStatus::initialize(Parser &p)
 
   _status.set_value(p.get_arg());
 
-  if (nullptr == (_reason = TSHttpHdrReasonLookup((TSHttpStatus)_status.get_int_value()))) {
+  if (nullptr == (_reason = TSHttpHdrReasonLookup(static_cast<TSHttpStatus>(_status.get_int_value())))) {
     TSError("[%s] unknown status %d", PLUGIN_NAME, _status.get_int_value());
     _reason_len = 0;
   } else {
@@ -107,14 +107,14 @@ OperatorSetStatus::exec(const Resources &res) const
   case TS_HTTP_READ_RESPONSE_HDR_HOOK:
   case TS_HTTP_SEND_RESPONSE_HDR_HOOK:
     if (res.bufp && res.hdr_loc) {
-      TSHttpHdrStatusSet(res.bufp, res.hdr_loc, (TSHttpStatus)_status.get_int_value());
+      TSHttpHdrStatusSet(res.bufp, res.hdr_loc, static_cast<TSHttpStatus>(_status.get_int_value()));
       if (_reason && _reason_len > 0) {
         TSHttpHdrReasonSet(res.bufp, res.hdr_loc, _reason, _reason_len);
       }
     }
     break;
   default:
-    TSHttpTxnStatusSet(res.txnp, (TSHttpStatus)_status.get_int_value());
+    TSHttpTxnStatusSet(res.txnp, static_cast<TSHttpStatus>(_status.get_int_value()));
     break;
   }
 
@@ -161,6 +161,17 @@ OperatorSetDestination::initialize(Parser &p)
 
   _url_qual = parse_url_qualifier(p.get_arg());
   _value.set_value(p.get_value());
+  require_resources(RSRC_CLIENT_REQUEST_HEADERS);
+  require_resources(RSRC_SERVER_REQUEST_HEADERS);
+}
+
+// OperatorRMDestination
+void
+OperatorRMDestination::initialize(Parser &p)
+{
+  Operator::initialize(p);
+
+  _url_qual = parse_url_qualifier(p.get_arg());
   require_resources(RSRC_CLIENT_REQUEST_HEADERS);
   require_resources(RSRC_SERVER_REQUEST_HEADERS);
 }
@@ -274,6 +285,54 @@ OperatorSetDestination::exec(const Resources &res) const
   }
 }
 
+void
+OperatorRMDestination::exec(const Resources &res) const
+{
+  if (res._rri || (res.bufp && res.hdr_loc)) {
+    // Default empty string to delete components
+    static std::string value = "";
+
+    // Determine which TSMBuffer and TSMLoc to use
+    TSMBuffer bufp;
+    TSMLoc url_m_loc;
+    if (res._rri) {
+      bufp      = res._rri->requestBufp;
+      url_m_loc = res._rri->requestUrl;
+    } else {
+      bufp = res.bufp;
+      if (TSHttpHdrUrlGet(res.bufp, res.hdr_loc, &url_m_loc) != TS_SUCCESS) {
+        TSDebug(PLUGIN_NAME, "TSHttpHdrUrlGet was unable to return the url m_loc");
+        return;
+      }
+    }
+
+    // Never set an empty destination value (I don't think that ever makes sense?)
+    switch (_url_qual) {
+    case URL_QUAL_PATH:
+      const_cast<Resources &>(res).changed_url = true;
+      TSUrlPathSet(bufp, url_m_loc, value.c_str(), value.size());
+      TSDebug(PLUGIN_NAME, "OperatorRMDestination::exec() deleting PATH");
+      break;
+    case URL_QUAL_QUERY:
+      const_cast<Resources &>(res).changed_url = true;
+      TSUrlHttpQuerySet(bufp, url_m_loc, value.c_str(), value.size());
+      TSDebug(PLUGIN_NAME, "OperatorRMDestination::exec() deleting QUERY");
+      break;
+    case URL_QUAL_PORT:
+      const_cast<Resources &>(res).changed_url = true;
+      TSUrlPortSet(bufp, url_m_loc, 0);
+      TSDebug(PLUGIN_NAME, "OperatorRMDestination::exec() deleting PORT");
+      break;
+    default:
+      TSDebug(PLUGIN_NAME, "RM Destination %i has no handler", _url_qual);
+      break;
+    }
+  } else {
+    TSDebug(PLUGIN_NAME, "OperatorRMDestination::exec() unable to continue due to missing bufp=%p or hdr_loc=%p, rri=%p!", res.bufp,
+            res.hdr_loc, res._rri);
+  }
+}
+
 // OperatorSetRedirect
 void
 OperatorSetRedirect::initialize(Parser &p)
@@ -294,14 +353,13 @@ OperatorSetRedirect::initialize(Parser &p)
 }
 
 void
-EditRedirectResponse(TSHttpTxn txnp, std::string const &location, int const &size, TSHttpStatus status, TSMBuffer bufp,
-                     TSMLoc hdr_loc)
+EditRedirectResponse(TSHttpTxn txnp, const std::string &location, TSHttpStatus status, TSMBuffer bufp, TSMLoc hdr_loc)
 {
   // Set new location.
   TSMLoc field_loc;
   static std::string header("Location");
   if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(bufp, hdr_loc, header.c_str(), header.size(), &field_loc)) {
-    if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(bufp, hdr_loc, field_loc, -1, location.c_str(), size)) {
+    if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(bufp, hdr_loc, field_loc, -1, location.c_str(), location.size())) {
       TSDebug(PLUGIN_NAME, "   Adding header %s", header.c_str());
       TSMimeHdrFieldAppend(bufp, hdr_loc, field_loc);
     }
@@ -331,11 +389,10 @@ cont_add_location(TSCont contp, TSEvent event, void *edata)
   TSHttpStatus status = osd->get_status();
   switch (event) {
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR: {
-    int size;
     TSMBuffer bufp;
     TSMLoc hdr_loc;
     if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) == TS_SUCCESS) {
-      EditRedirectResponse(txnp, osd->get_location(size), size, status, bufp, hdr_loc);
+      EditRedirectResponse(txnp, osd->get_location(), status, bufp, hdr_loc);
     } else {
       TSDebug(PLUGIN_NAME, "Could not retrieve the response header");
     }
@@ -358,11 +415,6 @@ OperatorSetRedirect::exec(const Resources &res) const
     std::string value;
 
     _location.append_value(value, res);
-
-    if (_location.need_expansion()) {
-      VariableExpander ve(value);
-      value = ve.expand(res);
-    }
 
     bool remap = false;
     if (nullptr != res._rri) {
@@ -391,8 +443,7 @@ OperatorSetRedirect::exec(const Resources &res) const
     if ((pos_path = value.find("%{PATH}")) != std::string::npos) {
       value.erase(pos_path, 7); // erase %{PATH} from the rewritten to url
       int path_len     = 0;
-      const char *path = nullptr;
-      path             = TSUrlPathGet(bufp, url_loc, &path_len);
+      const char *path = TSUrlPathGet(bufp, url_loc, &path_len);
       if (path_len > 0) {
         TSDebug(PLUGIN_NAME, "Find %%{PATH} in redirect url, replace it with: %.*s", path_len, path);
         value.insert(pos_path, path, path_len);
@@ -401,8 +452,8 @@ OperatorSetRedirect::exec(const Resources &res) const
 
     // Append the original query string
     int query_len     = 0;
-    const char *query = nullptr;
-    query             = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
+    const char *query = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
+
     if ((get_oper_modifiers() & OPER_QSA) && (query_len > 0)) {
       TSDebug(PLUGIN_NAME, "QSA mode, append original query string: %.*s", query_len, query);
       std::string connector = (value.find('?') == std::string::npos) ? "?" : "&";
@@ -415,14 +466,16 @@ OperatorSetRedirect::exec(const Resources &res) const
     const char *end   = value.size() + start;
     if (remap) {
       // Set new location.
-      TSUrlParse(bufp, url_loc, &start, end);
+      if (TS_PARSE_ERROR == TSUrlParse(bufp, url_loc, &start, end)) {
+        TSDebug(PLUGIN_NAME, "Could not set Location field value to: %s", value.c_str());
+      }
       // Set the new status.
-      TSHttpTxnStatusSet(res.txnp, (TSHttpStatus)_status.get_int_value());
+      TSHttpTxnStatusSet(res.txnp, static_cast<TSHttpStatus>(_status.get_int_value()));
       const_cast<Resources &>(res).changed_url = true;
       res._rri->redirect                       = 1;
     } else {
       // Set the new status code and reason.
-      TSHttpStatus status = (TSHttpStatus)_status.get_int_value();
+      TSHttpStatus status = static_cast<TSHttpStatus>(_status.get_int_value());
       switch (get_hook()) {
       case TS_HTTP_PRE_REMAP_HOOK: {
         TSHttpTxnStatusSet(res.txnp, status);
@@ -437,7 +490,7 @@ OperatorSetRedirect::exec(const Resources &res) const
         break;
       }
       TSHttpHdrStatusSet(res.bufp, res.hdr_loc, status);
-      EditRedirectResponse(res.txnp, value, value.size(), status, res.bufp, res.hdr_loc);
+      EditRedirectResponse(res.txnp, value, status, res.bufp, res.hdr_loc);
     }
     TSDebug(PLUGIN_NAME, "OperatorSetRedirect::exec() invoked with destination=%s and status code=%d", value.c_str(),
             _status.get_int_value());
@@ -496,6 +549,7 @@ OperatorSetTimeoutOut::exec(const Resources &res) const
 }
 
 // OperatorSkipRemap
+// Deprecated: Remove for v10.0.0
 void
 OperatorSkipRemap::initialize(Parser &p)
 {
@@ -510,7 +564,7 @@ void
 OperatorSkipRemap::exec(const Resources &res) const
 {
   TSDebug(PLUGIN_NAME, "OperatorSkipRemap::exec() skipping remap: %s", _skip_remap ? "True" : "False");
-  TSSkipRemappingSet(res.txnp, _skip_remap ? 1 : 0);
+  TSHttpTxnCntlSet(res.txnp, TS_HTTP_CNTL_SKIP_REMAPPING, _skip_remap);
 }
 
 // OperatorRMHeader
@@ -548,12 +602,6 @@ OperatorAddHeader::exec(const Resources &res) const
 
   _value.append_value(value, res);
 
-  if (_value.need_expansion()) {
-    VariableExpander ve(value);
-
-    value = ve.expand(res);
-  }
-
   // Never set an empty header (I don't think that ever makes sense?)
   if (value.empty()) {
     TSDebug(PLUGIN_NAME, "Would set header %s to an empty value, skipping", _header.c_str());
@@ -589,12 +637,6 @@ OperatorSetHeader::exec(const Resources &res) const
   std::string value;
 
   _value.append_value(value, res);
-
-  if (_value.need_expansion()) {
-    VariableExpander ve(value);
-
-    value = ve.expand(res);
-  }
 
   // Never set an empty header (I don't think that ever makes sense?)
   if (value.empty()) {
@@ -635,6 +677,32 @@ OperatorSetHeader::exec(const Resources &res) const
       }
     }
   }
+}
+
+// OperatorSetBody
+void
+OperatorSetBody::initialize(Parser &p)
+{
+  Operator::initialize(p);
+  // we want the arg since body only takes one value
+  _value.set_value(p.get_arg());
+}
+
+void
+OperatorSetBody::initialize_hooks()
+{
+  add_allowed_hook(TS_HTTP_READ_RESPONSE_HDR_HOOK);
+  add_allowed_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);
+}
+
+void
+OperatorSetBody::exec(const Resources &res) const
+{
+  std::string value;
+
+  _value.append_value(value, res);
+  char *msg = TSstrdup(_value.get_value().c_str());
+  TSHttpTxnErrorBodySet(res.txnp, msg, _value.size(), nullptr);
 }
 
 // OperatorCounter
@@ -723,12 +791,6 @@ OperatorAddCookie::exec(const Resources &res) const
 
   _value.append_value(value, res);
 
-  if (_value.need_expansion()) {
-    VariableExpander ve(value);
-
-    value = ve.expand(res);
-  }
-
   if (res.bufp && res.hdr_loc) {
     TSDebug(PLUGIN_NAME, "OperatorAddCookie::exec() invoked on cookie %s", _cookie.c_str());
     TSMLoc field_loc;
@@ -773,12 +835,6 @@ OperatorSetCookie::exec(const Resources &res) const
   std::string value;
 
   _value.append_value(value, res);
-
-  if (_value.need_expansion()) {
-    VariableExpander ve(value);
-
-    value = ve.expand(res);
-  }
 
   if (res.bufp && res.hdr_loc) {
     TSDebug(PLUGIN_NAME, "OperatorSetCookie::exec() invoked on cookie %s", _cookie.c_str());
@@ -954,6 +1010,7 @@ OperatorSetConnMark::exec(const Resources &res) const
 }
 
 // OperatorSetDebug
+// Deprecated: Remove for v10.0.0
 void
 OperatorSetDebug::initialize(Parser &p)
 {
@@ -971,5 +1028,71 @@ OperatorSetDebug::initialize_hooks()
 void
 OperatorSetDebug::exec(const Resources &res) const
 {
-  TSHttpTxnDebugSet(res.txnp, 1);
+  TSHttpTxnCntlSet(res.txnp, TS_HTTP_CNTL_TXN_DEBUG, true);
+}
+
+// OperatorSetHttpCntl
+TSHttpCntlType
+parse_cntl_qualifier(const std::string &q) // Helper function for parsing modifiers
+{
+  TSHttpCntlType qual = TS_HTTP_CNTL_LOGGING_MODE;
+
+  if (q == "LOGGING") {
+    qual = TS_HTTP_CNTL_LOGGING_MODE;
+  } else if (q == "INTERCEPT_RETRY") {
+    qual = TS_HTTP_CNTL_INTERCEPT_RETRY_MODE;
+  } else if (q == "RESP_CACHEABLE") {
+    qual = TS_HTTP_CNTL_RESPONSE_CACHEABLE;
+  } else if (q == "REQ_CACHEABLE") {
+    qual = TS_HTTP_CNTL_REQUEST_CACHEABLE;
+  } else if (q == "SERVER_NO_STORE") {
+    qual = TS_HTTP_CNTL_SERVER_NO_STORE;
+  } else if (q == "TXN_DEBUG") {
+    qual = TS_HTTP_CNTL_TXN_DEBUG;
+  } else if (q == "SKIP_REMAP") {
+    qual = TS_HTTP_CNTL_SKIP_REMAPPING;
+  } else {
+    TSError("[%s] Invalid HTTP-CNTL() qualifier: %s", PLUGIN_NAME, q.c_str());
+  }
+
+  return qual;
+}
+
+void
+OperatorSetHttpCntl::initialize(Parser &p)
+{
+  Operator::initialize(p);
+  _cntl_qual = parse_cntl_qualifier(p.get_arg());
+
+  std::string flag = p.copy_value();
+
+  std::transform(flag.begin(), flag.end(), flag.begin(), ::tolower);
+
+  if (flag == "1" || flag == "true" || flag == "on" || flag == "enable") {
+    _flag = true;
+  }
+}
+
+void
+OperatorSetHttpCntl::initialize_hooks()
+{
+  add_allowed_hook(TS_HTTP_READ_REQUEST_HDR_HOOK);
+  add_allowed_hook(TS_HTTP_READ_RESPONSE_HDR_HOOK);
+  add_allowed_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);
+  add_allowed_hook(TS_REMAP_PSEUDO_HOOK);
+}
+
+// This is only for the debug statement, and must be in sync with TSHttpCntlType in apidefs.h.in
+static const char *const HttpCntls[] = {"LOGGING",         "INTERCEPT_RETRY", "RESP_CACHEABLE", "REQ_CACHEABLE",
+                                        "SERVER_NO_STORE", "TXN_DEBUG",       "SKIP_REMAP"};
+void
+OperatorSetHttpCntl::exec(const Resources &res) const
+{
+  if (_flag) {
+    TSHttpTxnCntlSet(res.txnp, _cntl_qual, true);
+    TSDebug(PLUGIN_NAME, "   Turning ON %s for transaction", HttpCntls[static_cast<size_t>(_cntl_qual)]);
+  } else {
+    TSHttpTxnCntlSet(res.txnp, _cntl_qual, false);
+    TSDebug(PLUGIN_NAME, "   Turning OFF %s for transaction", HttpCntls[static_cast<size_t>(_cntl_qual)]);
+  }
 }

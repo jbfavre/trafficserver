@@ -70,11 +70,11 @@ static const huffman_entry huffman_table[] = {
   {0x7ffffe8, 27}, {0x7ffffe9, 27},  {0x7ffffea, 27}, {0x7ffffeb, 27},  {0xffffffe, 28}, {0x7ffffec, 27}, {0x7ffffed, 27},
   {0x7ffffee, 27}, {0x7ffffef, 27},  {0x7fffff0, 27}, {0x3ffffee, 26},  {0x3fffffff, 30}};
 
-typedef struct node {
+using Node = struct node {
   node *left, *right;
   char ascii_code;
   bool leaf_node;
-} Node;
+};
 
 Node *HUFFMAN_TREE_ROOT;
 
@@ -93,12 +93,12 @@ static Node *
 make_huffman_tree()
 {
   Node *root = make_huffman_tree_node();
-  Node *current;
-  uint32_t bit_len;
+
   // insert leafs for each ascii code
   for (unsigned i = 0; i < countof(huffman_table); i++) {
-    bit_len = huffman_table[i].bit_len;
-    current = root;
+    uint32_t bit_len = huffman_table[i].bit_len;
+    Node *current    = root;
+
     while (bit_len > 0) {
       if (huffman_table[i].code_as_hex & (1 << (bit_len - 1))) {
         if (!current->right) {
@@ -116,6 +116,7 @@ make_huffman_tree()
     current->ascii_code = i;
     current->leaf_node  = true;
   }
+
   return root;
 }
 
@@ -148,46 +149,61 @@ hpack_huffman_fin()
   }
 }
 
+#define MAX_HUFFMAN_CODE_LEN 30
+#define EOS 0x3fffffff
+
 int64_t
 huffman_decode(char *dst_start, const uint8_t *src, uint32_t src_len)
 {
-  char *dst_end             = dst_start;
-  uint8_t shift             = 7;
-  Node *current             = HUFFMAN_TREE_ROOT;
-  int byte_boundary_crossed = 0;
-  bool includes_zero        = false;
+  char *dst_end      = dst_start;
+  uint8_t shift      = 7;
+  Node *current      = HUFFMAN_TREE_ROOT;
+  int nbits          = 0;
+  uint32_t curr_bits = 0;
 
   while (src_len) {
+    if (nbits > 0) {
+      curr_bits <<= 1;
+    }
     if (*src & (1 << shift)) {
+      curr_bits |= 1;
       current = current->right;
     } else {
-      current       = current->left;
-      includes_zero = true;
+      current = current->left;
     }
+    ++nbits;
 
     if (current->leaf_node == true) {
-      *dst_end = current->ascii_code;
+      if (curr_bits == EOS) {
+        return -1;
+      }
+      nbits     = 0;
+      curr_bits = 0;
+      *dst_end  = current->ascii_code;
       ++dst_end;
-      current               = HUFFMAN_TREE_ROOT;
-      byte_boundary_crossed = 0;
-      includes_zero         = false;
+      current = HUFFMAN_TREE_ROOT;
     }
+
     if (shift) {
       --shift;
     } else {
       shift = 7;
       ++src;
       --src_len;
-      ++byte_boundary_crossed;
     }
-    if (byte_boundary_crossed > 3) {
+
+    if (nbits > MAX_HUFFMAN_CODE_LEN) {
       return -1;
     }
   }
-  if (byte_boundary_crossed > 1) {
+
+  if (nbits > 7) {
     return -1;
   }
-  if (includes_zero) {
+
+  // Padding bits must be a prefix of EOS
+  uint8_t mask = (1 << nbits) - 1;
+  if ((mask & curr_bits) != mask) {
     return -1;
   }
 

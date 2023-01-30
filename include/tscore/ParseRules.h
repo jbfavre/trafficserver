@@ -24,16 +24,18 @@
 #pragma once
 
 #include <cstring>
+// I had to move this here, because I really needed to avoid including ink_platform.h in here,
+// because of a conflict on linux/tcp.h vs netinet/tcp.h.
+#include <limits.h> // NOLINT(modernize-deprecated-headers)
 
 #include "tscore/ink_defs.h"
 #include "tscore/ink_apidefs.h"
-#include "tscore/ink_platform.h"
 
 typedef unsigned int CTypeResult;
 
 // Set this to 0 to disable SI
 // decimal multipliers
-#define USE_SI_MULTILIERS 1
+#define USE_SI_MULTIPLIERS 1
 
 #define is_char_BIT (1 << 0)
 #define is_upalpha_BIT (1 << 1)
@@ -69,9 +71,9 @@ typedef unsigned int CTypeResult;
 /* shut up the DEC compiler */
 #define is_http_field_value_BIT (((CTypeResult)1) << 31)
 
-extern ink_undoc_liapi const CTypeResult parseRulesCType[];
-inkcoreapi extern const char parseRulesCTypeToUpper[];
-inkcoreapi extern const char parseRulesCTypeToLower[];
+extern const CTypeResult parseRulesCType[];
+extern const char parseRulesCTypeToUpper[];
+extern const char parseRulesCTypeToLower[];
 
 class ParseRules
 {
@@ -126,7 +128,7 @@ public:
   static CTypeResult is_empty(char c);            // wslfcr,#
   static CTypeResult is_alnum(char c);            // 0-9,A-Z,a-z
   static CTypeResult is_space(char c);            // ' ' HT,VT,NP,CR,LF
-  static CTypeResult is_control(char c);          // 0x00-0x08, 0x0a-0x1f, 0x7f
+  static CTypeResult is_control(char c);          // 0-31 127
   static CTypeResult is_mime_sep(char c);         // ()<>,;\"/[]?{} \t
   static CTypeResult is_http_field_name(char c);  // not : or mime_sep except for @
   static CTypeResult is_http_field_value(char c); // not CR, LF, comma, or "
@@ -136,7 +138,7 @@ public:
   //////////////////
 
   static CTypeResult is_escape(const char *seq); // %<hex><hex>
-  static CTypeResult is_uchar(const char *seq);  // starts unresrvd or is escape
+  static CTypeResult is_uchar(const char *seq);  // starts unreserved or is escape
   static CTypeResult is_pchar(const char *seq);  // uchar,:,@,&,=,+ (see code)
 
   ///////////////////
@@ -665,24 +667,14 @@ ParseRules::is_space(char c)
 #endif
 }
 
-/**
-   Return true if @c is a control char except HTAB(0x09) and SP(0x20).
-   If you need to check @c is HTAB or SP, use `ParseRules::is_ws`.
- */
 inline CTypeResult
 ParseRules::is_control(char c)
 {
 #ifndef COMPILE_PARSE_RULES
   return (parseRulesCType[(unsigned char)c] & is_control_BIT);
 #else
-  if (c == CHAR_HT || c == CHAR_SP) {
-    return false;
-  }
-
-  if (((unsigned char)c) < 0x20 || c == 0x7f) {
+  if (((unsigned char)c) < 32 || ((unsigned char)c) == 127)
     return true;
-  }
-
   return false;
 #endif
 }
@@ -776,7 +768,7 @@ ParseRules::strlen_eow(const char *s)
 //
 //  This function is the same as strstr(), except that it accepts strings
 //  that are terminated with '\r', '\n' or null.
-//  It returns a pointer to the first occurance of s2 within s1 (or null).
+//  It returns a pointer to the first occurrence of s2 within s1 (or null).
 //////////////////////////////////////////////////////////////////////////////
 inline const char *
 ParseRules::strstr_eow(const char *s1, const char *s2)
@@ -835,7 +827,7 @@ ink_get_hex(char c)
   return (int)((c - 'a') + 10);
 }
 
-int64_t ink_atoi64(const char *);
+int64_t ink_atoi64(const char *, const char **end = nullptr);
 uint64_t ink_atoui64(const char *);
 int64_t ink_atoi64(const char *, int);
 

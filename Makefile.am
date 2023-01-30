@@ -27,7 +27,7 @@ export CCACHE_BASEDIR
 # and mgmt, hence we have to build proxy/hdrs first.
 
 # depends on the generates ts/ts.h include file.
-SUBDIRS = src/tscpp/util lib src/tscore iocore proxy mgmt src plugins tools example rc configs include
+SUBDIRS = include src/tscpp/util lib src/tscore iocore proxy mgmt src plugins tools example rc configs tests
 
 if BUILD_DOCS
 SUBDIRS += doc include
@@ -42,6 +42,9 @@ EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-E
 # Default value when creating release candidates
 RC = 0
 
+# Make sure the git pre-commit hook gets installed on build time
+all-local: $(abs_top_srcdir)/.git/hooks/pre-commit
+
 # igalic can't remember if this is make check or make test and neither should you.
 test: check
 
@@ -55,7 +58,7 @@ doxygen:
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) $@
 
 changelog:
-	./tools/changelog.pl apache trafficserver $(VERSION) $(AUTHTOKEN) > CHANGELOG-$(VERSION)
+	./tools/git/changelog.pl -o apache -r trafficserver -m $(VERSION) -a $(AUTHTOKEN) > CHANGELOG-$(VERSION)
 
 asf-dist: asf-distdir
 	tardir=$(distdir) && $(am__tar) --mtime=./configure.ac | bzip2 -9 -c >$(distdir).tar.bz2
@@ -70,6 +73,8 @@ asf-distdir:
 	test -d .git && git clone . $(distdir)
 	cd $(distdir) && autoreconf -i
 	$(RM) -r -- $(distdir)/autom4te.cache $(distdir)/ci `find $(distdir) -name .git -o -name .gitignore -o -name .gitmodules`
+	grep -v 'img.shields.io' $(distdir)/README.md > $(distdir)/README.md.clean
+	mv $(distdir)/README.md.clean $(distdir)/README.md
 
 asf-dist-sign: asf-dist
 	sha512sum -b $(distdir).tar.bz2 >$(distdir).tar.bz2.sha512
@@ -91,6 +96,11 @@ examples: all
 install-examples: examples
 	@cd example && $(MAKE) $(AM_MAKEFLAGS) install pkglibdir=$(pkglibexecdir)
 
+$(abs_top_srcdir)/.git/hooks/pre-commit: $(abs_top_srcdir)/tools/git/pre-commit
+	@if [ -d $(abs_top_srcdir)/.git/hooks ]; then \
+		cp $(abs_top_srcdir)/tools/git/pre-commit $(abs_top_srcdir)/.git/hooks/pre-commit; \
+	fi
+
 install-data-hook:
 if BUILD_DOCS
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) install-man
@@ -103,8 +113,9 @@ endif
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.13-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)
 
+.PHONY: autopep8
 autopep8:
-	@autopep8 -i -r $(top_srcdir)
+	@$(top_srcdir)/tools/autopep8.sh $(top_srcdir)
 
 #
 # These are rules to make clang-format easy and fast to run. Run it with e.g.
@@ -112,11 +123,25 @@ autopep8:
 #
 # If you make changes to directory structures, you must update this as well.
 #
-.PHONY:	clang-format-src clang-format-example clang-format-iocore clang-format-lib clang-format-mgmt \
-	clang-format-plugins clang-format-proxy clang-format-tools
+CLANG_FORMAT_DIR_TARGETS = \
+	clang-format-src \
+	clang-format-example \
+	clang-format-iocore \
+	clang-format-lib \
+	clang-format-mgmt \
+	clang-format-plugins \
+	clang-format-proxy \
+	clang-format-tools
 
-clang-format: 	clang-format-src clang-format-example clang-format-iocore clang-format-lib clang-format-mgmt \
-		clang-format-plugins clang-format-proxy clang-format-tools clang-format-tests
+.PHONY:	$(CLANG_FORMAT_DIR_TARGETS)
+
+CLANG_FORMAT_SENTINEL = $(top_srcdir)/.git/fmt/.clang-format-installed
+$(CLANG_FORMAT_SENTINEL):
+	@$(top_srcdir)/tools/clang-format.sh --install
+
+.PHONY:	clang-format
+clang-format: $(CLANG_FORMAT_SENTINEL)
+	$(MAKE) $(CLANG_FORMAT_DIR_TARGETS)
 
 clang-format-src:
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/src
@@ -145,6 +170,15 @@ clang-format-tools:
 
 clang-format-tests:
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/tests
+
+# Run the various format targets. perltidy is not included because the user may
+# not have it installed.
+.PHONY: format
+format: clang-format autopep8
+
+.PHONY: perltidy
+perltidy:
+	perltidy -q -b -bext='/' `find . -name \*.pm -o -name \*.pl`
 
 help:
 	@echo 'all              default target for building the package'

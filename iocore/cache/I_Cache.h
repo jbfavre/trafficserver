@@ -29,9 +29,7 @@
 #include "I_CacheDefs.h"
 #include "I_Store.h"
 
-#define CACHE_MODULE_MAJOR_VERSION 1
-#define CACHE_MODULE_MINOR_VERSION 0
-#define CACHE_MODULE_VERSION makeModuleVersion(CACHE_MODULE_MAJOR_VERSION, CACHE_MODULE_MINOR_VERSION, PUBLIC_MODULE_HEADER)
+static constexpr ts::ModuleVersion CACHE_MODULE_VERSION(1, 0);
 
 #define CACHE_WRITE_OPT_OVERWRITE 0x0001
 #define CACHE_WRITE_OPT_CLOSE_COMPLETE 0x0002
@@ -64,9 +62,8 @@ typedef HTTPInfo CacheHTTPInfo;
 struct CacheProcessor : public Processor {
   CacheProcessor()
     : min_stripe_version(CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION),
-      max_stripe_version(CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION),
-      cb_after_init(nullptr),
-      wait_for_cache(0)
+      max_stripe_version(CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION)
+
   {
   }
 
@@ -77,20 +74,19 @@ struct CacheProcessor : public Processor {
   int dir_check(bool fix);
   int db_check(bool fix);
 
-  inkcoreapi Action *lookup(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
-                            const char *hostname = nullptr, int host_len = 0);
-  inkcoreapi Action *open_read(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
-                               const char *hostname = nullptr, int host_len = 0);
-  inkcoreapi Action *open_write(Continuation *cont, CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
-                                int expected_size = CACHE_EXPECTED_SIZE, int options = 0, time_t pin_in_cache = (time_t)0,
-                                char *hostname = nullptr, int host_len = 0);
-  inkcoreapi Action *remove(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
-                            const char *hostname = nullptr, int host_len = 0);
+  Action *lookup(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                 const char *hostname = nullptr, int host_len = 0);
+  Action *open_read(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                    const char *hostname = nullptr, int host_len = 0);
+  Action *open_write(Continuation *cont, CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                     int expected_size = CACHE_EXPECTED_SIZE, int options = 0, time_t pin_in_cache = (time_t)0,
+                     char *hostname = nullptr, int host_len = 0);
+  Action *remove(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                 const char *hostname = nullptr, int host_len = 0);
   Action *scan(Continuation *cont, char *hostname = nullptr, int host_len = 0, int KB_per_second = SCAN_KB_PER_SECOND);
   Action *lookup(Continuation *cont, const HttpCacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-  inkcoreapi Action *open_read(Continuation *cont, const HttpCacheKey *key, CacheHTTPHdr *request,
-                               OverridableHttpConfigParams *params, time_t pin_in_cache = (time_t)0,
-                               CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
+  Action *open_read(Continuation *cont, const HttpCacheKey *key, CacheHTTPHdr *request, const OverridableHttpConfigParams *params,
+                    time_t pin_in_cache = (time_t)0, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
   Action *open_write(Continuation *cont, int expected_size, const HttpCacheKey *key, CacheHTTPHdr *request, CacheHTTPInfo *old_info,
                      time_t pin_in_cache = (time_t)0, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
   Action *remove(Continuation *cont, const HttpCacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
@@ -158,11 +154,11 @@ struct CacheProcessor : public Processor {
   static int start_internal_flags;
   static int auto_clear_flag;
 
-  VersionNumber min_stripe_version;
-  VersionNumber max_stripe_version;
+  ts::VersionNumber min_stripe_version;
+  ts::VersionNumber max_stripe_version;
 
-  CALLBACK_FUNC cb_after_init;
-  int wait_for_cache;
+  CALLBACK_FUNC cb_after_init = nullptr;
+  int wait_for_cache          = 0;
 };
 
 inline void
@@ -192,12 +188,10 @@ struct CacheVConnection : public VConnection {
   virtual void set_http_info(CacheHTTPInfo *info)  = 0;
   virtual void get_http_info(CacheHTTPInfo **info) = 0;
 
-  virtual bool is_ram_cache_hit() const           = 0;
-  virtual bool set_disk_io_priority(int priority) = 0;
-  virtual int get_disk_io_priority()              = 0;
-  virtual bool set_pin_in_cache(time_t t)         = 0;
-  virtual time_t get_pin_in_cache()               = 0;
-  virtual int64_t get_object_size()               = 0;
+  virtual bool is_ram_cache_hit() const   = 0;
+  virtual bool set_pin_in_cache(time_t t) = 0;
+  virtual time_t get_pin_in_cache()       = 0;
+  virtual int64_t get_object_size()       = 0;
   virtual bool
   is_compressed_in_ram() const
   {
@@ -210,6 +204,12 @@ struct CacheVConnection : public VConnection {
     return -1;
   }
 
+  virtual const char *
+  get_disk_path() const
+  {
+    return nullptr;
+  }
+
   /** Test if the VC can support pread.
       @return @c true if @c do_io_pread will work, @c false if not.
   */
@@ -218,6 +218,6 @@ struct CacheVConnection : public VConnection {
   CacheVConnection();
 };
 
-void ink_cache_init(ModuleVersion version);
-extern inkcoreapi CacheProcessor cacheProcessor;
+void ink_cache_init(ts::ModuleVersion version);
+extern CacheProcessor cacheProcessor;
 extern Continuation *cacheRegexDeleteCont;

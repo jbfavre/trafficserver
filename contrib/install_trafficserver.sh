@@ -77,7 +77,6 @@ function updateInstall() {
         make \
         libtool \
         libssl-dev \
-        tcl-dev \
         libpcre3-dev \
         curl
         apt-get install -y subversion git git-svn
@@ -95,7 +94,6 @@ function updateInstall() {
                 gcc-c++ \
                 glibc-devel \
                 openssl-devel \
-                tcl-devel \
                 db4-devel \
                 pcre \
                 pcre-devel
@@ -108,7 +106,6 @@ function updateInstall() {
                 gcc-c++ \
                 glibc-devel \
                 openssl-devel \
-                tcl-devel \
                 pcre \
                 pcre-devel
         fi
@@ -139,7 +136,7 @@ function dev() {
     git clone git://git.apache.org/trafficserver.git
     cd $EC2_EPHEMERAL/$trafficserver
 
-    #swtich to dev build
+    #switch to dev build
     git checkout -b remotes/origin/dev
     #------------------------------------------------------
 }
@@ -188,7 +185,7 @@ function rebuild() {
     make clean
 
     # Here is where things are dumb.  We don't check for
-    # successful builds yet.  Thats in the next release.
+    # successful builds yet.  That's in the next release.
     # This is why I call it dumb.
     make
     make uninstall

@@ -24,6 +24,7 @@
 #include "tscore/ink_platform.h"
 #include "tscore/ink_memory.h"
 #include "tscore/ParseRules.h"
+#include "RecordsConfig.h"
 #include "P_RecUtils.h"
 #include "P_RecCore.h"
 
@@ -49,8 +50,8 @@ RecRecordFree(RecRecord *r)
 RecRecord *
 RecAlloc(RecT rec_type, const char *name, RecDataT data_type)
 {
-  if (g_num_records >= REC_MAX_RECORDS) {
-    Warning("too many stats/configs, please increase REC_MAX_RECORDS or rebuild with --with_max_api_stats=<n>");
+  if (g_num_records >= max_records_entries) {
+    Warning("too many stats/configs, please increase max_records_entries using the --maxRecords command line option");
     return nullptr;
   }
 
@@ -90,7 +91,7 @@ RecDataSetMax(RecDataT type, RecData *data)
     data->rec_float = FLT_MAX;
     break;
   default:
-    Fatal("unsupport type:%d\n", type);
+    Fatal("unsupported type:%d\n", type);
   }
 }
 
@@ -106,7 +107,7 @@ RecDataSetMin(RecDataT type, RecData *data)
     data->rec_float = FLT_MIN;
     break;
   default:
-    Fatal("unsupport type:%d\n", type);
+    Fatal("unsupported type:%d\n", type);
   }
 }
 
@@ -128,9 +129,7 @@ RecDataSet(RecDataT data_type, RecData *data_dst, RecData *data_src)
       }
     } else if (((data_dst->rec_string) && (strcmp(data_dst->rec_string, data_src->rec_string) != 0)) ||
                ((data_dst->rec_string == nullptr) && (data_src->rec_string != nullptr))) {
-      if (data_dst->rec_string) {
-        ats_free(data_dst->rec_string);
-      }
+      ats_free(data_dst->rec_string);
 
       data_dst->rec_string = ats_strdup(data_src->rec_string);
       rec_set              = true;
@@ -189,7 +188,7 @@ RecDataCmp(RecDataT type, RecData left, RecData right)
       return -1;
     }
   default:
-    Fatal("unsupport type:%d\n", type);
+    Fatal("unsupported type:%d\n", type);
     return 0;
   }
 }
@@ -291,7 +290,7 @@ RecDataSetFromInt64(RecDataT data_type, RecData *data_dst, int64_t data_int64)
     data_src.rec_int = data_int64;
     break;
   case RECD_FLOAT:
-    data_src.rec_float = (float)(data_int64);
+    data_src.rec_float = static_cast<float>(data_int64);
     break;
   case RECD_STRING: {
     char buf[32 + 1];
@@ -320,10 +319,10 @@ RecDataSetFromFloat(RecDataT data_type, RecData *data_dst, float data_float)
 
   switch (data_type) {
   case RECD_INT:
-    data_src.rec_int = (RecInt)data_float;
+    data_src.rec_int = static_cast<RecInt>(data_float);
     break;
   case RECD_FLOAT:
-    data_src.rec_float = (float)(data_float);
+    data_src.rec_float = (data_float);
     break;
   case RECD_STRING: {
     char buf[32 + 1];
@@ -332,7 +331,7 @@ RecDataSetFromFloat(RecDataT data_type, RecData *data_dst, float data_float)
     break;
   }
   case RECD_COUNTER:
-    data_src.rec_counter = (RecCounter)data_float;
+    data_src.rec_counter = static_cast<RecCounter>(data_float);
     break;
   default:
     ink_assert(!"Unexpected RecD type");
@@ -362,7 +361,7 @@ RecDataSetFromString(RecDataT data_type, RecData *data_dst, const char *data_str
       data_src.rec_string = nullptr;
     } else {
       // It's OK to cast away the const here, because RecDataSet will copy the string.
-      data_src.rec_string = (char *)data_string;
+      data_src.rec_string = const_cast<char *>(data_string);
     }
     break;
   case RECD_COUNTER:

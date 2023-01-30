@@ -58,6 +58,8 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.current_client_transactions integer
    :type: gauge
 
+   Represents the current number of HTTP/1.0 and HTTP/1.1 transactions from client to the |TS|.
+
 .. ts:stat:: global proxy.process.http.current_server_connections integer
    :type: gauge
 
@@ -134,8 +136,28 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.origin_connections_throttled_out integer
    :type: counter
 
-This tracks the number of origin connections denied due to being over the :ts:cv:`proxy.config.http.origin_max_connections` limit.
+   This tracks the number of origin connections denied due to being over the :ts:cv:`proxy.config.http.per_server.connection.max` limit.
 
+.. ts:stat:: global proxy.process.http.pooled_server_connections integer
+   :type: counter
+
+   This metric tracks the number of server connections currently in the server session sharing pools. The server session sharing is
+   controlled by settings :ts:cv:`proxy.config.http.server_session_sharing.pool` and :ts:cv:`proxy.config.http.server_session_sharing.match`.
+
+.. ts:stat:: global proxy.process.http.dead_server.no_requests integer
+   :type: counter
+
+   Tracks the number of client requests that did not have a request sent to the origin server because the origin server was marked dead.
+
+.. ts:stat:: global proxy.process.http.http_proxy_loop_detected integer
+   :type: counter
+
+   Counts the number of times a proxy loop was detected
+
+.. ts:stat:: global proxy.process.http.http_proxy_mh_loop_detected integer
+   :type: counter
+
+   Counts the number of times a multi-hop proxy loop was detected
 
 HTTP/2
 ------
@@ -244,3 +266,17 @@ HTTP/2
    Represents the total number of closed HTTP/2 connections for not reaching the
    minimum average window increment limit which is configured by
    :ts:cv:`proxy.config.http2.min_avg_window_update`.
+
+.. ts:stat:: global proxy.process.http2.max_concurrent_streams_exceeded_in integer
+   :type: counter
+
+   Represents the number of times an inbound HTTP/2 stream was not created for
+   reaching the maximum number of concurrent streams per inbound connection
+   configured by :ts:cv:`proxy.config.http2.max_concurrent_streams_in`.
+
+.. ts:stat:: global proxy.process.http2.max_concurrent_streams_exceeded_out integer
+   :type: counter
+
+   Represents the number of times an outbound HTTP/2 stream was not created for
+   reaching the maximum number of concurrent streams per outbound connection
+   the client can initiate as specified by the server.

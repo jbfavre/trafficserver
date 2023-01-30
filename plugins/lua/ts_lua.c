@@ -20,8 +20,11 @@
 #include <errno.h>
 #include <pthread.h>
 #include <getopt.h>
+#include <inttypes.h>
+#include <pthread.h>
 
 #include "ts_lua_util.h"
+#include "luajit.h"
 
 #define TS_LUA_MAX_STATE_COUNT 256
 
@@ -38,6 +41,9 @@ static uint64_t ts_lua_g_http_next_id = 0;
 
 static ts_lua_main_ctx *ts_lua_main_ctx_array   = NULL;
 static ts_lua_main_ctx *ts_lua_g_main_ctx_array = NULL;
+
+static pthread_key_t lua_g_state_key;
+static pthread_key_t lua_state_key;
 
 // records.config entry injected by plugin
 static char const *const ts_lua_mgmt_state_str   = "proxy.config.plugin.lua.max_states";
@@ -67,8 +73,8 @@ static char const *const ts_lua_g_stat_strs[] = {
 typedef struct {
   ts_lua_main_ctx *main_ctx_array;
 
-  int gc_kb;   // last collected gc in kb
-  int threads; // last collected number active threads
+  TSMgmtInt gc_kb;   // last collected gc in kb
+  TSMgmtInt threads; // last collected number active threads
 
   int stat_inds[TS_LUA_IND_SIZE]; // stats indices
 
@@ -128,7 +134,7 @@ create_lua_vms()
       ts_lua_max_state_count = TS_LUA_MAX_STATE_COUNT;
     } else {
       ts_lua_max_state_count = (int)mgmt_state;
-      TSDebug(TS_LUA_DEBUG_TAG, "[%s] found %s: [%d]", __FUNCTION__, ts_lua_mgmt_state_str, (int)ts_lua_max_state_count);
+      TSDebug(TS_LUA_DEBUG_TAG, "[%s] found %s: [%d]", __FUNCTION__, ts_lua_mgmt_state_str, ts_lua_max_state_count);
     }
 
     if (ts_lua_max_state_count < 1) {
@@ -150,7 +156,7 @@ create_lua_vms()
     return NULL;
   }
 
-  // Initalize the GC numbers, no need to lock here
+  // Initialize the GC numbers, no need to lock here
   for (int index = 0; index < ts_lua_max_state_count; ++index) {
     ts_lua_main_ctx *const main_ctx = (ctx_array + index);
     lua_State *const lstate         = main_ctx->lua;
@@ -178,8 +184,8 @@ collectStats(ts_lua_plugin_stats *const plugin_stats)
       ts_lua_ctx_stats *const stats = main_ctx->stats;
 
       TSMutexLock(stats->mutexp);
-      gc_kb_total += (TSMgmtInt)stats->gc_kb;
-      threads_total += (TSMgmtInt)stats->threads;
+      gc_kb_total += stats->gc_kb;
+      threads_total += stats->threads;
       TSMutexUnlock(stats->mutexp);
     }
   }
@@ -206,7 +212,7 @@ statsHandler(TSCont contp, TSEvent event, void *edata)
   collectStats(plugin_stats);
   publishStats(plugin_stats);
 
-  TSContSchedule(contp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
+  TSContScheduleOnPool(contp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
 
   return TS_EVENT_NONE;
 }
@@ -306,6 +312,8 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
   if (NULL == ts_lua_main_ctx_array) {
     ts_lua_main_ctx_array = create_lua_vms();
     if (NULL != ts_lua_main_ctx_array) {
+      pthread_key_create(&lua_state_key, NULL);
+
       TSCont const lcontp = TSContCreate(lifecycleHandler, TSMutexCreate());
       TSContDataSet(lcontp, ts_lua_main_ctx_array);
       TSLifecycleHookAdd(TS_LIFECYCLE_MSG_HOOK, lcontp);
@@ -317,7 +325,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
         TSDebug(TS_LUA_DEBUG_TAG, "Starting up stats management continuation");
         TSCont const scontp = TSContCreate(statsHandler, TSMutexCreate());
         TSContDataSet(scontp, plugin_stats);
-        TSContSchedule(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
+        TSContScheduleOnPool(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
       }
     } else {
       return TS_ERROR;
@@ -335,9 +343,11 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
   char *inline_script                  = "";
   int fn                               = 0;
   int states                           = ts_lua_max_state_count;
+  int ljgc                             = 0;
   static const struct option longopt[] = {
     {"states", required_argument, 0, 's'},
     {"inline", required_argument, 0, 'i'},
+    {"ljgc", required_argument, 0, 'g'},
     {0, 0, 0, 0},
   };
 
@@ -356,6 +366,10 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       break;
     case 'i':
       inline_script = optarg;
+      break;
+    case 'g':
+      ljgc = atoi(optarg);
+      break;
     }
 
     if (opt == -1) {
@@ -416,6 +430,10 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
     conf->states    = states;
     conf->remap     = 1;
     conf->init_func = 0;
+    conf->ref_count = 1;
+    conf->ljgc      = ljgc;
+
+    TSDebug(TS_LUA_DEBUG_TAG, "Reference Count = %d , creating new instance...", conf->ref_count);
 
     if (fn) {
       snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", script);
@@ -438,6 +456,9 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       ts_lua_script_register(ts_lua_main_ctx_array[0].lua, conf->script, conf);
       TSMutexUnlock(ts_lua_main_ctx_array[0].mutexp);
     }
+  } else {
+    conf->ref_count++;
+    TSDebug(TS_LUA_DEBUG_TAG, "Reference Count = %d , reference existing instance...", conf->ref_count);
   }
 
   *ih = conf;
@@ -451,9 +472,13 @@ TSRemapDeleteInstance(void *ih)
   int states = ((ts_lua_instance_conf *)ih)->states;
   ts_lua_del_module((ts_lua_instance_conf *)ih, ts_lua_main_ctx_array, states);
   ts_lua_del_instance(ih);
-  // because we now reuse ts_lua_instance_conf / ih for remap rules sharing the same lua script
-  // we cannot safely free it in this function during the configuration reloads
-  // we therefore are leaking memory on configuration reloads
+  ((ts_lua_instance_conf *)ih)->ref_count--;
+  if (((ts_lua_instance_conf *)ih)->ref_count == 0) {
+    TSDebug(TS_LUA_DEBUG_TAG, "Reference Count = %d , freeing...", ((ts_lua_instance_conf *)ih)->ref_count);
+    TSfree(ih);
+  } else {
+    TSDebug(TS_LUA_DEBUG_TAG, "Reference Count = %d , not freeing...", ((ts_lua_instance_conf *)ih)->ref_count);
+  }
   return;
 }
 
@@ -474,9 +499,13 @@ ts_lua_remap_plugin_init(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
 
   int remap     = (rri == NULL ? 0 : 1);
   instance_conf = (ts_lua_instance_conf *)ih;
-  req_id        = __sync_fetch_and_add(&ts_lua_http_next_id, 1);
 
-  main_ctx = &ts_lua_main_ctx_array[req_id % instance_conf->states];
+  main_ctx = pthread_getspecific(lua_state_key);
+  if (main_ctx == NULL) {
+    req_id   = __sync_fetch_and_add(&ts_lua_http_next_id, 1);
+    main_ctx = &ts_lua_main_ctx_array[req_id % instance_conf->states];
+    pthread_setspecific(lua_state_key, main_ctx);
+  }
 
   TSMutexLock(main_ctx->mutexp);
 
@@ -510,7 +539,7 @@ ts_lua_remap_plugin_init(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
 
   ts_lua_set_cont_info(L, NULL);
   if (lua_pcall(L, 0, 1, 0) != 0) {
-    TSError("[ts_lua] lua_pcall failed: %s", lua_tostring(L, -1));
+    TSError("[ts_lua][%s] lua_pcall failed: %s", __FUNCTION__, lua_tostring(L, -1));
     ret = TSREMAP_NO_REMAP;
 
   } else {
@@ -576,11 +605,14 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
 
   ts_lua_instance_conf *conf = (ts_lua_instance_conf *)TSContDataGet(contp);
 
-  req_id = __sync_fetch_and_add(&ts_lua_g_http_next_id, 1);
+  main_ctx = pthread_getspecific(lua_g_state_key);
+  if (main_ctx == NULL) {
+    req_id = __sync_fetch_and_add(&ts_lua_g_http_next_id, 1);
+    TSDebug(TS_LUA_DEBUG_TAG, "[%s] req_id: %" PRId64, __FUNCTION__, req_id);
+    main_ctx = &ts_lua_g_main_ctx_array[req_id % conf->states];
+    pthread_setspecific(lua_g_state_key, main_ctx);
+  }
 
-  main_ctx = &ts_lua_g_main_ctx_array[req_id % conf->states];
-
-  TSDebug(TS_LUA_DEBUG_TAG, "[%s] req_id: %" PRId64, __FUNCTION__, req_id);
   TSMutexLock(main_ctx->mutexp);
 
   http_ctx           = ts_lua_create_http_ctx(main_ctx, conf);
@@ -630,13 +662,6 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
     break;
 
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
-    // client response can be changed within a transaction
-    // (e.g. due to the follow redirect feature). So, clearing the pointers
-    // to allow API(s) to fetch the pointers again when it re-enters the hook
-    if (http_ctx->client_response_hdrp != NULL) {
-      TSHandleMLocRelease(http_ctx->client_response_bufp, TS_NULL_MLOC, http_ctx->client_response_hdrp);
-      http_ctx->client_response_hdrp = NULL;
-    }
     lua_getglobal(l, TS_LUA_FUNCTION_G_SEND_RESPONSE);
     break;
 
@@ -687,11 +712,13 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
   ts_lua_set_cont_info(l, NULL);
 
   if (lua_pcall(l, 0, 1, 0) != 0) {
-    TSError("[ts_lua] lua_pcall failed: %s", lua_tostring(l, -1));
+    TSError("[ts_lua][%s] lua_pcall failed: %s", __FUNCTION__, lua_tostring(l, -1));
   }
 
   ret = lua_tointeger(l, -1);
   lua_pop(l, 1);
+
+  ts_lua_clear_http_ctx(http_ctx);
 
   if (http_ctx->has_hook) {
     // add a hook to release resources for context
@@ -723,12 +750,14 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = "dev@trafficserver.apache.org";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[ts_lua] Plugin registration failed");
+    TSError("[ts_lua][%s] Plugin registration failed", __FUNCTION__);
   }
 
   if (NULL == ts_lua_g_main_ctx_array) {
     ts_lua_g_main_ctx_array = create_lua_vms();
     if (NULL != ts_lua_g_main_ctx_array) {
+      pthread_key_create(&lua_g_state_key, NULL);
+
       TSCont const contp = TSContCreate(lifecycleHandler, TSMutexCreate());
       TSContDataSet(contp, ts_lua_g_main_ctx_array);
       TSLifecycleHookAdd(TS_LIFECYCLE_MSG_HOOK, contp);
@@ -738,7 +767,7 @@ TSPluginInit(int argc, const char *argv[])
       if (NULL != plugin_stats) {
         TSCont const scontp = TSContCreate(statsHandler, TSMutexCreate());
         TSContDataSet(scontp, plugin_stats);
-        TSContSchedule(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
+        TSContScheduleOnPool(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
       }
     } else {
       return;
@@ -747,9 +776,11 @@ TSPluginInit(int argc, const char *argv[])
 
   int states = ts_lua_max_state_count;
 
+  int jit                              = 1;
   int reload                           = 0;
   static const struct option longopt[] = {
     {"states", required_argument, 0, 's'},
+    {"jit", required_argument, 0, 'j'},
     {"enable-reload", no_argument, 0, 'r'},
     {0, 0, 0, 0},
   };
@@ -762,6 +793,19 @@ TSPluginInit(int argc, const char *argv[])
     case 's':
       states = atoi(optarg);
       // set state
+      break;
+    case 'j':
+      jit = atoi(optarg);
+      if (jit == 0) {
+        TSDebug(TS_LUA_DEBUG_TAG, "[%s] disable JIT mode", __FUNCTION__);
+        for (int index = 0; index < ts_lua_max_state_count; ++index) {
+          ts_lua_main_ctx *const main_ctx = (ts_lua_g_main_ctx_array + index);
+          lua_State *const lstate         = main_ctx->lua;
+          if (luaJIT_setmode(lstate, 0, LUAJIT_MODE_ENGINE | LUAJIT_MODE_OFF) == 0) {
+            TSError("[ts_lua][%s] Failed to disable JIT mode", __FUNCTION__);
+          }
+        }
+      }
       break;
     case 'r':
       reload = 1;
@@ -813,7 +857,7 @@ TSPluginInit(int argc, const char *argv[])
 
   if (ret != 0) {
     TSError(errbuf, NULL);
-    TSError("[ts_lua][%s] ts_lua_add_module failed", __FUNCTION__);
+    TSEmergency("[ts_lua][%s] ts_lua_add_module failed", __FUNCTION__);
     return;
   }
 

@@ -15,6 +15,8 @@
   specific language governing permissions and limitations
   under the License.
 
+.. include:: ../../common.defs
+
 .. _admin-plugins-slice:
 
 Slice Plugin
@@ -111,16 +113,27 @@ The slice plugin supports the following options::
         Requires setting up an intermediate loopback remap rule.
         -r for short
 
-    --throttle (optional)
-        Under certain circumstances where many contiguous slices are in
-        RAM cache ATS will aggressively try to push these through the
-        slice plugin.  The downside of this is that all these contiguous
-        slices end up being marked as fresh even if the downstream
-        client aborts.  This option keeps track of how much data the
-        client has already passed down and slows down issuing new
-        slice requests.
-        Normally leave this off.
-        -o for short
+    --skip-header=<header name> (default: X-Slicer-Info)
+        Header name used by the slice plugin after the loopback
+        to indicate that the slice plugin should be skipped.
+        -s for short
+
+    --crr-ims-header=<header name> (default: X-Crr-Ims)
+        Header name used by the slice plugin to tell the
+        `cache_range_requests` plugin that a request should
+        be marked as STALE.  Used for self healing.
+        This must match the `--ims-header` option used by the
+        `cache_range_requests` plugin.
+        -i for short
+
+    --prefetch-count=<int> (optional)
+        Default is 0
+        Prefetches successive 'n' slice block requests in the background
+        and caches (with `cache_range_requests` plugin). Prefetching is only
+        enabled when first block (of the client request) is a cacheable object
+        with miss or hit-stale status. Especially for large objects, prefetching
+        can improve cache miss latency.
+        -f for short
 
 Examples::
 
@@ -151,7 +164,7 @@ following options are provided to help with log overrun::
     slice.so -p 1
     slice.so --disable-errorlog
 
-After modifying :file:`remap.config`, restart or reload traffic server
+After modifying :file:`remap.config`, restart or reload |TS|
 (sudo traffic_ctl config reload) or (sudo traffic_ctl server restart)
 to activate the new configuration values.
 
@@ -227,7 +240,7 @@ and sends it to the client.  If necessary it then skips over bytes in the
 first block and starts sending byte content, examining each block header
 and sends its bytes to the client until the client request is satisfied.
 
-Any extra bytes at the end of the last block are consumed by the the
+Any extra bytes at the end of the last block are consumed by the
 Slice plugin to allow cache_range_requests to finish the block fetch to
 ensure the block is cached.
 

@@ -34,7 +34,7 @@ Test.ContinueOnFail = False
 server = Test.MakeOriginServer("server")
 
 # Define ATS and configure.
-ts = Test.MakeATSProcess("ts", command="traffic_server")
+ts = Test.MakeATSProcess("ts", command="traffic_server", enable_cache=False)
 
 # default root
 request_header_chk = {"headers":
@@ -55,7 +55,6 @@ response_header_chk = {"headers":
 
 server.addResponse("sessionlog.json", request_header_chk, response_header_chk)
 
-#block_bytes = 7
 body = "lets go surfin now"
 
 request_header_txt = {"headers":

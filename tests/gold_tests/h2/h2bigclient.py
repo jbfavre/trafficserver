@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 '''
 '''
 #  Licensed to the Apache Software Foundation (ASF) under one
@@ -16,7 +18,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import json
 from hyper import HTTPConnection
 import hyper
 import argparse
@@ -43,7 +44,6 @@ def makerequest(port):
     # Fetch the object twice so we know at least one time comes from cache
     # Exploring timing options
     sites = ['/bigfile', '/bigfile']
-    responses = []
     request_ids = []
     for site in sites:
         request_id = conn.request('GET', url=site)

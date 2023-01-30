@@ -42,7 +42,7 @@
   The accept call is a blocking call while connect is non-blocking. They
   returns a new Connection instance which is an handle to the newly created
   connection. The connection `q instance can be used later for read/writes
-  using an intance of IOProcessor class.
+  using an instance of IOProcessor class.
 
 
   **************************************************************************/
@@ -78,11 +78,11 @@ struct NetVCOptions;
 //
 ///////////////////////////////////////////////////////////////////////
 struct Connection {
-  SOCKET fd;         ///< Socket for connection.
-  IpEndpoint addr;   ///< Associated address.
-  bool is_bound;     ///< Flag for already bound to a local address.
-  bool is_connected; ///< Flag for already connected.
-  int sock_type;
+  SOCKET fd;                 ///< Socket for connection.
+  IpEndpoint addr;           ///< Associated address.
+  bool is_bound     = false; ///< Flag for already bound to a local address.
+  bool is_connected = false; ///< Flag for already connected.
+  int sock_type     = 0;
 
   /** Create and initialize the socket for this connection.
 
@@ -120,12 +120,6 @@ struct Connection {
     ats_ip_copy(&addr, remote_addr);
   }
 
-  int setup_mc_send(sockaddr const *mc_addr, sockaddr const *my_addr, bool non_blocking = NON_BLOCKING, unsigned char mc_ttl = 1,
-                    bool mc_loopback = DISABLE_MC_LOOPBACK, Continuation *c = nullptr);
-
-  int setup_mc_receive(sockaddr const *from, sockaddr const *my_addr, bool non_blocking = NON_BLOCKING,
-                       Connection *sendchan = nullptr, Continuation *c = nullptr);
-
   int close(); // 0 on success, -errno on failure
 
   void apply_options(NetVCOptions const &opt);
@@ -149,7 +143,7 @@ protected:
    * @return @a this
    *
    * This is protected because it is not safe in the general case, but is valid for
-   * certain subclasses. Those provide a public assignemnt that depends on this method.
+   * certain subclasses. Those provide a public assignment that depends on this method.
    */
   Connection &operator=(Connection const &that) = default;
   void _cleanup();
@@ -165,7 +159,7 @@ struct Server : public Connection {
   IpEndpoint accept_addr;
 
   /// If set, a kernel HTTP accept filter
-  bool http_accept_filter;
+  bool http_accept_filter = false;
 
   int accept(Connection *c);
 
@@ -177,6 +171,7 @@ struct Server : public Connection {
 
   int listen(bool non_blocking, const NetProcessor::AcceptOptions &opt);
   int setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions &opt);
+  int setup_fd_after_listen(const NetProcessor::AcceptOptions &opt);
 
-  Server() : Connection(), http_accept_filter(false) { ink_zero(accept_addr); }
+  Server() : Connection() { ink_zero(accept_addr); }
 };

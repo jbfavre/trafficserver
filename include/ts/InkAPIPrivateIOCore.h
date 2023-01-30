@@ -43,7 +43,7 @@ public:
   INKContInternal();
   INKContInternal(TSEventFunc funcp, TSMutex mutexp);
 
-  void init(TSEventFunc funcp, TSMutex mutexp);
+  void init(TSEventFunc funcp, TSMutex mutexp, void *context = 0);
   virtual void destroy();
 
   void handle_event_count(int event);
@@ -60,6 +60,7 @@ public:
   int m_closed;
   int m_deletable;
   int m_deleted;
+  void *m_context;
   // INKqa07670: Nokia memory leak bug fix
   INKContInternalMagic_t m_free_magic;
 };
@@ -104,7 +105,7 @@ public:
  * Any plugin using the IO Core must enter
  *   with a held mutex.  SDK 1.0, 1.1 & 2.0 did not
  *   have this restriction so we need to add a mutex
- *   to Plugin's Continuation if it trys to use the IOCore
+ *   to Plugin's Continuation if it tries to use the IOCore
  * Not only does the plugin have to have a mutex
  *   before entering the IO Core.  The mutex needs to be held.
  *   We now take out the mutex on each call to ensure it is
@@ -132,7 +133,6 @@ tsapi TSMutex TSMutexCreateInternal(void);
 tsapi int TSMutexCheck(TSMutex mutex);
 
 /* IOBuffer */
-tsapi void TSIOBufferReaderCopy(TSIOBufferReader readerp, const void *buf, int64_t length);
 tsapi int64_t TSIOBufferBlockDataSizeGet(TSIOBufferBlock blockp);
 tsapi void TSIOBufferBlockDestroy(TSIOBufferBlock blockp);
 typedef void *INKUDPPacket;

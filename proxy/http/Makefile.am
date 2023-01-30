@@ -32,7 +32,9 @@ AM_CPPFLAGS += \
 	-I$(abs_top_srcdir)/proxy/http/remap \
 	-I$(abs_top_srcdir)/proxy/logging \
 	-I$(abs_top_srcdir)/proxy/http2 \
-	$(TS_INCLUDES)
+	-I$(abs_top_srcdir)/proxy/http3 \
+	$(TS_INCLUDES) \
+	@YAMLCPP_INCLUDES@
 
 noinst_HEADERS = HttpProxyServerMain.h
 noinst_LIBRARIES = libhttp.a
@@ -47,7 +49,10 @@ libhttp_a_SOURCES = \
 	Http1ClientSession.cc \
 	Http1ClientSession.h \
 	Http1ClientTransaction.cc \
+	Http1Transaction.h \
 	Http1ClientTransaction.h \
+	Http1ServerTransaction.h \
+	Http1ServerTransaction.cc \
 	HttpConfig.cc \
 	HttpConfig.h \
 	HttpConnectionCount.cc \
@@ -60,8 +65,8 @@ libhttp_a_SOURCES = \
 	HttpProxyServerMain.h \
 	HttpSM.cc \
 	HttpSM.h \
-	HttpServerSession.cc \
-	HttpServerSession.h \
+	Http1ServerSession.cc \
+	Http1ServerSession.h \
 	HttpSessionManager.cc \
 	HttpSessionManager.h \
 	HttpTransact.cc \
@@ -72,31 +77,51 @@ libhttp_a_SOURCES = \
 	HttpTransactHeaders.h \
 	HttpTunnel.cc \
 	HttpTunnel.h \
-	HttpUpdateSM.cc \
-	HttpUpdateSM.h \
-	ForwardedConfig.cc
+	ForwardedConfig.cc \
+	PreWarmConfig.cc \
+	PreWarmManager.cc
 
 if BUILD_TESTS
-libhttp_a_SOURCES += HttpUpdateTester.cc \
-	RegressionHttpTransact.cc
+libhttp_a_SOURCES += RegressionHttpTransact.cc
 endif
 
-check_PROGRAMS = \
-test_ForwardedConfig
+check_PROGRAMS = test_proxy_http test_PreWarm
 
 TESTS = $(check_PROGRAMS)
 
-test_ForwardedConfig_CPPFLAGS = $(AM_CPPFLAGS)\
+test_proxy_http_CPPFLAGS = $(AM_CPPFLAGS)\
 	-I$(abs_top_srcdir)/tests/include
 
-test_ForwardedConfig_SOURCES = \
+test_proxy_http_SOURCES = \
+	unit_tests/unit_test_main.cc \
 	unit_tests/test_ForwardedConfig.cc \
 	ForwardedConfig.cc \
-	unit_tests/test_ForwardedConfig_mocks.cc
+	unit_tests/test_error_page_selection.cc \
+	HttpBodyFactory.cc \
+	HttpBodyFactory.h
 
-test_ForwardedConfig_LDADD = \
+test_proxy_http_LDADD = \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/proxy/logging/liblogging.a \
+	$(top_builddir)/lib/records/librecords_p.a \
+	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
+	$(top_builddir)/mgmt/libmgmt_p.la \
+	$(top_builddir)/iocore/utils/libinkutils.a \
+	@HWLOC_LIBS@ \
+	@LIBCAP@
+
+test_PreWarm_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-I$(abs_top_srcdir)/tests/include
+
+test_PreWarm_LDADD = \
+	$(top_builddir)/src/tscore/libtscore.la
+
+test_PreWarm_SOURCES = \
+	unit_tests/test_PreWarm.cc
 
 clang-tidy-local: $(libhttp_a_SOURCES) $(noinst_HEADERS)
 	$(CXX_Clang_Tidy)

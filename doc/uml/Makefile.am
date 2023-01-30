@@ -18,12 +18,13 @@
 
 if BUILD_DOCS
 images := $(patsubst %.uml,images/%.svg,$(wildcard *.uml))
-PLANTUML_JAR := $(shell ../ext/plantuml_fetch.sh | tail -1)
+images += $(patsubst %.plantuml,images/%.svg,$(wildcard *.plantuml))
+PLANTUML_JAR := $(shell $(srcdir)/../ext/plantuml_fetch.sh | tail -1)
 
 all-am: jar-check $(images)
 endif
 
-# These are handle when the make target comes from the the base doc makefile.
+# These are handle when the make target comes from the base doc makefile.
 # In cases the .SVG files are built.
 
 html-local: all-am
@@ -39,6 +40,9 @@ latex: all-am
 man: all-am
 
 images/%.svg : %.uml
+	$(JAVA) -jar $(PLANTUML_JAR) -o images -tsvg $<
+
+images/%.svg : %.plantuml
 	$(JAVA) -jar $(PLANTUML_JAR) -o images -tsvg $<
 
 clean-local:

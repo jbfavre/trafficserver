@@ -30,6 +30,7 @@
 #pragma once
 
 #include <ts/apidefs.h>
+#include <ts/parentselectdefs.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -162,6 +163,20 @@ int TSTrafficServerVersionGetPatch(void);
  */
 tsapi TSReturnCode TSPluginRegister(const TSPluginRegistrationInfo *plugin_info);
 
+/**
+   This function provides the ability to enable/disable programmatically
+   the plugin dynamic reloading when the same Dynamic Shared Object (DSO)
+   is also used as a remap plugin. This overrides `proxy.config.plugin.dynamic_reload_mode`
+   configuration variable.
+
+   @param enabled boolean flag. 0/false will disable the reload on the caller plugin.
+   @return TS_ERROR if the function is not called from within TSPluginInit or if TS is
+           unable to get the canonical path from the plugin's path. TS_SUCCESS otherwise.
+
+   @note This function should be called from within TSPluginInit
+ */
+tsapi TSReturnCode TSPluginDSOReloadEnable(int enabled);
+
 /* --------------------------------------------------------------------------
    Files */
 /**
@@ -258,8 +273,18 @@ tsapi char *TSfgets(TSFile filep, char *buf, size_t length);
     @param fmt printf format description.
     @param ... argument for the printf format description.
 
+    Note: Your log monitoring (e.g. Splunk) needs to alert Ops of log
+    messages that contain ' ALERT: ' or ' EMERGENCY: ', these require
+    immediate attention.
+
 */
-tsapi void TSError(const char *fmt, ...) TS_PRINTFLIKE(1, 2);
+tsapi void TSStatus(const char *fmt, ...) TS_PRINTFLIKE(1, 2);    // Log information
+tsapi void TSNote(const char *fmt, ...) TS_PRINTFLIKE(1, 2);      // Log significant information
+tsapi void TSWarning(const char *fmt, ...) TS_PRINTFLIKE(1, 2);   // Log concerning information
+tsapi void TSError(const char *fmt, ...) TS_PRINTFLIKE(1, 2);     // Log operational failure, fail CI
+tsapi void TSFatal(const char *fmt, ...) TS_PRINTFLIKE(1, 2);     // Log recoverable crash, fail CI, exit & restart
+tsapi void TSAlert(const char *fmt, ...) TS_PRINTFLIKE(1, 2);     // Log recoverable crash, fail CI, exit & restart, Ops attention
+tsapi void TSEmergency(const char *fmt, ...) TS_PRINTFLIKE(1, 2); // Log unrecoverable crash, fail CI, exit, Ops attention
 
 /* --------------------------------------------------------------------------
    Assertions */
@@ -381,10 +406,11 @@ tsapi int TSUrlLengthGet(TSMBuffer bufp, TSMLoc offset);
     string in the parameter length. This is the same length that
     TSUrlLengthGet() returns. The returned string is allocated by a
     call to TSmalloc(). It should be freed by a call to TSfree().
-    The length parameter must present, providing storage for the URL
-    string length value.
+    The length parameter must be present, providing storage for the
+    URL string length value.
     Note: To get the effective URL from a request, use the alternative
-          TSHttpTxnEffectiveUrlStringGet API.
+          TSHttpTxnEffectiveUrlStringGet or
+          TSHttpHdrEffectiveUrlBufGet APIs.
 
     @param bufp marshal buffer containing the URL you want to get.
     @param offset location of the URL within bufp.
@@ -399,6 +425,22 @@ tsapi char *TSUrlStringGet(TSMBuffer bufp, TSMLoc offset, int *length);
     the marshal buffer bufp. TSUrlSchemeGet() places the length of
     the string in the length argument. If the length is NULL then no
     attempt is made to dereference it.
+
+    @param bufp marshal buffer storing the URL.
+    @param offset location of the URL within bufp.
+    @param length length of the returned string.
+    @return The scheme portion of the URL, as a string.
+
+ */
+tsapi const char *TSUrlRawSchemeGet(TSMBuffer bufp, TSMLoc offset, int *length);
+
+/**
+    Retrieves the scheme portion of the URL located at url_loc within
+    the marshal buffer bufp. TSUrlSchemeGet() places the length of
+    the string in the length argument. If the length is NULL then no
+    attempt is made to dereference it.  If there is no explicit scheme,
+    a scheme of http is returned if the URL type is HTTP, and a scheme
+    of https is returned if the URL type is HTTPS.
 
     @param bufp marshal buffer storing the URL.
     @param offset location of the URL within bufp.
@@ -514,7 +556,8 @@ tsapi const char *TSUrlHostGet(TSMBuffer bufp, TSMLoc offset, int *length);
 tsapi TSReturnCode TSUrlHostSet(TSMBuffer bufp, TSMLoc offset, const char *value, int length);
 
 /**
-    Retrieves the port portion of the URL located at url_loc.
+    Returns the port portion of the URL located at url_loc if explicitly present,
+    otherwise the canonical port for the URL.
 
     @param bufp marshal buffer containing the URL.
     @param offset location of the URL.
@@ -522,6 +565,17 @@ tsapi TSReturnCode TSUrlHostSet(TSMBuffer bufp, TSMLoc offset, const char *value
 
  */
 tsapi int TSUrlPortGet(TSMBuffer bufp, TSMLoc offset);
+
+/**
+    Returns the port portion of the URL located at url_loc if explicitly present,
+    otherwise 0.
+
+    @param bufp marshal buffer containing the URL.
+    @param offset location of the URL.
+    @return port portion of the URL.
+
+ */
+tsapi int TSUrlRawPortGet(TSMBuffer bufp, TSMLoc offset);
 
 /**
     Sets the port portion of the URL located at url_loc.
@@ -1108,6 +1162,7 @@ tsapi TSThread TSThreadInit(void);
 tsapi void TSThreadDestroy(TSThread thread);
 tsapi void TSThreadWait(TSThread thread);
 tsapi TSThread TSThreadSelf(void);
+tsapi TSEventThread TSEventThreadSelf(void);
 
 /* --------------------------------------------------------------------------
    Mutexes */
@@ -1182,14 +1237,24 @@ tsapi TSReturnCode TSMgmtCounterGet(const char *var_name, TSMgmtCounter *result)
 tsapi TSReturnCode TSMgmtFloatGet(const char *var_name, TSMgmtFloat *result);
 tsapi TSReturnCode TSMgmtStringGet(const char *var_name, TSMgmtString *result);
 tsapi TSReturnCode TSMgmtSourceGet(const char *var_name, TSMgmtSource *source);
+tsapi TSReturnCode TSMgmtConfigFileAdd(const char *parent, const char *fileName);
+tsapi TSReturnCode TSMgmtDataTypeGet(const char *var_name, TSRecordDataType *result);
+
 /* --------------------------------------------------------------------------
    Continuations */
 tsapi TSCont TSContCreate(TSEventFunc funcp, TSMutex mutexp);
 tsapi void TSContDestroy(TSCont contp);
 tsapi void TSContDataSet(TSCont contp, void *data);
 tsapi void *TSContDataGet(TSCont contp);
-tsapi TSAction TSContSchedule(TSCont contp, TSHRTime timeout, TSThreadPool tp);
-tsapi TSAction TSContScheduleEvery(TSCont contp, TSHRTime every /* millisecs */, TSThreadPool tp);
+tsapi TSAction TSContSchedule(TSCont contp, TSHRTime timeout);
+tsapi TSAction TSContScheduleOnPool(TSCont contp, TSHRTime timeout, TSThreadPool tp);
+tsapi TSAction TSContScheduleOnThread(TSCont contp, TSHRTime timeout, TSEventThread ethread);
+tsapi TSAction TSContScheduleEvery(TSCont contp, TSHRTime every /* millisecs */);
+tsapi TSAction TSContScheduleEveryOnPool(TSCont contp, TSHRTime every /* millisecs */, TSThreadPool tp);
+tsapi TSAction TSContScheduleEveryOnThread(TSCont contp, TSHRTime every /* millisecs */, TSEventThread ethread);
+tsapi TSReturnCode TSContThreadAffinitySet(TSCont contp, TSEventThread ethread);
+tsapi TSEventThread TSContThreadAffinityGet(TSCont contp);
+tsapi void TSContThreadAffinityClear(TSCont contp);
 tsapi TSAction TSHttpSchedule(TSCont contp, TSHttpTxn txnp, TSHRTime timeout);
 tsapi int TSContCall(TSCont contp, TSEvent event, void *edata);
 tsapi TSMutex TSContMutexGet(TSCont contp);
@@ -1206,39 +1271,65 @@ tsapi void TSHttpHookAdd(TSHttpHookID id, TSCont contp);
 tsapi void TSHttpSsnHookAdd(TSHttpSsn ssnp, TSHttpHookID id, TSCont contp);
 tsapi void TSHttpSsnReenable(TSHttpSsn ssnp, TSEvent event);
 tsapi int TSHttpSsnTransactionCount(TSHttpSsn ssnp);
-/* get TSVConn from session */
+/* Get the TSVConn from a session. */
 tsapi TSVConn TSHttpSsnClientVConnGet(TSHttpSsn ssnp);
 tsapi TSVConn TSHttpSsnServerVConnGet(TSHttpSsn ssnp);
+/* Get the TSVConn from a transaction. */
+tsapi TSVConn TSHttpTxnServerVConnGet(TSHttpTxn txnp);
 
 /* --------------------------------------------------------------------------
    SSL connections */
 /* Re-enable an SSL connection from a hook.
    This must be called exactly once before the SSL connection will resume. */
 tsapi void TSVConnReenable(TSVConn sslvcp);
+/* Extended version that allows for passing a status event on reenabling
+ */
+tsapi void TSVConnReenableEx(TSVConn sslvcp, TSEvent event);
 /*  Set the connection to go into blind tunnel mode */
 tsapi TSReturnCode TSVConnTunnel(TSVConn sslp);
 /*  Return the SSL object associated with the connection */
-tsapi TSSslConnection TSVConnSSLConnectionGet(TSVConn sslp);
+tsapi TSSslConnection TSVConnSslConnectionGet(TSVConn sslp);
+/* Return the intermediate X509StoreCTX object that references the certificate being validated */
+tsapi TSSslVerifyCTX TSVConnSslVerifyCTXGet(TSVConn sslp);
 /*  Fetch a SSL context from the global lookup table */
 tsapi TSSslContext TSSslContextFindByName(const char *name);
 tsapi TSSslContext TSSslContextFindByAddr(struct sockaddr const *);
-/*  Create a new SSL context based on the settings in records.config */
-tsapi TSSslContext TSSslServerContextCreate(TSSslX509 cert, const char *certname);
+/* Fetch SSL client contexts from the global lookup table */
+tsapi TSReturnCode TSSslClientContextsNamesGet(int n, const char **result, int *actual);
+tsapi TSSslContext TSSslClientContextFindByName(const char *ca_paths, const char *ck_paths);
+
+/* Update SSL certs in internal storage from given path */
+tsapi TSReturnCode TSSslClientCertUpdate(const char *cert_path, const char *key_path);
+tsapi TSReturnCode TSSslServerCertUpdate(const char *cert_path, const char *key_path);
+
+/* Update the transient secret table for SSL_CTX loading */
+tsapi TSReturnCode TSSslSecretSet(const char *secret_name, int secret_name_length, const char *secret_data, int secret_data_len);
+tsapi TSReturnCode TSSslSecretGet(const char *secret_name, int secret_name_length, const char **secret_data_return,
+                                  int *secret_data_len);
+
+tsapi TSReturnCode TSSslSecretUpdate(const char *secret_name, int secret_name_length);
+
+/* Create a new SSL context based on the settings in records.config */
+tsapi TSSslContext TSSslServerContextCreate(TSSslX509 cert, const char *certname, const char *rsp_file);
 tsapi void TSSslContextDestroy(TSSslContext ctx);
-tsapi void TSSslTicketKeyUpdate(char *ticketData, int ticketDataLen);
-tsapi TSNextProtocolSet TSUnregisterProtocol(TSNextProtocolSet protoset, const char *protocol);
+tsapi TSReturnCode TSSslTicketKeyUpdate(char *ticketData, int ticketDataLen);
 TSAcceptor TSAcceptorGet(TSVConn sslp);
-TSNextProtocolSet TSGetcloneProtoSet(TSAcceptor tna);
 TSAcceptor TSAcceptorGetbyID(int ID);
-void TSRegisterProtocolSet(TSVConn sslp, TSNextProtocolSet ps);
 int TSAcceptorCount();
 int TSAcceptorIDGet(TSAcceptor acceptor);
+TSReturnCode TSVConnProtocolDisable(TSVConn connp, const char *protocol_name);
+TSReturnCode TSVConnProtocolEnable(TSVConn connp, const char *protocol_name);
 
 /*  Returns 1 if the sslp argument refers to a SSL connection */
 tsapi int TSVConnIsSsl(TSVConn sslp);
+/* Returns 1 if a certificate was provided in the TLS handshake, 0 otherwise.
+ */
+tsapi int TSVConnProvidedSslCert(TSVConn sslp);
+tsapi const char *TSVConnSslSniGet(TSVConn sslp, int *length);
+
 tsapi TSSslSession TSSslSessionGet(const TSSslSessionID *session_id);
 tsapi int TSSslSessionGetBuffer(const TSSslSessionID *session_id, char *buffer, int *len_ptr);
-tsapi TSReturnCode TSSslSessionInsert(const TSSslSessionID *session_id, TSSslSession add_session);
+tsapi TSReturnCode TSSslSessionInsert(const TSSslSessionID *session_id, TSSslSession add_session, TSSslConnection ssl_conn);
 tsapi TSReturnCode TSSslSessionRemove(const TSSslSessionID *session_id);
 
 /* --------------------------------------------------------------------------
@@ -1282,6 +1373,16 @@ tsapi int TSHttpTxnServerSsnTransactionCount(TSHttpTxn txnp);
 tsapi char *TSHttpTxnEffectiveUrlStringGet(TSHttpTxn txnp, int *length /**< String length return, may be @c NULL. */
 );
 
+/** Get the effective URL for in the header (if any), with the scheme and host normalized to lower case letter.
+    The effective URL is the URL taking in to account both the explicit
+    URL in the request and the HOST field.
+
+    A possibly non-null terminated string is returned.
+
+    @return TS_SUCCESS if successful, TS_ERROR if no URL in header or other error.
+*/
+tsapi TSReturnCode TSHttpHdrEffectiveUrlBufGet(TSMBuffer hdr_buf, TSMLoc hdr_loc, char *buf, int64_t size, int64_t *length);
+
 tsapi void TSHttpTxnRespCacheableSet(TSHttpTxn txnp, int flag);
 tsapi void TSHttpTxnReqCacheableSet(TSHttpTxn txnp, int flag);
 
@@ -1314,7 +1415,7 @@ tsapi TSReturnCode TSHttpTxnCacheLookupStatusGet(TSHttpTxn txnp, int *lookup_sta
 tsapi TSReturnCode TSHttpTxnTransformRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *offset);
 
 /** Set the @a port value for the inbound (user agent) connection in the transaction @a txnp.
-    This is used primarily where the conection is synthetic and therefore does not have a port.
+    This is used primarily where the connection is synthetic and therefore does not have a port.
     @note @a port is in @b host @b order.
 */
 tsapi void TSHttpTxnClientIncomingPortSet(TSHttpTxn txnp, int port);
@@ -1378,6 +1479,16 @@ tsapi TSReturnCode TSHttpTxnServerAddrSet(TSHttpTxn txnp, struct sockaddr const 
     @return The address of the next hop for transaction @a txnp.
 */
 tsapi struct sockaddr const *TSHttpTxnNextHopAddrGet(TSHttpTxn txnp);
+
+/** Get the next hop name.
+ *
+    @note The pointer is valid only for the current callback. Clients
+    that need to keep the value across callbacks must maintain their
+    own storage.
+
+    @return The name of the next hop for transaction @a txnp.
+*/
+tsapi const char *TSHttpTxnNextHopNameGet(TSHttpTxn txnp);
 
 tsapi TSReturnCode TSHttpTxnClientFdGet(TSHttpTxn txnp, int *fdp);
 tsapi TSReturnCode TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, struct sockaddr const *addr);
@@ -1457,8 +1568,8 @@ tsapi TSReturnCode TSHttpTxnServerPacketDscpSet(TSHttpTxn txnp, int dscp);
 /**
    Sets an error type body to a transaction. Note that both string arguments
    must be allocated with TSmalloc() or TSstrdup(). The mimetype argument is
-   optional, if not provided it defaults to "text/html". Sending an emptry
-   string would prevent setting a content type header (but that is not adviced).
+   optional, if not provided it defaults to "text/html". Sending an empty
+   string would prevent setting a content type header (but that is not advised).
 
    @param txnp HTTP transaction whose parent proxy to get.
    @param buf The body message (must be heap allocated).
@@ -1520,25 +1631,32 @@ tsapi void TSHttpTxnTransformedRespCache(TSHttpTxn txnp, int on);
 tsapi void TSHttpTxnReenable(TSHttpTxn txnp, TSEvent event);
 tsapi TSReturnCode TSHttpCacheReenable(TSCacheTxn txnp, const TSEvent event, const void *data, const uint64_t size);
 
-tsapi void TSHttpTxnArgSet(TSHttpTxn txnp, int arg_idx, void *arg);
-tsapi void *TSHttpTxnArgGet(TSHttpTxn txnp, int arg_idx);
-tsapi void TSHttpSsnArgSet(TSHttpSsn ssnp, int arg_idx, void *arg);
-tsapi void *TSHttpSsnArgGet(TSHttpSsn ssnp, int arg_idx);
-tsapi void TSVConnArgSet(TSVConn connp, int arg_idx, void *arg);
-tsapi void *TSVConnArgGet(TSVConn connp, int arg_idx);
-
-/* The reserve API should only be use in TSAPI plugins, during plugin initialization! */
-/* The lookup methods can be used anytime, but are best used during initialization as well,
+/* The reserve API should only be use in TSAPI plugins, during plugin initialization!
+   The lookup methods can be used anytime, but are best used during initialization as well,
    or at least "cache" the results for best performance. */
-tsapi TSReturnCode TSHttpTxnArgIndexReserve(const char *name, const char *description, int *arg_idx);
-tsapi TSReturnCode TSHttpTxnArgIndexNameLookup(const char *name, int *arg_idx, const char **description);
-tsapi TSReturnCode TSHttpTxnArgIndexLookup(int arg_idx, const char **name, const char **description);
-tsapi TSReturnCode TSHttpSsnArgIndexReserve(const char *name, const char *description, int *arg_idx);
-tsapi TSReturnCode TSHttpSsnArgIndexNameLookup(const char *name, int *arg_idx, const char **description);
-tsapi TSReturnCode TSHttpSsnArgIndexLookup(int arg_idx, const char **name, const char **description);
-tsapi TSReturnCode TSVConnArgIndexReserve(const char *name, const char *description, int *arg_idx);
-tsapi TSReturnCode TSVConnArgIndexNameLookup(const char *name, int *arg_idx, const char **description);
-tsapi TSReturnCode TSVConnArgIndexLookup(int arg_idx, const char **name, const char **description);
+tsapi TSReturnCode TSUserArgIndexReserve(TSUserArgType type, const char *name, const char *description, int *arg_idx);
+tsapi TSReturnCode TSUserArgIndexNameLookup(TSUserArgType type, const char *name, int *arg_idx, const char **description);
+tsapi TSReturnCode TSUserArgIndexLookup(TSUserArgType type, int arg_idx, const char **name, const char **description);
+tsapi void TSUserArgSet(void *data, int arg_idx, void *arg);
+tsapi void *TSUserArgGet(void *data, int arg_idx);
+
+/* These are deprecated as of v9.0.0, and will be removed in v10.0.0 */
+tsapi TS_DEPRECATED void TSHttpTxnArgSet(TSHttpTxn txnp, int arg_idx, void *arg);
+tsapi TS_DEPRECATED void *TSHttpTxnArgGet(TSHttpTxn txnp, int arg_idx);
+tsapi TS_DEPRECATED void TSHttpSsnArgSet(TSHttpSsn ssnp, int arg_idx, void *arg);
+tsapi TS_DEPRECATED void *TSHttpSsnArgGet(TSHttpSsn ssnp, int arg_idx);
+tsapi TS_DEPRECATED void TSVConnArgSet(TSVConn connp, int arg_idx, void *arg);
+tsapi TS_DEPRECATED void *TSVConnArgGet(TSVConn connp, int arg_idx);
+
+tsapi TS_DEPRECATED TSReturnCode TSHttpTxnArgIndexReserve(const char *name, const char *description, int *arg_idx);
+tsapi TS_DEPRECATED TSReturnCode TSHttpTxnArgIndexNameLookup(const char *name, int *arg_idx, const char **description);
+tsapi TS_DEPRECATED TSReturnCode TSHttpTxnArgIndexLookup(int arg_idx, const char **name, const char **description);
+tsapi TS_DEPRECATED TSReturnCode TSHttpSsnArgIndexReserve(const char *name, const char *description, int *arg_idx);
+tsapi TS_DEPRECATED TSReturnCode TSHttpSsnArgIndexNameLookup(const char *name, int *arg_idx, const char **description);
+tsapi TS_DEPRECATED TSReturnCode TSHttpSsnArgIndexLookup(int arg_idx, const char **name, const char **description);
+tsapi TS_DEPRECATED TSReturnCode TSVConnArgIndexReserve(const char *name, const char *description, int *arg_idx);
+tsapi TS_DEPRECATED TSReturnCode TSVConnArgIndexNameLookup(const char *name, int *arg_idx, const char **description);
+tsapi TS_DEPRECATED TSReturnCode TSVConnArgIndexLookup(int arg_idx, const char **name, const char **description);
 
 tsapi void TSHttpTxnStatusSet(TSHttpTxn txnp, TSHttpStatus status);
 tsapi TSHttpStatus TSHttpTxnStatusGet(TSHttpTxn txnp);
@@ -1660,6 +1778,13 @@ tsapi void TSHttpTxnServerIntercept(TSCont contp, TSHttpTxn txnp);
 
     This returns a VConn that connected to the transaction.
 
+    @param options a TSHttpConnectPluginOptions structure that specifies options.
+ */
+tsapi TSVConn TSHttpConnectPlugin(TSHttpConnectOptions *options);
+
+/** Backwards compatible version.
+    This function calls This provides a @a buffer_index of 8 and a @a buffer_water_mark of 0.
+
     @param addr Target address of the origin server.
     @param tag A logging tag that can be accessed via the pitag field. May be @c NULL.
     @param id A logging id that can be access via the piid field.
@@ -1670,6 +1795,21 @@ tsapi TSVConn TSHttpConnectWithPluginId(struct sockaddr const *addr, const char 
     This provides a @a tag of "plugin" and an @a id of 0.
  */
 tsapi TSVConn TSHttpConnect(struct sockaddr const *addr);
+
+/**
+   Get an instance of TSHttpConnectOptions with default values.
+ */
+tsapi TSHttpConnectOptions TSHttpConnectOptionsGet(TSConnectType connect_type);
+
+/**
+   Get the value of proxy.config.plugin.vc.default_buffer_index from the TSHttpTxn
+ */
+tsapi TSIOBufferSizeIndex TSPluginVCIOBufferIndexGet(TSHttpTxn txnp);
+
+/**
+   Get the value of proxy.config.plugin.vc.default_buffer_water_mark from the TSHttpTxn
+ */
+tsapi TSIOBufferWaterMark TSPluginVCIOBufferWaterMarkGet(TSHttpTxn txnp);
 
 /* --------------------------------------------------------------------------
  Initiate Transparent Http Connection */
@@ -1687,8 +1827,8 @@ tsapi TSVConn TSHttpConnect(struct sockaddr const *addr);
  */
 tsapi TSVConn TSHttpConnectTransparent(struct sockaddr const *client_addr, struct sockaddr const *server_addr);
 
-tsapi void TSFetchUrl(const char *request, int request_len, struct sockaddr const *addr, TSCont contp,
-                      TSFetchWakeUpOptions callback_options, TSFetchEvent event);
+tsapi TSFetchSM TSFetchUrl(const char *request, int request_len, struct sockaddr const *addr, TSCont contp,
+                           TSFetchWakeUpOptions callback_options, TSFetchEvent event);
 tsapi void TSFetchPages(TSFetchUrlParams_t *params);
 
 /* Check if HTTP State machine is internal or not */
@@ -1757,6 +1897,16 @@ tsapi TSAction TSNetConnect(
   TSCont contp,             /**< continuation that is called back when the attempted net connection either succeeds or fails. */
   struct sockaddr const *to /**< Address to which to connect. */
 );
+
+/**
+ * Retrieves the continuation associated with creating the TSVConn
+ */
+tsapi TSCont TSNetInvokingContGet(TSVConn conn);
+
+/**
+ * Retrieves the transaction associated with creating the TSVConn
+ */
+tsapi TSHttpTxn TSNetInvokingTxnGet(TSVConn conn);
 
 tsapi TSAction TSNetAccept(TSCont contp, int port, int domain, int accept_threads);
 
@@ -1872,7 +2022,7 @@ tsapi TSAction TSCacheWrite(TSCont contp, TSCacheKey key);
     anything. The user does not get any vconnection from the cache,
     since no data needs to be transferred. When the cache calls
     contp back with TS_EVENT_CACHE_REMOVE, the remove has already
-    been commited.
+    been committed.
 
     @param contp continuation that the cache calls back reporting the
       success or failure of the remove.
@@ -1974,6 +2124,7 @@ tsapi void TSIOBufferReaderFree(TSIOBufferReader readerp);
 tsapi TSIOBufferBlock TSIOBufferReaderStart(TSIOBufferReader readerp);
 tsapi void TSIOBufferReaderConsume(TSIOBufferReader readerp, int64_t nbytes);
 tsapi int64_t TSIOBufferReaderAvail(TSIOBufferReader readerp);
+tsapi int64_t TSIOBufferReaderCopy(TSIOBufferReader readerp, void *buf, int64_t length);
 
 tsapi struct sockaddr const *TSNetVConnLocalAddrGet(TSVConn vc);
 
@@ -2014,7 +2165,7 @@ tsapi void TSStatIntDecrement(int the_stat, TSMgmtInt amount);
 tsapi TSMgmtInt TSStatIntGet(int the_stat);
 tsapi void TSStatIntSet(int the_stat, TSMgmtInt value);
 /* Currently not supported. */
-/* tsapi TSeturnCode TSStatFloatGet(int the_stat, float* value); */
+/* tsapi TSReturnCode TSStatFloatGet(int the_stat, float* value); */
 /* tsapi TSReturnCode TSStatFloatSet(int the_stat, float value); */
 
 tsapi TSReturnCode TSStatFindName(const char *name, int *idp);
@@ -2028,7 +2179,7 @@ tsapi void TSDebug(const char *tag, const char *format_str, ...) TS_PRINTFLIKE(2
     Output a debug line even if the debug tag is turned off, as long as
     debugging is enabled. Could be used as follows:
     @code
-    TSDebugSpecifc(TSHttpTxnDebugGet(txn), "plugin_tag" , "Hello World from transaction %p", txn);
+    TSDebugSpecific(TSHttpTxnDebugGet(txn), "plugin_tag" , "Hello World from transaction %p", txn);
     @endcode
     will be printed if the plugin_tag is enabled or the transaction specific
     debugging is turned on for txn.
@@ -2082,8 +2233,7 @@ tsapi void TSRecordDump(int rec_type, TSRecordDumpCb callback, void *edata);
     Creates a new custom log file that your plugin can write to. You
     can design the fields and inputs to the log file using the
     TSTextLogObjectWrite() function. The logs you create are treated
-    like ordinary logs; they are rolled if log rolling is enabled. (Log
-    collation is not supported though).
+    like ordinary logs; they are rolled if log rolling is enabled.
 
     @param filename new log file being created. The new log file
       is created in the logs directory. You can specify a path to a
@@ -2258,6 +2408,37 @@ tsapi int TSHttpTxnServerRespHdrBytesGet(TSHttpTxn txnp);
 tsapi int64_t TSHttpTxnServerRespBodyBytesGet(TSHttpTxn txnp);
 tsapi int TSHttpTxnClientRespHdrBytesGet(TSHttpTxn txnp);
 tsapi int64_t TSHttpTxnClientRespBodyBytesGet(TSHttpTxn txnp);
+tsapi int TSVConnIsSslReused(TSVConn sslp);
+
+/**
+   Return the current (if set) SSL Cipher. This is still owned by the
+   core, and must not be free'd.
+
+   @param sslp The connection pointer
+
+   @return the SSL Cipher
+*/
+tsapi const char *TSVConnSslCipherGet(TSVConn sslp);
+
+/**
+   Return the current (if set) SSL Protocol. This is still owned by the
+   core, and must not be free'd.
+
+   @param sslp The connection pointer
+
+   @return the SSL Protocol
+*/
+tsapi const char *TSVConnSslProtocolGet(TSVConn sslp);
+
+/**
+   Return the current (if set) SSL Curve. This is still owned by the
+   core, and must not be free'd.
+
+   @param txnp the transaction pointer
+
+   @return the SSL Curve
+*/
+tsapi const char *TSVConnSslCurveGet(TSVConn sslp);
 
 /* NetVC timeout APIs. */
 tsapi void TSVConnInactivityTimeoutSet(TSVConn connp, TSHRTime timeout);
@@ -2285,21 +2466,7 @@ tsapi TSReturnCode TSHttpTxnConfigStringGet(TSHttpTxn txnp, TSOverridableConfigK
 tsapi TSReturnCode TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, TSRecordDataType *type);
 
 /**
-   This API informs the core to try to follow redirections (e.g. 301 responses.
-   The new URL would be provided in the standard Location header.
-
-   This is deprecated as of v8.0.0. You should instead rely on using the overridable
-   proxy.config.http.number_of_redirections setting.
-
-   @param txnp the transaction pointer
-   @param on   turn this on or off (0 or 1)
-
-   @return @c TS_SUCCESS if it succeeded
-*/
-tsapi TS_DEPRECATED TSReturnCode TSHttpTxnFollowRedirect(TSHttpTxn txnp, int on);
-
-/**
-   This is a generalization of the TSHttpTxnFollowRedirect(), but gives finer
+   This is a generalization of the old TSHttpTxnFollowRedirect(), but gives finer
    control over the behavior. Instead of using the Location: header for the new
    destination, this API takes the new URL as a parameter. Calling this API
    transfers the ownership of the URL from the plugin to the core, so you must
@@ -2350,6 +2517,7 @@ tsapi TSReturnCode TSHttpTxnCacheLookupStatusSet(TSHttpTxn txnp, int cachelookup
 tsapi TSReturnCode TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
 tsapi TSReturnCode TSHttpTxnCacheLookupUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
 tsapi TSReturnCode TSHttpTxnPrivateSessionSet(TSHttpTxn txnp, int private_session);
+tsapi const char *TSHttpTxnCacheDiskPathGet(TSHttpTxn txnp, int *length);
 tsapi int TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp);
 tsapi int TSHttpTxnIsWebsocket(TSHttpTxn txnp);
 
@@ -2393,7 +2561,19 @@ tsapi TSReturnCode TSHttpTxnMilestoneGet(TSHttpTxn txnp, TSMilestonesType milest
 tsapi int TSHttpTxnIsCacheable(TSHttpTxn txnp, TSMBuffer request, TSMBuffer response);
 
 /**
-   Return a string respresentation for a TSServerState value. This is useful for plugin debugging.
+  Get the maximum age in seconds as indicated by the origin server.
+  This would typically be used in TS_HTTP_READ_RESPONSE_HDR_HOOK, when you have
+  the server response ready.
+
+  @param txnp the transaction pointer
+  @param response the server response header. If NULL, use the transactions origin response.
+
+  @return the age in seconds if specified by Cache-Control, -1 otherwise
+*/
+tsapi int TSHttpTxnGetMaxAge(TSHttpTxn txnp, TSMBuffer response);
+
+/**
+   Return a string representation for a TSServerState value. This is useful for plugin debugging.
 
    @param state the value of this TSServerState
 
@@ -2402,7 +2582,7 @@ tsapi int TSHttpTxnIsCacheable(TSHttpTxn txnp, TSMBuffer request, TSMBuffer resp
 tsapi const char *TSHttpServerStateNameLookup(TSServerState state);
 
 /**
-   Return a string respresentation for a TSHttpHookID value. This is useful for plugin debugging.
+   Return a string representation for a TSHttpHookID value. This is useful for plugin debugging.
 
    @param hook the value of this TSHttpHookID
 
@@ -2411,7 +2591,7 @@ tsapi const char *TSHttpServerStateNameLookup(TSServerState state);
 tsapi const char *TSHttpHookNameLookup(TSHttpHookID hook);
 
 /**
-   Return a string respresentation for a TSEvent value. This is useful for plugin debugging.
+   Return a string representation for a TSEvent value. This is useful for plugin debugging.
 
    @param event the value of this TSHttpHookID
 
@@ -2440,18 +2620,24 @@ tsapi TSUuid TSProcessUuidGet(void);
 tsapi const char *TSHttpTxnPluginTagGet(TSHttpTxn txnp);
 
 /*
- * Return information about the client protocols
+ * Return information about the client protocols.
  */
-tsapi TSReturnCode TSHttpTxnClientProtocolStackGet(TSHttpTxn txnp, int n, const char **result, int *actual);
-tsapi TSReturnCode TSHttpSsnClientProtocolStackGet(TSHttpSsn ssnp, int n, const char **result, int *actual);
+tsapi TSReturnCode TSHttpTxnClientProtocolStackGet(TSHttpTxn txnp, int count, const char **result, int *actual);
+tsapi TSReturnCode TSHttpSsnClientProtocolStackGet(TSHttpSsn ssnp, int count, const char **result, int *actual);
 tsapi const char *TSHttpTxnClientProtocolStackContains(TSHttpTxn txnp, char const *tag);
 tsapi const char *TSHttpSsnClientProtocolStackContains(TSHttpSsn ssnp, char const *tag);
 tsapi const char *TSNormalizedProtocolTag(char const *tag);
 tsapi const char *TSRegisterProtocolTag(char const *tag);
 
-// If, for the given transaction, the URL has been remapped, this function puts the memory location of the "from" URL object in the
-// variable pointed to by urlLocp, and returns TS_SUCCESS.  (The URL object will be within memory allocated to the transaction
-// object.)  Otherwise, the function returns TS_ERROR.
+/*
+ * Return information about the server protocols.
+ */
+tsapi TSReturnCode TSHttpTxnServerProtocolStackGet(TSHttpTxn txnp, int count, const char **result, int *actual);
+tsapi const char *TSHttpTxnServerProtocolStackContains(TSHttpTxn txnp, char const *tag);
+
+// If, for the given transaction, the URL has been remapped, this function puts the memory location of the "from" URL object in
+// the variable pointed to by urlLocp, and returns TS_SUCCESS.  (The URL object will be within memory allocated to the
+// transaction object.)  Otherwise, the function returns TS_ERROR.
 //
 tsapi TSReturnCode TSRemapFromUrlGet(TSHttpTxn txnp, TSMLoc *urlLocp);
 
@@ -2461,10 +2647,78 @@ tsapi TSReturnCode TSRemapFromUrlGet(TSHttpTxn txnp, TSMLoc *urlLocp);
 //
 tsapi TSReturnCode TSRemapToUrlGet(TSHttpTxn txnp, TSMLoc *urlLocp);
 
+// Override response behavior, and hard-set the state machine for whether to succeed or fail, and how.
+tsapi void TSHttpTxnResponseActionSet(TSHttpTxn txnp, TSResponseAction *action);
+
+// Get the overridden response behavior set by previously called plugins.
+tsapi void TSHttpTxnResponseActionGet(TSHttpTxn txnp, TSResponseAction *action);
+
 /*
  * Get a TSIOBufferReader to read the buffered body. The return value needs to be freed.
  */
 tsapi TSIOBufferReader TSHttpTxnPostBufferReaderGet(TSHttpTxn txnp);
+
+/**
+ * Initiate an HTTP/2 Server Push preload request.
+ * Use this api to register a URL that you want to preload with HTTP/2 Server Push.
+ *
+ * @param url the URL string to preload.
+ * @param url_len the length of the URL string.
+ */
+tsapi TSReturnCode TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len);
+
+/** Retrieve the client side stream id for the stream of which the
+ * provided transaction is a part.
+ *
+ * @param[in] txnp The Transaction for which the stream id should be retrieved.
+ * @param[out] stream_id The stream id for this transaction.
+ *
+ * @return TS_ERROR if a stream id cannot be retrieved for the given
+ * transaction given its protocol. For instance, if txnp is an HTTP/1.1
+ * transaction, then a TS_ERROR will be returned because HTTP/1.1 does not
+ * implement streams.
+ */
+tsapi TSReturnCode TSHttpTxnClientStreamIdGet(TSHttpTxn txnp, uint64_t *stream_id);
+
+/** Retrieve the client side priority for the stream of which the
+ * provided transaction is a part.
+ *
+ * @param[in] txnp The Transaction for which the stream id should be retrieved.
+ * @param[out] priority The priority for the stream in this transaction.
+ *
+ * @return TS_ERROR if a priority cannot be retrieved for the given
+ * transaction given its protocol. For instance, if txnp is an HTTP/1.1
+ * transaction, then a TS_ERROR will be returned because HTTP/1.1 does not
+ * implement stream priorities.
+ */
+tsapi TSReturnCode TSHttpTxnClientStreamPriorityGet(TSHttpTxn txnp, TSHttpPriority *priority);
+
+/*
+ * Returns TS_SUCCESS if hostname is this machine, as used for parent and remap self-detection.
+ * Returns TS_ERROR if hostname is not this machine.
+ */
+tsapi TSReturnCode TSHostnameIsSelf(const char *hostname, size_t hostname_len);
+
+/*
+ * Gets the status of hostname in the outparam status, and the status reason in the outparam reason.
+ * The reason is a logical-or combination of the reasons in TSHostStatusReason.
+ * If either outparam is null, it will not be set and no error will be returned.
+ * Returns TS_SUCCESS if the hostname was a parent and existed in the HostStatus, else TS_ERROR.
+ */
+tsapi TSReturnCode TSHostStatusGet(const char *hostname, const size_t hostname_len, TSHostStatus *status, unsigned int *reason);
+
+/*
+ * Sets the status of hostname in status, down_time, and reason.
+ * The reason is a logical-or combination of the reasons in TSHostStatusReason.
+ */
+tsapi void TSHostStatusSet(const char *hostname, const size_t hostname_len, TSHostStatus status, const unsigned int down_time,
+                           const unsigned int reason);
+
+/*
+ * Set or get various HTTP Transaction control settings.
+ */
+tsapi bool TSHttpTxnCntlGet(TSHttpTxn txnp, TSHttpCntlType ctrl);
+tsapi TSReturnCode TSHttpTxnCntlSet(TSHttpTxn txnp, TSHttpCntlType ctrl, bool data);
 
 #ifdef __cplusplus
 }

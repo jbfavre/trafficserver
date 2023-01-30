@@ -56,7 +56,7 @@ The plugin manipulates the `cache key` by default. If `parent selection URL` man
 * ``--key-type=<list of target types>``  (default: ``cache_key``) - list of ``cache_key`` or ``parent_selection_url``, if multiple ``--key-type`` options are specified then all values are combined together.
 
 An instance of this plugin can be used for applying manipulations to `cache key`, `parent selection URL` or both depending on the need. See `simultaneous cache key and parent selection URL manipulation`_
-for examples of how to apply the **same** set of manupulations to both targets with a single plugin instance or applying **diferent** sets of manipulations to each target using separate plugin instances.
+for examples of how to apply the **same** set of manipulations to both targets with a single plugin instance or applying **different** sets of manipulations to each target using separate plugin instances.
 
 
 Cache key structure and related plugin parameters
@@ -83,21 +83,21 @@ Cache key structure and related plugin parameters
 
 ::
 
-  Optional components      | ┌─────────────────┬────────────── ───┬──────────────────────┐
-  (included in this order) | │ --static-prefix | --capture-prefix │ --capture-prefix-uri │
+  Optional components      | ┌─────────────────┬──────────────────┬──────────────────────┐
+  (included in this order) | │ --static-prefix │ --capture-prefix │ --capture-prefix-uri │
                            | ├─────────────────┴──────────────────┴──────────────────────┤
-  Default values if no     | │ /host/port or scheme://host:port (see the table below)    |
+  Default values if no     | │ /host/port or scheme://host:port (see the table below)    │
   optional components      | └───────────────────────────────────────────────────────────┘
   configured               |
 
   ┌────────────────────┬─────────────────────────┬──────────────────────┐
-  │ --canonical-prefix |  default value if no    │ input used for       │
-  │                    |  prefix parameters used │ --capture-prefix     │
-  ├────────────────────┴─────────────────────────┴──────────────────────┤
-  │ false              | /host/port              | host:port            |
-  ├────────────────────┴─────────────────────────┴──────────────────────┤
-  │ true               | scheme://host:port      | scheme://host:port   |
-  └──────────────────────────────────────────────┴──────────────────────┘
+  │ --canonical-prefix │  default value if no    │ input used for       │
+  │                    │  prefix parameters used │ --capture-prefix     │
+  ├────────────────────┼─────────────────────────┼──────────────────────┤
+  │ false              │ /host/port              │ host:port            │
+  ├────────────────────┼─────────────────────────┼──────────────────────┤
+  │ true               │ scheme://host:port      │ scheme://host:port   │
+  └────────────────────┴─────────────────────────┴──────────────────────┘
 
 
 * ``--static-prefix=<value>`` (default: empty string) - if specified and not an empty string the ``<value>`` will be added to the `cache key`.
@@ -114,16 +114,16 @@ Cache key structure and related plugin parameters
 ::
 
   Optional components      | ┌────────────┬──────────────┐
-  (included in this order) | │ --ua-class | --ua-capture │
+  (included in this order) | │ --ua-class │ --ua-capture │
                            | ├────────────┴──────────────┤
-  Default values if no     | │ (empty)                   |
+  Default values if no     | │ (empty)                   │
   optional components      | └───────────────────────────┘
   configured               |
 
 * ``User-Agent`` classification
-    * ``--ua-whitelist=<classname>:<filename>`` (default: empty string) - loads a regex patterns list from a file ``<filename>``, the patterns are matched against the ``User-Agent`` header and if matched ``<classname>`` is added it to the key.
-    * ``--ua-blacklist=<classname>:<filename>`` (default: empty string) - loads a regex patterns list from a file ``<filename>``, the patterns are matched against the ``User-Agent`` header and if **not** matched ``<classname>`` is added it to the key.
-    * Multiple ``--ua-whitelist`` and ``--ua-blacklist`` can be used and the result will be defined by their order in the plugin configuration.
+    * ``--ua-allowlist=<classname>:<filename>`` (default: empty string) - loads a regex patterns list from a file ``<filename>``, the patterns are matched against the ``User-Agent`` header and if matched ``<classname>`` is added it to the key.
+    * ``--ua-denylist=<classname>:<filename>`` (default: empty string) - loads a regex patterns list from a file ``<filename>``, the patterns are matched against the ``User-Agent`` header and if **not** matched ``<classname>`` is added it to the key.
+    * Multiple ``--ua-allowlist`` and ``--ua-denylist`` can be used and the result will be defined by their order in the plugin configuration.
 * ``User-Agent`` regex capturing and replacement
     * ``--ua-capture=<capture_definition>`` (default: empty string) - if specified and not empty then strings are captured from the ``User-Agent`` header based on ``<capture_definition>`` (see below) and are added to the `cache key`.
 * If any ``User-Agent`` classification and regex capturing and replacement plugin parameters are used together they are added to the `cache key` in the order shown in the diagram.
@@ -133,11 +133,11 @@ Cache key structure and related plugin parameters
 
 ::
 
-  Optional components      | ┌───────────────────┬────────────────────┐
-                           | │ --include-headers │  --capture-headers │
-                           | ├────────────────────────────────────────┤
-  Default values if no     | │ (empty)           |  (empty)           |
-  optional components      | └───────────────────┴────────────────────┘
+  Optional components      | ┌───────────────────┬───────────────────┐
+                           | │ --include-headers │  --capture-header │
+                           | ├───────────────────┼───────────────────┤
+  Default values if no     | │ (empty)           │  (empty)          │
+  optional components      | └───────────────────┴───────────────────┘
   configured               |
 
 * ``--include-headers`` (default: empty list) - comma separated list of headers to be added to the `cache key`. The list of headers defined by ``--include-headers`` are always sorted before adding them to the `cache key`.
@@ -152,7 +152,7 @@ Cache key structure and related plugin parameters
   Optional components      | ┌───────────────────┐
                            | │ --include-cookies │
                            | ├───────────────────┤
-  Default values if no     | │ (empty)           |
+  Default values if no     | │ (empty)           │
   optional components      | └───────────────────┘
   configured               |
 
@@ -164,9 +164,9 @@ Cache key structure and related plugin parameters
 ::
 
   Optional components      | ┌────────────────────┬────────────────┐
-  (included in this order) | │ --capture-path-uri | --capture-path │
+  (included in this order) | │ --capture-path-uri │ --capture-path │
                            | ├────────────────────┴────────────────┤
-  Default values if no     | │ URI path                            |
+  Default values if no     | │ URI path                            │
   optional components      | └─────────────────────────────────────┘
   configured               |
 
@@ -179,10 +179,10 @@ Cache key structure and related plugin parameters
 ^^^^^^^^^^^^^^^
 
 * If no query related plugin parameters are used, the query string is included in the `cache key`.
-* ``--exclude-params`` (default: empty list) - comma-separated list of query params to be black-listed in the `cache key`. If the list is empty then no black-list is applied (no query parameters will be excluded from the `cache key`). The exclude list overrides the include list.
-* ``--include-params`` (default: empty list) - comma-separated list of query params to be white-listed in the `cache key`. If the list is empty then no white-list is applied (all query parameters will be included in the `cache key`).
-* ``--include-match-params`` (default: empty list) - regular expression matching query parameter names which will be white-listed in the `cache key`.
-* ``--exclude-match-params`` (default: empty list) - regular expression matching query parameter names which will be black-listed in the `cache key`.
+* ``--exclude-params`` (default: empty list) - comma-separated list of query params to be excluded in the `cache key`. If the list is empty then no exclusions are applied (no query parameters will be excluded from the `cache key`). The exclude list overrides the include list.
+* ``--include-params`` (default: empty list) - comma-separated list of query params to be allow-listed in the `cache key`. If the list is empty then no allow-list is applied (all query parameters will be included in the `cache key`).
+* ``--include-match-params`` (default: empty list) - regular expression matching query parameter names which will be allowed in the `cache key`.
+* ``--exclude-match-params`` (default: empty list) - regular expression matching query parameter names which will be excluded in the `cache key`.
 * ``--remove-all-params`` (boolean:``true|false``, ``0|1``, ``yes|no``, default: ``false``) - if equals ``true`` then all query parameters are removed (the whole query string) and all other URI query parameter related settings (if used) will have no effect.
 * ``--sort-params`` (boolean:``true|false``, ``0|1``, ``yes|no``, default: ``false``) - if equals ``true`` then all query parameters are sorted in an increasing case-sensitive order
 
@@ -239,7 +239,7 @@ Because of the ATS core (remap) and the CacheKey plugin implementation there is 
 * The per-remap instance uses the URI **during** remap (after ``TS_HTTP_PRE_REMAP_HOOK`` and  before ``TS_HTTP_POST_REMAP_HOOK``) which leads to a different URI to be used depending on plugin order in the remap rule.
 
     * If CacheKey plugin is the first plugin in the remap rule the URI used will be practically the same as the pristine URI.
-    * If the CacheKey plugin is the last plugin in the remap rule (which is right before ``TS_HTTP_POST_REMAP_HOOK``) the behavior will be simillar to the global instnance.
+    * If the CacheKey plugin is the last plugin in the remap rule (which is right before ``TS_HTTP_POST_REMAP_HOOK``) the behavior will be similar to the global instance.
 
 
 Detailed examples and troubleshooting
@@ -259,12 +259,12 @@ Detailed examples and troubleshooting
 
 The following is an example of how the above sample keys were generated (``Sample 1`` and ``Sample 2``).
 
-Traffic server configuration ::
+|TS| configuration ::
 
   $ cat etc/trafficserver/remap.config
   map http://www.example.com http://www.origin.com \
       @plugin=cachekey.so \
-          @pparam=--ua-whitelist=popular:popular_agents.config \
+          @pparam=--ua-allowlist=popular:popular_agents.config \
           @pparam=--ua-capture=(Mozilla\/[^\s]*).* \
           @pparam=--include-headers=H1,H2 \
           @pparam=--include-cookies=C1,C2 \
@@ -377,7 +377,7 @@ The following will make sure only query parameters ``a`` and ``c`` will be used 
 
 If the URI has the following query string ``c=1&a=1&b=2&x=1&k=1&u=1&y=1`` the `cache key` will use ``c=1&a=1``
 
-White-list + black-list certain parameters using multiple parameters in the same remap rule.
+Include and exclude certain parameters using multiple parameters in the same remap rule.
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 If the plugin is used with the following plugin parameters in the remap rule: ::
 
@@ -390,7 +390,7 @@ If the plugin is used with the following plugin parameters in the remap rule: ::
 
 and if the URI has the following query string ``c=1&a=1&b=2&x=1&k=1&u=1&y=1`` the `cache key` will use ``c=1&b=1``
 
-White-list + black-list certain parameters using multiple parameters in the same remap rule and regular expressions (PCRE).
+Include and exclude certain parameters using multiple parameters in the same remap rule and regular expressions (PCRE).
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 If the plugin is used with the following plugin parameters in the remap rule: ::
 
@@ -428,7 +428,7 @@ The following headers ``HeaderA`` and ``HeaderB`` will be used when constructing
 The following would capture from the ``Authorization`` header and will add the captured element to the `cache key` ::
 
   @plugin=cachekey.so \
-      @pparam=--capture-header=Authorization:/AWS\s(?<clientID>[^:]+).*/clientID:$1/"
+      @pparam=--capture-header=Authorization:/AWS\s(?<clientID>[^:]+).*/clientID:$1/
 
 If the request looks like the following::
 
@@ -482,7 +482,7 @@ and if the request URI is the following ::
 
   http://test_prefix_123.example.com/path/to/object?a=1&b=2&c=3
 
-the the `cache key` will be prefixed with ``/test_prefix_object`` instead of ``test_prefix_123.example.com:80`` when ``--capture-prefix-uri`` is not used.
+the `cache key` will be prefixed with ``/test_prefix_object`` instead of ``test_prefix_123.example.com:80`` when ``--capture-prefix-uri`` is not used.
 
 Combining prefix plugin parameters, i.e. --static-prefix and --capture-prefix
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -525,7 +525,7 @@ and the request URI is the following ::
 
   http://test_path_123.example.com/path/to/object?a=1&b=2&c=3
 
-the the `cache key` will have ``/test_path_object`` in the path section of the `cache key` instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
+the `cache key` will have ``/test_path_object`` in the path section of the `cache key` instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
 
 
 Combining path plugin parameters --capture-path and --capture-path-uri
@@ -541,7 +541,7 @@ and the request URI is the following ::
 
   http://test_path_123.example.com/path/to/object?a=1&b=2&c=3
 
-the the `cache key` will have ``/test_path_object/const_path_object`` in the path section of the `cache key` instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
+the `cache key` will have ``/test_path_object/const_path_object`` in the path section of the `cache key` instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
 
 User-Agent capturing, replacement and classification
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -570,12 +570,12 @@ If the plugin is used with the following plugin parameter::
 
 then ``Mozilla/5.0_AppleWebKit/537.75.14`` will be used when constructing the key.
 
-User-Agent white-list classifier
+User-Agent allow-list classifier
 """"""""""""""""""""""""""""""""
 If the plugin is used with the following plugin parameter::
 
   @plugin=cachekey.so \
-      @pparam=--ua-whitelist=browser:browser_agents.config
+      @pparam=--ua-allowlist=browser:browser_agents.config
 
 and if ``browser_agents.config`` contains: ::
 
@@ -585,12 +585,12 @@ and if ``browser_agents.config`` contains: ::
 
 then ``browser`` will be used when constructing the key.
 
-User-Agent black-list classifier
+User-Agent deny-list classifier
 """"""""""""""""""""""""""""""""
 If the plugin is used with the following plugin parameter::
 
   @plugin=cachekey.so \
-      @pparam=--ua-blacklist=browser:tool_agents.config
+      @pparam=--ua-denylist=browser:tool_agents.config
 
 and if ``tool_agents.config`` contains: ::
 
@@ -636,7 +636,7 @@ Example 3: Same result as the above but this time by using `--capture-path-uri` 
         @pparam=--remove-all-params=true \
         @pparam=--separator=
 
-Example 4: Let us say that we would like to capture from URI in similar to `cacheurl` way but also sort the query parameters (which is not supported by `cacheurl`). We could achieve that by using `--capture-prefix-uri` to capture by using a caplture definition to process the URI before `?`  and using `--remove-path` to remove the URI path and `--sort-params=true` to sort the query parameters::
+Example 4: Let us say that we would like to capture from URI in similar to `cacheurl` way but also sort the query parameters (which is not supported by `cacheurl`). We could achieve that by using `--capture-prefix-uri` to capture by using a capture definition to process the URI before `?`  and using `--remove-path` to remove the URI path and `--sort-params=true` to sort the query parameters::
 
     @plugin=cachekey.so \
         @pparam=--capture-prefix-uri=/([^?]*)/$1/ \

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <atomic>
 #include "Hash.h"
 #include <cstdint>
 #include <iostream>
@@ -31,8 +32,8 @@
  */
 
 struct ATSConsistentHashNode {
-  bool available;
-  char *name;
+  std::atomic<bool> available{true};
+  char *name{nullptr};
 };
 
 std::ostream &operator<<(std::ostream &os, ATSConsistentHashNode &thing);

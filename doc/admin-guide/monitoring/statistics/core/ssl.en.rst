@@ -74,26 +74,16 @@ SSL/TLS
    The number of SSL connections to origin servers which were terminated due to
    unsupported SSL/TLS protocol versions, since statistics collection began.
 
-.. ts:stat:: global proxy.process.ssl.ssl_error_read_eos integer
-   :type: counter
-
 .. ts:stat:: global proxy.process.ssl.ssl_error_ssl integer
    :type: counter
 
 .. ts:stat:: global proxy.process.ssl.ssl_error_syscall integer
    :type: counter
 
-.. ts:stat:: global proxy.process.ssl.ssl_error_want_read integer
+.. ts:stat:: global proxy.process.ssl.ssl_error_async integer
    :type: counter
 
-.. ts:stat:: global proxy.process.ssl.ssl_error_want_write integer
-   :type: counter
-
-.. ts:stat:: global proxy.process.ssl.ssl_error_want_x509_lookup integer
-   :type: counter
-
-.. ts:stat:: global proxy.process.ssl.ssl_error_zero_return integer
-   :type: counter
+   Track the number of times OpenSSL async jobs paused.
 
 .. ts:stat:: global proxy.process.ssl.ssl_session_cache_eviction integer
    :type: counter
@@ -101,10 +91,16 @@ SSL/TLS
 .. ts:stat:: global proxy.process.ssl.ssl_session_cache_hit integer
    :type: counter
 
+.. ts:stat:: global proxy.process.ssl.ssl_origin_session_cache_hit integer
+   :type: counter
+
 .. ts:stat:: global proxy.process.ssl.ssl_session_cache_lock_contention integer
    :type: counter
 
 .. ts:stat:: global proxy.process.ssl.ssl_session_cache_miss integer
+   :type: counter
+
+.. ts:stat:: global proxy.process.ssl.ssl_origin_session_cache_miss integer
    :type: counter
 
 .. ts:stat:: global proxy.process.ssl.ssl_session_cache_new_session integer
@@ -120,10 +116,28 @@ SSL/TLS
    The total amount of time spent performing SSL/TLS handshakes for new sessions
    since statistics collection began.
 
-.. ts:stat:: global proxy.process.ssl.total_success_handshake_count integer
+.. ts:stat:: global proxy.process.ssl.total_attempts_handshake_count_in integer
    :type: counter
 
-   The total number of SSL/TLS handshakes successfully performed since
+   The total number of inbound SSL/TLS handshake attempts received since
+   statistics collection began.
+
+.. ts:stat:: global proxy.process.ssl.total_success_handshake_count_in integer
+   :type: counter
+
+   The total number of inbound SSL/TLS handshakes successfully performed since
+   statistics collection began.
+
+.. ts:stat:: global proxy.process.ssl.total_attempts_handshake_count_out integer
+   :type: counter
+
+   The total number of outbound SSL/TLS handshake attempts made since
+   statistics collection began.
+
+.. ts:stat:: global proxy.process.ssl.total_success_handshake_count_out integer
+   :type: counter
+
+   The total number of outbound SSL/TLS handshakes successfully performed since
    statistics collection began.
 
 .. ts:stat:: global proxy.process.ssl.total_ticket_keys_renewed integer
@@ -219,3 +233,49 @@ SSL/TLS
    Incoming client SSL connections terminated due to an unsupported or disabled
    version of SSL/TLS, since statistics collection began.
 
+.. ts:stat:: global proxy.process.tunnel.current_active_connections integer
+   :type: gauge
+
+   A gauge of current active SNI Routing Tunnels.
+
+.. _pre-warming-tls-tunnel-stats:
+
+Pre-warming TLS Tunnel
+----------------------
+
+Stats for Pre-warming TLS Tunnel is registered dynamically. The ``POOL`` in below represents combination of ``<Hostname of destination>.<Type of Tunnel>.<ALPN Name (if there)>``.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.current_init integer
+   :type: gauge
+
+   Represents the current number of initializing connections in the pool.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.current_open integer
+   :type: gauge
+
+   Represents the current number of established connections in the pool.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.total_hit integer
+   :type: counter
+
+   Represents the total number of pre-warmed connection is used.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.total_miss integer
+   :type: counter
+
+   Represents the total number of pre-warmed connection is not used.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.total_handshake_time integer
+   :type: counter
+
+   Represents the total number of handshake duration of pre-warming.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.total_handshake_count integer
+   :type: counter
+
+   Represents the total number of handshake time of pre-warming.
+
+.. ts:stat:: global proxy.process.tunnel.prewarm.POOL.total_retry integer
+   :type: counter
+
+   Represents the total number of pre-warming retry.

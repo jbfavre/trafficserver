@@ -49,7 +49,7 @@ traffic_manager_traffic_manager_LDADD = \
 	$(top_builddir)/lib/records/librecords_lm.a \
 	$(top_builddir)/proxy/shared/libdiagsconfig.a \
    	$(LIBUNWIND_LIBS) \
-	@LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
+	@LIBPCRE@ @LIBCAP@ @HWLOC_LIBS@ \
 	@YAMLCPP_LIBS@
 	-lm
 
@@ -57,6 +57,5 @@ traffic_manager_traffic_manager_LDADD = \
 if BUILD_WCCP
 traffic_manager_traffic_manager_LDADD += \
 	wccp/libwccp.a \
-	$(top_builddir)/lib/tsconfig/libtsconfig.la \
 	@OPENSSL_LIBS@
 endif

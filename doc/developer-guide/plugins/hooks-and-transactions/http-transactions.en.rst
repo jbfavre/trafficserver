@@ -26,9 +26,10 @@ The HTTP transaction functions enable you to set up plugin callbacks to
 HTTP transactions and obtain/modify information about particular HTTP
 transactions.
 
-As described in the section on HTTP sessions, an **HTTP transaction** is
-an object defined for the lifetime of a single request from a client and
-the corresponding response from Traffic Server. The **``TSHttpTxn``**
+As described in :ref:`HTTP sessions
+<developer-plugins-hooks-http-sessions>`, an **HTTP transaction** is an
+object defined for the lifetime of a single request from a client and
+the corresponding response from Traffic Server. The :c:type:`TSHttpTxn`
 structure is the main handle given to a plugin for manipulating a
 transaction's internal state. Additionally, an HTTP transaction has a
 reference back to the HTTP session that created it.
@@ -41,7 +42,7 @@ transaction and associate data to the transaction.
     /*
     * Simple plugin that illustrates:
     * - how to register locally to a transaction
-    * - how to deal with data that's associated with a tranaction
+    * - how to deal with data that's associated with a transaction
     *
     * Note: for readability, error checking is omitted
     */
@@ -148,7 +149,7 @@ transaction and associate data to the transaction.
           and doesn't have any data associated with it */
        contp = TSContCreate(global_hook_handler, NULL);
 
-       /* Register gloabally */
+       /* Register globally */
        TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, contp);
     }
 
@@ -168,8 +169,12 @@ The HTTP transaction functions are:
    - Note that it is an error to modify cached headers.
 
 -  :c:func:`TSHttpTxnClientReqGet`
-   - Plugins that must read client request headers use this call to
-   retrieve the HTTP header.
+   - Plugins that read client request headers use this call to retrieve the
+   HTTP header for any given :c:type:`TSHttpTxn`.
+
+-  :c:func:`TSHttpTxnPostBufferReaderGet`
+   - Plugins that read client request bodies use this call to retrieve the
+   HTTP body for any given :c:type:`TSHttpTxn`.
 
 -  :c:func:`TSHttpTxnClientRespGet`
 
