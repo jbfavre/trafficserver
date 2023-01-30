@@ -4,3 +4,4 @@
 0013-fix-perl-interpreter-path.patch
 0014-use_system_yaml-cpp.patch
 0019-fix-test_http_proxy.patch
+0020-fix-sphinx-warning.patch
