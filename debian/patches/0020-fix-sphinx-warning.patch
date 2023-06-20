@@ -6,32 +6,14 @@ Reviewed-by: Jean Baptiste Favre <jbfavre@debian.org>
 Last-Update: 2023-01-30
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/doc/ext/traffic-server.py
-+++ b/doc/ext/traffic-server.py
-@@ -106,7 +106,7 @@ class TSConfVar(std.Target):
+--- a/doc/developer-guide/documentation/adding-domains.en.rst
++++ b/doc/developer-guide/documentation/adding-domains.en.rst
+@@ -209,7 +209,7 @@ Our variables domain might have the foll
          title['first'] = False
-         title['objtype'] = 'cv'
+         title['objtype'] = node['objtype']
          self.add_name(title)
--        title.set_class('ts-cv-title')
-+        title['classes'].append('ts-cv-title')
+-        title.set_class('ts-variable-title')
++        title['classes'] = 'ts-variable-title'
  
-         # Finally, add a desc_name() node to display the name of the
-         # configuration variable.
-@@ -115,7 +115,7 @@ class TSConfVar(std.Target):
+         title += sphinx.addnodes.desc_name(var_name, var_name)
          node.append(title)
- 
-         if ('class' in self.options):
--            title.set_class(self.options.get('class'))
-+            title['classes'].append(self.options.get('class'))
-         # This has to be a distinct node before the title. if nested then
-         # the browser will scroll forward to just past the title.
-         nodes.target('', '', names=[cv_name])
-@@ -244,7 +244,7 @@ class TSStat(std.Target):
-         title['first'] = False
-         title['objtype'] = 'stat'
-         self.add_name(title)
--        title.set_class('ts-stat-title')
-+        title['classes'].append('ts-stat-title')
- 
-         # Finally, add a desc_name() node to display the name of the
-         # configuration variable.

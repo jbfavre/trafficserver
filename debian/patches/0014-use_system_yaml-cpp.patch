@@ -17,7 +17,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
          proxy/http
 --- a/configure.ac
 +++ b/configure.ac
-@@ -2315,7 +2315,6 @@ AC_CONFIG_FILES([
+@@ -2341,7 +2341,6 @@ AC_CONFIG_FILES([
    lib/records/Makefile
    src/wccp/Makefile
    lib/fastlz/Makefile
