@@ -885,10 +885,10 @@ Log::init_fields()
   global_field_list.add(field, false);
   field_symbol_hash.emplace("ttms", field);
 
-  field = new LogField("transfer_time_ms_hex", "ttmh", LogField::sINT, &LogAccess::marshal_transfer_time_ms,
+  field = new LogField("transfer_time_ms_hex", "ttmsh", LogField::sINT, &LogAccess::marshal_transfer_time_ms,
                        &LogAccess::unmarshal_int_to_str_hex);
   global_field_list.add(field, false);
-  field_symbol_hash.emplace("ttmh", field);
+  field_symbol_hash.emplace("ttmsh", field);
 
   field = new LogField("transfer_time_ms_fractional", "ttmsf", LogField::sINT, &LogAccess::marshal_transfer_time_ms,
                        &LogAccess::unmarshal_ttmsf);
@@ -1433,7 +1433,7 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
 
     // Time to work on periodic events??
     //
-    now = Thread::get_hrtime() / HRTIME_SECOND;
+    now = Thread::get_hrtime_updated() / HRTIME_SECOND;
     if (now >= last_time + periodic_tasks_interval) {
       Debug("log-preproc", "periodic tasks for %" PRId64, (int64_t)now);
       periodic_tasks(now);
