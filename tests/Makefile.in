@@ -380,11 +380,6 @@ am_tools_plugins_ssl_hook_test_la_OBJECTS =  \
 	tools/plugins/ssl_hook_test.lo
 tools_plugins_ssl_hook_test_la_OBJECTS =  \
 	$(am_tools_plugins_ssl_hook_test_la_OBJECTS)
-tools_plugins_ssl_secret_load_test_la_LIBADD =
-am_tools_plugins_ssl_secret_load_test_la_OBJECTS =  \
-	tools/plugins/ssl_secret_load_test.lo
-tools_plugins_ssl_secret_load_test_la_OBJECTS =  \
-	$(am_tools_plugins_ssl_secret_load_test_la_OBJECTS)
 tools_plugins_ssl_verify_test_la_LIBADD =
 am_tools_plugins_ssl_verify_test_la_OBJECTS =  \
 	tools/plugins/ssl_verify_test.lo
@@ -478,7 +473,6 @@ am__depfiles_remade = gold_tests/bigobj/$(DEPDIR)/check_ramp.Po \
 	tools/plugins/$(DEPDIR)/missing_ts_plugin_init.Plo \
 	tools/plugins/$(DEPDIR)/ssl_client_verify_test.Plo \
 	tools/plugins/$(DEPDIR)/ssl_hook_test.Plo \
-	tools/plugins/$(DEPDIR)/ssl_secret_load_test.Plo \
 	tools/plugins/$(DEPDIR)/ssl_verify_test.Plo \
 	tools/plugins/$(DEPDIR)/ssntxnorder_verify.Plo \
 	tools/plugins/$(DEPDIR)/test_cppapi.Plo \
@@ -537,7 +531,6 @@ SOURCES = $(gold_tests_continuations_plugins_session_id_verify_la_SOURCES) \
 	$(tools_plugins_missing_ts_plugin_init_la_SOURCES) \
 	$(tools_plugins_ssl_client_verify_test_la_SOURCES) \
 	$(tools_plugins_ssl_hook_test_la_SOURCES) \
-	$(tools_plugins_ssl_secret_load_test_la_SOURCES) \
 	$(tools_plugins_ssl_verify_test_la_SOURCES) \
 	$(tools_plugins_ssntxnorder_verify_la_SOURCES) \
 	$(tools_plugins_test_cppapi_la_SOURCES) \
@@ -564,7 +557,6 @@ DIST_SOURCES = $(gold_tests_continuations_plugins_session_id_verify_la_SOURCES) 
 	$(tools_plugins_missing_ts_plugin_init_la_SOURCES) \
 	$(tools_plugins_ssl_client_verify_test_la_SOURCES) \
 	$(tools_plugins_ssl_hook_test_la_SOURCES) \
-	$(tools_plugins_ssl_secret_load_test_la_SOURCES) \
 	$(tools_plugins_ssl_verify_test_la_SOURCES) \
 	$(tools_plugins_ssntxnorder_verify_la_SOURCES) \
 	$(tools_plugins_test_cppapi_la_SOURCES) \
@@ -1250,7 +1242,6 @@ noinst_LTLIBRARIES =  \
 	tools/plugins/missing_ts_plugin_init.la \
 	tools/plugins/ssl_client_verify_test.la \
 	tools/plugins/ssl_hook_test.la \
-	tools/plugins/ssl_secret_load_test.la \
 	tools/plugins/ssl_verify_test.la \
 	tools/plugins/ssntxnorder_verify.la \
 	tools/plugins/test_cppapi.la tools/plugins/test_hooks.la \
@@ -1289,7 +1280,6 @@ tools_plugins_missing_mangled_definition_la_LDFLAGS = \
 tools_plugins_missing_ts_plugin_init_la_SOURCES = tools/plugins/missing_ts_plugin_init.cc
 tools_plugins_ssl_client_verify_test_la_SOURCES = tools/plugins/ssl_client_verify_test.cc
 tools_plugins_ssl_hook_test_la_SOURCES = tools/plugins/ssl_hook_test.cc
-tools_plugins_ssl_secret_load_test_la_SOURCES = tools/plugins/ssl_secret_load_test.cc
 tools_plugins_ssl_verify_test_la_SOURCES = tools/plugins/ssl_verify_test.cc
 tools_plugins_ssntxnorder_verify_la_SOURCES = tools/plugins/ssntxnorder_verify.cc
 tools_plugins_test_cppapi_la_SOURCES = tools/plugins/test_cppapi.cc
@@ -1463,11 +1453,6 @@ tools/plugins/ssl_hook_test.lo: tools/plugins/$(am__dirstamp) \
 
 tools/plugins/ssl_hook_test.la: $(tools_plugins_ssl_hook_test_la_OBJECTS) $(tools_plugins_ssl_hook_test_la_DEPENDENCIES) $(EXTRA_tools_plugins_ssl_hook_test_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
 	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_ssl_hook_test_la_OBJECTS) $(tools_plugins_ssl_hook_test_la_LIBADD) $(LIBS)
-tools/plugins/ssl_secret_load_test.lo: tools/plugins/$(am__dirstamp) \
-	tools/plugins/$(DEPDIR)/$(am__dirstamp)
-
-tools/plugins/ssl_secret_load_test.la: $(tools_plugins_ssl_secret_load_test_la_OBJECTS) $(tools_plugins_ssl_secret_load_test_la_DEPENDENCIES) $(EXTRA_tools_plugins_ssl_secret_load_test_la_DEPENDENCIES) tools/plugins/$(am__dirstamp)
-	$(AM_V_CXXLD)$(CXXLINK)  $(tools_plugins_ssl_secret_load_test_la_OBJECTS) $(tools_plugins_ssl_secret_load_test_la_LIBADD) $(LIBS)
 tools/plugins/ssl_verify_test.lo: tools/plugins/$(am__dirstamp) \
 	tools/plugins/$(DEPDIR)/$(am__dirstamp)
 
@@ -1594,7 +1579,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/missing_ts_plugin_init.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/ssl_client_verify_test.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/ssl_hook_test.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/ssl_secret_load_test.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/ssl_verify_test.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/ssntxnorder_verify.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tools/plugins/$(DEPDIR)/test_cppapi.Plo@am__quote@ # am--include-marker
@@ -2066,7 +2050,6 @@ distclean: distclean-recursive
 	-rm -f tools/plugins/$(DEPDIR)/missing_ts_plugin_init.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssl_client_verify_test.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssl_hook_test.Plo
-	-rm -f tools/plugins/$(DEPDIR)/ssl_secret_load_test.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssl_verify_test.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssntxnorder_verify.Plo
 	-rm -f tools/plugins/$(DEPDIR)/test_cppapi.Plo
@@ -2139,7 +2122,6 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f tools/plugins/$(DEPDIR)/missing_ts_plugin_init.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssl_client_verify_test.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssl_hook_test.Plo
-	-rm -f tools/plugins/$(DEPDIR)/ssl_secret_load_test.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssl_verify_test.Plo
 	-rm -f tools/plugins/$(DEPDIR)/ssntxnorder_verify.Plo
 	-rm -f tools/plugins/$(DEPDIR)/test_cppapi.Plo

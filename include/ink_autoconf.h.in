@@ -226,6 +226,9 @@
 /* Define to 1 if you have the `mcheck_pedantic' function. */
 #undef HAVE_MCHECK_PEDANTIC
 
+/* Define to 1 if you have the `MD5_Init' function. */
+#undef HAVE_MD5_INIT
+
 /* Define to 1 if you have the <mimalloc.h> header file. */
 #undef HAVE_MIMALLOC_H
 
@@ -370,6 +373,9 @@
 
 /* Define to 1 if you have the `SHA1' function. */
 #undef HAVE_SHA1
+
+/* Define to 1 if you have the `SHA256_Init' function. */
+#undef HAVE_SHA256_INIT
 
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H

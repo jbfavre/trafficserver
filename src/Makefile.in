@@ -363,7 +363,7 @@ noinst_PROGRAMS =
 @BUILD_TESTS_TRUE@am__append_5 = \
 @BUILD_TESTS_TRUE@	traffic_server/InkAPITest.cc
 
-@IS_DARWIN_TRUE@am__append_6 = $(LUAJIT_DARWIN_LDFLAGS)
+@IS_DARWIN_ARM64_FALSE@@IS_DARWIN_TRUE@am__append_6 = $(LUAJIT_DARWIN_LDFLAGS)
 @ENABLE_QUIC_TRUE@am__append_7 = \
 @ENABLE_QUIC_TRUE@  $(top_builddir)/proxy/http3/libhttp3.a \
 @ENABLE_QUIC_TRUE@  $(top_builddir)/iocore/net/quic/libquic.a \
@@ -629,7 +629,8 @@ am_traffic_server_traffic_server_OBJECTS =  \
 	$(am__objects_1)
 traffic_server_traffic_server_OBJECTS =  \
 	$(am_traffic_server_traffic_server_OBJECTS)
-@IS_DARWIN_TRUE@am__DEPENDENCIES_3 = $(am__DEPENDENCIES_1)
+@IS_DARWIN_ARM64_FALSE@@IS_DARWIN_TRUE@am__DEPENDENCIES_3 =  \
+@IS_DARWIN_ARM64_FALSE@@IS_DARWIN_TRUE@	$(am__DEPENDENCIES_1)
 traffic_server_traffic_server_DEPENDENCIES =  \
 	$(top_builddir)/proxy/http/libhttp.a \
 	$(top_builddir)/proxy/http/remap/libhttp_remap.a \

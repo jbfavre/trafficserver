@@ -121,7 +121,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 @BUILD_TESTS_TRUE@am__append_1 = RegressionHttpTransact.cc
-check_PROGRAMS = test_proxy_http$(EXEEXT) test_PreWarm$(EXEEXT)
+check_PROGRAMS = test_proxy_http$(EXEEXT) test_PreWarm$(EXEEXT) \
+	test_HttpTransact$(EXEEXT)
 subdir = proxy/http
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/atomic.m4 \
@@ -196,14 +197,40 @@ am_libhttp_a_OBJECTS = HttpSessionAccept.$(OBJEXT) \
 	$(am__objects_1)
 libhttp_a_OBJECTS = $(am_libhttp_a_OBJECTS)
 am__dirstamp = $(am__leading_dot)dirstamp
-am_test_PreWarm_OBJECTS =  \
-	unit_tests/test_PreWarm-test_PreWarm.$(OBJEXT)
-test_PreWarm_OBJECTS = $(am_test_PreWarm_OBJECTS)
-test_PreWarm_DEPENDENCIES = $(top_builddir)/src/tscore/libtscore.la
+am_test_HttpTransact_OBJECTS =  \
+	../../iocore/cache/test/test_HttpTransact-stub.$(OBJEXT) \
+	unit_tests/test_HttpTransact-main.$(OBJEXT) \
+	unit_tests/test_HttpTransact-test_HttpTransact.$(OBJEXT)
+test_HttpTransact_OBJECTS = $(am_test_HttpTransact_OBJECTS)
+test_HttpTransact_DEPENDENCIES = $(top_builddir)/proxy/http/libhttp.a \
+	$(top_builddir)/proxy/http/remap/libhttp_remap.a \
+	$(top_builddir)/proxy/logging/liblogging.a \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
+	$(top_builddir)/mgmt/libmgmt_p.la \
+	$(top_builddir)/iocore/utils/libinkutils.a \
+	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
+	$(top_builddir)/iocore/dns/libinkdns.a \
+	$(top_builddir)/iocore/cache/libinkcache.a \
+	$(top_builddir)/lib/fastlz/libfastlz.a \
+	$(top_builddir)/iocore/aio/libinkaio.a \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/proxy/libproxy.a \
+	$(top_builddir)/iocore/net/libinknet.a \
+	$(top_builddir)/lib/records/librecords_p.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+test_HttpTransact_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_HttpTransact_LDFLAGS) \
+	$(LDFLAGS) -o $@
+am_test_PreWarm_OBJECTS =  \
+	unit_tests/test_PreWarm-test_PreWarm.$(OBJEXT)
+test_PreWarm_OBJECTS = $(am_test_PreWarm_OBJECTS)
+test_PreWarm_DEPENDENCIES = $(top_builddir)/src/tscore/libtscore.la
 am_test_proxy_http_OBJECTS =  \
 	unit_tests/test_proxy_http-unit_test_main.$(OBJEXT) \
 	unit_tests/test_proxy_http-test_ForwardedConfig.$(OBJEXT) \
@@ -236,7 +263,9 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/ForwardedConfig.Po \
+am__depfiles_remade =  \
+	../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Po \
+	./$(DEPDIR)/ForwardedConfig.Po \
 	./$(DEPDIR)/Http1ClientSession.Po \
 	./$(DEPDIR)/Http1ClientTransaction.Po \
 	./$(DEPDIR)/Http1ServerSession.Po \
@@ -253,6 +282,8 @@ am__depfiles_remade = ./$(DEPDIR)/ForwardedConfig.Po \
 	./$(DEPDIR)/RegressionHttpTransact.Po \
 	./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po \
 	./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po \
+	unit_tests/$(DEPDIR)/test_HttpTransact-main.Po \
+	unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Po \
 	unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po \
 	unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po \
 	unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po \
@@ -294,9 +325,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libhttp_a_SOURCES) $(test_PreWarm_SOURCES) \
-	$(test_proxy_http_SOURCES)
-DIST_SOURCES = $(am__libhttp_a_SOURCES_DIST) $(test_PreWarm_SOURCES) \
+SOURCES = $(libhttp_a_SOURCES) $(test_HttpTransact_SOURCES) \
+	$(test_PreWarm_SOURCES) $(test_proxy_http_SOURCES)
+DIST_SOURCES = $(am__libhttp_a_SOURCES_DIST) \
+	$(test_HttpTransact_SOURCES) $(test_PreWarm_SOURCES) \
 	$(test_proxy_http_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
@@ -987,6 +1019,45 @@ test_PreWarm_LDADD = \
 test_PreWarm_SOURCES = \
 	unit_tests/test_PreWarm.cc
 
+test_HttpTransact_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-I$(abs_top_srcdir)/tests/include
+
+@OS_LINUX_FALSE@test_HttpTransact_LDFLAGS = $(AM_LDFLAGS)\
+@OS_LINUX_FALSE@	-Wl,-undefined -Wl,suppress -Wl,-flat_namespace -Wl,-dead_strip
+
+@OS_LINUX_TRUE@test_HttpTransact_LDFLAGS = $(AM_LDFLAGS)
+test_HttpTransact_LDADD = \
+	$(top_builddir)/proxy/http/libhttp.a \
+	$(top_builddir)/proxy/http/remap/libhttp_remap.a \
+	$(top_builddir)/proxy/logging/liblogging.a \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
+	$(top_builddir)/mgmt/libmgmt_p.la \
+	$(top_builddir)/iocore/utils/libinkutils.a \
+	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
+	$(top_builddir)/iocore/dns/libinkdns.a \
+	$(top_builddir)/iocore/cache/libinkcache.a \
+	$(top_builddir)/lib/fastlz/libfastlz.a \
+	$(top_builddir)/iocore/aio/libinkaio.a \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/proxy/libproxy.a \
+	$(top_builddir)/iocore/net/libinknet.a \
+	$(top_builddir)/lib/records/librecords_p.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	@HWLOC_LIBS@ \
+	@LIBPCRE@ \
+	@LIBRESOLV@ \
+	@LIBZ@ \
+	@LIBLZMA@ \
+	@OPENSSL_LIBS@ \
+	-lm
+
+test_HttpTransact_SOURCES = \
+	../../iocore/cache/test/stub.cc \
+	unit_tests/main.cc \
+	unit_tests/test_HttpTransact.cc
+
 all: all-recursive
 
 .SUFFIXES:
@@ -1038,12 +1109,31 @@ libhttp.a: $(libhttp_a_OBJECTS) $(libhttp_a_DEPENDENCIES) $(EXTRA_libhttp_a_DEPE
 	$(AM_V_at)-rm -f libhttp.a
 	$(AM_V_AR)$(libhttp_a_AR) libhttp.a $(libhttp_a_OBJECTS) $(libhttp_a_LIBADD)
 	$(AM_V_at)$(RANLIB) libhttp.a
+../../iocore/cache/test/$(am__dirstamp):
+	@$(MKDIR_P) ../../iocore/cache/test
+	@: > ../../iocore/cache/test/$(am__dirstamp)
+../../iocore/cache/test/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) ../../iocore/cache/test/$(DEPDIR)
+	@: > ../../iocore/cache/test/$(DEPDIR)/$(am__dirstamp)
+../../iocore/cache/test/test_HttpTransact-stub.$(OBJEXT):  \
+	../../iocore/cache/test/$(am__dirstamp) \
+	../../iocore/cache/test/$(DEPDIR)/$(am__dirstamp)
 unit_tests/$(am__dirstamp):
 	@$(MKDIR_P) unit_tests
 	@: > unit_tests/$(am__dirstamp)
 unit_tests/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) unit_tests/$(DEPDIR)
 	@: > unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_HttpTransact-main.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+unit_tests/test_HttpTransact-test_HttpTransact.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+
+test_HttpTransact$(EXEEXT): $(test_HttpTransact_OBJECTS) $(test_HttpTransact_DEPENDENCIES) $(EXTRA_test_HttpTransact_DEPENDENCIES) 
+	@rm -f test_HttpTransact$(EXEEXT)
+	$(AM_V_CXXLD)$(test_HttpTransact_LINK) $(test_HttpTransact_OBJECTS) $(test_HttpTransact_LDADD) $(LIBS)
 unit_tests/test_PreWarm-test_PreWarm.$(OBJEXT):  \
 	unit_tests/$(am__dirstamp) \
 	unit_tests/$(DEPDIR)/$(am__dirstamp)
@@ -1067,11 +1157,13 @@ test_proxy_http$(EXEEXT): $(test_proxy_http_OBJECTS) $(test_proxy_http_DEPENDENC
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
+	-rm -f ../../iocore/cache/test/*.$(OBJEXT)
 	-rm -f unit_tests/*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ForwardedConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ClientSession.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ClientTransaction.Po@am__quote@ # am--include-marker
@@ -1096,6 +1188,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RegressionHttpTransact.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_HttpTransact-main.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po@am__quote@ # am--include-marker
@@ -1130,6 +1224,48 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
+
+../../iocore/cache/test/test_HttpTransact-stub.o: ../../iocore/cache/test/stub.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT ../../iocore/cache/test/test_HttpTransact-stub.o -MD -MP -MF ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Tpo -c -o ../../iocore/cache/test/test_HttpTransact-stub.o `test -f '../../iocore/cache/test/stub.cc' || echo '$(srcdir)/'`../../iocore/cache/test/stub.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Tpo ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='../../iocore/cache/test/stub.cc' object='../../iocore/cache/test/test_HttpTransact-stub.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o ../../iocore/cache/test/test_HttpTransact-stub.o `test -f '../../iocore/cache/test/stub.cc' || echo '$(srcdir)/'`../../iocore/cache/test/stub.cc
+
+../../iocore/cache/test/test_HttpTransact-stub.obj: ../../iocore/cache/test/stub.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT ../../iocore/cache/test/test_HttpTransact-stub.obj -MD -MP -MF ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Tpo -c -o ../../iocore/cache/test/test_HttpTransact-stub.obj `if test -f '../../iocore/cache/test/stub.cc'; then $(CYGPATH_W) '../../iocore/cache/test/stub.cc'; else $(CYGPATH_W) '$(srcdir)/../../iocore/cache/test/stub.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Tpo ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='../../iocore/cache/test/stub.cc' object='../../iocore/cache/test/test_HttpTransact-stub.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o ../../iocore/cache/test/test_HttpTransact-stub.obj `if test -f '../../iocore/cache/test/stub.cc'; then $(CYGPATH_W) '../../iocore/cache/test/stub.cc'; else $(CYGPATH_W) '$(srcdir)/../../iocore/cache/test/stub.cc'; fi`
+
+unit_tests/test_HttpTransact-main.o: unit_tests/main.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_HttpTransact-main.o -MD -MP -MF unit_tests/$(DEPDIR)/test_HttpTransact-main.Tpo -c -o unit_tests/test_HttpTransact-main.o `test -f 'unit_tests/main.cc' || echo '$(srcdir)/'`unit_tests/main.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_HttpTransact-main.Tpo unit_tests/$(DEPDIR)/test_HttpTransact-main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/main.cc' object='unit_tests/test_HttpTransact-main.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_HttpTransact-main.o `test -f 'unit_tests/main.cc' || echo '$(srcdir)/'`unit_tests/main.cc
+
+unit_tests/test_HttpTransact-main.obj: unit_tests/main.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_HttpTransact-main.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_HttpTransact-main.Tpo -c -o unit_tests/test_HttpTransact-main.obj `if test -f 'unit_tests/main.cc'; then $(CYGPATH_W) 'unit_tests/main.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/main.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_HttpTransact-main.Tpo unit_tests/$(DEPDIR)/test_HttpTransact-main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/main.cc' object='unit_tests/test_HttpTransact-main.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_HttpTransact-main.obj `if test -f 'unit_tests/main.cc'; then $(CYGPATH_W) 'unit_tests/main.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/main.cc'; fi`
+
+unit_tests/test_HttpTransact-test_HttpTransact.o: unit_tests/test_HttpTransact.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_HttpTransact-test_HttpTransact.o -MD -MP -MF unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Tpo -c -o unit_tests/test_HttpTransact-test_HttpTransact.o `test -f 'unit_tests/test_HttpTransact.cc' || echo '$(srcdir)/'`unit_tests/test_HttpTransact.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Tpo unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_HttpTransact.cc' object='unit_tests/test_HttpTransact-test_HttpTransact.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_HttpTransact-test_HttpTransact.o `test -f 'unit_tests/test_HttpTransact.cc' || echo '$(srcdir)/'`unit_tests/test_HttpTransact.cc
+
+unit_tests/test_HttpTransact-test_HttpTransact.obj: unit_tests/test_HttpTransact.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_HttpTransact-test_HttpTransact.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Tpo -c -o unit_tests/test_HttpTransact-test_HttpTransact.obj `if test -f 'unit_tests/test_HttpTransact.cc'; then $(CYGPATH_W) 'unit_tests/test_HttpTransact.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_HttpTransact.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Tpo unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_HttpTransact.cc' object='unit_tests/test_HttpTransact-test_HttpTransact.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_HttpTransact_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_HttpTransact-test_HttpTransact.obj `if test -f 'unit_tests/test_HttpTransact.cc'; then $(CYGPATH_W) 'unit_tests/test_HttpTransact.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_HttpTransact.cc'; fi`
 
 unit_tests/test_PreWarm-test_PreWarm.o: unit_tests/test_PreWarm.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_PreWarm_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_PreWarm-test_PreWarm.o -MD -MP -MF unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Tpo -c -o unit_tests/test_PreWarm-test_PreWarm.o `test -f 'unit_tests/test_PreWarm.cc' || echo '$(srcdir)/'`unit_tests/test_PreWarm.cc
@@ -1476,6 +1612,13 @@ test_PreWarm.log: test_PreWarm$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_HttpTransact.log: test_HttpTransact$(EXEEXT)
+	@p='test_HttpTransact$(EXEEXT)'; \
+	b='test_HttpTransact'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 .test.log:
 	@p='$<'; \
 	$(am__set_b); \
@@ -1584,6 +1727,8 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f ../../iocore/cache/test/$(DEPDIR)/$(am__dirstamp)
+	-rm -f ../../iocore/cache/test/$(am__dirstamp)
 	-rm -f unit_tests/$(DEPDIR)/$(am__dirstamp)
 	-rm -f unit_tests/$(am__dirstamp)
 
@@ -1600,7 +1745,8 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 	clean-noinstLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
-		-rm -f ./$(DEPDIR)/ForwardedConfig.Po
+		-rm -f ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Po
+	-rm -f ./$(DEPDIR)/ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/Http1ClientSession.Po
 	-rm -f ./$(DEPDIR)/Http1ClientTransaction.Po
 	-rm -f ./$(DEPDIR)/Http1ServerSession.Po
@@ -1624,6 +1770,8 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/RegressionHttpTransact.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po
+	-rm -f unit_tests/$(DEPDIR)/test_HttpTransact-main.Po
+	-rm -f unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Po
 	-rm -f unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po
@@ -1673,7 +1821,8 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-recursive
-		-rm -f ./$(DEPDIR)/ForwardedConfig.Po
+		-rm -f ../../iocore/cache/test/$(DEPDIR)/test_HttpTransact-stub.Po
+	-rm -f ./$(DEPDIR)/ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/Http1ClientSession.Po
 	-rm -f ./$(DEPDIR)/Http1ClientTransaction.Po
 	-rm -f ./$(DEPDIR)/Http1ServerSession.Po
@@ -1697,6 +1846,8 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/RegressionHttpTransact.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-ForwardedConfig.Po
 	-rm -f ./$(DEPDIR)/test_proxy_http-HttpBodyFactory.Po
+	-rm -f unit_tests/$(DEPDIR)/test_HttpTransact-main.Po
+	-rm -f unit_tests/$(DEPDIR)/test_HttpTransact-test_HttpTransact.Po
 	-rm -f unit_tests/$(DEPDIR)/test_PreWarm-test_PreWarm.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_ForwardedConfig.Po
 	-rm -f unit_tests/$(DEPDIR)/test_proxy_http-test_error_page_selection.Po
