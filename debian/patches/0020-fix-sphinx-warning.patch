@@ -1,6 +1,7 @@
 Description: Fix docutils deprecated function
 Author: Jean Baptiste Favre <jbfavre@debian.org>
 Origin: other
+Forwarded: https://github.com/apache/trafficserver/pull/9886
 Reviewed-by: Jean Baptiste Favre <jbfavre@debian.org>
 Last-Update: 2023-01-30
 ---
