@@ -50,24 +50,18 @@ YamlLogConfig::loadLogConfig(const char *cfgFilename)
   YAML::Node config = YAML::LoadFile(cfgFilename);
 
   if (config.IsNull()) {
+    Warning("logging.yaml is empty");
     return false;
   }
 
   if (!config.IsMap()) {
-    Error("malformed %s file; expected a map", cfgFilename);
-    return false;
-  }
-
-  if (config["logging"]) {
-    config = config["logging"];
-  } else {
-    Error("malformed %s file; expected a toplevel 'logging' node", cfgFilename);
+    Error("malformed logging.yaml file; expected a map");
     return false;
   }
 
   auto formats = config["formats"];
-  for (auto const &node : formats) {
-    auto fmt = node.as<std::unique_ptr<LogFormat>>().release();
+  for (auto it = formats.begin(); it != formats.end(); ++it) {
+    auto fmt = it->as<std::unique_ptr<LogFormat>>().release();
     if (fmt->valid()) {
       cfg->format_list.add(fmt, false);
 
@@ -82,8 +76,8 @@ YamlLogConfig::loadLogConfig(const char *cfgFilename)
   }
 
   auto filters = config["filters"];
-  for (auto const &node : filters) {
-    auto filter = node.as<std::unique_ptr<LogFilter>>().release();
+  for (auto it = filters.begin(); it != filters.end(); ++it) {
+    auto filter = it->as<std::unique_ptr<LogFilter>>().release();
 
     if (filter) {
       cfg->filter_list.add(filter, false);
@@ -96,8 +90,8 @@ YamlLogConfig::loadLogConfig(const char *cfgFilename)
   }
 
   auto logs = config["logs"];
-  for (auto const &node : logs) {
-    auto obj = decodeLogObject(node);
+  for (auto it = logs.begin(); it != logs.end(); ++it) {
+    auto obj = decodeLogObject(*it);
     if (obj) {
       cfg->log_object_manager.manage_object(obj);
     }
@@ -118,28 +112,27 @@ std::set<std::string> valid_log_object_keys = {"filename",
                                                "rolling_offset_hr",
                                                "rolling_size_mb",
                                                "filters",
-                                               "rolling_min_count",
                                                "rolling_max_count",
                                                "rolling_allow_empty",
-                                               "pipe_buffer_size"};
+                                               "collation_hosts"};
 
 LogObject *
 YamlLogConfig::decodeLogObject(const YAML::Node &node)
 {
-  for (auto const &item : node) {
+  for (auto &&item : node) {
     if (std::none_of(valid_log_object_keys.begin(), valid_log_object_keys.end(),
-                     [&item](const std::string &s) { return s == item.first.as<std::string>(); })) {
-      throw YAML::ParserException(item.first.Mark(), "log: unsupported key '" + item.first.as<std::string>() + "'");
+                     [&item](std::string s) { return s == item.first.as<std::string>(); })) {
+      throw std::runtime_error("log: unsupported key '" + item.first.as<std::string>() + "'");
     }
   }
 
   if (!node["format"]) {
-    throw YAML::ParserException(node.Mark(), "missing 'format' argument");
+    throw std::runtime_error("missing 'format' argument");
   }
   std::string format = node["format"].as<std::string>();
 
   if (!node["filename"]) {
-    throw YAML::ParserException(node.Mark(), "missing 'filename' argument");
+    throw std::runtime_error("missing 'filename' argument");
   }
 
   std::string header;
@@ -167,7 +160,6 @@ YamlLogConfig::decodeLogObject(const YAML::Node &node)
   int obj_rolling_interval_sec = cfg->rolling_interval_sec;
   int obj_rolling_offset_hr    = cfg->rolling_offset_hr;
   int obj_rolling_size_mb      = cfg->rolling_size_mb;
-  int obj_rolling_min_count    = cfg->rolling_min_count;
   int obj_rolling_max_count    = cfg->rolling_max_count;
   int obj_rolling_allow_empty  = cfg->rolling_allow_empty;
 
@@ -193,9 +185,6 @@ YamlLogConfig::decodeLogObject(const YAML::Node &node)
   if (node["rolling_size_mb"]) {
     obj_rolling_size_mb = node["rolling_size_mb"].as<int>();
   }
-  if (node["rolling_min_count"]) {
-    obj_rolling_min_count = node["rolling_min_count"].as<int>();
-  }
   if (node["rolling_max_count"]) {
     obj_rolling_max_count = node["rolling_max_count"].as<int>();
   }
@@ -206,37 +195,11 @@ YamlLogConfig::decodeLogObject(const YAML::Node &node)
     Warning("Invalid log rolling value '%d' in log object", obj_rolling_enabled);
   }
 
-  // get buffer for pipe
-  int pipe_buffer_size = 0;
-  if (node["pipe_buffer_size"]) {
-    if (file_type != LOG_FILE_PIPE) {
-      Warning("Pipe buffer size field should only be set for log.pipe object.");
-    } else {
-      pipe_buffer_size = node["pipe_buffer_size"].as<int>();
-    }
-  }
-
-  auto logObject = new LogObject(cfg, fmt, cfg->logfile_dir, filename.c_str(), file_type, header.c_str(),
-                                 static_cast<Log::RollingEnabledValues>(obj_rolling_enabled), cfg->preproc_threads,
-                                 obj_rolling_interval_sec, obj_rolling_offset_hr, obj_rolling_size_mb, /* auto_created */ false,
-                                 /* rolling_max_count */ obj_rolling_max_count, /* rolling_min_count */ obj_rolling_min_count,
-                                 /* reopen_after_rolling */ obj_rolling_allow_empty > 0, pipe_buffer_size);
-
-  // Generate LogDeletingInfo entry for later use
-  std::string ext;
-  switch (file_type) {
-  case LOG_FILE_ASCII:
-    ext = LOG_FILE_ASCII_OBJECT_FILENAME_EXTENSION;
-    break;
-  case LOG_FILE_PIPE:
-    ext = LOG_FILE_PIPE_OBJECT_FILENAME_EXTENSION;
-    break;
-  case LOG_FILE_BINARY:
-    ext = LOG_FILE_BINARY_OBJECT_FILENAME_EXTENSION;
-    break;
-  default:
-    break;
-  }
+  auto logObject =
+    new LogObject(fmt, Log::config->logfile_dir, filename.c_str(), file_type, header.c_str(),
+                  (Log::RollingEnabledValues)obj_rolling_enabled, Log::config->collation_preproc_threads, obj_rolling_interval_sec,
+                  obj_rolling_offset_hr, obj_rolling_size_mb, /* auto_created */ false,
+                  /* rolling_max_count */ obj_rolling_max_count, /* reopen_after_rolling */ obj_rolling_allow_empty > 0);
 
   // filters
   auto filters = node["filters"];
@@ -245,16 +208,64 @@ YamlLogConfig::decodeLogObject(const YAML::Node &node)
   }
 
   if (!filters.IsSequence()) {
-    throw YAML::ParserException(filters.Mark(), "'filters' should be a list");
+    throw std::runtime_error("'filters' should be a list");
   }
 
-  for (auto const &filter : filters) {
+  for (auto &&filter : filters) {
     std::string filter_name = filter.as<std::string>().c_str();
     LogFilter *f            = cfg->filter_list.find_by_name(filter_name.c_str());
     if (!f) {
       Warning("Filter %s is not a known filter; cannot add to this LogObject", filter_name.c_str());
     } else {
       logObject->add_filter(f);
+    }
+  }
+
+  auto collation_host_list = node["collation_hosts"];
+  if (!collation_host_list) {
+    return logObject;
+  }
+
+  if (!collation_host_list.IsSequence()) {
+    throw std::runtime_error("'collation_hosts' should be a list of collation_host objects");
+  }
+
+  for (auto &&collation_host : collation_host_list) {
+    if (!collation_host["host"]) {
+      Warning("no collation 'host' name; cannot add this Collation host");
+      continue;
+    }
+
+    auto collation_host_name = collation_host["host"].as<std::string>();
+
+    LogHost *lh = new LogHost(logObject->get_full_filename(), logObject->get_signature());
+    if (!lh->set_name_or_ipstr(collation_host_name.c_str())) {
+      Warning("Could not set \"%s\" as collation host", collation_host_name.c_str());
+      delete lh;
+      continue;
+    }
+
+    logObject->add_loghost(lh, false);
+    if (!collation_host["failover"]) {
+      continue;
+    }
+
+    if (!collation_host["failover"].IsSequence()) {
+      delete lh;
+      throw std::runtime_error("'failover' should be a list of host names");
+    }
+
+    LogHost *prev = lh;
+    for (auto &&failover_host : collation_host["failover"]) {
+      auto failover_host_name = failover_host.as<std::string>();
+      LogHost *flh            = new LogHost(logObject->get_full_filename(), logObject->get_signature());
+      if (!flh->set_name_or_ipstr(failover_host_name.c_str())) {
+        Warning("Could not set \"%s\" as a failover host", failover_host_name.c_str());
+        delete flh;
+        continue;
+      }
+      prev->failover_link.next = flh;
+      prev                     = flh;
     }
   }
 

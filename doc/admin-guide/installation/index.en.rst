@@ -105,6 +105,7 @@ development tools and libraries installed:
 -  gcc (>= 4.3 or clang > 3.0)
 -  GNU make
 -  openssl (libssl-dev for Ubuntu 16.04)
+-  tcl (tcl-8.6-dev for Ubuntu 16.04)
 -  pcre (libpcre3-dev for Ubuntu 16.04)
 -  libcap
 -  flex (for TPROXY)
@@ -131,7 +132,7 @@ Layouts
 Preparing the Source Tree
 -------------------------
 
-If you are building from a checkout of the Git repository, you will need to
+If you are buiding from a checkout of the Git repository, you will need to
 prepare the source tree by regenerating the configuration scripts. This is
 performed by running::
 

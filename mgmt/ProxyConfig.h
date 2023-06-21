@@ -21,14 +21,33 @@
   limitations under the License.
  */
 
-#pragma once
+/****************************************************************************
 
-#include <atomic>
+  ProxyConfig.h
 
+
+  ****************************************************************************/
+
+#ifndef _Proxy_Config_h
+#define _Proxy_Config_h
+
+#include "tscore/ink_platform.h"
+#include "tscore/ink_memory.h"
 #include "ProcessManager.h"
+#include "I_EventSystem.h"
 #include "I_Tasks.h"
 
 class ProxyMutex;
+
+void *config_int_cb(void *data, void *value);
+void *config_long_long_cb(void *data, void *value);
+void *config_float_cb(void *data, void *value);
+void *config_string511_cb(void *data, void *value);
+void *config_string_alloc_cb(void *data, void *value);
+
+// Configuration file flags shared by proxy configuration and mgmt.
+#define CONFIG_FLAG_NONE 0u
+#define CONFIG_FLAG_UNVERSIONED 1u // Don't version this config file
 
 //
 // Macros that spin waiting for the data to be bound
@@ -49,7 +68,7 @@ typedef RefCountObj ConfigInfo;
 class ConfigProcessor
 {
 public:
-  ConfigProcessor() = default;
+  ConfigProcessor();
 
   enum {
     // The number of seconds to wait before garbage collecting stale ConfigInfo objects. There's
@@ -62,11 +81,7 @@ public:
     ~scoped_config() { ClassType::release(ptr); }
     operator bool() const { return ptr != nullptr; }
     operator const ConfigType *() const { return ptr; }
-    const ConfigType *
-    operator->() const
-    {
-      return ptr;
-    }
+    const ConfigType *operator->() const { return ptr; }
 
   private:
     ConfigType *ptr;
@@ -77,8 +92,8 @@ public:
   void release(unsigned int id, ConfigInfo *data);
 
 public:
-  std::atomic<ConfigInfo *> infos[MAX_CONFIGS] = {nullptr};
-  std::atomic<int> ninfos{0};
+  ConfigInfo *infos[MAX_CONFIGS];
+  int ninfos;
 };
 
 // A Continuation wrapper that calls the static reconfigure() method of the given class.
@@ -104,8 +119,7 @@ ConfigScheduleUpdate(Ptr<ProxyMutex> &mutex)
 
 template <typename UpdateClass> struct ConfigUpdateHandler {
   ConfigUpdateHandler() : mutex(new_ProxyMutex()) {}
-  // The mutex member is ref-counted so should not explicitly free it
-  ~ConfigUpdateHandler() {}
+  ~ConfigUpdateHandler() { mutex->free(); }
   int
   attach(const char *name)
   {
@@ -126,3 +140,5 @@ private:
 };
 
 extern ConfigProcessor configProcessor;
+
+#endif

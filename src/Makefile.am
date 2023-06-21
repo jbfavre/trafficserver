@@ -41,9 +41,8 @@ include traffic_ctl/Makefile.inc
 include traffic_layout/Makefile.inc
 include traffic_logcat/Makefile.inc
 
-if ENABLE_QUIC
-include traffic_quic/Makefile.inc
-endif
+	$(check_PROGRAMS)
 
 clang-tidy-local: $(DIST_SOURCES)
 	$(CXX_Clang_Tidy)
+	$(CC_Clang_Tidy)

@@ -178,14 +178,14 @@ To specify an absolute freshness limit:
 Specifying Header Requirements
 ------------------------------
 
-To further ensure freshness of the objects in the cache, Traffic Server by
-default caches only HTTP objects with ``Expires`` or ``max-age`` headers. It can
-also be configured to cache all objects (including objects with no headers).
-Different configurations of header requirements would have a noticeable effect
-on cache hit rate. For instance, if Traffic Server is configured to cache only
-HTTP objects with ``Expires`` or ``max-age`` headers (the default setting), then
-the cache hit rate will be noticeably reduced (since very few objects will have
-explicit expiration information).
+To further ensure freshness of the objects in the cache, configure
+Traffic Server to cache only objects with specific headers. By default,
+Traffic Server caches all objects (including objects with no headers);
+you should change the default setting only for specialized proxy
+situations. If you configure Traffic Server to cache only HTTP objects
+with ``Expires`` or ``max-age`` headers, then the cache hit rate will be
+noticeably reduced (since very few objects will have explicit expiration
+information).
 
 To configure Traffic Server to cache objects with specific headers:
 
@@ -207,12 +207,12 @@ Traffic Server bases the servability of a cached object on ``Cache-Control``
 headers that appear in both client requests and server responses. The following
 ``Cache-Control`` headers affect whether objects are served from cache:
 
--  The ``no-cache`` header, sent by clients, tells Traffic Server that it should
-   not serve any objects directly from the cache. When present in a client
-   request, Traffic Server will always obtain the object from the origin server.
-   By default, Traffic Server ignores this header. You can configure Traffic
-   Server to honor client ``no-cache`` headers. Refer to `Configuring Traffic
-   Server to Honor Client no-cache Headers`_ for more information.
+-  The ``no-cache`` header, sent by clients, tells Traffic Server that
+   it should not serve any objects directly from the cache. When present in a
+   client request, Traffic Server will always obtain the object from the
+   origin server. You can configure Traffic Server to ignore client
+   ``no-cache`` headers. Refer to `Configuring Traffic Server to Ignore Client no-cache Headers`_
+   for more information.
 
 -  The ``max-age`` header, sent by servers, is compared to the object
    age. If the age is less than ``max-age``, then the object is fresh
@@ -295,7 +295,7 @@ Configuring Traffic Server for PUSH Requests
 Before you can deliver content into your cache using HTTP ``PUSH``, you
 must configure Traffic Server to accept ``PUSH`` requests.
 
-#. Edit :file:`ip_allow.yaml` to allow ``PUSH`` from the appropriate addresses.
+#. Edit :file:`ip_allow.config` to allow ``PUSH`` from the appropriate addresses.
 
 #. Update :ts:cv:`proxy.config.http.push_method_enabled` in
    :file:`records.config`::
@@ -374,17 +374,17 @@ and files.
 Client Directives
 -----------------
 
-Configurations can be set to determine whether to cache objects with the
-following client directives (by default, Traffic Server caches objects with
-these request headers):
+By default, Traffic Server does not cache objects with the following
+request headers:
+
+-  ``Authorization``
 
 -  ``Cache-Control: no-store``
 
 -  ``Cache-Control: no-cache``
 
-   To configure Traffic Server to honor the ``Cache-Control: no-store`` and
-   ``Cache-Control: no-cache`` request headers, refer to `Configuring Traffic
-   Server to Honor Client no-cache Headers`_.
+   To configure Traffic Server to ignore this request header, refer to
+   `Configuring Traffic Server to Ignore Client no-cache Headers`_.
 
 -  ``Cookie`` (for text objects)
 
@@ -394,26 +394,21 @@ these request headers):
    cache all cookied content, or cache cookied content that is of image
    type only. For more information, refer to `Caching Cookied Objects`_.
 
-Configuring Traffic Server to Honor Client no-cache Headers
+Configuring Traffic Server to Ignore Client no-cache Headers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, Traffic Server ignores client ``Cache-Control: no-cache``
-directives. Even if a requested object contains a ``no-cache`` directive,
-Traffic Server serves the object from its cache. You can configure Traffic
-Server to honor this header and forward the request to the origin server even
-if it has a fresh copy in cache.
-
-Likewise, by default Traffic Server also ignores client ``Cache-Control:
-no-store`` directives. Traffic Server caches response from the server regardless
-of the ``no-store`` headers from client requests.
-
-You can configure Traffic Server to honor both of these client directives with
-the following:
+By default, Traffic Server strictly observes client
+``Cache-Control: no-cache`` directives. If a requested object contains a
+``no-cache`` header, then Traffic Server forwards the request to the
+origin server even if it has a fresh copy in cache. You can configure
+Traffic Server to ignore client ``no-cache`` directives such that it
+ignores ``no-cache`` headers from client requests and serves the object
+from its cache.
 
 #. Edit :ts:cv:`proxy.config.http.cache.ignore_client_no_cache` in
    :file:`records.config`. ::
 
-        CONFIG proxy.config.http.cache.ignore_client_no_cache INT 0
+        CONFIG proxy.config.http.cache.ignore_client_no_cache INT 1
 
 #. Run the command :option:`traffic_ctl config reload` to apply the configuration changes.
 
@@ -425,18 +420,19 @@ headers:
 
 -  ``Cache-Control: no-store``
 
--  ``Cache-Control: no-cache``
-
-   To configure Traffic Server to ignore ``no-cache`` and ``no-store`` headers,
-   refer to `Configuring Traffic Server to Ignore Server no-cache Headers`_.
-
 -  ``Cache-Control: private``
 
 -  ``WWW-Authenticate``
 
-   To configure Traffic Server to ignore ``WWW-Authenticate`` headers and cache
-   the corresponding objects, refer to `Configuring Traffic Server to Ignore
-   WWW-Authenticate Headers`_.
+   To configure Traffic Server to ignore ``WWW-Authenticate`` headers,
+   refer to `Configuring Traffic Server to Ignore WWW-Authenticate Headers`_.
+
+-  ``Set-Cookie``
+
+-  ``Cache-Control: no-cache``
+
+   To configure Traffic Server to ignore ``no-cache`` headers, refer to
+   `Configuring Traffic Server to Ignore Server no-cache Headers`_.
 
 -  ``Expires`` header with a value of 0 (zero) or a past date.
 
@@ -551,23 +547,18 @@ Caching Cookied Objects
 
 By default, Traffic Server caches objects served in response to requests
 that contain cookies. This is true for all types of objects including
-text.
+text. Traffic Server does not cache cookied text content because object
+headers are stored along with the object, and personalized cookie header
+values could be saved with the object. With non-text objects, it is
+unlikely that personalized headers are delivered or used.
 
 You can reconfigure Traffic Server to:
 
 -  Not cache cookied content of any type.
 
--  Cache all cookied content regardless of type.
-
 -  Cache cookied content that is of image type only.
 
--  Cache all cookied content except text type.
-
-   It may be appropriate to configure Traffic Server to not cache cookied text
-   content because object headers are stored along with the object, and
-   personalized cookie header values could be saved with the object. With
-   non-text objects, it is unlikely that personalized headers are delivered or
-   used.
+-  Cache all cookied content regardless of type.
 
 To configure how Traffic Server caches cookied content:
 
@@ -592,9 +583,6 @@ To force document caching:
 
 #. Run the command :option:`traffic_ctl config reload` to apply the configuration changes.
 
-
-.. _CachingHttpAlternates:
-
 Caching HTTP Alternates
 =======================
 
@@ -604,8 +592,31 @@ whether a server delivers content for different languages, targets
 different browsers with different presentation styles, or provides
 different document formats (HTML, XML). Different versions of the same
 object are termed *alternates* and are cached by Traffic Server based
-on ``Vary`` response headers. You can also limit the number of
-alternate versions of an object allowed in the cache.
+on ``Vary`` response headers. You can specify additional request and
+response headers for specific ``Content-Type`` values that Traffic Server
+will identify as alternates for caching. You can also limit the number
+of alternate versions of an object allowed in the cache.
+
+Configuring How Traffic Server Caches Alternates
+------------------------------------------------
+
+To configure how Traffic Server caches alternates:
+
+#. Edit the following variables in :file:`records.config`:
+
+   -  :ts:cv:`proxy.config.http.cache.enable_default_vary_headers`
+   -  :ts:cv:`proxy.config.http.cache.vary_default_text`
+   -  :ts:cv:`proxy.config.http.cache.vary_default_images`
+   -  :ts:cv:`proxy.config.http.cache.vary_default_other`
+
+#. Run the command :option:`traffic_ctl config reload` to apply the configuration changes.
+
+.. note::
+
+   If you specify ``Cookie`` as the header field on which to vary
+   in the above variables, make sure that the variable
+   :ts:cv:`proxy.config.http.cache.cache_responses_to_cookies`
+   is set appropriately.
 
 Limiting the Number of Alternates for an Object
 -----------------------------------------------
@@ -805,3 +816,4 @@ In addition to the open read retry settings TS supports a new setting
 reduce multiple concurrent requests hitting the origin for the same object by
 either returning a stale copy, in case of hit-stale or an error in case of cache
 miss for all but one of the requests.
+

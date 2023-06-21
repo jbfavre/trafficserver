@@ -25,8 +25,9 @@
 
   Basic Threads
 
-**************************************************************************/
 
+
+**************************************************************************/
 #include "P_EventSystem.h"
 #include "tscore/ink_string.h"
 
@@ -34,25 +35,30 @@
 // Common Interface impl                     //
 ///////////////////////////////////////////////
 
-thread_local ink_hrtime Thread::cur_time = ink_get_hrtime_internal();
-thread_local Thread *Thread::this_thread_ptr;
+ink_hrtime Thread::cur_time = ink_get_hrtime_internal();
+inkcoreapi ink_thread_key Thread::thread_data_key;
+
+namespace
+{
+static bool initialized ATS_UNUSED = ([]() -> bool {
+  // File scope initialization goes here.
+  ink_thread_key_create(&Thread::thread_data_key, nullptr);
+  return true;
+})();
+}
 
 Thread::Thread()
 {
   mutex = new_ProxyMutex();
-  MUTEX_TAKE_LOCK(mutex, static_cast<EThread *>(this));
+  MUTEX_TAKE_LOCK(mutex, (EThread *)this);
   mutex->nthread_holding += THREAD_MUTEX_THREAD_HOLDING;
 }
 
 Thread::~Thread()
 {
-  ink_release_assert(mutex->thread_holding == static_cast<EThread *>(this));
-  if (this_thread_ptr == this) {
-    this_thread_ptr = nullptr;
-  }
-
+  ink_release_assert(mutex->thread_holding == (EThread *)this);
   mutex->nthread_holding -= THREAD_MUTEX_THREAD_HOLDING;
-  MUTEX_UNTAKE_LOCK(mutex, static_cast<EThread *>(this));
+  MUTEX_UNTAKE_LOCK(mutex, (EThread *)this);
 }
 
 ///////////////////////////////////////////////
@@ -60,7 +66,7 @@ Thread::~Thread()
 ///////////////////////////////////////////////
 
 struct thread_data_internal {
-  ThreadFunction f;                  ///< Function to execute in the thread.
+  ThreadFunction f;                  ///< Function to excecute in the thread.
   Thread *me;                        ///< The class instance.
   char name[MAX_THREAD_NAME_LENGTH]; ///< Name for the thread.
 };

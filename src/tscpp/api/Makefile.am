@@ -15,8 +15,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-include $(top_srcdir)/build/tidy.mk
-
 lib_LTLIBRARIES = libtscppapi.la
 
 libtscppapi_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(abs_top_srcdir)/include
@@ -49,5 +47,3 @@ libtscppapi_la_SOURCES = \
 	utils.cc \
 	utils_internal.cc
 
-clang-tidy-local: $(DIST_SOURCES)
-	$(CXX_Clang_Tidy)

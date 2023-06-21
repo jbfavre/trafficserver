@@ -39,10 +39,6 @@ InkStrerror(int ink_errno)
     return "ENET_CONNECT_TIMEOUT";
   case ENET_CONNECT_FAILED:
     return "ENET_CONNECT_FAILED";
-  case ENET_SSL_CONNECT_FAILED:
-    return "ENET_SSL_CONNECT_FAILED";
-  case ENET_SSL_FAILED:
-    return "ENET_SSL_FAILED";
   case ESOCK_DENIED:
     return "ESOCK_DENIED";
   case ESOCK_TIMEOUT:

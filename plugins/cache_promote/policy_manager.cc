@@ -48,7 +48,7 @@ PolicyManager::releasePolicy(PromotionPolicy *policy)
 {
   std::string tag = policy->id();
 
-  if (tag.size() != 0) { // this is always the case for instances of LRUPolicy
+  if (tag.size() != 0) {
     auto res = _policies.find(tag);
 
     if (res != _policies.end()) {
@@ -57,13 +57,11 @@ PolicyManager::releasePolicy(PromotionPolicy *policy)
         delete res->second.first;
         _policies.erase(res);
       }
-
-      return;
     } else {
-      TSDebug(PLUGIN_NAME, "Tried to release a policy which was not properly initialized nor acquired via PolicyManager");
+      TSAssert(!"Trying to release a policy which was not acquired via PolicyManager");
     }
+  } else {
+    // Not managed by the policy manager, so just nuke it.
+    delete policy;
   }
-
-  // Not managed by the policy manager, so just nuke it.
-  delete policy;
 }

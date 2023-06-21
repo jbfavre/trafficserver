@@ -21,12 +21,12 @@
 %define _hardened_build 1
 %endif
 
-# This can be overridden via command line option, e.g.  --define "release 12"
+# This can be overriden via command line option, e.g.  --define “release 12"
 %{!?release: %define release 1}
 
 Summary:	Apache Traffic Server, a reverse, forward and transparent HTTP proxy cache
 Name:		trafficserver
-Version:	9.2.1
+Version:	8.1.7
 Release:	%{release}%{?dist}
 License:	Apache Software License 2.0 (AL2)
 Group:		System Environment/Daemons
@@ -34,12 +34,12 @@ URL:		https://trafficserver.apache.org/
 
 Source0:	http://www.apache.org/dist/%{name}/%{name}-%{version}.tar.bz2
 
-BuildRequires:	expat-devel hwloc-devel openssl-devel pcre-devel zlib-devel xz-devel
+BuildRequires:	expat-devel hwloc-devel openssl-devel pcre-devel tcl-devel zlib-devel xz-devel
 BuildRequires:  libcurl-devel ncurses-devel
 BuildRequires:	gcc gcc-c++ perl-ExtUtils-MakeMaker
 BuildRequires:  libcap-devel
 
-Requires:	expat hwloc openssl pcre zlib xz libcurl ncurses pkgconfig
+Requires:	expat hwloc openssl pcre tcl zlib xz libcurl ncurses pkgconfig
 Requires:	libcap
 
 # Can't seem to use libunwind on RHEL7 or older
@@ -111,8 +111,6 @@ find %{buildroot} -type f -name "*.a" -delete
 find %{buildroot} -type f -name "*.pod" -delete
 find %{buildroot} -type f -name "*.in" -delete
 find %{buildroot} -type f -name ".packlist" -delete
-find %{buildroot} -type f -name "plugin_*.so" -delete
-
 
 # ToDo: Why is the Perl stuff ending up in the wrong place ??
 mkdir -p %{buildroot}%{_datadir}/perl5
@@ -187,11 +185,11 @@ getent passwd ats >/dev/null || useradd -r -u 176 -g ats -d / -s /sbin/nologin -
 
 %changelog
 * Wed Sep 19 2018 Bryan Call <bcall@apache.org> - 8.0.0-1
-- Changed the owner of the configuration files to ats
+- Changed the owner ofthe configuration files to ats
 - Include files for the C++ APIs moved
 - C++ library name changed
 
 * Tue Dec 19 2017 Leif Hedstrom <zwoop@apache.org> - 7.1.2-1
 - Cleanup for 7.1.x, and various other changes. This needs more work
   upstream though, since I'm finding issues.
-- Loosely based on ideas from the Fedora .spec
+- Losely based on ideas from the Fedora .spec

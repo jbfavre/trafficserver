@@ -20,11 +20,6 @@ Implement an OrderedSetQueue
 
 import collections
 try:
-    collectionsAbc = collections.abc
-except AttributeError:
-    collectionsAbc = collections
-
-try:
     import queue as Queue
 except ImportError:
     import Queue
@@ -35,7 +30,7 @@ except ImportError:
 # https://code.activestate.com/recipes/576694/
 #
 
-class OrderedSet(collectionsAbc.MutableSet):
+class OrderedSet(collections.MutableSet):
 
     def __init__(self, iterable=None):
         self.end = end = []

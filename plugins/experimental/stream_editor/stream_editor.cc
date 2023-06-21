@@ -98,7 +98,6 @@
 #include <cstring>
 #include <string>
 #include <cstdio>
-#include <stdexcept>
 #include "ts/ts.h"
 
 struct edit_t;
@@ -201,7 +200,7 @@ public:
   }
 
   scope_t(const bool u) : uri(u) { ; }
-  virtual ~scope_t() = default;
+  virtual ~scope_t() {}
 };
 
 class rxscope : public scope_t
@@ -224,7 +223,7 @@ public:
     if (error) {
       TSError("stream-editor: can't compile regexp [%s]", str);
       TSfree(str);
-      throw std::runtime_error("stream editor: Error compiling regex, regcomp in rxscope");
+      throw;
     }
     TSfree(str);
   }
@@ -259,7 +258,7 @@ class match_t
 public:
   virtual bool find(const char *, size_t, size_t &, size_t &, const char *, std::string &) const = 0;
   virtual size_t cont_size() const                                                               = 0;
-  virtual ~match_t()                                                                             = default;
+  virtual ~match_t() {}
 };
 
 class strmatch : public match_t
@@ -358,7 +357,7 @@ public:
     if (error) {
       TSError("stream-editor: can't compile regexp [%s]", str);
       TSfree(str);
-      throw std::runtime_error("stream editor: Error compiling regex, regcomp in rxmatch");
+      throw;
     }
     TSfree(str);
   }
@@ -551,18 +550,18 @@ public:
 using ruleset_t = std::vector<rule_t>;
 using rule_p    = ruleset_t::const_iterator;
 
-using contdata_t = struct contdata_t {
-  TSCont cont             = nullptr;
-  TSIOBuffer out_buf      = nullptr;
-  TSIOBufferReader out_rd = nullptr;
-  TSVIO out_vio           = nullptr;
+typedef struct contdata_t {
+  TSCont cont;
+  TSIOBuffer out_buf;
+  TSIOBufferReader out_rd;
+  TSVIO out_vio;
   ruleset_t rules;
   std::string contbuf;
-  size_t contbuf_sz = 0;
-  int64_t bytes_in  = 0;
-  int64_t bytes_out = 0;
+  size_t contbuf_sz;
+  int64_t bytes_in;
+  int64_t bytes_out;
   /* Use new/delete so destructor does cleanup for us */
-  contdata_t() = default;
+  contdata_t() : cont(nullptr), out_buf(nullptr), out_rd(nullptr), out_vio(nullptr), contbuf_sz(0), bytes_in(0), bytes_out(0) {}
   ~contdata_t()
   {
     if (out_rd) {
@@ -582,7 +581,7 @@ using contdata_t = struct contdata_t {
       contbuf_sz = 2 * sz - 1;
     }
   }
-};
+} contdata_t;
 
 static int64_t
 process_block(contdata_t *contdata, TSIOBufferReader reader)
@@ -617,8 +616,8 @@ process_block(contdata_t *contdata, TSIOBufferReader reader)
 
   editset_t edits;
 
-  for (const auto &rule : contdata->rules) {
-    rule.apply(buf, buflen, edits);
+  for (rule_p r = contdata->rules.begin(); r != contdata->rules.end(); ++r) {
+    r->apply(buf, buflen, edits);
   }
 
   for (edit_p p = edits.begin(); p != edits.end(); ++p) {
@@ -673,7 +672,7 @@ streamedit_process(TSCont contp)
   // Loop over edits, and apply them to the stream
   // Retain buffered data at the end
   int64_t ntodo, nbytes;
-  contdata_t *contdata      = static_cast<contdata_t *>(TSContDataGet(contp));
+  contdata_t *contdata      = (contdata_t *)TSContDataGet(contp);
   TSVIO input_vio           = TSVConnWriteVIOGet(contp);
   TSIOBufferReader input_rd = TSVIOReaderGet(input_vio);
 
@@ -737,7 +736,7 @@ streamedit_filter(TSCont contp, TSEvent event, void *edata)
   TSVIO input_vio;
 
   if (TSVConnClosedGet(contp)) {
-    contdata_t *contdata = static_cast<contdata_t *>(TSContDataGet(contp));
+    contdata_t *contdata = (contdata_t *)TSContDataGet(contp);
     delete contdata;
     return TS_SUCCESS;
   }
@@ -760,20 +759,20 @@ streamedit_filter(TSCont contp, TSEvent event, void *edata)
 static int
 streamedit_setup(TSCont contp, TSEvent event, void *edata)
 {
-  TSHttpTxn txn        = static_cast<TSHttpTxn>(edata);
-  ruleset_t *rules_in  = static_cast<ruleset_t *>(TSContDataGet(contp));
+  TSHttpTxn txn        = (TSHttpTxn)edata;
+  ruleset_t *rules_in  = (ruleset_t *)TSContDataGet(contp);
   contdata_t *contdata = nullptr;
 
   assert((event == TS_EVENT_HTTP_READ_RESPONSE_HDR) || (event == TS_EVENT_HTTP_READ_REQUEST_HDR));
 
   /* make a new list comprising those rules that are in scope */
-  for (const auto &r : *rules_in) {
-    if (r.in_scope(txn)) {
+  for (rule_p r = rules_in->begin(); r != rules_in->end(); ++r) {
+    if (r->in_scope(txn)) {
       if (contdata == nullptr) {
         contdata = new contdata_t();
       }
-      contdata->rules.push_back(r);
-      contdata->set_cont_size(r.cont_size());
+      contdata->rules.push_back(*r);
+      contdata->set_cont_size(r->cont_size());
     }
   }
 
@@ -850,10 +849,10 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   if (rewrites_in != nullptr) {
-    TSDebug("[stream-editor]", "initializing input filtering");
+    TSDebug("[stream-editor]", "initialising input filtering");
     inputcont = TSContCreate(streamedit_setup, nullptr);
     if (inputcont == nullptr) {
-      TSError("[stream-editor] failed to initialize input filtering!");
+      TSError("[stream-editor] failed to initialise input filtering!");
     } else {
       TSContDataSet(inputcont, rewrites_in);
       TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, inputcont);
@@ -863,10 +862,10 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   if (rewrites_out != nullptr) {
-    TSDebug("[stream-editor]", "initializing output filtering");
+    TSDebug("[stream-editor]", "initialising output filtering");
     outputcont = TSContCreate(streamedit_setup, nullptr);
     if (outputcont == nullptr) {
-      TSError("[stream-editor] failed to initialize output filtering!");
+      TSError("[stream-editor] failed to initialise output filtering!");
     } else {
       TSContDataSet(outputcont, rewrites_out);
       TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, outputcont);

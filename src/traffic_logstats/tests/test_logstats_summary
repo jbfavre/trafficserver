@@ -17,7 +17,6 @@
 #  limitations under the License.
 
 set -e # exit on error
-set -x # turn on debug
 
 TMPDIR=${TMPDIR:-/tmp}
 tmpfile=$(mktemp "$TMPDIR/logstats.XXXXXX")

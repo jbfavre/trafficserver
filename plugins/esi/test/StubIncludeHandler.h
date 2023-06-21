@@ -34,14 +34,14 @@ public:
   {
   }
 
-  int handleInclude(const char *data, int data_len) override;
+  int handleInclude(const char *data, int data_len);
 
   bool parseCompleteCalled;
-  void handleParseComplete() override;
+  void handleParseComplete();
 
-  bool getData(int include_id, const char *&data, int &data_len) override;
+  bool getData(int include_id, const char *&data, int &data_len);
 
-  void getFooter(const char *&footer, int &footer_len) override;
+  void getFooter(const char *&footer, int &footer_len);
 
   ~StubIncludeHandler();
 

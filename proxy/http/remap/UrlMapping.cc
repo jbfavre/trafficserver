@@ -19,7 +19,6 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
-
  */
 
 #include "tscore/ink_defs.h"
@@ -31,23 +30,48 @@
  *
  **/
 bool
-url_mapping::add_plugin_instance(RemapPluginInst *i)
+url_mapping::add_plugin(remap_plugin_info *i, void *ih)
 {
-  _plugin_inst_list.push_back(i);
+  _plugin_list.push_back(i);
+  _instance_data.push_back(ih);
+
   return true;
 }
 
 /**
  *
  **/
-RemapPluginInst *
-url_mapping::get_plugin_instance(std::size_t index) const
+remap_plugin_info *
+url_mapping::get_plugin(std::size_t index) const
 {
-  Debug("url_rewrite", "get_plugin says we have %zu plugins and asking for plugin %zu", _plugin_inst_list.size(), index);
-  if (index < _plugin_inst_list.size()) {
-    return _plugin_inst_list[index];
+  Debug("url_rewrite", "get_plugin says we have %zu plugins and asking for plugin %zu", plugin_count(), index);
+  if (index < _plugin_list.size()) {
+    return _plugin_list[index];
   }
   return nullptr;
+}
+
+void *
+url_mapping::get_instance(std::size_t index) const
+{
+  if (index < _instance_data.size()) {
+    return _instance_data[index];
+  }
+  return nullptr;
+}
+
+/**
+ *
+ **/
+void
+url_mapping::delete_instance(unsigned int index)
+{
+  void *ih             = get_instance(index);
+  remap_plugin_info *p = get_plugin(index);
+
+  if (ih && p && p->fp_tsremap_delete_instance) {
+    p->fp_tsremap_delete_instance(ih);
+  }
 }
 
 /**
@@ -59,8 +83,8 @@ url_mapping::~url_mapping()
   redirect_tag_str *rc;
   acl_filter_rule *afr;
 
-  tag                 = static_cast<char *>(ats_free_null(tag));
-  filter_redirect_url = static_cast<char *>(ats_free_null(filter_redirect_url));
+  tag                 = (char *)ats_free_null(tag);
+  filter_redirect_url = (char *)ats_free_null(filter_redirect_url);
 
   while ((r = referer_list) != nullptr) {
     referer_list = r->next;
@@ -72,6 +96,13 @@ url_mapping::~url_mapping()
     delete rc;
   }
 
+  // Delete all instance data, this gets ugly because to delete the instance data, we also
+  // must know which plugin this is associated with. Hence, looping with index instead of a
+  // normal iterator. ToDo: Maybe we can combine them into another container.
+  for (std::size_t i = 0; i < plugin_count(); ++i) {
+    delete_instance(i);
+  }
+
   // Delete filters
   while ((afr = filter) != nullptr) {
     filter = afr->next;
@@ -80,26 +111,18 @@ url_mapping::~url_mapping()
 
   // Destroy the URLs
   fromURL.destroy();
-  toURL.destroy();
+  toUrl.destroy();
 }
 
 void
-url_mapping::Print() const
+url_mapping::Print()
 {
   char from_url_buf[131072], to_url_buf[131072];
 
-  fromURL.string_get_buf(from_url_buf, static_cast<int>(sizeof(from_url_buf)));
-  toURL.string_get_buf(to_url_buf, static_cast<int>(sizeof(to_url_buf)));
+  fromURL.string_get_buf(from_url_buf, (int)sizeof(from_url_buf));
+  toUrl.string_get_buf(to_url_buf, (int)sizeof(to_url_buf));
   printf("\t %s %s=> %s %s <%s> [plugins %s enabled; running with %zu plugins]\n", from_url_buf, unique ? "(unique)" : "",
-         to_url_buf, homePageRedirect ? "(R)" : "", tag ? tag : "", _plugin_inst_list.size() > 0 ? "are" : "not",
-         _plugin_inst_list.size());
-}
-
-std::string
-url_mapping::PrintRemapHitCount() const
-{
-  std::string result = R"({"fromURL": ")" + remapKey + R"(", "hit_count": )" + std::to_string(_hitCount) + "}";
-  return result;
+         to_url_buf, homePageRedirect ? "(R)" : "", tag ? tag : "", plugin_count() > 0 ? "are" : "not", plugin_count());
 }
 
 /**
@@ -109,15 +132,15 @@ redirect_tag_str *
 redirect_tag_str::parse_format_redirect_url(char *url)
 {
   char *c;
-  redirect_tag_str *r;
+  redirect_tag_str *r, **rr;
   redirect_tag_str *list = nullptr;
+  char type              = 0;
 
   if (url && *url) {
-    for (redirect_tag_str **rr = &list; *(c = url) != 0;) {
-      char type = 0;
+    for (rr = &list; *(c = url) != 0;) {
       for (type = 's'; *c; c++) {
         if (c[0] == '%') {
-          char tmp_type = static_cast<char>(tolower(static_cast<int>(c[1])));
+          char tmp_type = (char)tolower((int)c[1]);
           if (tmp_type == 'r' || tmp_type == 'f' || tmp_type == 't' || tmp_type == 'o') {
             if (url == c) {
               type = tmp_type;
@@ -139,6 +162,7 @@ redirect_tag_str::parse_format_redirect_url(char *url)
         }
         (*rr = r)->next = nullptr;
         rr              = &(r->next);
+        // printf("\t***********'%c' - '%s'*******\n",r->type,r->chunk_str ? r->chunk_str : "<NULL>");
       } else {
         break; /* memory allocation error */
       }

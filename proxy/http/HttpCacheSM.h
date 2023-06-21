@@ -49,7 +49,7 @@ struct HttpCacheAction : public Action {
   {
     sm = sm_arg;
   };
-  HttpCacheSM *sm = nullptr;
+  HttpCacheSM *sm;
 };
 
 class HttpCacheSM : public Continuation
@@ -65,22 +65,21 @@ public:
     captive_action.init(this);
   }
 
-  Action *open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, const OverridableHttpConfigParams *params,
-                    time_t pin_in_cache);
+  Action *open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, OverridableHttpConfigParams *params, time_t pin_in_cache);
 
   Action *open_write(const HttpCacheKey *key, URL *url, HTTPHdr *request, CacheHTTPInfo *old_info, time_t pin_in_cache, bool retry,
                      bool allow_multiple);
 
-  CacheVConnection *cache_read_vc  = nullptr;
-  CacheVConnection *cache_write_vc = nullptr;
+  CacheVConnection *cache_read_vc;
+  CacheVConnection *cache_write_vc;
 
-  bool read_locked  = false;
-  bool write_locked = false;
+  bool read_locked;
+  bool write_locked;
   // Flag to check whether read-while-write is in progress or not
-  bool readwhilewrite_inprogress = false;
+  bool readwhilewrite_inprogress;
 
-  HttpSM *master_sm      = nullptr;
-  Action *pending_action = nullptr;
+  HttpSM *master_sm;
+  Action *pending_action;
 
   // Function to set readwhilewrite_inprogress flag
   inline void
@@ -135,25 +134,7 @@ public:
   int
   get_volume_number()
   {
-    if (cache_read_vc) {
-      return cache_read_vc->get_volume_number();
-    } else if (cache_write_vc) {
-      return cache_write_vc->get_volume_number();
-    }
-
-    return -1;
-  }
-
-  const char *
-  get_disk_path()
-  {
-    if (cache_read_vc) {
-      return cache_read_vc->get_disk_path();
-    } else if (cache_write_vc) {
-      return cache_write_vc->get_disk_path();
-    }
-
-    return nullptr;
+    return cache_read_vc ? (cache_read_vc->get_volume_number()) : -1;
   }
 
   inline void
@@ -209,24 +190,24 @@ private:
   int state_cache_open_write(int event, void *data);
 
   HttpCacheAction captive_action;
-  bool open_read_cb  = false;
-  bool open_write_cb = false;
+  bool open_read_cb;
+  bool open_write_cb;
 
   // Open read parameters
-  int open_read_tries                            = 0;
-  HTTPHdr *read_request_hdr                      = nullptr;
-  const OverridableHttpConfigParams *http_params = nullptr;
-  time_t read_pin_in_cache                       = 0;
+  int open_read_tries;
+  HTTPHdr *read_request_hdr;
+  OverridableHttpConfigParams *http_params;
+  time_t read_pin_in_cache;
 
   // Open write parameters
-  bool retry_write     = true;
-  int open_write_tries = 0;
+  bool retry_write;
+  int open_write_tries;
 
   // Common parameters
-  URL *lookup_url = nullptr;
+  URL *lookup_url;
   HttpCacheKey cache_key;
 
   // to keep track of multiple cache lookups
-  int lookup_max_recursive = 0;
-  int current_lookup_level = 0;
+  int lookup_max_recursive;
+  int current_lookup_level;
 };

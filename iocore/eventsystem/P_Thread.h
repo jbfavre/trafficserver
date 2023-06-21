@@ -39,11 +39,11 @@
 TS_INLINE void
 Thread::set_specific()
 {
-  this_thread_ptr = this;
+  ink_thread_setspecific(Thread::thread_data_key, this);
 }
 
 TS_INLINE Thread *
 this_thread()
 {
-  return Thread::this_thread_ptr;
+  return (Thread *)ink_thread_getspecific(Thread::thread_data_key);
 }

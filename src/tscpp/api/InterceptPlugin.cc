@@ -45,11 +45,10 @@ struct InterceptPlugin::State {
   TSVConn net_vc_ = nullptr;
 
   struct IoHandle {
-    TSVIO vio_               = nullptr;
-    TSIOBuffer buffer_       = nullptr;
-    TSIOBufferReader reader_ = nullptr;
-    IoHandle()               = default;
-    ;
+    TSVIO vio_;
+    TSIOBuffer buffer_;
+    TSIOBufferReader reader_;
+    IoHandle() : vio_(nullptr), buffer_(nullptr), reader_(nullptr){};
     ~IoHandle()
     {
       if (reader_) {
@@ -180,17 +179,6 @@ Headers &
 InterceptPlugin::getRequestHeaders()
 {
   return state_->request_headers_;
-}
-
-TSSslConnection
-InterceptPlugin::getSslConnection()
-{
-  if (!state_->net_vc_) {
-    LOG_ERROR("Intercept Plugin is not ready to provide SSL Connection");
-    return nullptr;
-  }
-
-  return TSVConnSslConnectionGet(state_->net_vc_);
 }
 
 bool
@@ -371,7 +359,7 @@ handleEvents(TSCont cont, TSEvent pristine_event, void *pristine_edata)
       state->saved_event_ = event;
       state->saved_edata_ = edata;
     }
-    state->timeout_action_ = TSContScheduleOnPool(cont, 1, TS_THREAD_POOL_NET);
+    state->timeout_action_ = TSContSchedule(cont, 1, TS_THREAD_POOL_DEFAULT);
     return 0;
   }
   if (event == TS_EVENT_TIMEOUT) { // we have a saved event to restore

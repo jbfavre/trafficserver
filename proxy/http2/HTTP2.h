@@ -43,18 +43,6 @@ typedef int32_t Http2WindowSize;
 extern const char *const HTTP2_CONNECTION_PREFACE;
 const size_t HTTP2_CONNECTION_PREFACE_LEN = 24;
 
-extern const char *HTTP2_VALUE_SCHEME;
-extern const char *HTTP2_VALUE_METHOD;
-extern const char *HTTP2_VALUE_AUTHORITY;
-extern const char *HTTP2_VALUE_PATH;
-extern const char *HTTP2_VALUE_STATUS;
-
-extern const unsigned HTTP2_LEN_SCHEME;
-extern const unsigned HTTP2_LEN_METHOD;
-extern const unsigned HTTP2_LEN_AUTHORITY;
-extern const unsigned HTTP2_LEN_PATH;
-extern const unsigned HTTP2_LEN_STATUS;
-
 const size_t HTTP2_FRAME_HEADER_LEN       = 9;
 const size_t HTTP2_DATA_PADLEN_LEN        = 1;
 const size_t HTTP2_HEADERS_PADLEN_LEN     = 1;
@@ -105,8 +93,6 @@ enum {
   HTTP2_STAT_MAX_PING_FRAMES_PER_MINUTE_EXCEEDED,
   HTTP2_STAT_MAX_PRIORITY_FRAMES_PER_MINUTE_EXCEEDED,
   HTTP2_STAT_INSUFFICIENT_AVG_WINDOW_UPDATE,
-  HTTP2_STAT_MAX_CONCURRENT_STREAMS_EXCEEDED_IN,
-  HTTP2_STAT_MAX_CONCURRENT_STREAMS_EXCEEDED_OUT,
 
   HTTP2_N_STATS // Terminal counter, NOT A STAT INDEX.
 };
@@ -282,25 +268,28 @@ struct Http2SettingsParameter {
 
 // [RFC 7540] 6.3 PRIORITY Format
 struct Http2Priority {
-  Http2Priority() : weight(HTTP2_PRIORITY_DEFAULT_WEIGHT), stream_dependency(HTTP2_PRIORITY_DEFAULT_STREAM_DEPENDENCY) {}
+  Http2Priority()
+    : exclusive_flag(false), weight(HTTP2_PRIORITY_DEFAULT_WEIGHT), stream_dependency(HTTP2_PRIORITY_DEFAULT_STREAM_DEPENDENCY)
+  {
+  }
 
-  bool exclusive_flag = false;
+  bool exclusive_flag;
   uint8_t weight;
   uint32_t stream_dependency;
 };
 
 // [RFC 7540] 6.2 HEADERS Format
 struct Http2HeadersParameter {
-  Http2HeadersParameter() {}
-  uint8_t pad_length = 0;
+  Http2HeadersParameter() : pad_length(0) {}
+  uint8_t pad_length;
   Http2Priority priority;
 };
 
 // [RFC 7540] 6.8 GOAWAY Format
 struct Http2Goaway {
-  Http2Goaway() {}
-  Http2StreamId last_streamid = 0;
-  Http2ErrorCode error_code   = Http2ErrorCode::HTTP2_ERROR_NO_ERROR;
+  Http2Goaway() : last_streamid(0), error_code(Http2ErrorCode::HTTP2_ERROR_NO_ERROR) {}
+  Http2StreamId last_streamid;
+  Http2ErrorCode error_code;
 
   // NOTE: we don't (de)serialize the variable length debug data at this layer
   // because there's
@@ -369,9 +358,7 @@ Http2ErrorCode http2_decode_header_blocks(HTTPHdr *, const uint8_t *, const uint
 Http2ErrorCode http2_encode_header_blocks(HTTPHdr *, uint8_t *, uint32_t, uint32_t *, HpackHandle &, int32_t);
 
 ParseResult http2_convert_header_from_2_to_1_1(HTTPHdr *);
-ParseResult http2_convert_header_from_1_1_to_2(HTTPHdr *);
-void http2_init_pseudo_headers(HTTPHdr &);
-void http2_init();
+void http2_generate_h2_header_from_1_1(HTTPHdr *headers, HTTPHdr *h2_headers);
 
 // Not sure where else to put this, but figure this is as good of a start as
 // anything else.
@@ -396,7 +383,6 @@ public:
   static uint32_t push_diary_size;
   static uint32_t zombie_timeout_in;
   static float stream_error_rate_threshold;
-  static uint32_t stream_error_sampling_threshold;
   static uint32_t max_settings_per_frame;
   static uint32_t max_settings_per_minute;
   static uint32_t max_settings_frames_per_minute;
@@ -406,10 +392,6 @@ public:
   static uint32_t con_slow_log_threshold;
   static uint32_t stream_slow_log_threshold;
   static uint32_t header_table_size_limit;
-  static uint32_t write_buffer_block_size;
-  static float write_size_threshold;
-  static uint32_t write_time_threshold;
-  static uint32_t buffer_water_mark;
 
   static void init();
 };

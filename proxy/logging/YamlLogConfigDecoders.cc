@@ -28,7 +28,7 @@
 #include <algorithm>
 #include <memory>
 
-std::set<std::string> valid_log_format_keys = {"name", "format", "interval", "escape"};
+std::set<std::string> valid_log_format_keys = {"name", "format", "interval"};
 std::set<std::string> valid_log_filter_keys = {"name", "action", "condition"};
 
 namespace YAML
@@ -36,15 +36,15 @@ namespace YAML
 bool
 convert<std::unique_ptr<LogFormat>>::decode(const Node &node, std::unique_ptr<LogFormat> &logFormat)
 {
-  for (const auto &item : node) {
+  for (auto &&item : node) {
     if (std::none_of(valid_log_format_keys.begin(), valid_log_format_keys.end(),
-                     [&item](const std::string &s) { return s == item.first.as<std::string>(); })) {
-      throw YAML::ParserException(item.first.Mark(), "format: unsupported key '" + item.first.as<std::string>() + "'");
+                     [&item](std::string s) { return s == item.first.as<std::string>(); })) {
+      throw std::runtime_error("format: unsupported key '" + item.first.as<std::string>() + "'");
     }
   }
 
   if (!node["format"]) {
-    throw YAML::ParserException(node.Mark(), "missing 'format' argument");
+    throw std::runtime_error("missing 'format' argument");
   }
   std::string format = node["format"].as<std::string>();
 
@@ -69,21 +69,7 @@ convert<std::unique_ptr<LogFormat>>::decode(const Node &node, std::unique_ptr<Lo
     interval = node["interval"].as<unsigned>();
   }
 
-  // escape type
-  LogEscapeType escape_type = LOG_ESCAPE_NONE; // default value
-  if (node["escape"]) {
-    std::string escape = node["escape"].as<std::string>();
-    if (!strncasecmp(escape.c_str(), "json", 4)) {
-      escape_type = LOG_ESCAPE_JSON;
-    } else if (!strncasecmp(escape.c_str(), "none", 4)) {
-      escape_type = LOG_ESCAPE_NONE;
-    } else {
-      throw YAML::ParserException(node.Mark(), "invalid 'escape' argument '" + escape + "' for format name '" + name + "'");
-    }
-    Note("'escape' attribute for LogFormat object is; %s", escape.c_str());
-  }
-
-  logFormat.reset(new LogFormat(name.c_str(), format.c_str(), interval, escape_type));
+  logFormat.reset(new LogFormat(name.c_str(), format.c_str(), interval));
 
   return true;
 }
@@ -93,15 +79,15 @@ convert<std::unique_ptr<LogFilter>>::decode(const Node &node, std::unique_ptr<Lo
 {
   for (auto &&item : node) {
     if (std::none_of(valid_log_filter_keys.begin(), valid_log_filter_keys.end(),
-                     [&item](const std::string &s) { return s == item.first.as<std::string>(); })) {
-      throw YAML::ParserException(node.Mark(), "filter: unsupported key '" + item.first.as<std::string>() + "'");
+                     [&item](std::string s) { return s == item.first.as<std::string>(); })) {
+      throw std::runtime_error("filter: unsupported key '" + item.first.as<std::string>() + "'");
     }
   }
 
   // we require all keys for LogFilter
   for (auto &&item : valid_log_filter_keys) {
     if (!node[item]) {
-      throw YAML::ParserException(node.Mark(), "missing '" + item + "' argument");
+      throw std::runtime_error("missing '" + item + "' argument");
     }
   }
 
@@ -114,7 +100,7 @@ convert<std::unique_ptr<LogFilter>>::decode(const Node &node, std::unique_ptr<Lo
   int i;
   for (i = 0; i < LogFilter::N_ACTIONS; i++) {
     if (strcasecmp(action_str, LogFilter::ACTION_NAME[i]) == 0) {
-      act = static_cast<LogFilter::Action>(i);
+      act = (LogFilter::Action)i;
       break;
     }
   }

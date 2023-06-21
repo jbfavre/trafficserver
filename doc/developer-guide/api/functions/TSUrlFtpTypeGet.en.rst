@@ -24,9 +24,7 @@ TSUrlFtpTypeGet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int TSUrlFtpTypeGet(TSMBuffer bufp, TSMLoc offset)
 

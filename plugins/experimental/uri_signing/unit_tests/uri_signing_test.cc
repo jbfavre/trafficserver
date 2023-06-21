@@ -33,131 +33,21 @@ extern "C" {
 #include "../config.h"
 }
 
-static char const *const testConfig =
-  R"(
-{
-    "Master Issuer": {
-        "renewal_kid": "6",
-        "id": "tester",
-        "auth_directives": [
-            {
-                "auth": "allow",
-                "uri": "regex:invalid"
-            }
-        ],
-        "keys": [
-         {
-          "alg": "HS256",
-          "k": "nxb7fyO5Z2hGz9E3oKm1357ptvC2su5QwQUb4YaIaIc",
-          "kid": "0",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "cXKukBqFvQ0n3WAuRnWfExC14dmHdGoJULoZjGu9tJC",
-          "kid": "1",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "38pJlSXfX87jWL0a03luml9QzUmM4qts1nmfIHA3B7r",
-          "kid": "2",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "zNQPphknDGvzR5kA7IonXIDWKMyB1b8NpGmmDNlpgtM",
-          "kid": "3",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "iB2ogCmQRt7r5hW7pgyP5FqiFcCl53MPQvfXv8wrZAn",
-          "kid": "4",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "GJMCTyZhNoSOZvUOKmmY9MtGSLaONNLHqtKwsC3MWKo",
-          "kid": "5",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "u2LziZKJFBnOfjUQUmvot7C9t91jj7ocJPIU9aDdbUl",
-          "kid": "6",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "DRBKrBh87NYkH3UzfW1tWbiXCYXiYGZUE9w1orZngL0",
-          "kid": "7",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "KNNKFbun8lEs7GbiKlo9mYGNdvpt33tdFzHbNnasDyP",
-          "kid": "8",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "yb6kOddMUdupPRSkWMUdE6jrWT4MqUnVyTjpeJBYIqp",
-          "kid": "9",
-          "kty": "oct"
-         }
-        ]
-    },
-    "Second Issuer": {
-        "keys": [
-         {
-          "alg": "HS256",
-          "k": "testkey1",
-          "kid": "one",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "testkey2",
-          "kid": "two",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "testkey3",
-          "kid": "three",
-          "kty": "oct"
-         },
-         {
-          "alg": "HS256",
-          "k": "testkey4",
-          "kid": "four",
-          "kty": "oct"
-         }
-        ]
-    }
-}
-)";
-
 bool
 jwt_parsing_helper(const char *jwt_string)
 {
   fprintf(stderr, "Parsing JWT from string: %s\n", jwt_string);
   bool resp;
-  json_error_t jerr             = {};
-  size_t pt_ct                  = strlen(jwt_string);
-  struct json_t *const jwk_json = json_loadb(jwt_string, pt_ct, 0, &jerr);
-  if (!jwk_json) {
-    return false;
+  json_error_t jerr = {};
+  size_t pt_ct      = strlen(jwt_string);
+  struct jwt *jwt   = parse_jwt(json_loadb(jwt_string, pt_ct, 0, &jerr));
+
+  if (jwt) {
+    resp = jwt_validate(jwt);
+  } else {
+    resp = false;
   }
 
-  struct jwt *jwt = parse_jwt(jwk_json);
-  if (!jwt) {
-    json_decref(jwk_json);
-    return false;
-  }
-
-  resp = jwt_validate(jwt);
   jwt_delete(jwt);
   return resp;
 }
@@ -271,7 +161,7 @@ TEST_CASE("1", "[JWSParsingTest]")
 
   SECTION("JWT Parsing with unsupported value for cdnistd claim")
   {
-    REQUIRE(!jwt_parsing_helper("{\"cdniets\":30,\"cdnistt\":1,\"cdnistd\":-2,\"iss\":\"Content Access "
+    REQUIRE(!jwt_parsing_helper("{\"cdniets\":30,\"cdnistt\":1,\"cdnistd\":4,\"iss\":\"Content Access "
                                 "Manager\",\"cdniuc\":\"uri-regex:http://foobar.local/testDir/*\"}"));
   }
   fprintf(stderr, "\n");
@@ -605,6 +495,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": \"tester\"}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -613,6 +504,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": [ \"foo\", \"bar\",  \"tester\"]}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -621,6 +513,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": \"foo\"}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(!jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -629,6 +522,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": [\"foo\", \"bar\", \"foobar\"]}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(!jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -637,6 +531,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": 1}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(!jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -645,6 +540,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": [1, \"foo\", \"bar\", \"tester\"]}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -653,6 +549,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": \"TESTer\"}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(!jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -661,6 +558,7 @@ TEST_CASE("6", "[AudTests]")
     json_t *raw = json_loads("{\"aud\": [1, \"foo\", \"bar\", \"Tester\"]}", 0, err);
     json_t *aud = json_object_get(raw, "aud");
     REQUIRE(!jwt_check_aud(aud, "tester"));
+    json_decref(aud);
     json_decref(raw);
   }
 
@@ -671,12 +569,9 @@ TEST_CASE("7", "[TestsConfig]")
 {
   INFO("TEST 7, Config Loading and Config Functions");
 
-  fprintf(stderr, "%s\n", testConfig);
-  fflush(stderr);
-
   SECTION("Config Loading ID Field")
   {
-    struct config *cfg = read_config_from_string(testConfig);
+    struct config *cfg = read_config(SRCDIR "/experimental/uri_signing/unit_tests/testConfig.config");
     REQUIRE(cfg != NULL);
     REQUIRE(strcmp(config_get_id(cfg), "tester") == 0);
     config_delete(cfg);
@@ -696,18 +591,19 @@ jws_validation_helper(const char *url, const char *package, struct config *cfg)
     return false;
   }
   struct jwt *jwt = validate_jws(jws, cfg, uri_strip, strip_ct);
-  cjose_jws_release(jws);
-  if (!jwt) {
-    return false;
+  if (jwt) {
+    jwt_delete(jwt);
+    cjose_jws_release(jws);
+    return true;
   }
-  jwt_delete(jwt);
-  return true;
+  cjose_jws_release(jws);
+  return false;
 }
 
 TEST_CASE("8", "[TestsWithConfig]")
 {
   INFO("TEST 8, Tests Involving Validation with Config");
-  struct config *cfg = read_config_from_string(testConfig);
+  struct config *cfg = read_config(SRCDIR "/experimental/uri_signing/unit_tests/testConfig.config");
 
   SECTION("Validation of Valid Aud String in JWS")
   {

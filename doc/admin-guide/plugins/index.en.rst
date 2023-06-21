@@ -50,21 +50,19 @@ Plugins that are considered stable are installed by default in |TS| releases.
    Background Fetch <background_fetch.en>
    Cache Key Manipulation <cachekey.en>
    Cache Promotion Policies <cache_promote.en>
-   Cache Range Requests <cache_range_requests.en>
    Combo Handler <combo_handler.en>
    Configuration Remap <conf_remap.en>
-   Cookie Remap <cookie_remap.en>
    ESI <esi.en>
    Escalate <escalate.en>
    Compress <compress.en>
    Generator <generator.en>
    Header Rewrite <header_rewrite.en>
    Health Checks <healthchecks.en>
-   HTTP Stats <http_stats.en>
    Lua <lua.en>
    Regex Remap <regex_remap.en>
    Regex Revalidate <regex_revalidate.en>
    Remap Purge <remap_purge.en>
+   Slice <slice.en>
    Stats over HTTP <stats_over_http.en>
    TCPInfo <tcpinfo.en>
    XDebug <xdebug.en>
@@ -83,9 +81,6 @@ Plugins that are considered stable are installed by default in |TS| releases.
 
 :doc:`Cache Promotion Policies <cache_promote.en>`
    Allows for control over which assets should be written to cache, or not.
-
-:doc:`Cache Range Requests <cache_range_requests.en>`
-   Cache ranges by adding the range request header to the cache key.
 
 :doc:`Combo Handler <combo_handler.en>`
    Provides an intelligent way to combine multiple URLs into a single URL, and have Apache Traffic Server combine the components into one response.
@@ -114,9 +109,6 @@ Plugins that are considered stable are installed by default in |TS| releases.
 :doc:`Health Checks <healthchecks.en>`
     Define service health check links.
 
-:doc:`HTTP Stats <http_stats.en>`
-    A remap-based plugin that provides an HTTP interface to all |TS| statistics.
-
 :doc:`Lua <lua.en>`
    Allows plugins to be written in Lua instead of C code.
 
@@ -125,6 +117,11 @@ Plugins that are considered stable are installed by default in |TS| releases.
 
 :doc:`Regex Revalidate <regex_revalidate.en>`
    Configurable rules for forcing cache object revalidations using regular expressions.
+
+:doc:`Slicer <slice.en>`
+   Slice full file or range based requests into deterministic chunks,
+   allowing large files to be spread across multiple cache stripes. Allows
+   range requests to be satisfied by stitching these chunks together.
 
 :doc:`Stats over HTTP <stats_over_http.en>`
     Provide an HTTP interface to all |TS| statistics.
@@ -151,34 +148,25 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
    :hidden:
 
    Access Control <access_control.en>
+   Balancer <balancer.en>
+   Buffer Upload <buffer_upload.en>
    Cache Fill <cache_fill.en>
    Certifier <certifier.en>
-   Cert Reporting Tool <cert_reporting_tool.en>
    Collapsed-Forwarding <collapsed_forwarding.en>
    GeoIP ACL <geoip_acl.en>
    FQ Pacing <fq_pacing.en>
    Header Frequency <header_freq.en>
+   HIPES <hipes.en>
    Hook Trace <hook-trace.en>
-   ICAP <icap.en>
-   JA3 Fingerprint <ja3_fingerprint.en>
-   Maxmind ACL <maxmind_acl.en>
    Memcache <memcache.en>
-   Memory Profile <memory_profile.en>
    Metalink <metalink.en>
    Money Trace <money_trace.en>
    MP4 <mp4.en>
    Multiplexer <multiplexer.en>
    MySQL Remap <mysql_remap.en>
-   OpenTelemetry Tracer <otel_tracer.en>
-   Parent Select <parent_select.en>
-   Rate Limit <rate_limit.en>
-   Remap Stats <remap_stats.en>
-   URI Signing <uri_signing.en>
-   Legacy Signed URLs <url_sig.en>
-   Slice <slice.en>
+   Signed URLs <url_sig.en>
    SSL Headers <sslheaders.en>
-   SSL Session Reuse <ssl_session_reuse.en>
-   STEK Share <stek_share.en>
+   Stale While Revalidate <stale_while_revalidate.en>
    System Statistics <system_stats.en>
    Traffic Dump <traffic_dump.en>
    WebP Transform <webp_transform.en>
@@ -187,11 +175,14 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 :doc:`Access Control <access_control.en>`
    Access control plugin that handles various access control use-cases.
 
+:doc:`Balancer <balancer.en>`
+   Balances requests across multiple origin servers.
+
+:doc:`Buffer Upload <buffer_upload.en>`
+   Buffers POST data before connecting to the Origin server.
+
 :doc:`Certifier <certifier.en>`
    Manages and/or generates certificates for incoming HTTPS requests.
-
-:doc:`Cert Reporting Tool <cert_reporting_tool.en>`
-   Examines and logs information on loaded certificates.
 
 :doc:`Collapsed-Forwarding <collapsed_forwarding.en>`
    Allows to Collapse multiple Concurrent requests by downloading once from the Origin and serving
@@ -206,14 +197,8 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 :doc:`Header Frequency <header_freq.en>`
    Count the frequency of headers.
 
-:doc:`ICAP <icap.en>`
-   Pass response data to external server for further processing using the ICAP protocol.
-
-:doc:`JA3 Fingerprint <ja3_fingerprint.en>`
-   Calculates JA3 Fingerprints for incoming SSL traffic.
-
-:doc:`MaxMind ACL <maxmind_acl.en>`
-   ACL based on the maxmind geo databases (GeoIP2 mmdb and libmaxminddb)
+:doc:`HIPES <hipes.en>`
+   Adds support for HTTP Pipes.
 
 :doc:`Memcache <memcache.en>`
    Implements the memcache protocol for cache contents.
@@ -236,50 +221,18 @@ directory of the |TS| source tree. Experimental plugins can be compiled by passi
 :doc:`MySQL Remap <mysql_remap.en>`
    Allows dynamic remaps from a MySQL database.
 
-:doc:`OpenTelemetry Tracer <otel_tracer.en>`
-   Allows Trafficserver to participate in OpenTelemetry distributed tracing system
-
 :doc:`Prefetch <prefetch.en>`
    Pre-fetch objects based on the requested URL path pattern.
-
-:doc:`Parent Select <parent_select.en>`
-   This remap plugin allows selection of parent proxies or origins during requests. This
-   provides the same functionality as the core :file:`parent.config` and :file:`strategies.yaml` config files.
-
-:doc:`Rate Limit <rate_limit.en>`
-   Simple transaction rate limiting.
-
-:doc:`Remap Stats <remap_stats.en>`
-   This global plugin adds remap stats to the stats.
 
 :doc:`Remap Purge <remap_purge.en>`
    This remap plugin allows the administrator to easily setup remotely
    controlled ``PURGE`` for the content of an entire remap rule.
 
-:doc:`URI Signing <uri_signing.en>`
-   Adds support for verifying URL signatures for incoming requests to either deny or redirect access,
-   implementing the IETF URI Signing draft RFC.
-
-:doc:`Legacy Signed URLs <url_sig.en>`
+:doc:`Signed URLs <url_sig.en>`
    Adds support for verifying URL signatures for incoming requests to either deny or redirect access.
-
-   .. note::
-
-    URL Sig is old and unlikely to be standardized. Prefer URI Signing.
-
-:doc:`Slice <slice.en>`
-   Slice full file or range based requests into deterministic chunks, allowing large files to be
-   spread across multiple cache stripes. Allows arbitrary range requests to be satisfied by stitching
-   these chunks together.
-
-:doc:`SSL Session Reuse <ssl_session_reuse.en>`
-   Coordinates Session ID and ticket based TLS session resumption between a group of ATS machines.
 
 :doc:`SSL Headers <sslheaders.en>`
    Populate request headers with SSL session information.
-
-:doc:`STEK Share <stek_share.en>`
-    Coordinates STEK (Session Ticket Encryption Key) between ATS instances running in a group.
 
 :doc:`System Stats <system_stats.en>`
     Inserts system statistics in to the stats list

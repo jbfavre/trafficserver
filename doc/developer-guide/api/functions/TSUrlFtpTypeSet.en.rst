@@ -24,9 +24,7 @@ TSUrlFtpTypeSet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSUrlFtpTypeSet(TSMBuffer bufp, TSMLoc offset, int type)
 

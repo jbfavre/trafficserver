@@ -23,7 +23,7 @@ dnl TS_CHECK_YAML_CPP: look for yaml-cpp libraries and headers
 dnl
 AC_DEFUN([TS_CHECK_YAML_CPP], [
 has_yaml_cpp=no
-AC_ARG_WITH(yaml-cpp, [AS_HELP_STRING([--with-yaml-cpp=DIR],[use a specific yaml-cpp library])],
+AC_ARG_WITH(yaml-cpp, [AC_HELP_STRING([--with-yaml-cpp=DIR],[use a specific yaml-cpp library])],
 [
   if test "x$withval" != "xyes" && test "x$withval" != "x"; then
     yaml_cpp_base_dir="$withval"
@@ -83,15 +83,4 @@ AC_SUBST([YAMLCPP_INCLUDES])
 AC_SUBST([YAMLCPP_LIBS])
 AC_SUBST([YAMLCPP_LDFLAGS])
 
-])
-
-dnl TS_CHECK_YAML_HEADERS_EXPORT: check if we want to export yaml-cpp headers from trafficserver. default: not exported
-AC_DEFUN([TS_CHECK_YAML_HEADERS_EXPORT], [
-AC_MSG_CHECKING([whether to export yaml-cpp headers])
-AC_ARG_ENABLE([yaml-headers],
-  [AS_HELP_STRING([--enable-yaml-headers],[Export yaml-cpp headers])],
-  [],
-  [enable_yaml_headers=no]
-)
-AC_MSG_RESULT([$enable_yaml_headers])
 ])

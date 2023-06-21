@@ -38,7 +38,7 @@ replaceString(String &str, const String &from, const String &to)
   }
 }
 
-Pattern::Pattern() : _pattern(""), _replacement("") {}
+Pattern::Pattern() : _re(nullptr), _extra(nullptr), _pattern(""), _replacement(""), _replace(false), _tokenCount(0) {}
 
 /**
  * @brief Initializes PCRE pattern by providing the subject and replacement strings.
@@ -47,18 +47,18 @@ Pattern::Pattern() : _pattern(""), _replacement("") {}
  * @return true if successful, false if failure
  */
 bool
-Pattern::init(const String &pattern, const String &replacement, bool replace)
+Pattern::init(const String &pattern, const String &replacenemt, bool replace)
 {
   pcreFree();
 
   _pattern.assign(pattern);
-  _replacement.assign(replacement);
+  _replacement.assign(replacenemt);
   _replace = replace;
 
   _tokenCount = 0;
 
   if (!compile()) {
-    AccessControlDebug("failed to initialize pattern:'%s', replacement:'%s'", pattern.c_str(), replacement.c_str());
+    AccessControlDebug("failed to initialize pattern:'%s', replacement:'%s'", pattern.c_str(), replacenemt.c_str());
     pcreFree();
     return false;
   }
@@ -160,7 +160,7 @@ Pattern::pcreFree()
 }
 
 /**
- * @brief Destructor, frees PCRE related resources.
+ * @bried Destructor, frees PCRE related resources.
  */
 Pattern::~Pattern()
 {
@@ -207,7 +207,7 @@ Pattern::process(const String &subject, StringVector &result)
 }
 
 /**
- * @brief PCRE matches a subject string against the regex pattern.
+ * @brief PCRE matches a subject string against the the regex pattern.
  * @param subject PCRE subject
  * @return true - matched, false - did not.
  */

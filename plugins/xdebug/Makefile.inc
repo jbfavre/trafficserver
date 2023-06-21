@@ -15,6 +15,4 @@
 #  limitations under the License.
 
 pkglib_LTLIBRARIES += xdebug/xdebug.la
-xdebug_xdebug_la_SOURCES = \
-xdebug/Cleanup.h \
-xdebug/xdebug.cc
+xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc

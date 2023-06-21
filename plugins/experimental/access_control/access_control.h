@@ -79,7 +79,7 @@ struct KvpAccessTokenConfig {
   StringView messageDigestName = "md";
 
   String pairDelimiter = "&";
-  String kvDelimiter   = "=";
+  String kvDeliiter    = "=";
 };
 
 /**
@@ -216,7 +216,7 @@ class KvpAccessToken : public AccessToken
 {
 public:
   KvpAccessToken(const KvpAccessTokenConfig &tokenConfig, const StringMap &secretsMap, bool enableDebug = false);
-  AccessTokenStatus parse(const StringView token) override;
+  AccessTokenStatus parse(const StringView token);
 
 protected:
   const KvpAccessTokenConfig &_tokenConfig; /** @brief description of keys' names and delimiters */

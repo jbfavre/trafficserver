@@ -27,9 +27,7 @@ Intercept Traffic Server events.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSHttpHookAdd(TSHttpHookID id, TSCont contp)
 .. function:: void TSHttpSsnHookAdd(TSHttpSsn ssnp, TSHttpHookID id, TSCont contp)
@@ -47,7 +45,7 @@ transaction, or for specific transactions only.
 HTTP :term:`transaction` hooks are set on a global basis using the function
 :func:`TSHttpHookAdd`. This means that the continuation specified
 as the parameter to :func:`TSHttpHookAdd` is called for every
-transaction. :func:`TSHttpHookAdd` must only be called from
+transaction. :func:`TSHttpHookAdd` is typically called from
 :func:`TSPluginInit` or :func:`TSRemapInit`.
 
 :func:`TSHttpSsnHookAdd` adds :arg:`contp` to
@@ -70,7 +68,7 @@ It is good practice to conserve resources by reusing hooks in this way
 when possible.
 
 When a continuation on a hook is triggered, the name of the event passed to
-the continuation function depends on the name of the hook.  The naming
+the continution function depends on the name of the hook.  The naming
 convention is that, for hook TS_xxx_HOOK, the event passed to the continuation
 function will be TS_EVENT_xxx.  For example, when a continuation attached to
 TS_HTTP_READ_REQUEST_HDR_HOOK is triggered, the event passed to the continuation
@@ -79,11 +77,9 @@ function will be TS_EVENT_HTTP_READ_REQUEST_HDR.
 When a continuation is triggered by a hook, the actual type of the event data
 (the void pointer passed as the third parameter to the continuation function) is
 determined by which hook it is.  For example, for the hook ID TS_HTTP_TXN_CLOSE_HOOK,
-the event data is of type :type:`TSHttpTxn`.  This is the case regardless of whether the
+the event data is of type TSHttpTxn.  This is the case regardless of whether the
 continuation was added to the hook using :func:`TSHttpTxnHookAdd`, :func:`TSHttpSsnHookAdd`
-or :func:`TSHttpHookAdd`.  If the event data is of type :type:`TSHttpTxn`, :type:`TSHttpSsn` or
-:type:`TSVConn`, the continuation function can assume the mutex of the indicated
-event data object is locked.  (But the continuation function must not unlock it.)
+or :func:`TSHttpHookAdd`.
 
 Return Values
 =============
@@ -117,11 +113,6 @@ transaction hooks::
             TSHttpTxnHookAdd(txnp, TS_HTTP_READ_REQUEST_HDR_HOOK, contp);
             TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
             return 0;
-        case TS_EVENT_HTTP_READ_REQUEST_HDR:
-            txnp = (TSHttpTxn) edata;
-            // ...
-            TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
-            return 0;
         default:
              break;
         }
@@ -136,9 +127,6 @@ transaction hooks::
         contp = TSContCreate(handler, NULL);
         TSHttpHookAdd(TS_HTTP_SSN_START_HOOK, contp);
     }
-
-For more example code using hooks, see the test_hooks plugin in tests/tools/plugins (used by the test_hooks.test.py
-Gold test).
 
 See Also
 ========

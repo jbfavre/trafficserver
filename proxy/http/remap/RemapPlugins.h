@@ -19,8 +19,11 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
-
  */
+
+/**
+ * Remap plugins class
+ **/
 
 #pragma once
 
@@ -35,12 +38,13 @@
  * A class that represents a queue of plugins to run
  **/
 struct RemapPlugins : public Continuation {
-  RemapPlugins() = default;
+  RemapPlugins() : _cur(0) {}
   RemapPlugins(HttpTransact::State *s, URL *u, HTTPHdr *h, host_hdr_info *hi)
-    : _s(s), _request_url(u), _request_header(h), _hh_ptr(hi)
+    : _cur(0), _s(s), _request_url(u), _request_header(h), _hh_ptr(hi)
   {
   }
 
+  ~RemapPlugins() override { _cur = 0; }
   // Some basic setters
   void
   setState(HttpTransact::State *state)
@@ -64,14 +68,13 @@ struct RemapPlugins : public Continuation {
   }
 
   int run_remap(int event, Event *e);
-  bool run_single_remap();
-  TSRemapStatus run_plugin(RemapPluginInst *plugin);
+  int run_single_remap();
+  TSRemapStatus run_plugin(remap_plugin_info *plugin);
 
   Action action;
 
 private:
-  unsigned _cur            = 0;
-  unsigned _rewritten      = 0;
+  unsigned int _cur        = 0;
   HttpTransact::State *_s  = nullptr;
   URL *_request_url        = nullptr;
   HTTPHdr *_request_header = nullptr;

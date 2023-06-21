@@ -28,7 +28,7 @@
 using namespace atscppapi;
 using std::string;
 
-Stat::Stat()
+Stat::Stat() : stat_id_(TS_ERROR)
 {
   // ATS Guarantees that stat ids will always be > 0. So we can use stat_id_ > 0 to
   // verify that this stat has been properly initialized.

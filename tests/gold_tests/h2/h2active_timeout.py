@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 '''
 '''
 #  Licensed to the Apache Software Foundation (ASF) under one
@@ -18,31 +16,30 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import json
 from hyper import HTTPConnection
 import hyper
 import argparse
 import time
 
 
-def makerequest(port, active_timeout):
+def makerequest(port):
     hyper.tls._context = hyper.tls.init_context()
     hyper.tls._context.check_hostname = False
     hyper.tls._context.verify_mode = hyper.compat.ssl.CERT_NONE
 
     conn = HTTPConnection('localhost:{0}'.format(port), secure=True)
 
-    try:
-        # delay after sending the first request
-        # so the H2 session active timeout triggers
-        # Then the next request should fail
-        req_id = conn.request('GET', '/')
-        time.sleep(active_timeout)
-        response = conn.get_response(req_id)
-        req_id = conn.request('GET', '/')
-        response = conn.get_response(req_id)
-    except Exception:
-        print('CONNECTION_TIMEOUT')
-        return
+    active_timeout = 3
+    request_interval = 0.1
+    loop_cnt = int((active_timeout + 2) / request_interval)
+    for i in range(loop_cnt):
+        try:
+            conn.request('GET', '/')
+            time.sleep(request_interval)
+        except:
+            print('CONNECTION_TIMEOUT')
+            return
 
     print('NO_TIMEOUT')
 
@@ -52,11 +49,8 @@ def main():
     parser.add_argument("--port", "-p",
                         type=int,
                         help="Port to use")
-    parser.add_argument("--delay", "-d",
-                        type=int,
-                        help="Time to delay in seconds")
     args = parser.parse_args()
-    makerequest(args.port, args.delay)
+    makerequest(args.port)
 
 
 if __name__ == '__main__':

@@ -37,20 +37,16 @@ where :arg:`pathname` is the name of a partition, directory or file, :arg:`size`
 named partition, directory or file (in bytes), and :arg:`volume` is the volume number used in the
 files :file:`volume.config` and :file:`hosting.config`. :arg:`id` is used for seeding the
 :ref:`assignment-table`. You must specify a size for directories; size is optional for files and raw
-partitions. :arg:`volume` and :arg:`id` are optional.
+partitions. :arg:`volume` and arg:`seed` are optional.
 
 .. note::
 
-   The :arg:`volume` option is independent of the :arg:`id` option and either can be used with or without the other,
+   The :arg:`volume` option is independent of the :arg:`seed` option and either can be used with or without the other,
    and their ordering on the line is irrelevant.
 
 .. note::
 
    If the :arg:`id` option is used every use must have a unique value for :arg:`string`.
-
-.. note::
-
-   Any change to this files can (and almost always will) invalidate the existing cache in its entirety.
 
 You can use any partition of any size. For best performance:
 
@@ -96,7 +92,7 @@ which will effectively clear most of the cache. This can be problem when drives 
 reboot causes the path names to change.
 
 The :arg:`id` option can be used to create a fixed string that an administrator can use to keep the
-assignment table consistent by maintaining the mapping from physical device to base string even in the presence of hardware changes and failures.
+assignment table consistent by maintaing the mapping from physical device to base string even in the presence of hardware changes and failures.
 
 Examples
 ========
@@ -139,7 +135,7 @@ Linux Example
     modern Linux supports `alternative symlinked names for disk devices
     <https://wiki.archlinux.org/index.php/persistent_block_device_naming#by-id_and_by-path>`_ in the ``/dev/disk``
     directory structure. As noted for the :ref:`assignment-table` the path used for the disk can effect
-    the cache if it changes. This can be ameliorated in some cases by using one of the alternate paths
+    the cache if it changes. This can be ameloriated in some cases by using one of the alternate paths
     in via ``/dev/disk``. Note that if the ``by-id`` or ``by-path`` style is used, replacing a failed drive will cause
     that path to change because the new drive will have a different physical ID or path. The original hash string can
     be kept by adding :arg:`id` or :arg:`path` with the original path to the storage line.

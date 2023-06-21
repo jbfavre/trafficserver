@@ -22,15 +22,42 @@
  * @see utils.h
  */
 
-#include <cerrno>        /* errno */
-#include <openssl/err.h> /* ERR_get_error() and ERR_error_string_n() */
-#include <openssl/hmac.h>
+#include <errno.h>          /* errno */
+#include <limits.h>         /* LONG_MIN, LONG_MAX */
+#include <openssl/bio.h>    /* BIO I/O abstraction */
+#include <openssl/buffer.h> /* buf_mem_st */
+#include <openssl/err.h>    /* ERR_get_error() and ERR_error_string_n() */
 #include <openssl/crypto.h>
 
 #include "common.h"
 #include "utils.h"
-#include "tscore/ink_base64.h"
-#include "ink_autoconf.h"
+
+/**
+ * @brief Parse a counted string containing a long integer
+ *
+ * @param s ptr to the counted string
+ * @param lenght character count
+ * @param val where the long integer to be stored
+ * @return true - success, false - failed to parse
+ */
+bool
+parseStrLong(const char *s, size_t length, long &val)
+{
+  // Make an extra copy since strtol expects NULL-terminated strings.
+  char str[length + 1];
+  strncpy(str, s, length);
+  str[length] = 0;
+
+  errno = 0;
+  char *temp;
+  val = strtol(str, &temp, 0);
+
+  if (temp == str || *temp != '\0' || ((val == LONG_MIN || val == LONG_MAX) && errno == ERANGE)) {
+    AccessControlError("Could not convert '%s' to a long integer and leftover string is: '%s'", str, temp);
+    return false;
+  }
+  return true;
+}
 
 /* ******* Encoding/Decoding functions ******* */
 
@@ -51,7 +78,7 @@ hexEncode(const char *in, size_t inLen, char *out, size_t outLen)
   char *dst          = out;
   char *dstEnd       = out + outLen;
 
-  while (src < srcEnd && dst < dstEnd && 2 == sprintf(dst, "%02x", static_cast<unsigned char>(*src))) {
+  while (src < srcEnd && dst < dstEnd && 2 == sprintf(dst, "%02x", (unsigned char)*src)) {
     dst += 2;
     src++;
   }
@@ -67,15 +94,12 @@ hexEncode(const char *in, size_t inLen, char *out, size_t outLen)
 static unsigned char
 hex2uchar(char c)
 {
-  if (c >= '0' && c <= '9') {
+  if (c >= '0' && c <= '9')
     return c - '0';
-  }
-  if (c >= 'a' && c <= 'f') {
+  if (c >= 'a' && c <= 'f')
     return c - 'a' + 10;
-  }
-  if (c >= 'A' && c <= 'F') {
+  if (c >= 'A' && c <= 'F')
     return c - 'A' + 10;
-  }
   return 255;
 }
 
@@ -117,14 +141,14 @@ urlEncode(const char *in, size_t inLen, char *out, size_t outLen)
 {
   const char *src = in;
   char *dst       = out;
-  while (static_cast<size_t>(src - in) < inLen && static_cast<size_t>(dst - out) < outLen) {
+  while ((size_t)(src - in) < inLen && (size_t)(dst - out) < outLen) {
     if (isalnum(*src) || *src == '-' || *src == '_' || *src == '.' || *src == '~') {
       *dst++ = *src;
     } else if (*src == ' ') {
       *dst++ = '+';
     } else {
       *dst++ = '%';
-      sprintf(dst, "%02x", static_cast<unsigned char>(*src));
+      sprintf(dst, "%02x", (unsigned char)*src);
       dst += 2;
     }
     src++;
@@ -146,11 +170,11 @@ urlDecode(const char *in, size_t inLen, char *out, size_t outLen)
 {
   const char *src = in;
   char *dst       = out;
-  while (static_cast<size_t>(src - in) < inLen && static_cast<size_t>(dst - out) < outLen) {
+  while ((size_t)(src - in) < inLen && (size_t)(dst - out) < outLen) {
     if (*src == '%') {
       if (src[1] && src[2]) {
         int u  = hex2uchar(*(src + 1)) << 4 | hex2uchar(*(src + 2));
-        *dst++ = static_cast<char>(u);
+        *dst++ = (char)u;
         src += 2;
       }
     } else if (*src == '+') {
@@ -220,48 +244,54 @@ size_t
 cryptoMessageDigestGet(const char *digestType, const char *data, size_t dataLen, const char *key, size_t keyLen, char *out,
                        size_t outLen)
 {
-#ifndef HAVE_HMAC_CTX_NEW
-  HMAC_CTX ctx[1];
-#else
-  HMAC_CTX *ctx;
-#endif
-
+  EVP_MD_CTX *ctx  = nullptr;
   const EVP_MD *md = nullptr;
-  unsigned int len = 0;
+  EVP_PKEY *pkey   = nullptr;
+  size_t len       = outLen;
   char buffer[256];
 
-  if (!(md = EVP_get_digestbyname(digestType))) {
-    AccessControlError("unknown digest name '%s'", digestType);
-    return 0;
-  }
-
-#ifndef HAVE_HMAC_CTX_NEW
-  HMAC_CTX_init(ctx);
-#else
-  ctx = HMAC_CTX_new();
-#endif
-  if (!HMAC_Init_ex(ctx, key, keyLen, md, nullptr)) {
+  size_t result = 0;
+  if (!(ctx = EVP_MD_CTX_create())) {
     AccessControlError("failed to create EVP message digest context: %s", cryptoErrStr(buffer, sizeof(buffer)));
-    goto err;
-  }
-
-  if (!HMAC_Update(ctx, reinterpret_cast<const unsigned char *>(data), dataLen)) {
-    AccessControlError("failed to update the signing hash: %s", cryptoErrStr(buffer, sizeof(buffer)));
-    goto err;
-  }
-
-  if (!HMAC_Final(ctx, reinterpret_cast<unsigned char *>(out), &len)) {
-    AccessControlError("failed to finalize the signing hash: %s", cryptoErrStr(buffer, sizeof(buffer)));
-    goto err;
-  }
-
-err:
-#ifndef HAVE_HMAC_CTX_NEW
-  HMAC_CTX_cleanup(ctx);
+  } else {
+#ifndef OPENSSL_IS_BORINGSSL
+    if (!(pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, nullptr, (const unsigned char *)key, keyLen))) {
 #else
-  HMAC_CTX_free(ctx);
+    if (false) {
 #endif
-  return len;
+      AccessControlError("failed to create EVP private key. %s", cryptoErrStr(buffer, sizeof(buffer)));
+      EVP_MD_CTX_destroy(ctx);
+    } else {
+      do {
+        if (!(md = EVP_get_digestbyname(digestType))) {
+          AccessControlError("failed to get digest by name %s. %s", digestType, cryptoErrStr(buffer, sizeof(buffer)));
+          break;
+        }
+
+        if (1 != EVP_DigestSignInit(ctx, nullptr, md, nullptr, pkey)) {
+          AccessControlError("failed to set up signing context. %s", cryptoErrStr(buffer, sizeof(buffer)));
+          break;
+        }
+
+        if (1 != EVP_DigestSignUpdate(ctx, data, dataLen)) {
+          AccessControlError("failed to update the signing hash. %s", cryptoErrStr(buffer, sizeof(buffer)));
+          break;
+        }
+
+        if (1 != EVP_DigestSignFinal(ctx, (unsigned char *)out, &len)) {
+          AccessControlError("failed to finalize the signing hash. %s", cryptoErrStr(buffer, sizeof(buffer)));
+        }
+
+        /* success */
+        result = len;
+      } while (0);
+
+      EVP_PKEY_free(pkey);
+      EVP_MD_CTX_destroy(ctx);
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -296,7 +326,7 @@ cryptoMessageDigestEqual(const char *md1, size_t md1Len, const char *md2, size_t
 size_t
 cryptoBase64EncodedSize(size_t decodedSize)
 {
-  return ats_base64_encode_dstlen(decodedSize);
+  return (((4 * decodedSize) / 3) + 3) & ~3;
 }
 
 /**
@@ -308,7 +338,22 @@ cryptoBase64EncodedSize(size_t decodedSize)
 size_t
 cryptoBase64DecodeSize(const char *encoded, size_t encodedLen)
 {
-  return ats_base64_decode_dstlen(encodedLen);
+  if (nullptr == encoded || 0 == encodedLen) {
+    return 0;
+  }
+
+  size_t padding  = 0;
+  const char *end = encoded + encodedLen;
+
+  if ('=' == *(--end)) {
+    padding++;
+  }
+
+  if ('=' == *(--end)) {
+    padding++;
+  }
+
+  return (3 * encodedLen) / 4 - padding;
 }
 
 /**
@@ -327,11 +372,27 @@ cryptoBase64Encode(const char *in, size_t inLen, char *out, size_t outLen)
     return 0;
   }
 
-  if (!ats_base64_encode(in, inLen, out, outLen, &outLen)) {
-    return 0;
-  }
+  BIO *head, *b64, *bmem;
+  BUF_MEM *bptr;
+  size_t len = 0;
 
-  return outLen;
+  head = b64 = BIO_new(BIO_f_base64());
+  if (nullptr != b64) {
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bmem = BIO_new(BIO_s_mem());
+    if (nullptr != bmem) {
+      head = BIO_push(b64, bmem);
+
+      BIO_write(head, in, inLen);
+      (void)BIO_flush(head);
+
+      BIO_get_mem_ptr(head, &bptr);
+      len = bptr->length < outLen ? bptr->length : outLen;
+      strncpy(out, bptr->data, len);
+    }
+    BIO_free_all(head);
+  }
+  return len;
 }
 
 /**
@@ -350,11 +411,21 @@ cryptoBase64Decode(const char *in, size_t inLen, char *out, size_t outLen)
     return 0;
   }
 
-  if (!ats_base64_decode(in, inLen, reinterpret_cast<unsigned char *>(out), outLen, &outLen)) {
-    return 0;
+  BIO *head, *bmem, *b64;
+  size_t len = 0;
+
+  head = b64 = BIO_new(BIO_f_base64());
+  if (nullptr != b64) {
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bmem = BIO_new_mem_buf((void *)in, inLen);
+    if (nullptr != bmem) {
+      head = BIO_push(b64, bmem);
+      len  = BIO_read(head, out, outLen);
+    }
+    BIO_free_all(head);
   }
 
-  return outLen;
+  return len;
 }
 
 /**

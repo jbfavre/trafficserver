@@ -95,9 +95,9 @@ struct NetAccept : public Continuation {
 
   virtual NetProcessor *getNetProcessor() const;
 
+  void init_accept_loop(const char *);
   virtual void init_accept(EThread *t = nullptr);
-  void init_accept_loop();
-  void init_accept_per_thread();
+  virtual void init_accept_per_thread();
   virtual void stop_accept();
   virtual NetAccept *clone() const;
 
@@ -107,7 +107,6 @@ struct NetAccept : public Continuation {
 
   virtual int acceptEvent(int event, void *e);
   virtual int acceptFastEvent(int event, void *e);
-  virtual int accept_per_thread(int event, void *e);
   int acceptLoopEvent(int event, Event *e);
   void cancel();
 

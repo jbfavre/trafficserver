@@ -31,8 +31,8 @@
 
 #pragma once
 
-#include <cstdarg>
-#include <cstdio>
+#include <stdarg.h>
+#include <stdio.h>
 #include "tscore/ink_platform.h"
 #include "tscore/ink_apidefs.h"
 
@@ -59,3 +59,5 @@ void ink_pwarning(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_notice(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_eprintf(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_error(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
+
+int ink_set_dprintf_level(int debug_level);

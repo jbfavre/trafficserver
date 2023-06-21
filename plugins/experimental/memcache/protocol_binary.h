@@ -69,7 +69,7 @@ typedef enum {
 } protocol_binary_response_status;
 
 /**
- * Definition of the different command opcodes.
+ * Defintion of the different command opcodes.
  * See section 3.3 Command Opcodes
  */
 typedef enum {

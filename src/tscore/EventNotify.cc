@@ -31,15 +31,15 @@
 #include "tscore/ink_hrtime.h"
 #include "tscore/ink_defs.h"
 
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
 #include <sys/eventfd.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #include <sys/epoll.h>
 #endif
 
 EventNotify::EventNotify()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   int ret;
   struct epoll_event ev;
 
@@ -63,10 +63,10 @@ EventNotify::EventNotify()
 void
 EventNotify::signal()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   uint64_t value = 1;
   //
-  // If the addition would cause the counter's value of eventfd
+  // If the addition would cause the counter’s value of eventfd
   // to exceed the maximum, write() will fail with the errno EAGAIN,
   // which is acceptable as the receiver will be notified eventually.
   //
@@ -79,7 +79,7 @@ EventNotify::signal()
 int
 EventNotify::wait()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   ssize_t nr, nr_fd;
   uint64_t value = 0;
   struct epoll_event ev;
@@ -104,10 +104,9 @@ EventNotify::wait()
 #endif
 }
 
-int
-EventNotify::timedwait(int timeout) // milliseconds
+int EventNotify::timedwait(int timeout) // milliseconds
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   ssize_t nr, nr_fd = 0;
   uint64_t value = 0;
   struct epoll_event ev;
@@ -148,7 +147,7 @@ EventNotify::timedwait(int timeout) // milliseconds
 void
 EventNotify::lock()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
 // do nothing
 #else
   ink_mutex_acquire(&m_mutex);
@@ -158,7 +157,7 @@ EventNotify::lock()
 bool
 EventNotify::trylock()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   return true;
 #else
   return ink_mutex_try_acquire(&m_mutex);
@@ -168,7 +167,7 @@ EventNotify::trylock()
 void
 EventNotify::unlock()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
 // do nothing
 #else
   ink_mutex_release(&m_mutex);
@@ -177,7 +176,7 @@ EventNotify::unlock()
 
 EventNotify::~EventNotify()
 {
-#if defined(HAVE_EVENTFD) && TS_USE_EPOLL == 1
+#ifdef HAVE_EVENTFD
   close(m_event_fd);
   close(m_epoll_fd);
 #else

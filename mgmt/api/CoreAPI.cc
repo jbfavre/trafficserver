@@ -28,26 +28,27 @@
  *
  *
  ***************************************************************************/
-#include <vector>
 
 #include "tscore/ink_platform.h"
 #include "tscore/ink_file.h"
 #include "tscore/ParseRules.h"
-#include "RecordsConfig.h"
-#include "Alarms.h"
 #include "MgmtUtils.h"
 #include "LocalManager.h"
 #include "FileManager.h"
-#include "ConfigManager.h"
+#include "Rollback.h"
 #include "WebMgmtUtils.h"
 #include "tscore/Diags.h"
+#include "tscore/ink_hash_table.h"
 #include "ExpandingArray.h"
+//#include "I_AccCrypto.h"
 
 #include "CoreAPI.h"
 #include "CoreAPIShared.h"
 #include "EventCallback.h"
 #include "tscore/I_Layout.h"
 #include "tscore/ink_cap.h"
+
+#include <vector>
 
 // global variable
 static CallbackTable *local_event_callbacks;
@@ -57,7 +58,7 @@ extern FileManager *configFiles; // global in traffic_manager
 /*-------------------------------------------------------------------------
  * Init
  *-------------------------------------------------------------------------
- * performs any necessary initializations for the local API client,
+ * performs any necesary initializations for the local API client,
  * eg. set up global structures; called by the TSMgmtAPI::TSInit()
  */
 TSMgmtError
@@ -79,7 +80,7 @@ Init(const char * /* socket_path ATS_UNUSED */, TSInitOptionT options)
 /*-------------------------------------------------------------------------
  * Terminate
  *-------------------------------------------------------------------------
- * performs any necessary cleanup of global structures, etc,
+ * performs any necesary cleanup of global structures, etc,
  * for the local API client,
  */
 TSMgmtError
@@ -112,7 +113,7 @@ ProxyShutdown()
 
   lmgmt->processShutdown(false /* only shut down the proxy*/);
 
-  // Wait for awhile for shutdown to happen
+  // Wait for awhile for shtudown to happen
   do {
     mgmt_sleep_sec(1);
     i++;
@@ -170,12 +171,7 @@ ProxyStateSet(TSProxyStateT state, TSCacheClearT clear)
 
     // Start with the default options from records.config.
     if (RecGetRecordString_Xmalloc("proxy.config.proxy_binary_opts", &proxy_options) == REC_ERR_OKAY) {
-      if (max_records_entries ==
-          (REC_INTERNAL_RECORDS + REC_DEFAULT_API_RECORDS)) { // Default size, don't need to pass down to _server
-        snprintf(tsArgs, sizeof(tsArgs), "%s", proxy_options);
-      } else {
-        snprintf(tsArgs, sizeof(tsArgs), "%s --maxRecords %d", proxy_options, max_records_entries);
-      }
+      snprintf(tsArgs, sizeof(tsArgs), "%s", proxy_options);
       ats_free(proxy_options);
     }
 
@@ -214,7 +210,7 @@ Lerror:
 #include <sys/ptrace.h>
 #include <cxxabi.h>
 
-using threadlist = std::vector<pid_t>;
+typedef std::vector<pid_t> threadlist;
 
 static threadlist
 threads_for_process(pid_t proc)
@@ -225,7 +221,7 @@ threads_for_process(pid_t proc)
   char path[64];
   threadlist threads;
 
-  if (snprintf(path, sizeof(path), "/proc/%ld/task", static_cast<long>(proc)) >= static_cast<int>(sizeof(path))) {
+  if (snprintf(path, sizeof(path), "/proc/%ld/task", (long)proc) >= (int)sizeof(path)) {
     goto done;
   }
 
@@ -309,10 +305,10 @@ backtrace_for_thread(pid_t threadid, TextBuffer &text)
     if (unw_get_proc_name(&cursor, buf, sizeof(buf), &offset) == 0) {
       int status;
       char *name = abi::__cxa_demangle(buf, nullptr, nullptr, &status);
-      text.format("%-4u 0x%016llx %s + %p\n", level, static_cast<unsigned long long>(ip), name ? name : buf, (void *)offset);
+      text.format("%-4u 0x%016llx %s + %p\n", level, (unsigned long long)ip, name ? name : buf, (void *)offset);
       free(name);
     } else {
-      text.format("%-4u 0x%016llx 0x0 + %p\n", level, static_cast<unsigned long long>(ip), (void *)offset);
+      text.format("%-4u 0x%016llx 0x0 + %p\n", level, (unsigned long long)ip, (void *)offset);
     }
 
     ++level;
@@ -351,14 +347,14 @@ ServerBacktrace(unsigned /* options */, char **trace)
     ats_scoped_fd fd;
     char threadname[128];
 
-    snprintf(threadname, sizeof(threadname), "/proc/%ld/comm", static_cast<long>(threadid));
+    snprintf(threadname, sizeof(threadname), "/proc/%ld/comm", (long)threadid);
     fd = open(threadname, O_RDONLY);
     if (fd >= 0) {
-      text.format("Thread %ld, ", static_cast<long>(threadid));
+      text.format("Thread %ld, ", (long)threadid);
       text.readFromFD(fd);
       text.chomp();
     } else {
-      text.format("Thread %ld", static_cast<long>(threadid));
+      text.format("Thread %ld", (long)threadid);
     }
 
     text.format(":\n");
@@ -523,7 +519,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle *rec_ele)
     if (!varCounterFromName(rec_name, &(counter_val))) {
       return TS_ERR_FAIL;
     }
-    rec_ele->valueT.counter_val = static_cast<TSCounter>(counter_val);
+    rec_ele->valueT.counter_val = (TSCounter)counter_val;
 
     Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %" PRId64 "", rec_ele->rec_name, rec_ele->valueT.counter_val);
     break;
@@ -533,7 +529,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle *rec_ele)
     if (!varIntFromName(rec_name, &(int_val))) {
       return TS_ERR_FAIL;
     }
-    rec_ele->valueT.int_val = static_cast<TSInt>(int_val);
+    rec_ele->valueT.int_val = (TSInt)int_val;
 
     Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %" PRId64 "", rec_ele->rec_name, rec_ele->valueT.int_val);
     break;
@@ -564,7 +560,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle *rec_ele)
     Debug("RecOp", "[MgmtRecordGet] Get String Var %s = %s", rec_ele->rec_name, rec_ele->valueT.string_val);
     break;
 
-  default: // UNKNOWN TYPE
+  default: // UNKOWN TYPE
     Debug("RecOp", "[MgmtRecordGet] Get Failed : %d is Unknown Var type %s", rec_type, rec_name);
     return TS_ERR_FAIL;
   }
@@ -794,6 +790,12 @@ EventResolve(const char *event_name)
 TSMgmtError
 ActiveEventGetMlt(LLQ *active_events)
 {
+  InkHashTable *event_ht;
+  InkHashTableEntry *entry;
+  InkHashTableIteratorState iterator_state;
+  int event_id;
+  char *event_name;
+
   if (!active_events) {
     return TS_ERR_PARAMS;
   }
@@ -801,13 +803,16 @@ ActiveEventGetMlt(LLQ *active_events)
   // Alarms stores a hashtable of all active alarms where:
   // key = alarm_t,
   // value = alarm_description defined in Alarms.cc alarmText[] array
-  std::unordered_map<std::string, Alarm *> const &event_ht = lmgmt->alarm_keeper->getLocalAlarms();
+  event_ht = lmgmt->alarm_keeper->getLocalAlarms();
 
   // iterate through hash-table and insert event_name's into active_events list
-  for (auto &&it : event_ht) {
+  for (entry = ink_hash_table_iterator_first(event_ht, &iterator_state); entry != nullptr;
+       entry = ink_hash_table_iterator_next(event_ht, &iterator_state)) {
+    char *key = (char *)ink_hash_table_entry_key(event_ht, entry);
+
     // convert key to int; insert into llQ
-    int event_id     = ink_atoi(it.first.c_str());
-    char *event_name = get_event_name(event_id);
+    event_id   = ink_atoi(key);
+    event_name = get_event_name(event_id);
     if (event_name) {
       if (!enqueue(active_events, event_name)) { // returns true if successful
         return TS_ERR_FAIL;
@@ -856,7 +861,7 @@ EventIsActive(const char *event_name, bool *is_current)
  * only allow registering callbacks for general alarms.
  * Mimic remote side and have a separate structure (eg. hashtable) of
  * event callback functions for each type of event. The functions are also
- * stored in the hashtable, not in the TM alarm processor model
+ * stored in the the hashtable, not in the TM alarm processor model
  */
 TSMgmtError
 EventSignalCbRegister(const char *event_name, TSEventSignalFunc func, void *data)
@@ -922,3 +927,7 @@ StatsReset(const char *name)
   lmgmt->clearStats(name);
   return TS_ERR_OKAY;
 }
+
+/*-------------------------------------------------------------
+ * rmserver.cfg
+ *-------------------------------------------------------------*/

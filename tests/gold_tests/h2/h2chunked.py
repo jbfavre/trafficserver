@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 '''
 '''
 #  Licensed to the Apache Software Foundation (ASF) under one
@@ -18,6 +16,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import json
 from hyper import HTTPConnection
 import hyper
 import argparse
@@ -42,8 +41,9 @@ def makerequest(port, _url):
     conn = HTTPConnection('localhost:{0}'.format(port), secure=True)
 
     sites = {'/'}
+    responses = []
     request_ids = []
-    for _ in sites:
+    for site in sites:
         request_id = conn.request('GET', url=_url)
         request_ids.append(request_id)
 

@@ -47,7 +47,7 @@ namespace io
   struct IO {
     TSIOBuffer buffer;
     TSIOBufferReader reader;
-    TSVIO vio = nullptr;
+    TSVIO vio;
 
     ~IO()
     {
@@ -58,8 +58,8 @@ namespace io
       TSIOBufferDestroy(buffer);
     }
 
-    IO() : buffer(TSIOBufferCreate()), reader(TSIOBufferReaderAlloc(buffer)) {}
-    IO(const TSIOBuffer &b) : buffer(b), reader(TSIOBufferReaderAlloc(buffer)) { assert(buffer != nullptr); }
+    IO(void) : buffer(TSIOBufferCreate()), reader(TSIOBufferReaderAlloc(buffer)), vio(nullptr) {}
+    IO(const TSIOBuffer &b) : buffer(b), reader(TSIOBufferReaderAlloc(buffer)), vio(nullptr) { assert(buffer != nullptr); }
     static IO *read(TSVConn, TSCont, const int64_t);
 
     static IO *
@@ -78,9 +78,9 @@ namespace io
 
     uint64_t copy(const std::string &) const;
 
-    int64_t consume() const;
+    int64_t consume(void) const;
 
-    int64_t done() const;
+    int64_t done(void) const;
   };
 
   struct ReaderSize {
@@ -114,7 +114,7 @@ namespace io
   typedef std::weak_ptr<WriteOperation> WriteOperationWeakPointer;
 
   struct Lock {
-    const TSMutex mutex_ = nullptr;
+    const TSMutex mutex_;
 
     ~Lock()
     {
@@ -131,7 +131,7 @@ namespace io
     }
 
     // noncopyable
-    Lock() {}
+    Lock(void) : mutex_(nullptr) {}
     Lock(const Lock &) = delete;
 
     Lock(Lock &&l) : mutex_(l.mutex_) { const_cast<TSMutex &>(l.mutex_) = nullptr; }
@@ -166,8 +166,8 @@ namespace io
     WriteOperation &operator<<(const std::string &);
 
     void process(const size_t b = 0);
-    void close();
-    void abort();
+    void close(void);
+    void abort(void);
 
   private:
     WriteOperation(const TSVConn, const TSMutex, const size_t);
@@ -215,10 +215,10 @@ namespace io
       return IOSinkPointer(new IOSink(WriteOperation::Create(std::forward<A>(a)...)));
     }
 
-    void process();
-    SinkPointer branch();
-    Lock lock();
-    void abort();
+    void process(void);
+    SinkPointer branch(void);
+    Lock lock(void);
+    void abort(void);
 
   private:
     IOSink(WriteOperationWeakPointer &&p) : operation_(std::move(p)) {}
@@ -249,7 +249,7 @@ namespace io
       TSIOBufferDestroy(buffer_);
     }
 
-    BufferNode() : buffer_(TSIOBufferCreate()), reader_(TSIOBufferReaderAlloc(buffer_))
+    BufferNode(void) : buffer_(TSIOBufferCreate()), reader_(TSIOBufferReaderAlloc(buffer_))
     {
       assert(buffer_ != nullptr);
       assert(reader_ != nullptr);
@@ -289,7 +289,7 @@ namespace io
     Sink(const Sink &) = delete;
     Sink &operator=(const Sink &) = delete;
 
-    SinkPointer branch();
+    SinkPointer branch(void);
 
     Sink &operator<<(std::string &&);
 

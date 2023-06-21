@@ -89,11 +89,11 @@ LogBufferManager::preproc_buffers(LogBufferSink *sink)
   LogObject
   -------------------------------------------------------------------------*/
 
-LogObject::LogObject(LogConfig *cfg, const LogFormat *format, const char *log_dir, const char *basename, LogFileFormat file_format,
+LogObject::LogObject(const LogFormat *format, const char *log_dir, const char *basename, LogFileFormat file_format,
                      const char *header, Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec,
-                     int rolling_offset_hr, int rolling_size_mb, bool auto_created, int rolling_max_count, int rolling_min_count,
-                     bool reopen_after_rolling, int pipe_buffer_size)
-  : m_alt_filename(nullptr),
+                     int rolling_offset_hr, int rolling_size_mb, bool auto_created, int max_rolled, bool reopen_after_rolling)
+  : m_auto_created(auto_created),
+    m_alt_filename(nullptr),
     m_flags(0),
     m_signature(0),
     m_flush_threads(flush_threads),
@@ -101,11 +101,9 @@ LogObject::LogObject(LogConfig *cfg, const LogFormat *format, const char *log_di
     m_rolling_offset_hr(rolling_offset_hr),
     m_rolling_size_mb(rolling_size_mb),
     m_last_roll_time(0),
-    m_max_rolled(rolling_max_count),
-    m_min_rolled(rolling_min_count),
+    m_max_rolled(max_rolled),
     m_reopen_after_rolling(reopen_after_rolling),
-    m_buffer_manager_idx(0),
-    m_pipe_buffer_size(pipe_buffer_size)
+    m_buffer_manager_idx(0)
 {
   ink_release_assert(format);
   m_format         = new LogFormat(*format);
@@ -122,20 +120,75 @@ LogObject::LogObject(LogConfig *cfg, const LogFormat *format, const char *log_di
   // compute_signature is a static function
   m_signature = compute_signature(m_format, m_basename, m_flags);
 
-  m_logFile = new LogFile(m_filename, header, file_format, m_signature, cfg->ascii_buffer_size, cfg->max_line_size,
-                          m_pipe_buffer_size, format->escape_type());
+  // by default, create a LogFile for this object, if a loghost is
+  // later specified, then we will delete the LogFile object
+  //
+  m_logFile = new LogFile(m_filename, header, file_format, m_signature, Log::config->ascii_buffer_size, Log::config->max_line_size);
 
   if (m_reopen_after_rolling) {
     m_logFile->open_file();
   }
 
-  LogBuffer *b = new LogBuffer(cfg, this, cfg->log_buffer_size);
+  LogBuffer *b = new LogBuffer(this, Log::config->log_buffer_size);
   ink_assert(b);
   SET_FREELIST_POINTER_VERSION(m_log_buffer, b, 0);
 
-  _setup_rolling(cfg, rolling_enabled, rolling_interval_sec, rolling_offset_hr, rolling_size_mb);
+  _setup_rolling(rolling_enabled, rolling_interval_sec, rolling_offset_hr, rolling_size_mb);
 
   Debug("log-config", "exiting LogObject constructor, filename=%s this=%p", m_filename, this);
+}
+
+LogObject::LogObject(LogObject &rhs)
+  : RefCountObj(rhs),
+    m_auto_created(rhs.m_auto_created),
+    m_basename(ats_strdup(rhs.m_basename)),
+    m_filename(ats_strdup(rhs.m_filename)),
+    m_alt_filename(ats_strdup(rhs.m_alt_filename)),
+    m_flags(rhs.m_flags),
+    m_signature(rhs.m_signature),
+    m_rolling_enabled(rhs.m_rolling_enabled),
+    m_flush_threads(rhs.m_flush_threads),
+    m_rolling_interval_sec(rhs.m_rolling_interval_sec),
+    m_rolling_offset_hr(rhs.m_rolling_offset_hr),
+    m_rolling_size_mb(rhs.m_rolling_size_mb),
+    m_last_roll_time(rhs.m_last_roll_time),
+    m_max_rolled(rhs.m_max_rolled),
+    m_reopen_after_rolling(rhs.m_reopen_after_rolling),
+    m_buffer_manager_idx(rhs.m_buffer_manager_idx)
+{
+  m_format         = new LogFormat(*(rhs.m_format));
+  m_buffer_manager = new LogBufferManager[m_flush_threads];
+
+  if (rhs.m_logFile) {
+    m_logFile = new LogFile(*(rhs.m_logFile));
+
+    if (m_reopen_after_rolling) {
+      m_logFile->open_file();
+    }
+  } else {
+    m_logFile = nullptr;
+  }
+
+  LogFilter *filter;
+  for (filter = rhs.m_filter_list.first(); filter; filter = rhs.m_filter_list.next(filter)) {
+    add_filter(filter);
+  }
+
+  LogHost *host;
+  for (host = rhs.m_host_list.first(); host; host = rhs.m_host_list.next(host)) {
+    add_loghost(host);
+  }
+
+  // copy gets a fresh log buffer
+  //
+  LogBuffer *b = new LogBuffer(this, Log::config->log_buffer_size);
+  ink_assert(b);
+  SET_FREELIST_POINTER_VERSION(m_log_buffer, b, 0);
+
+  Debug("log-config",
+        "exiting LogObject copy constructor, "
+        "filename=%s this=%p",
+        m_filename, this);
 }
 
 LogObject::~LogObject()
@@ -143,25 +196,30 @@ LogObject::~LogObject()
   Debug("log-config", "entering LogObject destructor, this=%p", this);
 
   preproc_buffers();
+
+  // here we need to free LogHost if it is remote logging.
+  if (is_collation_client()) {
+    if (m_host_list.count()) {
+      m_host_list.clear();
+    }
+  }
   ats_free(m_basename);
   ats_free(m_filename);
   ats_free(m_alt_filename);
   delete m_format;
   delete[] m_buffer_manager;
-  delete static_cast<LogBuffer *>(FREELIST_POINTER(m_log_buffer));
+  delete (LogBuffer *)FREELIST_POINTER(m_log_buffer);
 }
 
 //-----------------------------------------------------------------------------
 //
 // This function generates an object filename according to the following rules:
 //
-// 1.- 'stdout' and 'stderr' are treated as special strings indicating file
-//     descriptors for the stdout and stderr streams.
-// 2.- if no extension is given, add .log for ascii logs, and .blog for
+// 1.- if no extension is given, add .log for ascii logs, and .blog for
 //     binary logs
-// 3.- if an extension is given, then do not modify filename and use that
+// 2.- if an extension is given, then do not modify filename and use that
 //     extension regardless of type of log
-// 4.- if there is a '.' at the end of the name, then do not add an extension
+// 3.- if there is a '.' at the end of the name, then do not add an extension
 //     and remove the '.'. To have a dot at the end of the filename, specify
 //     two ('..').
 //
@@ -169,18 +227,6 @@ void
 LogObject::generate_filenames(const char *log_dir, const char *basename, LogFileFormat file_format)
 {
   ink_assert(log_dir && basename);
-
-  std::string_view basename_sv{basename};
-  if (basename_sv == "stdout" || basename_sv == "stderr") {
-    int buffer_size = basename_sv.length() + 1; // Include the null terminator.
-
-    m_filename = static_cast<char *>(ats_malloc(buffer_size));
-    m_basename = static_cast<char *>(ats_malloc(buffer_size));
-
-    strncpy(m_filename, basename, buffer_size);
-    strncpy(m_basename, basename, buffer_size);
-    return;
-  }
 
   int i = -1, len = 0;
   char c;
@@ -215,12 +261,12 @@ LogObject::generate_filenames(const char *log_dir, const char *basename, LogFile
     }
   }
 
-  int dir_len      = static_cast<int>(strlen(log_dir));
+  int dir_len      = (int)strlen(log_dir);
   int basename_len = len + ext_len + 1;          // include null terminator
   int total_len    = dir_len + 1 + basename_len; // include '/'
 
-  m_filename = static_cast<char *>(ats_malloc(total_len));
-  m_basename = static_cast<char *>(ats_malloc(basename_len));
+  m_filename = (char *)ats_malloc(total_len);
+  m_basename = (char *)ats_malloc(basename_len);
 
   memcpy(m_filename, log_dir, dir_len);
   m_filename[dir_len++] = '/';
@@ -256,24 +302,49 @@ LogObject::add_filter(LogFilter *filter, bool copy)
   m_filter_list.add(filter, copy);
 }
 
-// we compute the object signature from the fieldlist_str and the printf_str
+void
+LogObject::set_filter_list(const LogFilterList &list, bool copy)
+{
+  LogFilter *f;
+
+  m_filter_list.clear();
+  for (f = list.first(); f != nullptr; f = list.next(f)) {
+    m_filter_list.add(f, copy);
+  }
+  m_filter_list.set_conjunction(list.does_conjunction());
+}
+
+void
+LogObject::add_loghost(LogHost *host, bool copy)
+{
+  if (!host) {
+    return;
+  }
+  m_host_list.add(host, copy);
+
+  // A LogObject either writes to a file, or sends to a collation host, but
+  // not both. By default, it writes to a file. If a LogHost is specified,
+  // then clear the intelligent Ptr containing LogFile.
+  //
+  m_logFile.clear();
+
+  Debug("log", "added log host %p to object %p for target %s:%d", host, this, host->name(), host->port());
+}
+
+// we conpute the object signature from the fieldlist_str and the printf_str
 // of the LogFormat rather than from the format_str because the format_str
 // is not part of a LogBuffer header
 //
 uint64_t
 LogObject::compute_signature(LogFormat *format, char *filename, unsigned int flags)
 {
-  std::string_view filename_sv{filename};
-  if (filename_sv == "stdout" || filename_sv == "stderr") {
-    return 0;
-  }
   char *fl           = format->fieldlist();
   char *ps           = format->printf_str();
   uint64_t signature = 0;
 
   if (fl && ps && filename) {
     int buf_size = strlen(fl) + strlen(ps) + strlen(filename) + 2;
-    char *buffer = static_cast<char *>(ats_malloc(buf_size));
+    char *buffer = (char *)ats_malloc(buf_size);
 
     ink_string_concatenate_strings(buffer, fl, ps, filename,
                                    flags & LogObject::BINARY ? "B" : (flags & LogObject::WRITES_TO_PIPE ? "P" : "A"), NULL);
@@ -296,8 +367,11 @@ LogObject::display(FILE *fd)
           "flags = %u\n"
           "signature = %" PRIu64 "\n",
           this, m_format->name(), m_format, m_basename, m_flags, m_signature);
-
-  fprintf(fd, "full path = %s\n", get_full_filename());
+  if (is_collation_client()) {
+    m_host_list.display(fd);
+  } else {
+    fprintf(fd, "full path = %s\n", get_full_filename());
+  }
   m_filter_list.display(fd);
   fprintf(fd, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 }
@@ -341,20 +415,20 @@ LogObject::_checkout_write(size_t *write_offset, size_t bytes_needed)
     // Increment the version of m_log_buffer, returning the previous version.
     head_p h = increment_pointer_version(&m_log_buffer);
 
-    buffer           = static_cast<LogBuffer *>(FREELIST_POINTER(h));
+    buffer           = (LogBuffer *)FREELIST_POINTER(h);
     result_code      = buffer->checkout_write(write_offset, bytes_needed);
     bool decremented = false;
 
     switch (result_code) {
     case LogBuffer::LB_OK:
-      // checkout succeeded
+      // checkout succeded
       retry = false;
       break;
 
     case LogBuffer::LB_FULL_ACTIVE_WRITERS:
     case LogBuffer::LB_FULL_NO_WRITERS:
       // no more room in current buffer, create a new one
-      new_buffer = new LogBuffer(Log::config, this, Log::config->log_buffer_size);
+      new_buffer = new LogBuffer(this, Log::config->log_buffer_size);
 
       // swap the new buffer for the old one
       INK_WRITE_MEMORY_BARRIER;
@@ -473,13 +547,6 @@ LogObject::va_log(LogAccess *lad, const char *fmt, va_list ap)
 int
 LogObject::log(LogAccess *lad, const char *text_entry)
 {
-  // Clang doesn't like initializing a view with nullptr, have to check.
-  return this->log(lad, std::string_view{text_entry ? text_entry : ""});
-}
-
-int
-LogObject::log(LogAccess *lad, std::string_view text_entry)
-{
   LogBuffer *buffer;
   size_t offset       = 0; // prevent warning
   size_t bytes_needed = 0, bytes_used = 0;
@@ -493,7 +560,7 @@ LogObject::log(LogAccess *lad, std::string_view text_entry)
   }
   // this verification must be done here in order to avoid 'dead' LogBuffers
   // with none zero 'in usage' counters (see _checkout_write for more details)
-  if (!lad && text_entry.empty()) {
+  if (!lad && !text_entry) {
     Note("Call to LogAccess without LAD or text entry; skipping");
     return Log::FAIL;
   }
@@ -526,7 +593,7 @@ LogObject::log(LogAccess *lad, std::string_view text_entry)
     int64_t val;
     for (f = fl->first(); f; f = fl->next(f)) {
       // convert to host order to do computations
-      val = (f->is_time_field()) ? time_now : *(reinterpret_cast<int64_t *>(data_ptr));
+      val = (f->is_time_field()) ? time_now : *((int64_t *)data_ptr);
       f->update_aggregate(val);
       data_ptr += INK_MIN_ALIGN;
     }
@@ -543,8 +610,8 @@ LogObject::log(LogAccess *lad, std::string_view text_entry)
     bytes_needed = m_format->field_count() * INK_MIN_ALIGN;
   } else if (lad) {
     bytes_needed = m_format->m_field_list.marshal_len(lad);
-  } else if (!text_entry.empty()) {
-    bytes_needed = INK_ALIGN_DEFAULT(text_entry.size() + 1); // must include null terminator.
+  } else if (text_entry) {
+    bytes_needed = LogAccess::strlen(text_entry);
   }
 
   if (bytes_needed == 0) {
@@ -556,9 +623,9 @@ LogObject::log(LogAccess *lad, std::string_view text_entry)
   buffer = _checkout_write(&offset, bytes_needed);
 
   if (!buffer) {
-    SiteThrottledNote("Skipping the current log entry for %s because its size (%zu) exceeds "
-                      "the maximum payload space in a log buffer",
-                      m_basename, bytes_needed);
+    Note("Skipping the current log entry for %s because its size (%zu) exceeds "
+         "the maximum payload space in a log buffer",
+         m_basename, bytes_needed);
     return Log::FAIL;
   }
   //
@@ -577,10 +644,8 @@ LogObject::log(LogAccess *lad, std::string_view text_entry)
   } else if (lad) {
     bytes_used = m_format->m_field_list.marshal(lad, &(*buffer)[offset]);
     ink_assert(bytes_needed >= bytes_used);
-  } else if (!text_entry.empty()) {
-    char *dst = &(*buffer)[offset];
-    memcpy(dst, text_entry.data(), text_entry.size());
-    memset(dst + text_entry.size(), 0, bytes_needed - text_entry.size());
+  } else if (text_entry) {
+    ink_strlcpy(&(*buffer)[offset], text_entry, bytes_needed);
   }
 
   buffer->checkin_write(offset);
@@ -589,10 +654,10 @@ LogObject::log(LogAccess *lad, std::string_view text_entry)
 }
 
 void
-LogObject::_setup_rolling(LogConfig *cfg, Log::RollingEnabledValues rolling_enabled, int rolling_interval_sec,
-                          int rolling_offset_hr, int rolling_size_mb)
+LogObject::_setup_rolling(Log::RollingEnabledValues rolling_enabled, int rolling_interval_sec, int rolling_offset_hr,
+                          int rolling_size_mb)
 {
-  if (!LogRollingEnabledIsValid(static_cast<int>(rolling_enabled))) {
+  if (!LogRollingEnabledIsValid((int)rolling_enabled)) {
     m_rolling_enabled      = Log::NO_ROLLING;
     m_rolling_interval_sec = 0;
     m_rolling_offset_hr    = 0;
@@ -649,7 +714,7 @@ LogObject::_setup_rolling(LogConfig *cfg, Log::RollingEnabledValues rolling_enab
         m_rolling_size_mb = rolling_size_mb;
       }
     }
-    cfg->register_rolled_log_auto_delete(m_basename, m_min_rolled);
+
     m_rolling_enabled = rolling_enabled;
   }
 }
@@ -729,8 +794,15 @@ LogObject::_roll_files(long last_roll_time, long time_now)
         m_logFile->trim_rolled(m_max_rolled);
       }
     }
+  } else {
+    LogHost *host;
+    for (host = m_host_list.first(); host; host = m_host_list.next(host)) {
+      LogFile *orphan_logfile = host->get_orphan_logfile();
+      if (orphan_logfile) {
+        num_rolled += orphan_logfile->roll(last_roll_time, time_now);
+      }
+    }
   }
-
   m_last_roll_time = time_now;
   return num_rolled;
 }
@@ -738,7 +810,7 @@ LogObject::_roll_files(long last_roll_time, long time_now)
 void
 LogObject::check_buffer_expiration(long time_now)
 {
-  LogBuffer *b = static_cast<LogBuffer *>(FREELIST_POINTER(m_log_buffer));
+  LogBuffer *b = (LogBuffer *)FREELIST_POINTER(m_log_buffer);
   if (b && time_now > b->expiration_time()) {
     force_new_buffer();
   }
@@ -751,11 +823,9 @@ const LogFormat *TextLogObject::textfmt = MakeTextLogFormat();
 
 TextLogObject::TextLogObject(const char *name, const char *log_dir, bool timestamps, const char *header,
                              Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec,
-                             int rolling_offset_hr, int rolling_size_mb, int rolling_max_count, int rolling_min_count,
-                             bool reopen_after_rolling)
-  : LogObject(Log::config, TextLogObject::textfmt, log_dir, name, LOG_FILE_ASCII, header, rolling_enabled, flush_threads,
-              rolling_interval_sec, rolling_offset_hr, rolling_size_mb, /* auto_created */ false, rolling_max_count,
-              rolling_min_count, reopen_after_rolling)
+                             int rolling_offset_hr, int rolling_size_mb, int max_rolled, bool reopen_after_rolling)
+  : LogObject(TextLogObject::textfmt, log_dir, name, LOG_FILE_ASCII, header, rolling_enabled, flush_threads, rolling_interval_sec,
+              rolling_offset_hr, rolling_size_mb, max_rolled, reopen_after_rolling)
 {
   if (timestamps) {
     this->set_fmt_timestamps();
@@ -834,10 +904,14 @@ LogObjectManager::_manage_object(LogObject *log_object, bool is_api_object, int 
     ACQUIRE_API_MUTEX("A LogObjectManager::_manage_object");
   }
 
-  int retVal = _solve_internal_filename_conflicts(log_object, maxConflicts);
+  bool col_client = log_object->is_collation_client();
+  int retVal      = _solve_internal_filename_conflicts(log_object, maxConflicts);
 
   if (retVal == NO_FILENAME_CONFLICTS) {
-    if (retVal = _solve_filename_conflicts(log_object, maxConflicts), retVal == NO_FILENAME_CONFLICTS) {
+    // check for external conflicts only if the object is not a collation
+    // client
+    //
+    if (col_client || (retVal = _solve_filename_conflicts(log_object, maxConflicts), retVal == NO_FILENAME_CONFLICTS)) {
       // do filesystem checks
       //
       {
@@ -855,15 +929,16 @@ LogObjectManager::_manage_object(LogObject *log_object, bool is_api_object, int 
         Debug("log",
               "LogObjectManager managing object %s (%s) "
               "[signature = %" PRIu64 ", address = %p]",
-              log_object->get_base_filename(), log_object->get_full_filename(), log_object->get_signature(), log_object);
+              log_object->get_base_filename(), col_client ? "collation client" : log_object->get_full_filename(),
+              log_object->get_signature(), log_object);
 
         if (log_object->has_alternate_name()) {
-          Warning("The full path for the (%s) LogObject "
+          Warning("The full path for the (%s) LogObject %s "
                   "with signature %" PRIu64 " "
                   "has been set to %s rather than %s because the latter "
                   "is being used by another LogObject",
-                  log_object->get_base_filename(), log_object->get_signature(), log_object->get_full_filename(),
-                  log_object->get_original_filename());
+                  log_object->receives_remote_data() ? "remote" : "local", log_object->get_base_filename(),
+                  log_object->get_signature(), log_object->get_full_filename(), log_object->get_original_filename());
         }
       }
     }
@@ -925,20 +1000,24 @@ LogObjectManager::_solve_filename_conflicts(LogObject *log_object, int maxConfli
         LogUtils::manager_alarm(LogUtils::LOG_ALARM_ERROR, msg, filename);
         retVal = CANNOT_SOLVE_FILENAME_CONFLICTS;
       } else {
-        // Either the meta file could not be read, or the new object's
-        // signature and the metafile signature do not match.
-        // Roll the old filename so the new object can use the filename
+        // either the meta file could not be read, or the new object's
+        // signature and the metafile signature do not match ==>
+        // roll old filename so the new object can use the filename
         // it requested (previously we used to rename the NEW file
-        // but now we roll the OLD file). However, if the log object writes to
-        // a pipe don't roll because rolling is not applicable to pipes.
+        // but now we roll the OLD file), or if the log object writes
+        // to a pipe, just remove the file if it was open as a pipe
 
         bool roll_file = true;
 
         if (log_object->writes_to_pipe()) {
-          // Verify whether the existing file is a pipe. If it is,
-          // disable the roll_file flag so we don't attempt rolling.
+          // determine if existing file is a pipe, and remove it if
+          // that is the case so the right metadata for the new pipe
+          // is created later
+          //
           struct stat s;
           if (stat(filename, &s) < 0) {
+            // an error happened while trying to get file info
+            //
             const char *msg = "Cannot stat log file %s: %s";
             char *se        = strerror(errno);
 
@@ -948,6 +1027,7 @@ LogObjectManager::_solve_filename_conflicts(LogObject *log_object, int maxConfli
             roll_file = false;
           } else {
             if (S_ISFIFO(s.st_mode)) {
+              unlink(filename);
               roll_file = false;
             }
           }
@@ -989,18 +1069,17 @@ LogObjectManager::_filename_resolution_abort(const char *filename)
 }
 
 bool
-LogObjectManager::_has_internal_filename_conflict(std::string_view filename, LogObjectList &objects)
+LogObjectManager::_has_internal_filename_conflict(const char *filename, LogObjectList &objects)
 {
-  if (filename == "stdout" || filename == "stderr") {
-    return false;
-  }
   for (auto &object : objects) {
-    // an internal conflict exists if two objects request the
-    // same filename, regardless of the object signatures, since
-    // two objects writing to the same file would produce a
-    // log with duplicate entries and non monotonic timestamps
-    if (filename == object->get_full_filename()) {
-      return true;
+    if (!object->is_collation_client()) {
+      // an internal conflict exists if two objects request the
+      // same filename, regardless of the object signatures, since
+      // two objects writing to the same file would produce a
+      // log with duplicate entries and non monotonic timestamps
+      if (strcmp(object->get_full_filename(), filename) == 0) {
+        return true;
+      }
     }
   }
   return false;
@@ -1119,7 +1198,7 @@ LogObjectManager::open_local_pipes()
   //
   for (unsigned i = 0; i < this->_objects.size(); i++) {
     LogObject *obj = _objects[i];
-    if (obj->writes_to_pipe()) {
+    if (obj->writes_to_pipe() && !obj->is_collation_client()) {
       obj->m_logFile->open_file();
     }
   }
@@ -1128,6 +1207,8 @@ LogObjectManager::open_local_pipes()
 void
 LogObjectManager::transfer_objects(LogObjectManager &old_mgr)
 {
+  unsigned num_kept_objects = 0;
+
   Debug("log-config-transfer", "transferring objects from LogObjectManager %p, to %p", &old_mgr, this);
 
   if (is_debug_tag_set("log-config-transfer")) {
@@ -1170,6 +1251,7 @@ LogObjectManager::transfer_objects(LogObjectManager &old_mgr)
         if (new_obj->refcount_dec() == 0) {
           delete new_obj;
         }
+        ++num_kept_objects;
         break;
       }
     }
@@ -1202,22 +1284,6 @@ LogObjectManager::roll_files(long time_now)
 }
 
 void
-LogObjectManager::reopen_moved_log_files()
-{
-  for (auto &_object : this->_objects) {
-    _object->m_logFile->reopen_if_moved();
-  }
-
-  ACQUIRE_API_MUTEX("A LogObjectManager::reopen_moved_log_files");
-
-  for (auto &_APIobject : this->_APIobjects) {
-    _APIobject->m_logFile->reopen_if_moved();
-  }
-
-  RELEASE_API_MUTEX("R LogObjectManager::reopen_moved_log_files");
-}
-
-void
 LogObjectManager::display(FILE *str)
 {
   for (unsigned i = 0; i < this->_objects.size(); i++) {
@@ -1242,6 +1308,19 @@ LogObjectManager::find_by_format_name(const char *name) const
   return nullptr;
 }
 
+unsigned
+LogObjectManager::get_num_collation_clients() const
+{
+  unsigned coll_clients = 0;
+
+  for (auto _object : this->_objects) {
+    if (_object && _object->is_collation_client()) {
+      ++coll_clients;
+    }
+  }
+  return coll_clients;
+}
+
 int
 LogObjectManager::log(LogAccess *lad)
 {
@@ -1249,6 +1328,15 @@ LogObjectManager::log(LogAccess *lad)
   ProxyMutex *mutex = this_thread()->mutex.get();
 
   for (unsigned i = 0; i < this->_objects.size(); i++) {
+    //
+    // Auto created LogObject is only applied to LogBuffer
+    // data received from network in collation host. It should
+    // be ignored here.
+    //
+    if (_objects[i]->m_auto_created) {
+      continue;
+    }
+
     ret |= _objects[i]->log(lad);
   }
 
@@ -1268,7 +1356,7 @@ LogObjectManager::log(LogAccess *lad)
   } else if (likely(ret & Log::SKIP)) {
     RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_event_log_access_skip_stat, 1);
   } else {
-    ink_release_assert(!"Unexpected result");
+    ink_release_assert("Unexpected result");
   }
 
   return ret;
@@ -1302,7 +1390,7 @@ MakeTestLogObject(const char *name)
     tmpdir = "/tmp";
   }
 
-  return new LogObject(Log::config, &format, tmpdir, name, LOG_FILE_ASCII /* file_format */, name /* header */,
+  return new LogObject(&format, tmpdir, name, LOG_FILE_ASCII /* file_format */, name /* header */,
                        Log::ROLL_ON_TIME_ONLY /* rolling_enabled */, 1 /* flush_threads */);
 }
 
@@ -1324,8 +1412,7 @@ REGRESSION_TEST(LogObjectManager_Transfer)(RegressionTest *t, int /* atype ATS_U
 
     mgr2.transfer_objects(mgr1);
 
-    rprintf(t, "mgr1 has %d objects, mgr2 has %d objects\n", static_cast<int>(mgr1.get_num_objects()),
-            static_cast<int>(mgr2.get_num_objects()));
+    rprintf(t, "mgr1 has %d objects, mgr2 has %d objects\n", (int)mgr1.get_num_objects(), (int)mgr2.get_num_objects());
     box.check(mgr1.get_num_objects() == 0, "Testing that manager 1 has 0 objects");
     box.check(mgr2.get_num_objects() == 4, "Testing that manager 2 has 4 objects");
 
