@@ -17,7 +17,7 @@ License: Apache-2.0
 
 Files: debian/*
 Copyright: 2011 Arno Töll
-           2015 - 2022 Jean Baptiste Favre
+           2015 - 2023 Jean Baptiste Favre
 License: Apache-2.0
 Comment: Packaging for Debian was done by Arno Toell, and I hereby grant
   distribution of it under the same terms as Apache Traffic Server itself.

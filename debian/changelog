@@ -1,3 +1,14 @@
+trafficserver (9.2.1+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.2.1+ds
+  * Update d/patches for 9.2.1 release
+  * Update Build-Depends to allow documentation build
+  * Update patch to fix HTTP proxy tests plus forwarded URL
+  * Update patch to fix doc build plus forwarded URL
+  * Update d/copyright
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 19 Jun 2023 11:44:27 +0200
+
 trafficserver (9.2.0+ds-3) unstable; urgency=medium
 
   * Update d/control with latest Standards-Version

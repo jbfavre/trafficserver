@@ -13,7 +13,7 @@ Build-Depends: debhelper-compat (= 13), libssl-dev, tcl-dev, libexpat1-dev,
   libkyotocabinet-dev, libmemcached-dev, libbrotli-dev,
   libcrypto++-dev, libjansson-dev, libcjose-dev, libyaml-cpp-dev,
   libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips],
-  netbase
+  netbase, python3-sphinxcontrib.jquery
 Rules-Requires-Root: binary-targets
 Standards-Version: 4.6.2
 Homepage: https://trafficserver.apache.org/
