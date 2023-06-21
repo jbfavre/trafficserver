@@ -1,3 +1,13 @@
+trafficserver (8.1.7+ds-1~deb11u1) bullseye-security; urgency=high
+
+  * New upstream version 8.1.7+ds
+  * Multiple CVE fixes for 8.1.x (Closes: #1038248)
+    + CVE-2022-47184: Exposure of Sensitive Information to an Unauthorized Actor vulnerability
+    + CVE-2023-30631: Improper Input Validation vulnerability
+    + CVE-2023-33933: Exposure of Sensitive Information to an Unauthorized Actor vulnerability
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 21 Jun 2023 11:16:56 +0200
+
 trafficserver (8.1.6+ds-1~deb11u1) bullseye-security; urgency=high
 
   * Update d/u/signing-key for 8.1.x serie
