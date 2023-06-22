@@ -1,3 +1,9 @@
+trafficserver (9.2.0+ds-2+deb12u1) bookworm-security; urgency=medium
+
+  * Fix version number (Closes: #1038860)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 22 Jun 2023 08:43:18 +0200
+
 trafficserver (9.2.0+ds-1~deb12u1) bookworm-security; urgency=high
 
   * Multiple CVE fixes for 9.2.x (Closes: #1038248)
