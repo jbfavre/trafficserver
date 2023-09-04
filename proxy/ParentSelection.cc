@@ -25,17 +25,17 @@
 #include "ParentConsistentHash.h"
 #include "ParentRoundRobin.h"
 #include "ControlMatcher.h"
-#include "Main.h"
 #include "ProxyConfig.h"
 #include "HostStatus.h"
 #include "HTTP.h"
 #include "HttpTransact.h"
 #include "I_Machine.h"
+#include "tscore/Filenames.h"
 
 #define MAX_SIMPLE_RETRIES 5
 #define MAX_UNAVAILABLE_SERVER_RETRIES 5
 
-typedef ControlMatcher<ParentRecord, ParentResult> P_table;
+using P_table = ControlMatcher<ParentRecord, ParentResult>;
 
 // Global Vars for Parent Selection
 static const char modulePrefix[]                             = "[ParentSelection]";
@@ -46,10 +46,7 @@ static int self_detect                                       = 2;
 static const char *file_var      = "proxy.config.http.parent_proxy.file";
 static const char *default_var   = "proxy.config.http.parent_proxies";
 static const char *retry_var     = "proxy.config.http.parent_proxy.retry_time";
-static const char *enable_var    = "proxy.config.http.parent_proxy_routing_enable";
 static const char *threshold_var = "proxy.config.http.parent_proxy.fail_threshold";
-
-static const char *ParentResultStr[] = {"PARENT_UNDEFINED", "PARENT_DIRECT", "PARENT_SPECIFIED", "PARENT_AGENT", "PARENT_FAIL"};
 
 //
 //  Config Callback Prototypes
@@ -65,17 +62,12 @@ enum ParentCB_t {
 
 ParentSelectionPolicy::ParentSelectionPolicy()
 {
-  bool enable            = false;
   int32_t retry_time     = 0;
   int32_t fail_threshold = 0;
 
   // Handle parent timeout
   REC_ReadConfigInteger(retry_time, retry_var);
   ParentRetryTime = retry_time;
-
-  // Handle parent enable
-  REC_ReadConfigInteger(enable, enable_var);
-  ParentEnable = enable;
 
   // Handle the fail threshold
   REC_ReadConfigInteger(fail_threshold, threshold_var);
@@ -113,18 +105,6 @@ ParentConfigParams::findParent(HttpRequestData *rdata, ParentResult *result, uns
   P_table *tablePtr        = parent_table;
   ParentRecord *defaultPtr = DefaultParent;
   ParentRecord *rec;
-
-  Debug("parent_select", "In ParentConfigParams::findParent(): parent_table: %p.", parent_table);
-  ink_assert(result->result == PARENT_UNDEFINED);
-
-  // Check to see if we are enabled
-  Debug("parent_select", "policy.ParentEnable: %d", policy.ParentEnable);
-  if (policy.ParentEnable == 0) {
-    result->result = PARENT_DIRECT;
-    return;
-  }
-  // Initialize the result structure
-  result->reset();
 
   // Check to see if the parent was set through the
   //   api
@@ -294,9 +274,6 @@ ParentConfig::startup()
   parentConfigUpdate->attach(default_var);
   //   Retry time
   parentConfigUpdate->attach(retry_var);
-  //   Enable
-  parentConfigUpdate->attach(enable_var);
-
   //   Fail Threshold
   parentConfigUpdate->attach(threshold_var);
 }
@@ -304,6 +281,8 @@ ParentConfig::startup()
 void
 ParentConfig::reconfigure()
 {
+  Note("%s loading ...", ts::filename::PARENT);
+
   ParentConfigParams *params = nullptr;
 
   // Allocate parent table
@@ -317,19 +296,17 @@ ParentConfig::reconfigure()
   if (is_debug_tag_set("parent_config")) {
     ParentConfig::print();
   }
+
+  Note("%s finished loading", ts::filename::PARENT);
 }
 
-// void ParentConfig::print
-//
-//   Debugging function
-//
 void
 ParentConfig::print()
 {
   ParentConfigParams *params = ParentConfig::acquire();
 
   printf("Parent Selection Config\n");
-  printf("\tEnabled %d\tRetryTime %d\n", params->policy.ParentEnable, params->policy.ParentRetryTime);
+  printf("\tRetryTime %d\n", params->policy.ParentRetryTime);
   if (params->DefaultParent == nullptr) {
     printf("\tNo Default Parent\n");
   } else {
@@ -355,15 +332,46 @@ UnavailableServerResponseCodes::UnavailableServerResponseCodes(char *val)
   numTok = pTok.Initialize(val, SHARE_TOKS);
   if (numTok == 0) {
     c = atoi(val);
-    if (c > 500 && c < 600) {
+    if (c > 499 && c < 600) {
       codes.push_back(HTTP_STATUS_SERVICE_UNAVAILABLE);
     }
   }
   for (int i = 0; i < numTok; i++) {
     c = atoi(pTok[i]);
-    if (c > 500 && c < 600) {
+    if (c > 499 && c < 600) {
       Debug("parent_select", "loading response code: %d", c);
       codes.push_back(c);
+    } else {
+      Warning("UnavailableServerResponseCodes received non-5xx code '%s', ignoring!", pTok[i]);
+    }
+  }
+  std::sort(codes.begin(), codes.end());
+}
+
+SimpleRetryResponseCodes::SimpleRetryResponseCodes(char *val)
+{
+  Tokenizer pTok(", \t\r");
+  int numTok = 0, c;
+
+  if (val == nullptr) {
+    Warning("SimpleRetryResponseCodes - simple_server_retry_responses is null loading default 404 code.");
+    codes.push_back(HTTP_STATUS_NOT_FOUND);
+    return;
+  }
+  numTok = pTok.Initialize(val, SHARE_TOKS);
+  if (numTok == 0) {
+    c = atoi(val);
+    if (c > 399 && c < 600) {
+      codes.push_back(HTTP_STATUS_NOT_FOUND);
+    }
+  }
+  for (int i = 0; i < numTok; i++) {
+    c = atoi(pTok[i]);
+    if (c > 399 && c < 600) {
+      Debug("parent_select", "loading simple response code: %d", c);
+      codes.push_back(c);
+    } else {
+      Warning("SimpleRetryResponseCodes received non-4xx or 5xx code '%s', ignoring!", pTok[i]);
     }
   }
   std::sort(codes.begin(), codes.end());
@@ -382,22 +390,22 @@ ParentRecord::PreProcessParents(const char *val, const int line_num, char *buf, 
   token = strtok_r(_val, PARENT_DELIMITERS, &savePtr);
   while (token != nullptr) {
     if ((nm = strchr(token, ':')) != nullptr) {
-      size_t len = (nm - token);
-      ink_assert(len < sizeof(fqdn));
+      size_t length = (nm - token);
+      ink_assert(length < sizeof(fqdn));
       memset(fqdn, 0, sizeof(fqdn));
-      strncpy(fqdn, token, len);
-      if (self_detect && machine->is_self(fqdn)) {
+      strncpy(fqdn, token, length);
+      if (self_detect && machine->is_self(std::string_view(fqdn))) {
         if (self_detect == 1) {
           Debug("parent_select", "token: %s, matches this machine.  Removing self from parent list at line %d", fqdn, line_num);
           token = strtok_r(nullptr, PARENT_DELIMITERS, &savePtr);
           continue;
         } else {
           Debug("parent_select", "token: %s, matches this machine.  Marking down self from parent list at line %d", fqdn, line_num);
-          hs.setHostStatus(fqdn, HostStatus_t::HOST_STATUS_DOWN, 0, Reason::SELF_DETECT);
+          hs.setHostStatus(fqdn, TSHostStatus::TS_HOST_STATUS_DOWN, 0, Reason::SELF_DETECT);
         }
       }
     } else {
-      if (self_detect && machine->is_self(token)) {
+      if (self_detect && machine->is_self(std::string_view(token))) {
         if (self_detect == 1) {
           Debug("parent_select", "token: %s, matches this machine.  Removing self from parent list at line %d", token, line_num);
           token = strtok_r(nullptr, PARENT_DELIMITERS, &savePtr);
@@ -405,7 +413,7 @@ ParentRecord::PreProcessParents(const char *val, const int line_num, char *buf, 
         } else {
           Debug("parent_select", "token: %s, matches this machine.  Marking down self from parent list at line %d", token,
                 line_num);
-          hs.setHostStatus(token, HostStatus_t::HOST_STATUS_DOWN, 0, Reason::SELF_DETECT);
+          hs.setHostStatus(token, TSHostStatus::TS_HOST_STATUS_DOWN, 0, Reason::SELF_DETECT);
         }
       }
     }
@@ -438,8 +446,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
   int port            = 0;
   char *tmp = nullptr, *tmp2 = nullptr, *tmp3 = nullptr;
   const char *errPtr = nullptr;
-  float weight       = 1.0;
-  HostStatus &hs     = HostStatus::instance();
+  float weight       = DEFAULT_PARENT_WEIGHT;
 
   if (parents != nullptr && isPrimary == true) {
     return "Can not specify more than one set of parents";
@@ -455,18 +462,19 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
   }
   // Allocate the parents array
   if (isPrimary) {
-    this->parents = (pRecord *)ats_malloc(sizeof(pRecord) * numTok);
+    this->parents = static_cast<pRecord *>(ats_malloc(sizeof(pRecord) * numTok));
   } else {
-    this->secondary_parents = (pRecord *)ats_malloc(sizeof(pRecord) * numTok);
+    this->secondary_parents = static_cast<pRecord *>(ats_malloc(sizeof(pRecord) * numTok));
   }
 
   // Loop through the set of parents specified
   //
   for (int i = 0; i < numTok; i++) {
+    weight  = DEFAULT_PARENT_WEIGHT; // reset weight to the default
     current = pTok[i];
 
     // Find the parent port
-    tmp = (char *)strchr(current, ':');
+    tmp = const_cast<char *>(strchr(current, ':'));
 
     if (tmp == nullptr) {
       errPtr = "No parent port specified";
@@ -480,7 +488,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
     }
 
     // See if there is an optional parent weight
-    tmp2 = (char *)strchr(current, '|');
+    tmp2 = const_cast<char *>(strchr(current, '|'));
 
     if (tmp2) {
       if (sscanf(tmp2 + 1, "%f", &weight) != 1) {
@@ -489,7 +497,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       }
     }
 
-    tmp3 = (char *)strchr(current, '&');
+    tmp3 = const_cast<char *>(strchr(current, '&'));
 
     // Make sure that is no garbage beyond the parent
     //  port or weight
@@ -517,7 +525,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       errPtr = "Parent hostname is too long";
       goto MERROR;
     } else if (tmp - current == 0) {
-      errPtr = "Parent string is emtpy";
+      errPtr = "Parent string is empty";
       goto MERROR;
     }
     // Update the pRecords
@@ -532,14 +540,9 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->parents[i].name                    = this->parents[i].hostname;
       this->parents[i].available               = true;
       this->parents[i].weight                  = weight;
-      hs.createHostStat(this->parents[i].hostname);
       if (tmp3) {
         memcpy(this->parents[i].hash_string, tmp3 + 1, strlen(tmp3));
         this->parents[i].name = this->parents[i].hash_string;
-      }
-      HostStatRec *hst = hs.getHostStatus(this->parents[i].hostname);
-      if (hst == nullptr) {
-        hs.setHostStatus(this->parents[i].hostname, HOST_STATUS_UP, 0, Reason::MANUAL);
       }
     } else {
       memcpy(this->secondary_parents[i].hostname, current, tmp - current);
@@ -552,14 +555,9 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->secondary_parents[i].name                    = this->secondary_parents[i].hostname;
       this->secondary_parents[i].available               = true;
       this->secondary_parents[i].weight                  = weight;
-      hs.createHostStat(this->secondary_parents[i].hostname);
       if (tmp3) {
         memcpy(this->secondary_parents[i].hash_string, tmp3 + 1, strlen(tmp3));
         this->secondary_parents[i].name = this->secondary_parents[i].hash_string;
-      }
-      HostStatRec *hst = hs.getHostStatus(this->secondary_parents[i].hostname);
-      if (hst == nullptr) {
-        hs.setHostStatus(this->secondary_parents[i].hostname, HOST_STATUS_UP, 0, Reason::MANUAL);
       }
     }
     tmp3 = nullptr;
@@ -609,7 +607,7 @@ ParentRecord::DefaultInit(char *val)
   errPtr                = ProcessParents(val, true);
 
   if (errPtr != nullptr) {
-    errBuf = (char *)ats_malloc(1024);
+    errBuf = static_cast<char *>(ats_malloc(1024));
     snprintf(errBuf, 1024, "%s %s for default parent proxy", modulePrefix, errPtr);
     SignalError(errBuf, alarmAlready);
     ats_free(errBuf);
@@ -724,6 +722,9 @@ ParentRecord::Init(matcher_line *line_info)
     } else if (strcasecmp(label, "unavailable_server_retry_responses") == 0 && unavailable_server_retry_responses == nullptr) {
       unavailable_server_retry_responses = new UnavailableServerResponseCodes(val);
       used                               = true;
+    } else if (strcasecmp(label, "simple_server_retry_responses") == 0 && simple_server_retry_responses == nullptr) {
+      simple_server_retry_responses = new SimpleRetryResponseCodes(val);
+      used                          = true;
     } else if (strcasecmp(label, "max_simple_retries") == 0) {
       int v = atoi(val);
       if (v >= 1 && v < MAX_SIMPLE_RETRIES) {
@@ -780,15 +781,27 @@ ParentRecord::Init(matcher_line *line_info)
     unavailable_server_retry_responses = new UnavailableServerResponseCodes(nullptr);
   }
 
+  // delete simple_server_retry_responses if simple_retry is not enabled.
+  if (simple_server_retry_responses != nullptr && !(parent_retry & PARENT_RETRY_SIMPLE)) {
+    Warning("%s ignore simple_server_Retry_responses directive on line %d, as simple_server_retry is not enabled.", modulePrefix,
+            line_num);
+    delete simple_server_retry_responses;
+    simple_server_retry_responses = nullptr;
+  } else if (simple_server_retry_responses == nullptr && (parent_retry & PARENT_RETRY_SIMPLE)) {
+    // initialize simple server respones codes to the default value if simple_retry is enabled.
+    Warning("%s initializing SimpleRetryResponseCodes on line %d to 404 default.", modulePrefix, line_num);
+    simple_server_retry_responses = new SimpleRetryResponseCodes(nullptr);
+  }
+
   if (this->parents == nullptr && go_direct == false) {
-    return Result::failure("%s No parent specified in parent.config at line %d", modulePrefix, line_num);
+    return Result::failure("%s No parent specified in %s at line %d", modulePrefix, ts::filename::PARENT, line_num);
   }
   // Process any modifiers to the directive, if they exist
   if (line_info->num_el > 0) {
     tmp = ProcessModifiers(line_info);
 
     if (tmp != nullptr) {
-      return Result::failure("%s %s at line %d in parent.config", modulePrefix, tmp, line_num);
+      return Result::failure("%s %s at line %d in %s", modulePrefix, tmp, line_num, ts::filename::PARENT);
     }
     // record SCHEME modifier if present.
     // NULL if not present
@@ -850,7 +863,7 @@ ParentRecord::~ParentRecord()
 }
 
 void
-ParentRecord::Print()
+ParentRecord::Print() const
 {
   printf("\t\t");
   for (int i = 0; i < num_parents; i++) {
@@ -933,6 +946,8 @@ setup_socks_servers(ParentRecord *rec_arr, int len)
 void
 SocksServerConfig::reconfigure()
 {
+  Note("%s loading ...", ts::filename::SOCKS);
+
   char *default_val = nullptr;
   int retry_time    = 30;
   int fail_threshold;
@@ -961,10 +976,6 @@ SocksServerConfig::reconfigure()
   REC_ReadConfigInteger(retry_time, "proxy.config.socks.server_retry_time");
   params->policy.ParentRetryTime = retry_time;
 
-  // Handle parent enable
-  // enable is always true for use. We will come here only if socks is enabled
-  params->policy.ParentEnable = 1;
-
   // Handle the fail threshold
   REC_ReadConfigInteger(fail_threshold, "proxy.config.socks.server_fail_threshold");
   params->policy.FailThreshold = fail_threshold;
@@ -974,6 +985,8 @@ SocksServerConfig::reconfigure()
   if (is_debug_tag_set("parent_config")) {
     SocksServerConfig::print();
   }
+
+  Note("%s finished loading", ts::filename::SOCKS);
 }
 
 void
@@ -982,7 +995,7 @@ SocksServerConfig::print()
   ParentConfigParams *params = SocksServerConfig::acquire();
 
   printf("Parent Selection Config for Socks Server\n");
-  printf("\tEnabled %d\tRetryTime %d\n", params->policy.ParentEnable, params->policy.ParentRetryTime);
+  printf("\tRetryTime %d\n", params->policy.ParentRetryTime);
   if (params->DefaultParent == nullptr) {
     printf("\tNo Default Parent\n");
   } else {
@@ -1052,7 +1065,6 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
     ParentTable->BuildTableFromString(tbl);                                                                                \
     RecSetRecordInt("proxy.config.http.parent_proxy.fail_threshold", fail_threshold, REC_SOURCE_DEFAULT);                  \
     RecSetRecordInt("proxy.config.http.parent_proxy.retry_time", retry_time, REC_SOURCE_DEFAULT);                          \
-    RecSetRecordInt("proxy.config.http.parent_proxy_routing_enable", 1, REC_SOURCE_DEFAULT);                               \
     params = new ParentConfigParams(ParentTable);                                                                          \
   } while (0)
 
@@ -1094,7 +1106,24 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
     params->findParent(request, result, fail_threshold, retry_time); \
   } while (0)
 
+#define SET_MAX_RETRIERS(x)                                                                     \
+  do {                                                                                          \
+    RecSetRecordInt("proxy.config.http.parent_proxy.max_trans_retries", x, REC_SOURCE_DEFAULT); \
+  } while (0)
+
+  // start tests by marking up all tests hosts that will be marked down
+  // as part of testing.  This will insure that test hosts are not loaded
+  // from records.snap as DOWN due to previous testing.
+  //
+  HostStatus &_st = HostStatus::instance();
+  _st.setHostStatus("furry", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fluffy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("frisky", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("curly", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+
   // Test 1
+  SET_MAX_RETRIERS(20);
   tbl[0] = '\0';
   ST(1);
   T("dest_domain=. parent=red:37412,orange:37412,yellow:37412 round_robin=strict\n");
@@ -1478,8 +1507,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
 
   // Test 184
   // mark fuzzy down with HostStatus API.
-  HostStatus &_st = HostStatus::instance();
-  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
 
   ST(184);
   REINIT;
@@ -1490,7 +1518,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
 
   // Test 185
   // mark fluffy down and expect furry to be chosen
-  _st.setHostStatus("fluffy", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fluffy", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
 
   ST(185);
   REINIT;
@@ -1501,9 +1529,9 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
 
   // Test 186
   // mark furry and frisky down, fuzzy up and expect fuzzy to be chosen
-  _st.setHostStatus("furry", HOST_STATUS_DOWN, 0, Reason::MANUAL);
-  _st.setHostStatus("frisky", HOST_STATUS_DOWN, 0, Reason::MANUAL);
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("furry", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("frisky", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
 
   ST(186);
   REINIT;
@@ -1521,10 +1549,10 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   REBUILD;
 
   // mark all up.
-  _st.setHostStatus("furry", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("fluffy", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("frisky", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("furry", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fluffy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("frisky", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
 
   REINIT;
   br(request, "i.am.rabbit.net");
@@ -1534,7 +1562,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
 
   // Test 188
   // mark fuzzy down and expect fluffy.
-  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
 
   ST(188);
   REINIT;
@@ -1545,7 +1573,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
 
   // Test 189
   // mark fuzzy back up and expect fuzzy.
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
 
   ST(189);
   REINIT;
@@ -1561,7 +1589,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   // because the host status is set to down.
   params->markParentDown(result, fail_threshold, retry_time);
   // set host status down
-  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
   // sleep long enough so that fuzzy is retryable
   sleep(params->policy.ParentRetryTime + 1);
   ST(190);
@@ -1570,9 +1598,9 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   FP;
   RE(verify(result, PARENT_SPECIFIED, "frisky", 80), 190);
 
-  // now set the host staus on fuzzy to up and it should now
+  // now set the host status on fuzzy to up and it should now
   // be retried.
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
   ST(191);
   REINIT;
   br(request, "i.am.rabbit.net");
@@ -1585,10 +1613,10 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   T("dest_domain=rabbit.net parent=fuzzy:80,fluffy:80,furry:80,frisky:80 round_robin=false go_direct=true\n");
   REBUILD;
   // mark all up.
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("fluffy", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("furry", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("frisky", HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fluffy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("furry", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("frisky", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
   // fuzzy should be chosen.
   sleep(1);
   REINIT;
@@ -1603,7 +1631,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   sleep(params->policy.ParentRetryTime + 1);
   // since the host status is down even though fuzzy is
   // retryable, fluffy should be chosen
-  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
   REINIT;
   br(request, "i.am.rabbit.net");
   FP;
@@ -1613,7 +1641,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   // set the host status for fuzzy  back up and since its
   // retryable fuzzy should be chosen
   ST(194);
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_UP, 0, Reason::MANUAL);
   REINIT;
   br(request, "i.am.rabbit.net");
   FP;
@@ -1734,7 +1762,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   T("dest_domain=rabbit.net parent=fuzzy:80|1.0;fluffy:80|1.0 secondary_parent=furry:80|1.0;frisky:80|1.0 "
     "round_robin=consistent_hash go_direct=false secondary_mode=3\n");
   REBUILD;
-  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("fuzzy", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
   REINIT;
   br(request, "i.am.rabbit.net");
   FP;
@@ -1805,16 +1833,30 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
     "round_robin=consistent_hash go_direct=false\n");
   REBUILD;
   REINIT;
-  _st.setHostStatus("curly", HOST_STATUS_DOWN, 0, Reason::MANUAL);
+  _st.setHostStatus("curly", TS_HOST_STATUS_DOWN, 0, Reason::MANUAL);
   br(request, "i.am.stooges.net");
   FP;
   RE(verify(result, PARENT_SPECIFIED, "carol", 80), 211);
 
-  // cleanup, allow changes to be persisted to records.snap
-  // so that subsequent test runs do not fail unexpectedly.
-  _st.setHostStatus("curly", HOST_STATUS_UP, 0, Reason::MANUAL);
-  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
-  sleep(2);
+  // Test 212
+  tbl[0] = '\0';
+  ST(212);
+  T("dest_domain=mouse.com parent=mickey:80|0.33;minnie:80|0.33;goofy:80|0.33 "
+    "round_robin=consistent_hash go_direct=false\n");
+  REBUILD;
+  REINIT;
+  br(request, "i.am.mouse.com");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "goofy", 80), 212);
+
+  // Test 213
+  // markdown goofy and minnie gets chosen.
+  ST(213);
+  params->markParentDown(result, fail_threshold, retry_time); // marked down goofy
+  REINIT;
+  br(request, "i.am.mouse.com");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "minnie", 80), 213);
 
   delete request;
   delete result;
@@ -1840,7 +1882,7 @@ br(HttpRequestData *h, const char *os_hostname, sockaddr const *dest_ip)
 {
   h->hdr = new HTTPHdr();
   h->hdr->create(HTTP_TYPE_REQUEST);
-  h->hostname_str = (char *)ats_strdup(os_hostname);
+  h->hostname_str = ats_strdup(os_hostname);
   h->xact_start   = time(nullptr);
   ink_zero(h->src_ip);
   ink_zero(h->dest_ip);

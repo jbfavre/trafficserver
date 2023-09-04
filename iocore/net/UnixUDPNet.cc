@@ -29,12 +29,17 @@
 
  ****************************************************************************/
 
+#if defined(darwin)
+/* This is for IPV6_PKTINFO and IPV6_RECVPKTINFO */
+#define __APPLE_USE_RFC_3542
+#endif
+
 #include "P_Net.h"
 #include "P_UDPNet.h"
 
 using UDPNetContHandler = int (UDPNetHandler::*)(int, void *);
 
-inkcoreapi ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
+ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
 EventType ET_UDP;
 
 //
@@ -48,8 +53,6 @@ int32_t g_udp_periodicCleanupSlots;
 int32_t g_udp_periodicFreeCancelledPkts;
 int32_t g_udp_numSendRetries;
 
-#include "P_LibBulkIO.h"
-
 //
 // Public functions
 // See header for documentation
@@ -62,12 +65,18 @@ initialize_thread_for_udp_net(EThread *thread)
 {
   UDPNetHandler *nh = get_UDPNetHandler(thread);
 
-  new ((ink_dummy_for_new *)nh) UDPNetHandler;
-  new ((ink_dummy_for_new *)get_UDPPollCont(thread)) PollCont(thread->mutex);
+  new (reinterpret_cast<ink_dummy_for_new *>(nh)) UDPNetHandler;
+  new (reinterpret_cast<ink_dummy_for_new *>(get_UDPPollCont(thread))) PollCont(thread->mutex);
   // The UDPNetHandler cannot be accessed across EThreads.
   // Because the UDPNetHandler should be called back immediately after UDPPollCont.
-  nh->mutex = thread->mutex.get();
+  nh->mutex  = thread->mutex.get();
+  nh->thread = thread;
 
+  PollCont *upc       = get_UDPPollCont(thread);
+  PollDescriptor *upd = upc->pollDescriptor;
+  // due to ET_UDP is really simple, it should sleep for a long time
+  // TODO: fixed size
+  upc->poll_timeout = 100;
   // This variable controls how often we cleanup the cancelled packets.
   // If it is set to 0, then cleanup never occurs.
   REC_ReadConfigInt32(g_udp_periodicFreeCancelledPkts, "proxy.config.udp.free_cancelled_pkts_sec");
@@ -82,8 +91,15 @@ initialize_thread_for_udp_net(EThread *thread)
   REC_ReadConfigInt32(g_udp_numSendRetries, "proxy.config.udp.send_retries");
   g_udp_numSendRetries = g_udp_numSendRetries < 0 ? 0 : g_udp_numSendRetries;
 
-  thread->schedule_every(get_UDPPollCont(thread), -9);
-  thread->schedule_imm(get_UDPNetHandler(thread));
+  thread->set_tail_handler(nh);
+  thread->ep = static_cast<EventIO *>(ats_malloc(sizeof(EventIO)));
+  new (thread->ep) EventIO();
+  thread->ep->type = EVENTIO_ASYNC_SIGNAL;
+#if HAVE_EVENTFD
+  thread->ep->start(upd, thread->evfd, nullptr, EVENTIO_READ);
+#else
+  thread->ep->start(upd, thread->evpipe[0], nullptr, EVENTIO_READ);
+#endif
 }
 
 int
@@ -151,12 +167,15 @@ UDPNetProcessorInternal::udp_read_from_net(UDPNetHandler *nh, UDPConnection *xuc
 
     // build struct msghdr
     sockaddr_in6 fromaddr;
+    sockaddr_in6 toaddr;
+    int toaddr_len = sizeof(toaddr);
+    char *cbuf[1024];
     msg.msg_name       = &fromaddr;
     msg.msg_namelen    = sizeof(fromaddr);
     msg.msg_iov        = tiovec;
     msg.msg_iovlen     = niov;
-    msg.msg_control    = nullptr;
-    msg.msg_controllen = 0;
+    msg.msg_control    = cbuf;
+    msg.msg_controllen = sizeof(cbuf);
 
     // receive data by recvmsg
     r = socketManager.recvmsg(uc->getFd(), &msg, 0);
@@ -186,8 +205,38 @@ UDPNetProcessorInternal::udp_read_from_net(UDPNetHandler *nh, UDPConnection *xuc
       }
     }
 
+    safe_getsockname(xuc->getFd(), reinterpret_cast<struct sockaddr *>(&toaddr), &toaddr_len);
+    for (auto cmsg = CMSG_FIRSTHDR(&msg); cmsg != nullptr; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+      switch (cmsg->cmsg_type) {
+#ifdef IP_PKTINFO
+      case IP_PKTINFO:
+        if (cmsg->cmsg_level == IPPROTO_IP) {
+          struct in_pktinfo *pktinfo                                = reinterpret_cast<struct in_pktinfo *>(CMSG_DATA(cmsg));
+          reinterpret_cast<sockaddr_in *>(&toaddr)->sin_addr.s_addr = pktinfo->ipi_addr.s_addr;
+        }
+        break;
+#endif
+#ifdef IP_RECVDSTADDR
+      case IP_RECVDSTADDR:
+        if (cmsg->cmsg_level == IPPROTO_IP) {
+          struct in_addr *addr                                      = reinterpret_cast<struct in_addr *>(CMSG_DATA(cmsg));
+          reinterpret_cast<sockaddr_in *>(&toaddr)->sin_addr.s_addr = addr->s_addr;
+        }
+        break;
+#endif
+#if defined(IPV6_PKTINFO) || defined(IPV6_RECVPKTINFO)
+      case IPV6_PKTINFO: // IPV6_RECVPKTINFO uses IPV6_PKTINFO too
+        if (cmsg->cmsg_level == IPPROTO_IPV6) {
+          struct in6_pktinfo *pktinfo = reinterpret_cast<struct in6_pktinfo *>(CMSG_DATA(cmsg));
+          memcpy(toaddr.sin6_addr.s6_addr, &pktinfo->ipi6_addr, 16);
+        }
+        break;
+#endif
+      }
+    }
+
     // create packet
-    UDPPacket *p = new_incoming_UDPPacket(ats_ip_sa_cast(&fromaddr), chain);
+    UDPPacket *p = new_incoming_UDPPacket(ats_ip_sa_cast(&fromaddr), ats_ip_sa_cast(&toaddr), chain);
     p->setConnection(uc);
     // queue onto the UDPConnection
     uc->inQueue.push((UDPPacketInternal *)p);
@@ -217,7 +266,7 @@ UDPNetProcessorInternal::udp_callback(UDPNetHandler *nh, UDPConnection *xuc, ETh
   UnixUDPConnection *uc = (UnixUDPConnection *)xuc;
 
   if (uc->continuation && uc->mutex) {
-    MUTEX_TRY_LOCK_FOR(lock, uc->mutex, thread, uc->continuation);
+    MUTEX_TRY_LOCK(lock, uc->mutex, thread);
     if (!lock.is_locked()) {
       return 1;
     }
@@ -284,13 +333,10 @@ UDPReadContinuation::UDPReadContinuation(Event *completionToken)
   : Continuation(nullptr),
     event(completionToken),
     readbuf(nullptr),
-    readlen(0),
-    fromaddrlen(nullptr),
+
     fd(-1),
-    ifd(-1),
-    period(0),
-    elapsed_time(0),
-    timeout_interval(0)
+    ifd(-1)
+
 {
   if (completionToken->continuation) {
     this->mutex = completionToken->continuation->mutex;
@@ -392,9 +438,9 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
   if (event->cancelled) {
     e->cancel();
     free();
-    //    delete this;
     return EVENT_DONE;
   }
+
   // See if the request has timed out
   if (timeout_interval) {
     elapsed_time += -period;
@@ -404,14 +450,10 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
       c->handleEvent(NET_EVENT_DATAGRAM_READ_ERROR, event);
       e->cancel();
       free();
-      //      delete this;
       return EVENT_DONE;
     }
   }
-  // ink_assert(ifd < 0 || event_ == EVENT_INTERVAL || (event_ == EVENT_POLL && pc->pollDescriptor->nfds > ifd &&
-  // pc->pollDescriptor->pfd[ifd].fd == fd));
-  // if (ifd < 0 || event_ == EVENT_INTERVAL || (pc->pollDescriptor->pfd[ifd].revents & POLLIN)) {
-  // ink_assert(!"incomplete");
+
   c = completionUtil::getContinuation(event);
   // do read
   socklen_t tmp_fromlen = *fromaddrlen;
@@ -428,7 +470,7 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
     c->handleEvent(NET_EVENT_DATAGRAM_READ_COMPLETE, event);
     e->cancel();
     free();
-    // delete this;
+
     return EVENT_DONE;
   } else if (rlen < 0 && rlen != -EAGAIN) {
     // signal error.
@@ -439,7 +481,7 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
     c->handleEvent(NET_EVENT_DATAGRAM_READ_ERROR, event);
     e->cancel();
     free();
-    // delete this;
+
     return EVENT_DONE;
   } else {
     completionUtil::setThread(event, nullptr);
@@ -448,7 +490,7 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
   if (event->cancelled) {
     e->cancel();
     free();
-    // delete this;
+
     return EVENT_DONE;
   }
   // reestablish poll
@@ -463,7 +505,7 @@ UDPReadContinuation::readPollEvent(int event_, Event *e)
  *   *actual_len = recvfrom(fd,addr,buf->end(),len)
  *   if successful then
  *      buf->fill(*actual_len);
- *	    return ACTION_RESULT_DONE
+ *      return ACTION_RESULT_DONE
  *   else if nothing read
  *      *actual_len is 0
  *      create "UDP read continuation" C with 'cont's lock
@@ -567,7 +609,7 @@ UDPNetProcessor::sendto_re(Continuation *cont, void *token, int fd, struct socka
     cont->handleEvent(NET_EVENT_DATAGRAM_WRITE_COMPLETE, (void *)-1);
     return ACTION_RESULT_DONE;
   } else {
-    cont->handleEvent(NET_EVENT_DATAGRAM_WRITE_ERROR, (void *)(intptr_t)nbytes_sent);
+    cont->handleEvent(NET_EVENT_DATAGRAM_WRITE_ERROR, (void *)static_cast<intptr_t>(nbytes_sent));
     return ACTION_IO_ERROR;
   }
 }
@@ -595,8 +637,8 @@ UDPNetProcessor::CreateUDPSocket(int *resfd, sockaddr const *remote_addr, Action
     // No local address specified, so use family option if possible.
     int family = ats_is_ip(opt.ip_family) ? opt.ip_family : AF_INET;
     local_addr.setToAnyAddr(family);
-    is_any_address    = true;
-    local_addr.port() = htons(opt.local_port);
+    is_any_address                  = true;
+    local_addr.network_order_port() = htons(opt.local_port);
   }
 
   *resfd = -1;
@@ -620,7 +662,43 @@ UDPNetProcessor::CreateUDPSocket(int *resfd, sockaddr const *remote_addr, Action
     }
   }
 
-  if (local_addr.port() || !is_any_address) {
+  if (opt.ip_family == AF_INET) {
+    bool succeeded = false;
+    int enable     = 1;
+#ifdef IP_PKTINFO
+    if (safe_setsockopt(fd, IPPROTO_IP, IP_PKTINFO, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+#ifdef IP_RECVDSTADDR
+    if (safe_setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+    if (!succeeded) {
+      Debug("udpnet", "setsockeopt for pktinfo failed");
+      goto HardError;
+    }
+  } else if (opt.ip_family == AF_INET6) {
+    bool succeeded = false;
+    int enable     = 1;
+#ifdef IPV6_PKTINFO
+    if (safe_setsockopt(fd, IPPROTO_IPV6, IPV6_PKTINFO, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+#ifdef IPV6_RECVPKTINFO
+    if (safe_setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+    if (!succeeded) {
+      Debug("udpnet", "setsockeopt for pktinfo failed");
+      goto HardError;
+    }
+  }
+
+  if (local_addr.network_order_port() || !is_any_address) {
     if (-1 == socketManager.ink_bind(fd, &local_addr.sa, ats_ip_size(&local_addr.sa))) {
       char buff[INET6_ADDRPORTSTRLEN];
       Debug("udpnet", "ink bind failed on %s", ats_ip_nptop(local_addr, buff, sizeof(buff)));
@@ -628,7 +706,7 @@ UDPNetProcessor::CreateUDPSocket(int *resfd, sockaddr const *remote_addr, Action
     }
 
     if (safe_getsockname(fd, &local_addr.sa, &local_addr_len) < 0) {
-      Debug("udpnet", "CreateUdpsocket: getsockname didnt' work");
+      Debug("udpnet", "CreateUdpsocket: getsockname didn't work");
       goto HardError;
     }
   }
@@ -657,34 +735,79 @@ HardError:
 }
 
 Action *
-UDPNetProcessor::UDPBind(Continuation *cont, sockaddr const *addr, int send_bufsize, int recv_bufsize)
+UDPNetProcessor::UDPBind(Continuation *cont, sockaddr const *addr, int fd, int send_bufsize, int recv_bufsize)
 {
   int res              = 0;
-  int fd               = -1;
   UnixUDPConnection *n = nullptr;
   IpEndpoint myaddr;
   int myaddr_len     = sizeof(myaddr);
   PollCont *pc       = nullptr;
   PollDescriptor *pd = nullptr;
+  bool need_bind     = true;
 
-  if ((res = socketManager.socket(addr->sa_family, SOCK_DGRAM, 0)) < 0) {
-    goto Lerror;
+  if (fd == -1) {
+    if ((res = socketManager.socket(addr->sa_family, SOCK_DGRAM, 0)) < 0) {
+      goto Lerror;
+    }
+    fd = res;
+  } else {
+    need_bind = false;
   }
-  fd = res;
   if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
     goto Lerror;
+  }
+
+  if (addr->sa_family == AF_INET) {
+    bool succeeded = false;
+    int enable     = 1;
+#ifdef IP_PKTINFO
+    if (safe_setsockopt(fd, IPPROTO_IP, IP_PKTINFO, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+#ifdef IP_RECVDSTADDR
+    if (safe_setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+    if (!succeeded) {
+      Debug("udpnet", "setsockeopt for pktinfo failed");
+      goto Lerror;
+    }
+  } else if (addr->sa_family == AF_INET6) {
+    bool succeeded = false;
+    int enable     = 1;
+#ifdef IPV6_PKTINFO
+    if (safe_setsockopt(fd, IPPROTO_IPV6, IPV6_PKTINFO, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+#ifdef IPV6_RECVPKTINFO
+    if (safe_setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, reinterpret_cast<char *>(&enable), sizeof(enable)) == 0) {
+      succeeded = true;
+    }
+#endif
+    if (!succeeded) {
+      Debug("udpnet", "setsockeopt for pktinfo failed");
+      goto Lerror;
+    }
   }
 
   // If this is a class D address (i.e. multicast address), use REUSEADDR.
   if (ats_is_ip_multicast(addr)) {
     int enable_reuseaddr = 1;
 
-    if (safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&enable_reuseaddr, sizeof(enable_reuseaddr) < 0)) {
+    if (safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char *>(&enable_reuseaddr), sizeof(enable_reuseaddr)) < 0) {
       goto Lerror;
     }
   }
 
-  if (socketManager.ink_bind(fd, addr, ats_ip_size(addr)) < 0) {
+  if (need_bind && ats_is_ip6(addr) && safe_setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, SOCKOPT_ON, sizeof(int)) < 0) {
+    goto Lerror;
+  }
+
+  if (need_bind && (socketManager.ink_bind(fd, addr, ats_ip_size(addr)) < 0)) {
+    Debug("udpnet", "ink_bind failed");
     goto Lerror;
   }
 
@@ -718,6 +841,8 @@ Lerror:
   if (fd != NO_FD) {
     socketManager.close(fd);
   }
+  Debug("udpnet", "Error: %s (%d)", strerror(errno), errno);
+
   cont->handleEvent(NET_EVENT_DATAGRAM_ERROR, nullptr);
   return ACTION_IO_ERROR;
 }
@@ -791,7 +916,7 @@ UDPQueue::SendPackets()
 
 sendPackets:
   sentOne       = false;
-  bytesThisPipe = (int32_t)bytesThisSlot;
+  bytesThisPipe = bytesThisSlot;
 
   while ((bytesThisPipe > 0) && (pipeInfo.firstPacket(send_threshold_time))) {
     p      = pipeInfo.getFirstPacket();
@@ -838,7 +963,6 @@ UDPQueue::SendUDPPacket(UDPPacketInternal *p, int32_t /* pktLen ATS_UNUSED */)
 {
   struct msghdr msg;
   struct iovec iov[32];
-  int real_len = 0;
   int n, count, iov_len = 0;
 
   p->conn->lastSentPktStartTime = p->delivery_time;
@@ -849,14 +973,13 @@ UDPQueue::SendUDPPacket(UDPPacketInternal *p, int32_t /* pktLen ATS_UNUSED */)
   msg.msg_controllen = 0;
   msg.msg_flags      = 0;
 #endif
-  msg.msg_name    = (caddr_t)&p->to.sa;
-  msg.msg_namelen = sizeof(p->to.sa);
+  msg.msg_name    = reinterpret_cast<caddr_t>(&p->to.sa);
+  msg.msg_namelen = ats_ip_size(p->to);
   iov_len         = 0;
 
   for (IOBufferBlock *b = p->chain.get(); b != nullptr; b = b->next.get()) {
-    iov[iov_len].iov_base = (caddr_t)b->start();
+    iov[iov_len].iov_base = static_cast<caddr_t>(b->start());
     iov[iov_len].iov_len  = b->size();
-    real_len += iov[iov_len].iov_len;
     iov_len++;
   }
   msg.msg_iov    = iov;
@@ -868,6 +991,10 @@ UDPQueue::SendUDPPacket(UDPPacketInternal *p, int32_t /* pktLen ATS_UNUSED */)
     n = ::sendmsg(p->conn->getFd(), &msg, 0);
     if ((n >= 0) || ((n < 0) && (errno != EAGAIN))) {
       // send succeeded or some random error happened.
+      if (n < 0) {
+        Debug("udp-send", "Error: %s (%d)", strerror(errno), errno);
+      }
+
       break;
     }
     if (errno == EAGAIN) {
@@ -890,20 +1017,34 @@ UDPQueue::send(UDPPacket *p)
 
 #undef LINK
 
+static void
+net_signal_hook_callback(EThread *thread)
+{
+#if HAVE_EVENTFD
+  uint64_t counter;
+  ATS_UNUSED_RETURN(read(thread->evfd, &counter, sizeof(uint64_t)));
+#elif TS_USE_PORT
+/* Nothing to drain or do */
+#else
+  char dummy[1024];
+  ATS_UNUSED_RETURN(read(thread->evpipe[0], &dummy[0], 1024));
+#endif
+}
+
 UDPNetHandler::UDPNetHandler()
 {
   nextCheck = Thread::get_hrtime_updated() + HRTIME_MSECONDS(1000);
   lastCheck = 0;
-  SET_HANDLER((UDPNetContHandler)&UDPNetHandler::startNetEvent);
+  SET_HANDLER(&UDPNetHandler::startNetEvent);
 }
 
 int
 UDPNetHandler::startNetEvent(int event, Event *e)
 {
   (void)event;
-  SET_HANDLER((UDPNetContHandler)&UDPNetHandler::mainNetEvent);
+  SET_HANDLER(&UDPNetHandler::mainNetEvent);
   trigger_event = e;
-  e->schedule_every(-HRTIME_MSECONDS(9));
+  e->schedule_every(-HRTIME_MSECONDS(UDP_NH_PERIOD));
   return EVENT_CONT;
 }
 
@@ -911,10 +1052,15 @@ int
 UDPNetHandler::mainNetEvent(int event, Event *e)
 {
   ink_assert(trigger_event == e && event == EVENT_POLL);
-  (void)event;
-  (void)e;
+  return this->waitForActivity(net_config_poll_timeout);
+}
 
+int
+UDPNetHandler::waitForActivity(ink_hrtime timeout)
+{
   UnixUDPConnection *uc;
+  PollCont *pc = get_UDPPollCont(this->thread);
+  pc->do_poll(timeout);
 
   /* Notice: the race between traversal of newconn_list and UDPBind()
    *
@@ -942,11 +1088,10 @@ UDPNetHandler::mainNetEvent(int event, Event *e)
   udpOutQueue.service(this);
 
   // handle UDP read operations
-  int i, nread = 0;
-  PollCont *pc = get_UDPPollCont(e->ethread);
+  int i        = 0;
   EventIO *epd = nullptr;
   for (i = 0; i < pc->pollDescriptor->result; i++) {
-    epd = (EventIO *)get_ev_data(pc->pollDescriptor, i);
+    epd = static_cast<EventIO *> get_ev_data(pc->pollDescriptor, i);
     if (epd->type == EVENTIO_UDP_CONNECTION) {
       // TODO: handle EVENTIO_ERROR
       if (get_ev_events(pc->pollDescriptor, i) & EVENTIO_READ) {
@@ -959,7 +1104,6 @@ UDPNetHandler::mainNetEvent(int event, Event *e)
           uc->Release();
         } else {
           udpNetInternal.udp_read_from_net(this, uc);
-          nread++;
         }
       } else {
         Debug("iocore_udp_main", "Unhandled epoll event: 0x%04x", get_ev_events(pc->pollDescriptor, i));
@@ -973,8 +1117,7 @@ UDPNetHandler::mainNetEvent(int event, Event *e)
 #endif
       }
     } else if (epd->type == EVENTIO_ASYNC_SIGNAL) {
-      // TODO: receive signal from event system
-      // net_signal_hook_callback(this->trigger_event->ethread);
+      net_signal_hook_callback(this->thread);
     }
   } // end for
 
@@ -997,7 +1140,7 @@ UDPNetHandler::mainNetEvent(int event, Event *e)
   udp_callbacks.clear();
   while ((uc = q.dequeue())) {
     ink_assert(uc->mutex && uc->continuation);
-    if (udpNetInternal.udp_callback(this, uc, trigger_event->ethread)) { // not successful
+    if (udpNetInternal.udp_callback(this, uc, this->thread)) { // not successful
       // schedule on a thread of its own.
       ink_assert(uc->callback_link.next == nullptr);
       ink_assert(uc->callback_link.prev == nullptr);
@@ -1011,4 +1154,19 @@ UDPNetHandler::mainNetEvent(int event, Event *e)
   }
 
   return EVENT_CONT;
+}
+
+void
+UDPNetHandler::signalActivity()
+{
+#if HAVE_EVENTFD
+  uint64_t counter = 1;
+  ATS_UNUSED_RETURN(write(thread->evfd, &counter, sizeof(uint64_t)));
+#elif TS_USE_PORT
+  PollDescriptor *pd = get_PollDescriptor(thread);
+  ATS_UNUSED_RETURN(port_send(pd->port_fd, 0, thread->ep));
+#else
+  char dummy = 1;
+  ATS_UNUSED_RETURN(write(thread->evpipe[1], &dummy, 1));
+#endif
 }

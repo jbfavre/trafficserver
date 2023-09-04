@@ -22,12 +22,17 @@
  */
 
 #include "catch.hpp"
+#include "../../../tests/include/catch.hpp"
 #include <chrono>
 #include <iostream>
+#include <netinet/in.h>
 #include "tscore/BufferWriter.h"
 #include "tscore/bwf_std_format.h"
-#include "tscore/MemSpan.h"
+#include "tscpp/util/MemSpan.h"
+#include "tscore/ink_config.h"
+#if TS_ENABLE_FIPS == 0
 #include "tscore/INK_MD5.h"
+#endif
 #include "tscore/CryptoHash.h"
 
 using namespace std::literals;
@@ -169,7 +174,7 @@ TEST_CASE("BWFormat numerics", "[bwprint][bwformat]")
   bw.reduce(0);
   bw.print("{}", int_ptr);
   REQUIRE(bw.view() == "0xbadd0956");
-  auto char_ptr = "good";
+  char char_ptr[] = "good";
   bw.reduce(0);
   bw.print("{:x}", static_cast<char *>(ptr));
   REQUIRE(bw.view() == "0xbadd0956");
@@ -183,10 +188,16 @@ TEST_CASE("BWFormat numerics", "[bwprint][bwformat]")
   REQUIRE(bw.view() == "0x200@0xbadd0956");
 
   bw.reduce(0);
-  bw.print("{::d}", ts::MemSpan(const_cast<char *>(char_ptr), 4));
+  bw.print("{:x}", ts::MemSpan(char_ptr, 4));
   REQUIRE(bw.view() == "676f6f64");
   bw.reduce(0);
-  bw.print("{:#:d}", ts::MemSpan(const_cast<char *>(char_ptr), 4));
+  bw.print("{:#x}", ts::MemSpan(char_ptr, 4));
+  REQUIRE(bw.view() == "0x676f6f64");
+  bw.reduce(0);
+  bw.print("{:x}", ts::MemSpan<void>(char_ptr, 4));
+  REQUIRE(bw.view() == "676f6f64");
+  bw.reduce(0);
+  bw.print("{:#x}", ts::MemSpan<void>(char_ptr, 4));
   REQUIRE(bw.view() == "0x676f6f64");
 
   std::string_view sv{"abc123"};
@@ -244,6 +255,7 @@ TEST_CASE("BWFormat numerics", "[bwprint][bwformat]")
   bw20.print("012345|{:^10s}|6789abc", true);
   REQUIRE(bw20.view() == "012345|   true   |67");
 
+#if TS_ENABLE_FIPS == 0
   INK_MD5 md5;
   bw.reduce(0);
   bw.print("{}", md5);
@@ -252,6 +264,7 @@ TEST_CASE("BWFormat numerics", "[bwprint][bwformat]")
   bw.reduce(0);
   bw.print("{}", md5);
   REQUIRE(bw.view() == "e99a18c428cb38d5f260853678922e03");
+#endif
 
   bw.reset().print("Char '{}'", 'a');
   REQUIRE(bw.view() == "Char 'a'");
@@ -305,6 +318,14 @@ TEST_CASE("bwstring", "[bwprint][bwstring]")
     ts::bwprint(out, fmt, std::string_view(), "Leif", "confused");
     REQUIRE(out == "Did you know? Leif is confused");
   }
+
+  char const *null_string{nullptr};
+  ts::bwprint(s, "Null {0:x}.{0}", null_string);
+  REQUIRE(s == "Null 0x0.");
+  ts::bwprint(s, "Null {0:X}.{0}", nullptr);
+  REQUIRE(s == "Null 0X0.");
+  ts::bwprint(s, "Null {0:p}.{0:P}.{0:s}.{0:S}", null_string);
+  REQUIRE(s == "Null 0x0.0X0.null.NULL");
 }
 
 TEST_CASE("BWFormat integral", "[bwprint][bwformat]")
@@ -512,7 +533,7 @@ TEST_CASE("bwstring std formats", "[libts][bwprint]")
   w.print("{}", ts::bwf::Errno(13));
   REQUIRE(w.view() == "EACCES: Permission denied [13]"sv);
   w.reset().print("{}", ts::bwf::Errno(134));
-  REQUIRE(w.view().substr(0, 22) == "Unknown: Unknown error"sv);
+  REQUIRE(w.view().substr(0, 9) == "Unknown: "sv);
 
   time_t t = 1528484137;
   // default is GMT
@@ -535,6 +556,57 @@ TEST_CASE("bwstring std formats", "[libts][bwprint]")
 
   // Verify these compile and run, not really much hope to check output.
   w.reset().print("|{}|   |{}|", ts::bwf::Date(), ts::bwf::Date("%a, %d %b %Y"));
+
+  w.reset().print("name = {}", ts::bwf::FirstOf("Persia"));
+  REQUIRE(w.view() == "name = Persia");
+  w.reset().print("name = {}", ts::bwf::FirstOf("Persia", "Evil Dave"));
+  REQUIRE(w.view() == "name = Persia");
+  w.reset().print("name = {}", ts::bwf::FirstOf("", "Evil Dave"));
+  REQUIRE(w.view() == "name = Evil Dave");
+  w.reset().print("name = {}", ts::bwf::FirstOf(nullptr, "Evil Dave"));
+  REQUIRE(w.view() == "name = Evil Dave");
+  w.reset().print("name = {}", ts::bwf::FirstOf("Persia", "Evil Dave", "Leif"));
+  REQUIRE(w.view() == "name = Persia");
+  w.reset().print("name = {}", ts::bwf::FirstOf("Persia", nullptr, "Leif"));
+  REQUIRE(w.view() == "name = Persia");
+  w.reset().print("name = {}", ts::bwf::FirstOf("", nullptr, "Leif"));
+  REQUIRE(w.view() == "name = Leif");
+
+  const char *empty{nullptr};
+  std::string s1{"Persia"};
+  std::string_view s2{"Evil Dave"};
+  ts::TextView s3{"Leif"};
+  w.reset().print("name = {}", ts::bwf::FirstOf(empty, s3));
+  REQUIRE(w.view() == "name = Leif");
+  w.reset().print("name = {}", ts::bwf::FirstOf(s2, s3));
+  REQUIRE(w.view() == "name = Evil Dave");
+  w.reset().print("name = {}", ts::bwf::FirstOf(s1, empty, s2));
+  REQUIRE(w.view() == "name = Persia");
+  w.reset().print("name = {}", ts::bwf::FirstOf(empty, s2, s1, s3));
+  REQUIRE(w.view() == "name = Evil Dave");
+  w.reset().print("name = {}", ts::bwf::FirstOf(empty, empty, s3, empty, s2, s1));
+  REQUIRE(w.view() == "name = Leif");
+
+  unsigned v = ntohl(0xdeadbeef);
+  w.reset().print("{}", ts::bwf::Hex_Dump(v));
+  REQUIRE(w.view() == "deadbeef");
+  w.reset().print("{:x}", ts::bwf::Hex_Dump(v));
+  REQUIRE(w.view() == "deadbeef");
+  w.reset().print("{:X}", ts::bwf::Hex_Dump(v));
+  REQUIRE(w.view() == "DEADBEEF");
+  w.reset().print("{:#X}", ts::bwf::Hex_Dump(v));
+  REQUIRE(w.view() == "0XDEADBEEF");
+  w.reset().print("{} bytes {} digits {}", sizeof(double), std::numeric_limits<double>::digits10, ts::bwf::Hex_Dump(2.718281828));
+  REQUIRE(w.view() == "8 bytes 15 digits 9b91048b0abf0540");
+
+#if TS_ENABLE_FIPS == 0
+  INK_MD5 md5;
+  w.reset().print("{}", ts::bwf::Hex_Dump(md5));
+  REQUIRE(w.view() == "00000000000000000000000000000000");
+  CryptoContext().hash_immediate(md5, s2.data(), s2.size());
+  w.reset().print("{}", ts::bwf::Hex_Dump(md5));
+  REQUIRE(w.view() == "f240ccd7a95c7ec66d6c111e2925b23e");
+#endif
 }
 
 // Normally there's no point in running the performance tests, but it's worth keeping the code

@@ -19,57 +19,71 @@ dnl jemalloc.m4: Trafficserver's jemalloc autoconf macros
 dnl
 
 AC_DEFUN([TS_CHECK_JEMALLOC], [
-enable_jemalloc=no
-AC_ARG_WITH([jemalloc], [AC_HELP_STRING([--with-jemalloc=DIR], [use a specific jemalloc library])],
+has_jemalloc=no
+AC_ARG_WITH([jemalloc], [AS_HELP_STRING([--with-jemalloc=DIR],[use a specific jemalloc library])],
 [
   if test "$withval" != "no"; then
-    if test "x${enable_tcmalloc}" = "xyes"; then
+    if test "x${has_tcmalloc}" = "xyes"; then
       AC_MSG_ERROR([Cannot compile with both jemalloc and tcmalloc])
     fi
-    enable_jemalloc=yes
+    if test "x${has_mimalloc}" = "xyes"; then
+      AC_MSG_ERROR([Cannot compile with both jemalloc and mimalloc])
+    fi
+    has_jemalloc=yes
     jemalloc_base_dir="$withval"
     case "$withval" in
       yes)
         jemalloc_base_dir="/usr"
-        AC_MSG_CHECKING(checking for jemalloc includes standard directories)
-	;;
+        AC_MSG_NOTICE(checking for jemalloc includes and libs in standard directories)
+        ;;
       *":"*)
         jemalloc_include="`echo $withval |sed -e 's/:.*$//'`"
         jemalloc_ldflags="`echo $withval |sed -e 's/^.*://'`"
-        AC_MSG_CHECKING(checking for jemalloc includes in $jemalloc_include libs in $jemalloc_ldflags)
+        AC_MSG_NOTICE(checking for jemalloc includes in $jemalloc_include and libs in $jemalloc_ldflags)
         ;;
       *)
         jemalloc_include="$withval/include"
         jemalloc_ldflags="$withval/lib"
-        AC_MSG_CHECKING(checking for jemalloc includes in $withval)
+        AC_MSG_NOTICE(checking for jemalloc includes in $jemalloc_include and libs in $jemalloc_ldflags)
         ;;
     esac
   fi
 ])
-
 jemalloch=0
-if test "$enable_jemalloc" != "no"; then
+if test "$has_jemalloc" != "no"; then
   saved_ldflags=$LDFLAGS
   saved_cppflags=$CPPFLAGS
-  jemalloc_have_headers=0
-  jemalloc_have_libs=0
+  jemalloc_has_headers=0
+  jemalloc_has_libs=0
   if test "$jemalloc_base_dir" != "/usr"; then
     TS_ADDTO(CPPFLAGS, [-I${jemalloc_include}])
     TS_ADDTO(LDFLAGS, [-L${jemalloc_ldflags}])
-    TS_ADDTO(LDFLAGS, [-Wl,--add-needed -L${jemalloc_base_dir}/lib -Wl,-rpath,${jemalloc_base_dir}/lib -Wl,--no-as-needed])
+    TS_ADDTO(LDFLAGS, [-Wl,--as-needed -L${jemalloc_ldflags} -Wl,-rpath,${jemalloc_ldflags} -Wl,--no-as-needed])
     TS_ADDTO_RPATH(${jemalloc_ldflags})
   fi
   # On Darwin, jemalloc symbols are prefixed with je_. Search for that first, then fall back
   # to unadorned symbols.
-  AC_SEARCH_LIBS([je_malloc_stats_print], [jemalloc], [jemalloc_have_libs=1],
-    [AC_SEARCH_LIBS([malloc_stats_print], [jemalloc], [jemalloc_have_libs=1])]
+  AC_SEARCH_LIBS([je_malloc_stats_print], [jemalloc], [jemalloc_has_libs=1],
+    [AC_SEARCH_LIBS([malloc_stats_print], [jemalloc], [jemalloc_has_libs=1])]
   )
-  if test "$jemalloc_have_libs" != "0"; then
-    AC_CHECK_HEADERS(jemalloc/jemalloc.h, [jemalloc_have_headers=1])
+  if test "$jemalloc_has_libs" != "0"; then
+    AC_CHECK_HEADERS(jemalloc/jemalloc.h, [jemalloc_has_headers=1])
   fi
-  if test "$jemalloc_have_headers" != "0"; then
-    jemalloch=1
+  if test "$jemalloc_has_headers" != "0"; then
+    AC_RUN_IFELSE([
+      AC_LANG_PROGRAM(
+        [#include <jemalloc/jemalloc.h>],
+        [
+          #if (JEMALLOC_VERSION_MAJOR == 0)
+          exit(1);
+          #endif
+        ]
+      )],
+      [jemalloch=1],
+      [AC_MSG_ERROR(jemalloc has bogus version)]
+    )
   else
+    AC_MSG_WARN([jemalloc not found])
     CPPFLAGS=$saved_cppflags
     LDFLAGS=$saved_ldflags
   fi

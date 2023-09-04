@@ -18,14 +18,12 @@ Test normalizations of the Accept-Encoding header field.
 #  limitations under the License.
 
 import os
-import subprocess
 
 Test.Summary = '''
 Test normalizations of the Accept-Encoding header field.
 '''
 
 Test.SkipUnless(
-    Condition.HasProgram("curl", "Curl need to be installed on system for this test to work"),
     Condition.HasATSFeature('TS_HAS_BROTLI')
 )
 
@@ -45,16 +43,15 @@ server.addResponse("sessionlog.json", request_header, response_header)
 request_header = {"headers": "GET / HTTP/1.1\r\nHost: www.ae-2.com\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
 server.addResponse("sessionlog.json", request_header, response_header)
 
-# Define first ATS
-ts = Test.MakeATSProcess("ts")
+# Define first ATS. Disable the cache to make sure each request is sent to the
+# origin server.
+ts = Test.MakeATSProcess("ts", select_ports=True, enable_cache=False)
 
 
 def baselineTsSetup(ts):
 
     ts.Disk.records_config.update({
         # 'proxy.config.diags.debug.enabled': 1,
-        'proxy.config.http.cache.http': 0,  # Make sure each request is sent to the origin server.
-        'proxy.config.http.server_ports': 'ipv4:{}'.format(ts.Variables.port)
     })
 
     ts.Disk.remap_config.AddLine(
@@ -71,6 +68,10 @@ def baselineTsSetup(ts):
     ts.Disk.remap_config.AddLine(
         'map http://www.ae-2.com http://127.0.0.1:{0}'.format(server.Variables.Port) +
         ' @plugin=conf_remap.so @pparam=proxy.config.http.normalize_ae=2'
+    )
+    ts.Disk.remap_config.AddLine(
+        'map http://www.ae-3.com http://127.0.0.1:{0}'.format(server.Variables.Port) +
+        ' @plugin=conf_remap.so @pparam=proxy.config.http.normalize_ae=3'
     )
 
 
@@ -133,12 +134,13 @@ def perTsTest(shouldWaitForUServer, ts):
     allAEHdrs(False, False, ts, 'www.ae-0.com')
     allAEHdrs(False, False, ts, 'www.ae-1.com')
     allAEHdrs(False, False, ts, 'www.ae-2.com')
+    allAEHdrs(False, False, ts, 'www.ae-3.com')
 
 
 perTsTest(True, ts)
 
 # Define second ATS
-ts2 = Test.MakeATSProcess("ts2")
+ts2 = Test.MakeATSProcess("ts2", select_ports=True)
 
 baselineTsSetup(ts2)
 

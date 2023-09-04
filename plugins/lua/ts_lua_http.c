@@ -21,6 +21,7 @@
 #include "ts_lua_http_config.h"
 #include "ts_lua_http_cntl.h"
 #include "ts_lua_http_milestone.h"
+#include "ts_lua_http_txn_info.h"
 
 typedef enum {
   TS_LUA_CACHE_LOOKUP_MISS,
@@ -71,6 +72,7 @@ static int ts_lua_http_set_cache_lookup_status(lua_State *L);
 static int ts_lua_http_set_cache_url(lua_State *L);
 static int ts_lua_http_get_cache_lookup_url(lua_State *L);
 static int ts_lua_http_set_cache_lookup_url(lua_State *L);
+static int ts_lua_http_redo_cache_lookup(lua_State *L);
 static int ts_lua_http_get_parent_proxy(lua_State *L);
 static int ts_lua_http_set_parent_proxy(lua_State *L);
 static int ts_lua_http_get_parent_selection_url(lua_State *L);
@@ -83,6 +85,7 @@ static int ts_lua_http_resp_cache_transformed(lua_State *L);
 static int ts_lua_http_resp_cache_untransformed(lua_State *L);
 
 static int ts_lua_http_get_client_protocol_stack(lua_State *L);
+static int ts_lua_http_get_server_protocol_stack(lua_State *L);
 static int ts_lua_http_server_push(lua_State *L);
 static int ts_lua_http_is_websocket(lua_State *L);
 static int ts_lua_http_get_plugin_tag(lua_State *L);
@@ -92,6 +95,7 @@ static int ts_lua_http_is_internal_request(lua_State *L);
 static int ts_lua_http_is_aborted(lua_State *L);
 static int ts_lua_http_skip_remapping_set(lua_State *L);
 static int ts_lua_http_transaction_count(lua_State *L);
+static int ts_lua_http_server_transaction_count(lua_State *L);
 static int ts_lua_http_redirect_url_set(lua_State *L);
 static int ts_lua_http_get_server_state(lua_State *L);
 
@@ -109,6 +113,12 @@ static int ts_lua_http_resp_transform_get_upstream_watermark_bytes(lua_State *L)
 static int ts_lua_http_resp_transform_set_upstream_watermark_bytes(lua_State *L);
 static int ts_lua_http_resp_transform_set_downstream_bytes(lua_State *L);
 
+static void ts_lua_inject_http_req_transform_api(lua_State *L);
+static int ts_lua_http_req_transform_get_downstream_bytes(lua_State *L);
+static int ts_lua_http_req_transform_get_downstream_watermark_bytes(lua_State *L);
+static int ts_lua_http_req_transform_set_downstream_watermark_bytes(lua_State *L);
+static int ts_lua_http_req_transform_set_upstream_bytes(lua_State *L);
+
 void
 ts_lua_inject_http_api(lua_State *L)
 {
@@ -121,6 +131,7 @@ ts_lua_inject_http_api(lua_State *L)
   ts_lua_inject_http_config_api(L);
   ts_lua_inject_http_cntl_api(L);
   ts_lua_inject_http_milestone_api(L);
+  ts_lua_inject_txn_info_api(L);
   ts_lua_inject_http_misc_api(L);
 
   lua_setfield(L, -2, "http");
@@ -157,6 +168,9 @@ ts_lua_inject_http_cache_api(lua_State *L)
   lua_pushcfunction(L, ts_lua_http_set_cache_lookup_url);
   lua_setfield(L, -2, "set_cache_lookup_url");
 
+  lua_pushcfunction(L, ts_lua_http_redo_cache_lookup);
+  lua_setfield(L, -2, "redo_cache_lookup");
+
   lua_pushcfunction(L, ts_lua_http_get_parent_proxy);
   lua_setfield(L, -2, "get_parent_proxy");
 
@@ -188,6 +202,11 @@ ts_lua_inject_http_transform_api(lua_State *L)
   lua_newtable(L);
   ts_lua_inject_http_resp_transform_api(L);
   lua_setfield(L, -2, "resp_transform");
+
+  /*  ts.http.req_transform api */
+  lua_newtable(L);
+  ts_lua_inject_http_req_transform_api(L);
+  lua_setfield(L, -2, "req_transform");
 }
 
 static void
@@ -207,10 +226,29 @@ ts_lua_inject_http_resp_transform_api(lua_State *L)
 }
 
 static void
+ts_lua_inject_http_req_transform_api(lua_State *L)
+{
+  lua_pushcfunction(L, ts_lua_http_req_transform_get_downstream_bytes);
+  lua_setfield(L, -2, "get_downstream_bytes");
+
+  lua_pushcfunction(L, ts_lua_http_req_transform_get_downstream_watermark_bytes);
+  lua_setfield(L, -2, "get_downstream_watermark_bytes");
+
+  lua_pushcfunction(L, ts_lua_http_req_transform_set_downstream_watermark_bytes);
+  lua_setfield(L, -2, "set_downstream_watermark_bytes");
+
+  lua_pushcfunction(L, ts_lua_http_req_transform_set_upstream_bytes);
+  lua_setfield(L, -2, "set_upstream_bytes");
+}
+
+static void
 ts_lua_inject_http_misc_api(lua_State *L)
 {
   lua_pushcfunction(L, ts_lua_http_get_client_protocol_stack);
   lua_setfield(L, -2, "get_client_protocol_stack");
+
+  lua_pushcfunction(L, ts_lua_http_get_server_protocol_stack);
+  lua_setfield(L, -2, "get_server_protocol_stack");
 
   lua_pushcfunction(L, ts_lua_http_server_push);
   lua_setfield(L, -2, "server_push");
@@ -238,6 +276,9 @@ ts_lua_inject_http_misc_api(lua_State *L)
 
   lua_pushcfunction(L, ts_lua_http_transaction_count);
   lua_setfield(L, -2, "transaction_count");
+
+  lua_pushcfunction(L, ts_lua_http_server_transaction_count);
+  lua_setfield(L, -2, "server_transaction_count");
 
   lua_pushcfunction(L, ts_lua_http_redirect_url_set);
   lua_setfield(L, -2, "redirect_url_set");
@@ -424,7 +465,28 @@ ts_lua_http_set_cache_lookup_url(lua_State *L)
         TSHttpTxnCacheLookupUrlSet(http_ctx->txnp, http_ctx->client_request_bufp, new_url_loc) == TS_SUCCESS) {
       TSDebug(TS_LUA_DEBUG_TAG, "Set cache lookup URL");
     } else {
-      TSError("[ts_lua] Failed to set cache lookup URL");
+      TSError("[ts_lua][%s] Failed to set cache lookup URL", __FUNCTION__);
+    }
+  }
+
+  return 0;
+}
+
+static int
+ts_lua_http_redo_cache_lookup(lua_State *L)
+{
+  const char *url;
+  size_t url_len;
+
+  ts_lua_http_ctx *http_ctx;
+
+  GET_HTTP_CONTEXT(http_ctx, L);
+
+  url = luaL_checklstring(L, 1, &url_len);
+
+  if (url && url_len) {
+    if (TSHttpTxnRedoCacheLookup(http_ctx->txnp, url, url_len) != TS_SUCCESS) {
+      TSError("[ts_lua][%s] Failed to redo cache lookup", __FUNCTION__);
     }
   }
 
@@ -536,7 +598,7 @@ ts_lua_http_set_parent_selection_url(lua_State *L)
         TSHttpTxnParentSelectionUrlSet(http_ctx->txnp, http_ctx->client_request_bufp, new_url_loc) == TS_SUCCESS) {
       TSDebug(TS_LUA_DEBUG_TAG, "Set parent selection URL");
     } else {
-      TSError("[ts_lua] Failed to set parent selection URL");
+      TSError("[ts_lua][%s] Failed to set parent selection URL", __FUNCTION__);
     }
   }
 
@@ -557,7 +619,7 @@ ts_lua_http_set_cache_url(lua_State *L)
 
   if (url && url_len) {
     if (TSCacheUrlSet(http_ctx->txnp, url, url_len) != TS_SUCCESS) {
-      TSError("[ts_lua] Failed to set cache url");
+      TSError("[ts_lua][%s] Failed to set cache url", __FUNCTION__);
     }
   }
 
@@ -575,7 +637,7 @@ ts_lua_http_set_server_resp_no_store(lua_State *L)
 
   status = luaL_checknumber(L, 1);
 
-  TSHttpTxnServerRespNoStoreSet(http_ctx->txnp, status);
+  TSHttpTxnCntlSet(http_ctx->txnp, TS_HTTP_CNTL_SERVER_NO_STORE, (status != 0));
 
   return 0;
 }
@@ -620,6 +682,23 @@ ts_lua_http_get_client_protocol_stack(lua_State *L)
   GET_HTTP_CONTEXT(http_ctx, L);
 
   TSHttpTxnClientProtocolStackGet(http_ctx->txnp, 10, results, &count);
+  for (int i = 0; i < count; i++) {
+    lua_pushstring(L, results[i]);
+  }
+
+  return count;
+}
+
+static int
+ts_lua_http_get_server_protocol_stack(lua_State *L)
+{
+  char const *results[10];
+  int count = 0;
+  ts_lua_http_ctx *http_ctx;
+
+  GET_HTTP_CONTEXT(http_ctx, L);
+
+  TSHttpTxnServerProtocolStackGet(http_ctx->txnp, 10, results, &count);
   for (int i = 0; i < count; i++) {
     lua_pushstring(L, results[i]);
   }
@@ -735,7 +814,7 @@ ts_lua_http_skip_remapping_set(lua_State *L)
 
   action = luaL_checkinteger(L, 1);
 
-  TSSkipRemappingSet(http_ctx->txnp, action);
+  TSHttpTxnCntlSet(http_ctx->txnp, TS_HTTP_CNTL_SKIP_REMAPPING, (action != 0));
 
   return 0;
 }
@@ -754,6 +833,19 @@ ts_lua_http_transaction_count(lua_State *L)
   } else {
     lua_pushnil(L);
   }
+
+  return 1;
+}
+
+static int
+ts_lua_http_server_transaction_count(lua_State *L)
+{
+  ts_lua_http_ctx *http_ctx;
+
+  GET_HTTP_CONTEXT(http_ctx, L);
+
+  int n = TSHttpTxnServerSsnTransactionCount(http_ctx->txnp);
+  lua_pushnumber(L, n);
 
   return 1;
 }
@@ -883,7 +975,7 @@ ts_lua_http_resp_transform_get_upstream_bytes(lua_State *L)
 
   transform_ctx = ts_lua_get_http_transform_ctx(L);
   if (transform_ctx == NULL) {
-    TSError("[ts_lua] missing transform_ctx");
+    TSError("[ts_lua][%s] missing transform_ctx", __FUNCTION__);
     return 0;
   }
 
@@ -899,7 +991,7 @@ ts_lua_http_resp_transform_get_upstream_watermark_bytes(lua_State *L)
 
   transform_ctx = ts_lua_get_http_transform_ctx(L);
   if (transform_ctx == NULL) {
-    TSError("[ts_lua] missing transform_ctx");
+    TSError("[ts_lua][%s] missing transform_ctx", __FUNCTION__);
     return 0;
   }
 
@@ -916,7 +1008,7 @@ ts_lua_http_resp_transform_set_upstream_watermark_bytes(lua_State *L)
 
   transform_ctx = ts_lua_get_http_transform_ctx(L);
   if (transform_ctx == NULL) {
-    TSError("[ts_lua] missing transform_ctx");
+    TSError("[ts_lua][%s] missing transform_ctx", __FUNCTION__);
     return 0;
   }
 
@@ -935,7 +1027,7 @@ ts_lua_http_resp_transform_set_downstream_bytes(lua_State *L)
 
   transform_ctx = ts_lua_get_http_transform_ctx(L);
   if (transform_ctx == NULL) {
-    TSError("[ts_lua] missing transform_ctx");
+    TSError("[ts_lua][%s] missing transform_ctx", __FUNCTION__);
     return 0;
   }
 
@@ -944,4 +1036,31 @@ ts_lua_http_resp_transform_set_downstream_bytes(lua_State *L)
   transform_ctx->downstream_bytes = n;
 
   return 0;
+}
+
+// Request transform are similar to response transform. It works against the transform context available.
+// We can get the downstream bytes and set the upstream bytes.
+// We can also get and set the downstream watermark as well.
+static int
+ts_lua_http_req_transform_get_downstream_bytes(lua_State *L)
+{
+  return ts_lua_http_resp_transform_get_upstream_bytes(L);
+}
+
+static int
+ts_lua_http_req_transform_get_downstream_watermark_bytes(lua_State *L)
+{
+  return ts_lua_http_resp_transform_get_upstream_watermark_bytes(L);
+}
+
+static int
+ts_lua_http_req_transform_set_downstream_watermark_bytes(lua_State *L)
+{
+  return ts_lua_http_resp_transform_set_upstream_watermark_bytes(L);
+}
+
+static int
+ts_lua_http_req_transform_set_upstream_bytes(lua_State *L)
+{
+  return ts_lua_http_resp_transform_set_downstream_bytes(L);
 }

@@ -23,8 +23,10 @@
 
 #pragma once
 
+#include "NetTimeout.h"
+
 #include "HTTP2.h"
-#include "ProxyClientTransaction.h"
+#include "ProxyTransaction.h"
 #include "Http2DebugNames.h"
 #include "Http2DependencyTree.h"
 #include "tscore/History.h"
@@ -46,20 +48,19 @@ enum class Http2StreamMilestone {
   LAST_ENTRY,
 };
 
-class Http2Stream : public ProxyClientTransaction
+class Http2Stream : public ProxyTransaction
 {
 public:
   const int retry_delay = HRTIME_MSECONDS(10);
-  using super           = ProxyClientTransaction; ///< Parent type.
+  using super           = ProxyTransaction; ///< Parent type.
 
-  Http2Stream(Http2StreamId sid = 0, ssize_t initial_rwnd = Http2::initial_window_size);
-
-  void init(Http2StreamId sid, ssize_t initial_rwnd);
+  Http2Stream() {} // Just to satisfy ClassAllocator
+  Http2Stream(ProxySession *session, Http2StreamId sid, ssize_t initial_rwnd);
+  ~Http2Stream();
 
   int main_event_handler(int event, void *edata);
 
-  void destroy() override;
-  void release(IOBufferReader *r) override;
+  void release() override;
   void reenable(VIO *vio) override;
   void transaction_done() override;
 
@@ -72,15 +73,15 @@ public:
   void send_request(Http2ConnectionState &cstate);
   void initiating_close();
   void terminate_if_possible();
-  void update_read_request(int64_t read_len, bool send_update, bool check_eos = false);
-  void update_write_request(IOBufferReader *buf_reader, int64_t write_len, bool send_update);
+  void update_read_request(bool send_update);
+  void update_write_request(bool send_update);
 
   void signal_read_event(int event);
   void signal_write_event(int event);
   void signal_write_event(bool call_update);
 
   void restart_sending();
-  void push_promise(URL &url, const MIMEField *accept_encoding);
+  bool push_promise(URL &url, const MIMEField *accept_encoding);
 
   // Stream level window size
   ssize_t client_rwnd() const;
@@ -94,17 +95,18 @@ public:
   // Accessors
   void set_active_timeout(ink_hrtime timeout_in) override;
   void set_inactivity_timeout(ink_hrtime timeout_in) override;
+  void cancel_active_timeout() override;
   void cancel_inactivity_timeout() override;
+  bool is_active_timeout_expired(ink_hrtime now);
+  bool is_inactive_timeout_expired(ink_hrtime now);
 
-  bool allow_half_open() const override;
   bool is_first_transaction() const override;
+  void increment_transactions_stat() override;
+  void decrement_transactions_stat() override;
   int get_transaction_id() const override;
   int get_transaction_priority_weight() const override;
   int get_transaction_priority_dependence() const override;
 
-  void clear_inactive_timer();
-  void clear_active_timer();
-  void clear_timers();
   void clear_io_events();
 
   bool is_client_state_writeable() const;
@@ -131,26 +133,22 @@ public:
   //////////////////
   // Variables
   uint8_t *header_blocks        = nullptr;
-  uint32_t header_blocks_length = 0;  // total length of header blocks (not include
-                                      // Padding or other fields)
-  uint32_t request_header_length = 0; // total length of payload (include Padding
-                                      // and other fields)
+  uint32_t header_blocks_length = 0; // total length of header blocks (not include Padding or other fields)
+
   bool recv_end_stream = false;
   bool send_end_stream = false;
 
-  bool sent_request_header       = false;
   bool response_header_done      = false;
-  bool request_sent              = false;
   bool is_first_transaction_flag = false;
 
   HTTPHdr response_header;
-  IOBufferReader *response_reader          = nullptr;
   Http2DependencyTree::Node *priority_node = nullptr;
 
 private:
   bool response_is_data_available() const;
   Event *send_tracked_event(Event *event, int send_event, VIO *vio);
   void send_response_body(bool call_update);
+  void _clear_timers();
 
   /**
    * Check if this thread is the right thread to process events for this
@@ -159,6 +157,7 @@ private:
    */
   bool _switch_thread_if_not_on_right_thread(int event, void *edata);
 
+  NetTimeout _timeout{};
   HTTPParser http_parser;
   EThread *_thread = nullptr;
   Http2StreamId _id;
@@ -177,13 +176,13 @@ private:
   bool trailing_header = false;
   bool has_body        = false;
 
-  // A brief disucssion of similar flags and state variables:  _state, closed, terminate_stream
+  // A brief discussion of similar flags and state variables:  _state, closed, terminate_stream
   //
   // _state tracks the HTTP2 state of the stream.  This field completely coincides with the H2 spec.
   //
   // closed is a flag that gets set when the framework indicates that the stream should be shutdown.  This flag
   // is set from either do_io_close, which indicates that the HttpSM is starting the close, or initiating_close,
-  // which indicates that the HTTP2 infrastructure is starting the close (e.g. due to the HTTP2 session shuttig down
+  // which indicates that the HTTP2 infrastructure is starting the close (e.g. due to the HTTP2 session shutting down
   // or a end of stream frame being received.  The closed flag does not indicate that it is safe to delete the stream
   // immediately. Perhaps the closed flag could be folded into the _state field.
   //
@@ -209,24 +208,14 @@ private:
   std::vector<size_t> _recent_rwnd_increment = {SIZE_MAX, SIZE_MAX, SIZE_MAX, SIZE_MAX, SIZE_MAX};
   int _recent_rwnd_increment_index           = 0;
 
-  Event *cross_thread_event      = nullptr;
-  Event *buffer_full_write_event = nullptr;
-
-  // Support stream-specific timeouts
-  ink_hrtime active_timeout = 0;
-  Event *active_event       = nullptr;
-
-  ink_hrtime inactive_timeout    = 0;
-  ink_hrtime inactive_timeout_at = 0;
-  Event *inactive_event          = nullptr;
-
-  Event *read_event       = nullptr;
-  Event *write_event      = nullptr;
-  Event *_read_vio_event  = nullptr;
-  Event *_write_vio_event = nullptr;
+  Event *cross_thread_event = nullptr;
+  Event *read_event         = nullptr;
+  Event *write_event        = nullptr;
+  Event *_read_vio_event    = nullptr;
+  Event *_write_vio_event   = nullptr;
 };
 
-extern ClassAllocator<Http2Stream> http2StreamAllocator;
+extern ClassAllocator<Http2Stream, true> http2StreamAllocator;
 
 ////////////////////////////////////////////////////
 // INLINE
@@ -286,9 +275,9 @@ Http2Stream::set_request_headers(HTTPHdr &h2_headers)
   _req_header.copy(&h2_headers);
 }
 
-inline // Check entire DATA payload length if content-length: header is exist
-  void
-  Http2Stream::increment_data_length(uint64_t length)
+// Check entire DATA payload length if content-length: header is exist
+inline void
+Http2Stream::increment_data_length(uint64_t length)
 {
   data_length += length;
 }
@@ -298,12 +287,6 @@ Http2Stream::payload_length_is_valid() const
 {
   uint32_t content_length = _req_header.get_content_length();
   return content_length == 0 || content_length == data_length;
-}
-
-inline bool
-Http2Stream::allow_half_open() const
-{
-  return false;
 }
 
 inline bool
@@ -329,4 +312,11 @@ inline MIOBuffer *
 Http2Stream::read_vio_writer() const
 {
   return this->read_vio.get_writer();
+}
+
+inline void
+Http2Stream::_clear_timers()
+{
+  _timeout.cancel_active_timeout();
+  _timeout.cancel_inactive_timeout();
 }

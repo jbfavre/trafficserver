@@ -42,7 +42,6 @@
 #include "P_Net.h"
 #include "P_SSLConfig.h"
 #include <openssl/ssl.h>
-#include "tscore/Map.h"
 
 class UnixNetVConnection;
 struct NetAccept;
@@ -56,7 +55,7 @@ struct SSLNetProcessor : public UnixNetProcessor {
 public:
   int start(int, size_t stacksize) override;
 
-  void cleanup(void);
+  void cleanup();
 
   SSLNetProcessor();
   ~SSLNetProcessor() override;

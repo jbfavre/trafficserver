@@ -36,7 +36,7 @@
 //              SPECIAL URLs
 //
 //
-// 1. Access from Browswers
+// 1. Access from Browsers
 //
 //    By special URLS:
 //
@@ -55,7 +55,7 @@
 //
 //         http://{http}/groups/use_graph.gif?august
 //
-//    B. Each protocol/sybsystem should have their own information.
+//    B. Each protocol/subsystem should have their own information.
 //       For example
 
 #define STAT_PAGE_SUCCESS STAT_PAGES_EVENTS_START + 0
@@ -64,19 +64,19 @@
 typedef Action *(*StatPagesFunc)(Continuation *cont, HTTPHdr *header);
 
 struct StatPageData {
-  char *data;
-  char *type;
-  int length;
+  char *data = nullptr;
+  char *type = nullptr;
+  int length = 0;
 
-  StatPageData() : data(nullptr), type(nullptr), length(0) {}
-  StatPageData(char *adata) : data(adata), type(nullptr) { length = strlen(adata); }
-  StatPageData(char *adata, int alength) : data(adata), type(nullptr), length(alength) {}
+  StatPageData() {}
+  StatPageData(char *adata) : data(adata) { length = strlen(adata); }
+  StatPageData(char *adata, int alength) : data(adata), length(alength) {}
 };
 
 struct StatPagesManager {
   void init();
 
-  inkcoreapi void register_http(const char *hostname, StatPagesFunc func);
+  void register_http(const char *hostname, StatPagesFunc func);
 
   // Private
   Action *handle_http(Continuation *cont, HTTPHdr *header);
@@ -86,7 +86,7 @@ struct StatPagesManager {
   ink_mutex stat_pages_mutex;
 };
 
-inkcoreapi extern StatPagesManager statPagesManager;
+extern StatPagesManager statPagesManager;
 
 // Stole Pete's code for formatting the page and slapped it here
 //   for easy reuse
@@ -97,23 +97,23 @@ public:
   ~BaseStatPagesHandler() override { resp_clear(); };
 
 protected:
-  inkcoreapi void resp_clear(void);
-  inkcoreapi void resp_add(const char *fmt, ...);
-  inkcoreapi void resp_add_sep(void);
-  inkcoreapi void resp_begin(const char *title);
-  inkcoreapi void resp_end(void);
-  void resp_begin_numbered(void);
-  void resp_end_numbered(void);
-  inkcoreapi void resp_begin_unnumbered(void);
-  inkcoreapi void resp_end_unnumbered(void);
-  inkcoreapi void resp_begin_item(void);
-  void resp_end_item(void);
-  inkcoreapi void resp_begin_table(int border, int columns, int percent);
-  inkcoreapi void resp_end_table();
-  inkcoreapi void resp_begin_row();
-  inkcoreapi void resp_end_row();
-  inkcoreapi void resp_begin_column(int percent = -1, const char *align = nullptr);
-  inkcoreapi void resp_end_column();
+  void resp_clear();
+  void resp_add(const char *fmt, ...);
+  void resp_add_sep();
+  void resp_begin(const char *title);
+  void resp_end();
+  void resp_begin_numbered();
+  void resp_end_numbered();
+  void resp_begin_unnumbered();
+  void resp_end_unnumbered();
+  void resp_begin_item();
+  void resp_end_item();
+  void resp_begin_table(int border, int columns, int percent);
+  void resp_end_table();
+  void resp_begin_row();
+  void resp_end_row();
+  void resp_begin_column(int percent = -1, const char *align = nullptr);
+  void resp_end_column();
 
   char *response;
   int response_size;

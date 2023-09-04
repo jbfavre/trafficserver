@@ -24,19 +24,15 @@
 #pragma once
 
 #include "tscore/ink_config.h"
-#include <stddef.h>
-#include <sys/mman.h>
+
+#include <stddef.h> // NOLINT(modernize-deprecated-headers)
 
 #ifdef HAVE_STDINT_H
-#include <stdint.h>
-#else
-// TODO: Add "standard" int types?
+#include <stdint.h> // NOLINT(modernize-deprecated-headers)
 #endif
 
 #ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-// TODO: add PRI*64 stuff?
+#include <inttypes.h> // NOLINT(modernize-deprecated-headers)
 #endif
 
 #ifndef INT64_MIN
@@ -59,11 +55,6 @@
 #ifdef EOPNOTSUPP
 #define ENOTSUP EOPNOTSUPP
 #endif
-#endif
-
-#if defined(darwin)
-#define RENTRENT_GETHOSTBYNAME
-#define RENTRENT_GETHOSTBYADDR
 #endif
 
 #define NUL '\0'
@@ -100,42 +91,26 @@ countof(const T (&)[N])
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
-#if TS_USE_HWLOC
-#include <hwloc.h>
-#endif
-
-#ifndef ROUNDUP
-#define ROUNDUP(x, y) ((((x) + ((y)-1)) / (y)) * (y))
-#endif
-
-#if defined(MAP_NORESERVE)
-#define MAP_SHARED_MAP_NORESERVE (MAP_SHARED | MAP_NORESERVE)
-#else
-#define MAP_SHARED_MAP_NORESERVE (MAP_SHARED)
-#endif
-
 /* Variables
  */
-extern int debug_level;
 extern int off;
 extern int on;
 
 /* Functions
  */
-int ink_sys_name_release(char *name, int namelen, char *release, int releaselen);
-int ink_number_of_processors();
 int ink_login_name_max();
 
-#if TS_USE_HWLOC
-// Get the hardware topology
-hwloc_topology_t ink_get_topology();
-#endif
-
-/** Constants.
- */
 #ifdef __cplusplus
-namespace ts
+// Round up a value to be a multiple of m if necessary.
+//
+template <typename ArithmeticV, typename ArithmeticM>
+constexpr ArithmeticV
+ROUNDUP(ArithmeticV value, ArithmeticM m)
 {
-static const int NO_FD = -1; ///< No or invalid file descriptor.
+  ArithmeticV remainder = value % m;
+  if (remainder) {
+    value += m - remainder;
+  }
+  return value;
 }
 #endif

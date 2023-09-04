@@ -152,8 +152,8 @@ PURGE request).
 
 Statistic: :ts:stat:`proxy.process.http.cache_deletes`.
 
-Read Activ
-~~~~~~~~~~
+Read Active
+~~~~~~~~~~~
 
 Current number of active cache reads.
 
@@ -206,6 +206,16 @@ Total number of DNS lookups which were successfully served from the HostDB
 cache.
 
 Statistic: :ts:stat:`proxy.process.hostdb.total_hits`.
+
+DNS Serve Stale
+~~~~~~~~~~~~~~~
+
+Total number of DNS lookups which were successfully served from the HostDB
+cache while the HostDB cache entry was stale. See
+:ts:cv:`proxy.config.hostdb.serve_stale_for` for how this feature is
+configured.
+
+Statistic: :ts:stat:`proxy.process.hostdb.total_serve_stale`.
 
 Ram Hit
 ~~~~~~~

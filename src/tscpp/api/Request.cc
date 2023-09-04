@@ -32,24 +32,16 @@ using std::string;
  * @private
  */
 struct atscppapi::RequestState : noncopyable {
-  TSMBuffer hdr_buf_;
-  TSMLoc hdr_loc_;
-  TSMLoc url_loc_;
+  TSMBuffer hdr_buf_ = nullptr;
+  TSMLoc hdr_loc_    = nullptr;
+  TSMLoc url_loc_    = nullptr;
   Url url_;
   Headers headers_;
   /* method and version are stored here for the case of an unbound request */
-  HttpMethod method_;
-  HttpVersion version_;
-  bool destroy_buf_;
-  RequestState()
-    : hdr_buf_(nullptr),
-      hdr_loc_(nullptr),
-      url_loc_(nullptr),
-      method_(HTTP_METHOD_UNKNOWN),
-      version_(HTTP_VERSION_UNKNOWN),
-      destroy_buf_(false)
-  {
-  }
+  HttpMethod method_   = HTTP_METHOD_UNKNOWN;
+  HttpVersion version_ = HTTP_VERSION_UNKNOWN;
+  bool destroy_buf_    = false;
+  RequestState()       = default;
 };
 
 Request::Request()
@@ -204,10 +196,6 @@ Request::~Request()
       TSMLoc null_parent_loc = nullptr;
       TSHandleMLocRelease(state_->hdr_buf_, null_parent_loc, state_->url_loc_);
       TSMBufferDestroy(state_->hdr_buf_);
-    } else {
-      LOG_DEBUG("Destroying request object on hdr_buf=%p, hdr_loc=%p, url_loc=%p", state_->hdr_buf_, state_->hdr_loc_,
-                state_->url_loc_);
-      TSHandleMLocRelease(state_->hdr_buf_, state_->hdr_loc_, state_->url_loc_);
     }
   }
   delete state_;

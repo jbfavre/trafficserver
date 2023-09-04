@@ -45,11 +45,23 @@ IN6_IS_ADDR_UNSPECIFIED(in6_addr const *addr)
 }
 #endif
 
-// IP protocol stack tags.
+/*
+ * IP protocol stack tags.
+ *
+ * When adding support for an additional protocol, the following minimum steps
+ * should be done:
+ *
+ * 1. This set of string_views should be updated with the new tag.
+ * 2. A populate_protocol function overload should be implemented for the
+ *    appropriate VConnection or ProxySession virtual function.
+ * 3. Traffic Dump should be updated to handle the new tag in:
+ *    plugins/experimental/traffic_dump/session_data.cc
+ */
 extern const std::string_view IP_PROTO_TAG_IPV4;
 extern const std::string_view IP_PROTO_TAG_IPV6;
 extern const std::string_view IP_PROTO_TAG_UDP;
 extern const std::string_view IP_PROTO_TAG_TCP;
+extern const std::string_view IP_PROTO_TAG_QUIC;
 extern const std::string_view IP_PROTO_TAG_TLS_1_0;
 extern const std::string_view IP_PROTO_TAG_TLS_1_1;
 extern const std::string_view IP_PROTO_TAG_TLS_1_2;
@@ -58,6 +70,10 @@ extern const std::string_view IP_PROTO_TAG_HTTP_0_9;
 extern const std::string_view IP_PROTO_TAG_HTTP_1_0;
 extern const std::string_view IP_PROTO_TAG_HTTP_1_1;
 extern const std::string_view IP_PROTO_TAG_HTTP_2_0;
+extern const std::string_view IP_PROTO_TAG_HTTP_QUIC;
+extern const std::string_view IP_PROTO_TAG_HTTP_3;
+extern const std::string_view IP_PROTO_TAG_HTTP_QUIC_D27;
+extern const std::string_view IP_PROTO_TAG_HTTP_3_D27;
 
 struct IpAddr; // forward declare.
 
@@ -90,7 +106,7 @@ union IpEndpoint {
   );
   /// Assign from an @a addr and @a port.
   self &assign(IpAddr const &addr, ///< Address and address family.
-               in_port_t port = 0  ///< Port (network order).
+               in_port_t port = 0  ///< Port (network byte order).
   );
 
   /// Test for valid IP address.
@@ -113,11 +129,11 @@ union IpEndpoint {
   self &setToLoopback(int family ///< Address family.
   );
 
-  /// Port in network order.
-  in_port_t &port();
-  /// Port in network order.
-  in_port_t port() const;
-  /// Port in host horder.
+  /// Port in network byte order.
+  in_port_t &network_order_port();
+  /// Port in network byte order.
+  in_port_t network_order_port() const;
+  /// Port in host byte order.
   in_port_t host_order_port() const;
 
   operator sockaddr *() { return &sa; }
@@ -160,13 +176,15 @@ int ats_ip_check_characters(std::string_view text);
   @param s IP address in the Internet standard dot notation.
 
 */
-inkcoreapi uint32_t ats_inet_addr(const char *s);
+uint32_t ats_inet_addr(const char *s);
 
 const char *ats_ip_ntop(const struct sockaddr *addr, char *dst, size_t size);
 
 // --
-/// Size in bytes of an IPv6 address.
-static size_t const TS_IP6_SIZE = sizeof(in6_addr);
+/// Size in bytes of an port and IPv4/IPv6 address.
+static constexpr size_t TS_IP4_SIZE  = sizeof(in_addr_t); ///< 4
+static constexpr size_t TS_IP6_SIZE  = sizeof(in6_addr);  ///< 16
+static constexpr size_t TS_PORT_SIZE = sizeof(in_port_t); ///< 2
 
 /// Reset an address to invalid.
 /// @note Useful for marking a member as not yet set.
@@ -418,7 +436,7 @@ ats_ip_addr_size(IpEndpoint const *addr ///< Address object.
 }
 
 /** Get a reference to the port in an address.
-    @note Because this is direct access, the port value is in network order.
+    @note Because this is direct access, the port value is in network byte order.
     @see ats_ip_port_host_order.
     @return A reference to the port value in an IPv4 or IPv6 address.
     @internal This is primarily for internal use but it might be handy for
@@ -450,7 +468,7 @@ ats_ip_port_cast(IpEndpoint *ip)
 
     If this is not an IPv4 address a zero valued address is returned.
     @note This is direct access to the address so it will be in
-    network order.
+    network byte order.
 
     @return A reference to the IPv4 address in @a addr.
 */
@@ -465,7 +483,7 @@ ats_ip4_addr_cast(sockaddr *addr)
 
     If this is not an IPv4 address a zero valued address is returned.
     @note This is direct access to the address so it will be in
-    network order.
+    network byte order.
 
     @return A reference to the IPv4 address in @a addr.
 */
@@ -480,7 +498,7 @@ ats_ip4_addr_cast(sockaddr const *addr)
 
     If this is not an IPv4 address a zero valued address is returned.
     @note This is direct access to the address so it will be in
-    network order.
+    network byte order.
     @note Convenience overload.
 
     @return A reference to the IPv4 address in @a addr.
@@ -495,7 +513,7 @@ ats_ip4_addr_cast(IpEndpoint *ip)
 
     If this is not an IPv4 address a zero valued address is returned.
     @note This is direct access to the address so it will be in
-    network order.
+    network byte order.
     @note Convenience overload.
 
     @return A reference to the IPv4 address in @a addr.
@@ -510,7 +528,7 @@ ats_ip4_addr_cast(IpEndpoint const *ip)
 
     If this is not an IPv6 address a zero valued address is returned.
     @note This is direct access to the address so it will be in
-    network order.
+    network byte order.
 
     @return A reference to the IPv6 address in @a addr.
 */
@@ -760,8 +778,8 @@ ats_ip_copy(sockaddr *dst, IpEndpoint const *src)
     Non-IP < IPv4 < IPv6
 
      - all non-IP addresses are the same ( including @c AF_UNSPEC )
-     - IPv4 addresses are compared numerically (host order)
-     - IPv6 addresses are compared byte wise in network order (MSB to LSB)
+     - IPv4 addresses are compared numerically (host byte order)
+     - IPv6 addresses are compared byte wise in network byte order (MSB to LSB)
 
     @return
       - -1 if @a lhs is less than @a rhs.
@@ -868,7 +886,7 @@ ats_ip_addr_port_eq(sockaddr const *lhs, sockaddr const *rhs)
 //@}
 
 /// Get IP TCP/UDP port.
-/// @return The port in host order for an IPv4 or IPv6 address,
+/// @return The port in host byte order for an IPv4 or IPv6 address,
 /// or zero if neither.
 inline in_port_t
 ats_ip_port_host_order(sockaddr const *addr ///< Address with port.
@@ -880,7 +898,7 @@ ats_ip_port_host_order(sockaddr const *addr ///< Address with port.
 }
 
 /// Get IP TCP/UDP port.
-/// @return The port in host order for an IPv4 or IPv6 address,
+/// @return The port in host byte order for an IPv4 or IPv6 address,
 /// or zero if neither.
 inline in_port_t
 ats_ip_port_host_order(IpEndpoint const *ip ///< Address with port.
@@ -892,7 +910,7 @@ ats_ip_port_host_order(IpEndpoint const *ip ///< Address with port.
 }
 
 /** Extract the IPv4 address.
-    @return Host order IPv4 address.
+    @return Host byte order IPv4 address.
 */
 inline in_addr_t
 ats_ip4_addr_host_order(sockaddr const *addr ///< Address object.
@@ -904,8 +922,8 @@ ats_ip4_addr_host_order(sockaddr const *addr ///< Address object.
 /// Write IPv4 data to storage @a dst.
 inline sockaddr *
 ats_ip4_set(sockaddr_in *dst,  ///< Destination storage.
-            in_addr_t addr,    ///< address, IPv4 network order.
-            in_port_t port = 0 ///< port, network order.
+            in_addr_t addr,    ///< address, IPv4 network byte order.
+            in_port_t port = 0 ///< port, network byte order.
 )
 {
   ink_zero(*dst);
@@ -923,8 +941,8 @@ ats_ip4_set(sockaddr_in *dst,  ///< Destination storage.
 */
 inline sockaddr *
 ats_ip4_set(IpEndpoint *dst,   ///< Destination storage.
-            in_addr_t ip4,     ///< address, IPv4 network order.
-            in_port_t port = 0 ///< port, network order.
+            in_addr_t ip4,     ///< address, IPv4 network byte order.
+            in_port_t port = 0 ///< port, network byte order.
 )
 {
   return ats_ip4_set(&dst->sin, ip4, port);
@@ -937,8 +955,8 @@ ats_ip4_set(IpEndpoint *dst,   ///< Destination storage.
 */
 inline sockaddr *
 ats_ip4_set(sockaddr *dst,     ///< Destination storage.
-            in_addr_t ip4,     ///< address, IPv4 network order.
-            in_port_t port = 0 ///< port, network order.
+            in_addr_t ip4,     ///< address, IPv4 network byte order.
+            in_port_t port = 0 ///< port, network byte order.
 )
 {
   return ats_ip4_set(ats_ip4_cast(dst), ip4, port);
@@ -948,8 +966,8 @@ ats_ip4_set(sockaddr *dst,     ///< Destination storage.
  */
 inline sockaddr *
 ats_ip6_set(sockaddr_in6 *dst,    ///< Destination storage.
-            in6_addr const &addr, ///< address in network order.
-            in_port_t port = 0    ///< Port, network order.
+            in6_addr const &addr, ///< address in network byte order.
+            in_port_t port = 0    ///< Port, network byte order.
 )
 {
   ink_zero(*dst);
@@ -966,8 +984,8 @@ ats_ip6_set(sockaddr_in6 *dst,    ///< Destination storage.
  */
 inline sockaddr *
 ats_ip6_set(sockaddr *dst,        ///< Destination storage.
-            in6_addr const &addr, ///< address in network order.
-            in_port_t port = 0    ///< Port, network order.
+            in6_addr const &addr, ///< address in network byte order.
+            in_port_t port = 0    ///< Port, network byte order.
 )
 {
   return ats_ip6_set(ats_ip6_cast(dst), addr, port);
@@ -977,8 +995,8 @@ ats_ip6_set(sockaddr *dst,        ///< Destination storage.
  */
 inline sockaddr *
 ats_ip6_set(IpEndpoint *dst,      ///< Destination storage.
-            in6_addr const &addr, ///< address in network order.
-            in_port_t port = 0    ///< Port, network order.
+            in6_addr const &addr, ///< address in network byte order.
+            in_port_t port = 0    ///< Port, network byte order.
 )
 {
   return ats_ip6_set(&dst->sin6, addr, port);
@@ -1130,7 +1148,7 @@ uint32_t ats_ip_hash(sockaddr const *addr);
 
 uint64_t ats_ip_port_hash(sockaddr const *addr);
 
-/** Convert address to string as a hexidecimal value.
+/** Convert address to string as a hexadecimal value.
     The string is always nul terminated, the output string is clipped
     if @a dst is insufficient.
     @return The length of the resulting string (not including nul).
@@ -1149,23 +1167,23 @@ struct IpAddr {
   typedef IpAddr self; ///< Self reference type.
 
   /// Default construct (invalid address).
-  IpAddr() : _family(AF_UNSPEC) {}
-  /// Construct as IPv4 @a addr.
-  explicit IpAddr(in_addr_t addr ///< Address to assign.
-                  )
-    : _family(AF_INET)
-  {
-    _addr._ip4 = addr;
-  }
-  /// Construct as IPv6 @a addr.
-  explicit IpAddr(in6_addr const &addr ///< Address to assign.
-                  )
-    : _family(AF_INET6)
-  {
-    _addr._ip6 = addr;
-  }
+  IpAddr() {}
+
+  /** Construct from IPv4 address.
+   *
+   * @param addr Source address.
+   */
+  explicit constexpr IpAddr(in_addr_t addr) : _family(AF_INET), _addr(addr) {}
+
+  /** Construct from IPv6 address.
+   *
+   * @param addr Source address.
+   */
+  explicit constexpr IpAddr(in6_addr const &addr) : _family(AF_INET6), _addr(addr) {}
+
   /// Construct from @c sockaddr.
   explicit IpAddr(sockaddr const *addr) { this->assign(addr); }
+  explicit IpAddr(sockaddr const &addr) { this->assign(&addr); }
   /// Construct from @c sockaddr_in6.
   explicit IpAddr(sockaddr_in6 const &addr) { this->assign(ats_ip_sa_cast(&addr)); }
   /// Construct from @c sockaddr_in6.
@@ -1185,7 +1203,7 @@ struct IpAddr {
     return this->assign(&ip.sa);
   }
   /// Assign from IPv4 raw address.
-  /// @param ip Network order IPv4 address.
+  /// @param ip Network byte order IPv4 address.
   self &operator=(in_addr_t ip);
 
   /// Assign from IPv6 raw address.
@@ -1212,7 +1230,17 @@ struct IpAddr {
   */
   char *toString(char *dest, ///< [out] Destination string buffer.
                  size_t len  ///< [in] Size of buffer.
-                 ) const;
+  ) const;
+
+  /** Write the address to a socket address.
+   *
+   * @param dest Socket address to update.
+   * @return @a dest
+   *
+   * The address and family are updated. The port is unchanged. @a dest is assumed to be the
+   * appropriate underlying type for the family of @a this.
+   */
+  sockaddr *toSockAddr(sockaddr *dest) const;
 
   /// Equality.
   bool
@@ -1235,7 +1263,7 @@ struct IpAddr {
   int cmp(self const &that) const;
 
   /** Return a normalized hash value.
-      - Ipv4: the address in host order.
+      - Ipv4: the address in host byte order.
       - Ipv6: folded 32 bit of the address.
       - Else: 0.
   */
@@ -1282,14 +1310,22 @@ struct IpAddr {
   /// Test for loopback
   bool isLoopback() const;
 
-  uint16_t _family; ///< Protocol family.
+  /// Test for any addr
+  bool isAnyAddr() const;
+
+  uint16_t _family = AF_UNSPEC; ///< Protocol family.
   /// Address data.
-  union {
+  union Addr {
     in_addr_t _ip4;                                                    ///< IPv4 address storage.
     in6_addr _ip6;                                                     ///< IPv6 address storage.
     uint8_t _byte[TS_IP6_SIZE];                                        ///< As raw bytes.
     uint32_t _u32[TS_IP6_SIZE / (sizeof(uint32_t) / sizeof(uint8_t))]; ///< As 32 bit chunks.
     uint64_t _u64[TS_IP6_SIZE / (sizeof(uint64_t) / sizeof(uint8_t))]; ///< As 64 bit chunks.
+
+    // This is required by the @c constexpr constructor.
+    constexpr Addr() : _ip4(0) {}
+    constexpr Addr(in_addr_t addr) : _ip4(addr) {}
+    constexpr Addr(in6_addr const &addr) : _ip6(addr) {}
   } _addr;
 
   ///< Pre-constructed invalid instance.
@@ -1339,6 +1375,12 @@ inline bool
 IpAddr::isLoopback() const
 {
   return (AF_INET == _family && 0x7F == _addr._byte[0]) || (AF_INET6 == _family && IN6_IS_ADDR_LOOPBACK(&_addr._ip6));
+}
+
+inline bool
+IpAddr::isAnyAddr() const
+{
+  return (AF_INET == _family && INADDR_ANY == _addr._ip4) || (AF_INET6 == _family && IN6_IS_ADDR_UNSPECIFIED(&_addr._ip6));
 }
 
 /// Assign sockaddr storage.
@@ -1438,7 +1480,7 @@ IpAddr::hash() const
 /// @return @s dst.
 sockaddr *ats_ip_set(sockaddr *dst,      ///< Destination storage.
                      IpAddr const &addr, ///< source address.
-                     in_port_t port = 0  ///< port, network order.
+                     in_port_t port = 0  ///< port, network byte order.
 );
 
 /** Convert @a text to an IP address and write it to @a addr.
@@ -1470,13 +1512,13 @@ IpEndpoint::assign(sockaddr const *ip)
 }
 
 inline in_port_t &
-IpEndpoint::port()
+IpEndpoint::network_order_port()
 {
   return ats_ip_port_cast(&sa);
 }
 
 inline in_port_t
-IpEndpoint::port() const
+IpEndpoint::network_order_port() const
 {
   return ats_ip_port_cast(&sa);
 }
@@ -1484,7 +1526,7 @@ IpEndpoint::port() const
 inline in_port_t
 IpEndpoint::host_order_port() const
 {
-  return ntohs(this->port());
+  return ntohs(this->network_order_port());
 }
 
 inline bool
@@ -1558,4 +1600,14 @@ bwformat(BufferWriter &w, BWFSpec const &spec, IpEndpoint const &addr)
 {
   return bwformat(w, spec, &addr.sa);
 }
+
+namespace bwf
+{
+  namespace detail
+  {
+    struct MemDump;
+  } // namespace detail
+
+  detail::MemDump Hex_Dump(IpEndpoint const &addr);
+} // namespace bwf
 } // namespace ts

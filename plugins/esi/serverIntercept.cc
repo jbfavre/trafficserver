@@ -43,10 +43,11 @@ struct SContData {
   TSCont contp;
 
   struct IoHandle {
-    TSVIO vio;
-    TSIOBuffer buffer;
-    TSIOBufferReader reader;
-    IoHandle() : vio(nullptr), buffer(nullptr), reader(nullptr){};
+    TSVIO vio               = nullptr;
+    TSIOBuffer buffer       = nullptr;
+    TSIOBufferReader reader = nullptr;
+    IoHandle()              = default;
+    ;
     ~IoHandle()
     {
       if (reader) {
@@ -281,7 +282,7 @@ processRequest(SContData *cont_data)
 static int
 serverIntercept(TSCont contp, TSEvent event, void *edata)
 {
-  TSDebug(DEBUG_TAG, "[%s] Received event: %d", __FUNCTION__, (int)event);
+  TSDebug(DEBUG_TAG, "[%s] Received event: %d", __FUNCTION__, static_cast<int>(event));
 
   SContData *cont_data = static_cast<SContData *>(TSContDataGet(contp));
   bool read_complete   = false;
@@ -355,8 +356,8 @@ setupServerIntercept(TSHttpTxn txnp)
   SContData *cont_data = new SContData(contp);
   TSContDataSet(contp, cont_data);
   TSHttpTxnServerIntercept(contp, txnp);
-  TSHttpTxnReqCacheableSet(txnp, 1);
-  TSHttpTxnRespCacheableSet(txnp, 1);
+  TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_RESPONSE_CACHEABLE, true);
+  TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_REQUEST_CACHEABLE, true);
   TSDebug(DEBUG_TAG, "[%s] Setup server intercept successfully", __FUNCTION__);
   return true;
 }
