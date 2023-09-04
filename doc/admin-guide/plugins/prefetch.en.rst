@@ -88,7 +88,7 @@ It is worth mentioning that a small percentage of the requests did not follow a 
 
 * All POPs were seeded periodically except for POP #1 and the plugin was deployed in the following order: POP #0, #1, #2, #3 and then to the rest at once.
 * POP #0 was the first plugin deployment and was used to tune its configuration for better results.
-* POP #1 was a "testing ground" for the “worst case” (no seeding at all, imperfect conditions like low traffic and poorer connectivity to origin) and relying only on the Prefetch plugin.
+* POP #1 was a "testing ground" for the "worst case" (no seeding at all, imperfect conditions like low traffic and poorer connectivity to origin) and relying only on the Prefetch plugin.
 * POP #2 and POP #3 experienced seeding problems (at times it reached ~60%, not shown here).
 
 
@@ -112,7 +112,7 @@ request, it will either find it in cache or begin the fetch from its next tier.
 Since the request from the child has the special header, the parent will only
 send the headers of the object back to the client, saving network and processing
 bytes. The child thus does not cache the pre-fetched object which is ok since
-the user may not hit that same child for the subsquent object.
+the user may not hit that same child for the subsequent object.
 
 Then, when the user makes their next request for the pre-fetched object, the
 child that handles the request will perform the consistent-hash, find the
@@ -153,7 +153,7 @@ If the "incoming" URL is ::
   http://example.com/path/file-104.mov?a=a&b=b
 
 
-the the following URLs will be requested to be prefetched ::
+the following URLs will be requested to be prefetched ::
 
   http://example-seed.com/path/file-106.mov?a=a&b=b
   http://example-seed.com/path/file-108.mov?a=a&b=b
@@ -162,7 +162,13 @@ the the following URLs will be requested to be prefetched ::
 
 Note ``--fetch-path-pattern`` is a PCRE regex/capture pattern and
 ``{$2+2}`` is a mechanism to calculate the next path by adding or
-subtracting integer numbers.
+subtracting integer numbers.  The operands will be treated as unsigned
+32-bit integers.  Invalid numbers are treated as zeroes, and numbers
+too large will be interpreted as 2\ :sup:`32`\ -1.  If subtraction results in
+a negative number, 0 is returned instead.  An output width may be
+specified with an integer followed by a colon, e.g. ``{8:$2+2}``,
+causing the resulting number to be padded with leading zeroes if it
+has fewer digits than the width.
 
 
 Overhead from **next object** prefetch
@@ -186,12 +192,12 @@ attempts to minimize the extraneous resources used.
 Minimizing **next object** prefetch overhead
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The current implementation relies on the following assumptions and egnineering
+The current implementation relies on the following assumptions and engineering
 compromises:
 
 * **First match the next object pattern** defined by ``--fetch-path-pattern``
   plugin parameter, not matching requests are ignored (prefetch is never triggered)
-* **Define a prefetch policy** which tries to suppress uneccessary **next object**
+* **Define a prefetch policy** which tries to suppress unnecessary **next object**
   prefetches for the most recently used requests which are assumed should be already
   in cache. Currently only ``lru:n`` policy is supported, it is using an URI-hash LRU
   cache which evicts the least recently used elements first. Every request's **cache key**
@@ -203,7 +209,7 @@ compromises:
   requests which would result in using the same **cache key** are not considered as
   separate requests (which could bloat/dilute the LRU cache
   if not normalized)
-* **Check if the the fetch request is unique**. A ``simple`` prefetching policy is
+* **Check if the fetch request is unique**. A ``simple`` prefetching policy is
   always used to make sure prefetches for the same object (same cache key) are
   never triggered simultaneously.
 * **Check if already cached**. Before triggering the prefetch request to the
@@ -212,7 +218,7 @@ compromises:
   object** would be cached as well.
 * **Don't fetch the response body** and **never cache** at the **front-tier**.
   The **front-tier** marks the prefetch request with a special API header defined
-  by ``--api-header`` plugin parameter. When recieved the  **back-tier** responds
+  by ``--api-header`` plugin parameter. When received the  **back-tier** responds
   right away before actually fetching the object (without a body), it just
   schedules the real prefetch at the **back-tier**. ``Cache-Control: no-store``
   is used to make sure the prefetch request response is never cached at the **front-tier**.
@@ -221,6 +227,9 @@ compromises:
   plugin is already being used to alleviate the load on the disks).
 * **Throttle the prefetch activity** - if necessary a limit can by imposed on the
   number of concurrent prefetch requests by using ``--fetch-max`` plugin parameter.
+* **Request amplification** - when using ``--fetch-query`` it is easy to create request
+  multiplication of malicious requests. Using tokenization is advisable  when using
+  ``--fetch-query``.
 
 Plugin parameters
 =================
@@ -231,9 +240,10 @@ Plugin parameters
 * ``--api-header`` - the header used by the plugin internally, also used to mark a prefetch request to the next tier in dual-tier usage.
 * ``--fetch-policy`` - fetch policy
   - ``simple`` - this policy just makes sure there are no same concurrent prefetches triggered (default and always used in combination with any other policy)
-  - ``lru:n`` - this policy uses LRU to identify “hot” objects and triggers prefetch if the object is not found. `n` is the size of the LRU
+  - ``lru:n`` - this policy uses LRU to identify "hot" objects and triggers prefetch if the object is not found. `n` is the size of the LRU
 * ``--fetch-count`` - how many objects to be prefetched.
 * ``--fetch-path-pattern`` - regex/capture pattern that would transform the **incoming** into the **next object** path.
+* ``--fetch-query`` - path to fetch **relative to the incoming** object path.
 * ``--fetch-max`` - maximum concurrent fetches allowed, this would allow to throttle the prefetch activity if necessary
 * ``--replace-host`` - allows the prefetch requests to be forwarded to a different host or remap rule (replaces the host in the prefetch request)
 * ``--name-space`` - by default all plugin instances used for all remap use a single background fetch state, this parameter allows to specify a separate state per remap rule of per group of remap rules.
@@ -250,7 +260,7 @@ The plugin maintains the following metrics:
 
 * Prefetch request status related
     * ``fetch.active`` - number of currently active prefetch requests (counter)
-    * ``fetch.completed``- number of succesfully completed prefetch requests (counter)
+    * ``fetch.completed``- number of successfully completed prefetch requests (counter)
     * ``fetch.errors`` - number of failed prefetch requests (counter)
     * ``fetch.timeouts`` - number of timed-out prefetch requests (counter)
     * ``fetch.throttled`` - number of throttled prefetch requests (counter), throttle limit defined by ``--fetch-max``

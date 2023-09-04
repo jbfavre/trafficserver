@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  URL rewriting.
 
   @section license License
 
@@ -19,14 +19,15 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
+
  */
 
 #include "UrlRewrite.h"
 #include "ProxyConfig.h"
 #include "ReverseProxy.h"
-#include "UrlMappingPathIndex.h"
 #include "RemapConfig.h"
 #include "tscore/I_Layout.h"
+#include "tscore/Filenames.h"
 #include "HttpSM.h"
 
 #define modulePrefix "[ReverseProxy]"
@@ -50,31 +51,16 @@ SetHomePageRedirectFlag(url_mapping *new_mapping, URL &new_to_url)
   new_mapping->homePageRedirect = (from_path && !to_path) ? true : false;
 }
 
-//
-// CTOR / DTOR for the UrlRewrite class.
-//
-UrlRewrite::UrlRewrite()
-  : nohost_rules(0),
-    reverse_proxy(0),
-    ts_name(nullptr),
-    http_default_redirect_url(nullptr),
-    num_rules_forward(0),
-    num_rules_reverse(0),
-    num_rules_redirect_permanent(0),
-    num_rules_redirect_temporary(0),
-    num_rules_forward_with_recv_port(0),
-    _valid(false)
+bool
+UrlRewrite::load()
 {
   ats_scoped_str config_file_path;
 
-  forward_mappings.hash_lookup = reverse_mappings.hash_lookup = permanent_redirects.hash_lookup = temporary_redirects.hash_lookup =
-    forward_mappings_with_recv_port.hash_lookup                                                 = nullptr;
-
-  config_file_path = RecConfigReadConfigPath("proxy.config.url_remap.filename", "remap.config");
+  config_file_path = RecConfigReadConfigPath("proxy.config.url_remap.filename", ts::filename::REMAP);
   if (!config_file_path) {
     pmgmt->signalManager(MGMT_SIGNAL_CONFIG_ERROR, "Unable to find proxy.config.url_remap.filename");
-    Warning("%s Unable to locate remap.config. No remappings in effect", modulePrefix);
-    return;
+    Warning("%s Unable to locate %s. No remappings in effect", modulePrefix, ts::filename::REMAP);
+    return false;
   }
 
   this->ts_name = nullptr;
@@ -95,6 +81,14 @@ UrlRewrite::UrlRewrite()
 
   REC_ReadConfigInteger(reverse_proxy, "proxy.config.reverse_proxy.enabled");
 
+  /* Initialize the plugin factory */
+  pluginFactory.setRuntimeDir(RecConfigReadRuntimeDir()).addSearchDir(RecConfigReadPluginDir());
+
+  /* Initialize the next hop strategy factory */
+  std::string sf = RecConfigReadConfigPath("proxy.config.url_remap.strategies.filename", "strategies.yaml");
+  Debug("url_rewrite_regex", "strategyFactory file: %s", sf.c_str());
+  strategyFactory = new NextHopStrategyFactory(sf.c_str());
+
   if (0 == this->BuildTable(config_file_path)) {
     _valid = true;
     if (is_debug_tag_set("url_rewrite")) {
@@ -103,6 +97,7 @@ UrlRewrite::UrlRewrite()
   } else {
     Warning("something failed during BuildTable() -- check your remap plugins!");
   }
+  return _valid;
 }
 
 UrlRewrite::~UrlRewrite()
@@ -116,6 +111,10 @@ UrlRewrite::~UrlRewrite()
   DestroyStore(temporary_redirects);
   DestroyStore(forward_mappings_with_recv_port);
   _valid = false;
+
+  /* Deactivate the factory when all SM are gone for sure. */
+  pluginFactory.deactivate();
+  delete strategyFactory;
 }
 
 /** Sets the reverse proxy flag. */
@@ -128,54 +127,20 @@ UrlRewrite::SetReverseFlag(int flag)
   }
 }
 
-/**
-  Allocaites via new, and adds a mapping like this map /ink/rh
-  http://{backdoor}/ink/rh
-
-  These {backdoor} things are then rewritten in a request-hdr hook.  (In the
-  future it might make sense to move the rewriting into HttpSM directly.)
-
-*/
-url_mapping *
-UrlRewrite::SetupBackdoorMapping()
-{
-  const char from_url[] = "/ink/rh";
-  const char to_url[]   = "http://{backdoor}/ink/rh";
-
-  url_mapping *mapping = new url_mapping;
-
-  mapping->fromURL.create(nullptr);
-  mapping->fromURL.parse(from_url, sizeof(from_url) - 1);
-  mapping->fromURL.scheme_set(URL_SCHEME_HTTP, URL_LEN_HTTP);
-
-  mapping->toUrl.create(nullptr);
-  mapping->toUrl.parse(to_url, sizeof(to_url) - 1);
-
-  return mapping;
-}
-
 /** Deallocated a hash table and all the url_mappings in it. */
 void
-UrlRewrite::_destroyTable(InkHashTable *h_table)
+UrlRewrite::_destroyTable(std::unique_ptr<URLTable> &h_table)
 {
-  InkHashTableEntry *ht_entry;
-  InkHashTableIteratorState ht_iter;
-  UrlMappingPathIndex *item;
-
-  if (h_table != nullptr) { // Iterate over the hash tabel freeing up the all the url_mappings
-    //   contained with in
-    for (ht_entry = ink_hash_table_iterator_first(h_table, &ht_iter); ht_entry != nullptr;) {
-      item = (UrlMappingPathIndex *)ink_hash_table_entry_value(h_table, ht_entry);
-      delete item;
-      ht_entry = ink_hash_table_iterator_next(h_table, &ht_iter);
+  if (h_table) {
+    for (auto &it : *h_table) {
+      delete it.second;
     }
-    ink_hash_table_destroy(h_table);
   }
 }
 
 /** Debugging Method. */
 void
-UrlRewrite::Print()
+UrlRewrite::Print() const
 {
   printf("URL Rewrite table with %d entries\n", num_rules_forward + num_rules_reverse + num_rules_redirect_temporary +
                                                   num_rules_redirect_permanent + num_rules_forward_with_recv_port);
@@ -203,17 +168,11 @@ UrlRewrite::Print()
 
 /** Debugging method. */
 void
-UrlRewrite::PrintStore(MappingsStore &store)
+UrlRewrite::PrintStore(const MappingsStore &store) const
 {
-  if (store.hash_lookup != nullptr) {
-    InkHashTableEntry *ht_entry;
-    InkHashTableIteratorState ht_iter;
-    UrlMappingPathIndex *value;
-
-    for (ht_entry = ink_hash_table_iterator_first(store.hash_lookup, &ht_iter); ht_entry != nullptr;) {
-      value = (UrlMappingPathIndex *)ink_hash_table_entry_value(store.hash_lookup, ht_entry);
-      value->Print();
-      ht_entry = ink_hash_table_iterator_next(store.hash_lookup, &ht_iter);
+  if (store.hash_lookup) {
+    for (auto &it : *store.hash_lookup) {
+      it.second->Print();
     }
   }
 
@@ -223,19 +182,67 @@ UrlRewrite::PrintStore(MappingsStore &store)
   }
 }
 
+std::string
+UrlRewrite::PrintRemapHits()
+{
+  std::string result;
+  result += PrintRemapHitsStore(forward_mappings);
+  result += PrintRemapHitsStore(reverse_mappings);
+  result += PrintRemapHitsStore(permanent_redirects);
+  result += PrintRemapHitsStore(temporary_redirects);
+  result += PrintRemapHitsStore(forward_mappings_with_recv_port);
+
+  if (result.size() > 2) {
+    result.pop_back(); // remove the trailing \n
+    result.pop_back(); // remove the trailing ,
+    result = "{\"list\": [\n" + result + " \n]}";
+  }
+
+  return result;
+}
+
+/** Debugging method. */
+std::string
+UrlRewrite::PrintRemapHitsStore(MappingsStore &store)
+{
+  std::string result;
+  if (store.hash_lookup) {
+    for (auto &it : *store.hash_lookup) {
+      result += it.second->PrintUrlMappingPathIndex();
+    }
+  }
+
+  if (!store.regex_list.empty()) {
+    forl_LL(RegexMapping, list_iter, store.regex_list)
+    {
+      result += list_iter->url_map->PrintRemapHitCount();
+      result += ",\n";
+    }
+  }
+
+  return result;
+}
+
 /**
   If a remapping is found, returns a pointer to it otherwise NULL is
   returned.
 
 */
 url_mapping *
-UrlRewrite::_tableLookup(InkHashTable *h_table, URL *request_url, int request_port, char *request_host, int request_host_len)
+UrlRewrite::_tableLookup(std::unique_ptr<URLTable> &h_table, URL *request_url, int request_port, char *request_host,
+                         int request_host_len)
 {
-  UrlMappingPathIndex *ht_entry;
-  url_mapping *um = nullptr;
-  int ht_result;
+  if (!h_table) {
+    h_table.reset(new URLTable);
+  }
+  UrlMappingPathIndex *ht_entry = nullptr;
+  url_mapping *um               = nullptr;
+  int ht_result                 = 0;
 
-  ht_result = ink_hash_table_lookup(h_table, request_host, (void **)&ht_entry);
+  if (auto it = h_table->find(request_host); it != h_table->end()) {
+    ht_result = 1;
+    ht_entry  = it->second;
+  }
 
   if (likely(ht_result && ht_entry)) {
     // for empty host don't do a normal search, get a mapping arbitrarily
@@ -524,7 +531,7 @@ UrlRewrite::Remap_redirect(HTTPHdr *request_header, URL *redirect_url)
       host_hdr_len = 0;
     }
 
-    const char *tmp = (const char *)memchr(host_hdr, ':', host_hdr_len);
+    const char *tmp = static_cast<const char *>(memchr(host_hdr, ':', host_hdr_len));
 
     if (tmp == nullptr) {
       host_len = host_hdr_len;
@@ -585,6 +592,7 @@ UrlRewrite::_addToStore(MappingsStore &store, url_mapping *new_mapping, RegexMap
   bool retval;
 
   new_mapping->setRank(count); // Use the mapping rules number count for rank
+  new_mapping->setRemapKey();  // Used for remap hit stats
   if (is_cur_mapping_regex) {
     store.regex_list.enqueue(reg_map);
     retval = true;
@@ -610,7 +618,7 @@ UrlRewrite::InsertMapping(mapping_type maptype, url_mapping *new_mapping, RegexM
     success = _addToStore(forward_mappings, new_mapping, reg_map, src_host, is_cur_mapping_regex, num_rules_forward);
     if (success) {
       // @todo: is this applicable to regex mapping too?
-      SetHomePageRedirectFlag(new_mapping, new_mapping->toUrl);
+      SetHomePageRedirectFlag(new_mapping, new_mapping->toURL);
     }
     break;
   case REVERSE_MAP:
@@ -652,7 +660,7 @@ UrlRewrite::InsertForwardMapping(mapping_type maptype, url_mapping *mapping, con
     case FORWARD_MAP:
     case FORWARD_MAP_REFERER:
     case FORWARD_MAP_WITH_RECV_PORT:
-      SetHomePageRedirectFlag(mapping, mapping->toUrl);
+      SetHomePageRedirectFlag(mapping, mapping->toURL);
       break;
     default:
       break;
@@ -673,8 +681,6 @@ UrlRewrite::InsertForwardMapping(mapping_type maptype, url_mapping *mapping, con
 int
 UrlRewrite::BuildTable(const char *path)
 {
-  BUILD_TABLE_INFO bti;
-
   ink_assert(forward_mappings.empty());
   ink_assert(reverse_mappings.empty());
   ink_assert(permanent_redirects.empty());
@@ -686,11 +692,11 @@ UrlRewrite::BuildTable(const char *path)
   ink_assert(num_rules_redirect_temporary == 0);
   ink_assert(num_rules_forward_with_recv_port == 0);
 
-  forward_mappings.hash_lookup                = ink_hash_table_create(InkHashTableKeyType_String);
-  reverse_mappings.hash_lookup                = ink_hash_table_create(InkHashTableKeyType_String);
-  permanent_redirects.hash_lookup             = ink_hash_table_create(InkHashTableKeyType_String);
-  temporary_redirects.hash_lookup             = ink_hash_table_create(InkHashTableKeyType_String);
-  forward_mappings_with_recv_port.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
+  forward_mappings.hash_lookup.reset(new URLTable);
+  reverse_mappings.hash_lookup.reset(new URLTable);
+  permanent_redirects.hash_lookup.reset(new URLTable);
+  temporary_redirects.hash_lookup.reset(new URLTable);
+  forward_mappings_with_recv_port.hash_lookup.reset(new URLTable);
 
   if (!remap_parse_config(path, this)) {
     // XXX handle file reload error
@@ -699,27 +705,27 @@ UrlRewrite::BuildTable(const char *path)
 
   // Destroy unused tables
   if (num_rules_forward == 0) {
-    forward_mappings.hash_lookup = ink_hash_table_destroy(forward_mappings.hash_lookup);
+    forward_mappings.hash_lookup.reset(nullptr);
   } else {
-    if (ink_hash_table_isbound(forward_mappings.hash_lookup, "")) {
+    if (forward_mappings.hash_lookup->find("") != forward_mappings.hash_lookup->end()) {
       nohost_rules = 1;
     }
   }
 
   if (num_rules_reverse == 0) {
-    reverse_mappings.hash_lookup = ink_hash_table_destroy(reverse_mappings.hash_lookup);
+    reverse_mappings.hash_lookup.reset(nullptr);
   }
 
   if (num_rules_redirect_permanent == 0) {
-    permanent_redirects.hash_lookup = ink_hash_table_destroy(permanent_redirects.hash_lookup);
+    permanent_redirects.hash_lookup.reset(nullptr);
   }
 
   if (num_rules_redirect_temporary == 0) {
-    temporary_redirects.hash_lookup = ink_hash_table_destroy(temporary_redirects.hash_lookup);
+    temporary_redirects.hash_lookup.reset(nullptr);
   }
 
   if (num_rules_forward_with_recv_port == 0) {
-    forward_mappings_with_recv_port.hash_lookup = ink_hash_table_destroy(forward_mappings_with_recv_port.hash_lookup);
+    forward_mappings_with_recv_port.hash_lookup.reset(nullptr);
   }
 
   return 0;
@@ -731,8 +737,11 @@ UrlRewrite::BuildTable(const char *path)
 
 */
 bool
-UrlRewrite::TableInsert(InkHashTable *h_table, url_mapping *mapping, const char *src_host)
+UrlRewrite::TableInsert(std::unique_ptr<URLTable> &h_table, url_mapping *mapping, const char *src_host)
 {
+  if (!h_table) {
+    h_table.reset(new URLTable);
+  }
   char src_host_tmp_buf[1];
   UrlMappingPathIndex *ht_contents;
 
@@ -741,19 +750,21 @@ UrlRewrite::TableInsert(InkHashTable *h_table, url_mapping *mapping, const char 
     src_host_tmp_buf[0] = 0;
   }
   // Insert the new_mapping into hash table
-  if (ink_hash_table_lookup(h_table, src_host, (void **)&ht_contents)) {
+  if (auto it = h_table->find(src_host); it != h_table->end()) {
+    ht_contents = it->second;
     // There is already a path index for this host
-    if (ht_contents == nullptr) {
+    if (it->second == nullptr) {
       // why should this happen?
       Warning("Found entry cannot be null!");
       return false;
     }
   } else {
     ht_contents = new UrlMappingPathIndex();
-    ink_hash_table_insert(h_table, src_host, ht_contents);
+    h_table->emplace(src_host, ht_contents);
   }
   if (!ht_contents->Insert(mapping)) {
-    Warning("Could not insert new mapping");
+    // Trie::Insert only fails due to an attempt to add a duplicate entry.
+    Warning("Could not insert new mapping: duplicated entry exists");
     return false;
   }
   return true;
@@ -795,6 +806,9 @@ UrlRewrite::_mappingLookup(MappingsStore &mappings, URL *request_url, int reques
                           mapping_container)) {
     Debug("url_rewrite", "Using regex mapping with rank %d", (mapping_container.getMapping())->getRank());
     retval = true;
+  }
+  if (retval) {
+    (mapping_container.getMapping())->incrementCount();
   }
   return retval;
 }
@@ -904,7 +918,8 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
     }
 
     int matches_info[MAX_REGEX_SUBS * 3];
-    bool match_result = list_iter->regular_expression.exec(request_host, request_host_len, matches_info, countof(matches_info));
+    bool match_result =
+      list_iter->regular_expression.exec(std::string_view(request_host, request_host_len), matches_info, countof(matches_info));
 
     if (match_result == true) {
       Debug("url_rewrite_regex",
@@ -920,7 +935,7 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
       // Expand substitutions in the host field from the stored template
       buf_len           = _expandSubstitutions(matches_info, list_iter, request_host, buf, sizeof(buf));
       URL *expanded_url = mapping_container.createNewToURL();
-      expanded_url->copy(&((list_iter->url_map)->toUrl));
+      expanded_url->copy(&((list_iter->url_map)->toURL));
       expanded_url->host_set(buf, buf_len);
 
       Debug("url_rewrite_regex", "Expanded toURL to [%.*s]", expanded_url->length_get(), expanded_url->string_get_ref());
@@ -941,9 +956,7 @@ UrlRewrite::_destroyList(RegexMappingList &mappings)
   RegexMapping *list_iter;
   while ((list_iter = mappings.pop()) != nullptr) {
     delete list_iter->url_map;
-    if (list_iter->to_url_host_template) {
-      ats_free(list_iter->to_url_host_template);
-    }
+    ats_free(list_iter->to_url_host_template);
     delete list_iter;
   }
   mappings.clear();

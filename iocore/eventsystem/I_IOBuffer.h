@@ -29,7 +29,7 @@
   might wish to ensure that an entire line will come in before consuming
   the data.  In such a case, the water_mark should be set to the largest
   possible size of the string. (appropriate error handling should take
-  care of exessively long strings).
+  care of excessively long strings).
 
   In all other cases, especially when all data will be consumed, the
   water_mark should be set to 0 (the default).
@@ -52,17 +52,6 @@ class MIOBuffer;
 class IOBufferReader;
 class VIO;
 
-// Removing this optimization since this is breaking WMT over HTTP
-//#define WRITE_AND_TRANSFER
-
-inkcoreapi extern int64_t max_iobuffer_size;
-extern int64_t default_small_iobuffer_size;
-extern int64_t default_large_iobuffer_size; // matched to size of OS buffers
-
-#if !defined(TRACK_BUFFER_USER)
-#define TRACK_BUFFER_USER 1
-#endif
-
 enum AllocType {
   NO_ALLOC,
   MEMALIGNED,
@@ -74,6 +63,7 @@ enum AllocType {
 #define MAX_MIOBUFFER_READERS 5
 #define DEFAULT_BUFFER_ALIGNMENT 8192 // should be disk/page size
 #define DEFAULT_BUFFER_BASE_SIZE 128
+#define DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK 0 // ensure we retain existing behavior
 
 ////////////////////////////////////////////////
 // These are defines so that code that used 2 //
@@ -120,7 +110,7 @@ enum AllocType {
 #define BUFFER_SIZE_FOR_CONSTANT(_size) (_size - DEFAULT_BUFFER_SIZES)
 #define BUFFER_SIZE_INDEX_FOR_CONSTANT_SIZE(_size) (_size + DEFAULT_BUFFER_SIZES)
 
-inkcoreapi extern Allocator ioBufAllocator[DEFAULT_BUFFER_SIZES];
+extern Allocator ioBufAllocator[DEFAULT_BUFFER_SIZES];
 
 void init_buffer_allocators(int iobuffer_advice);
 
@@ -224,7 +214,7 @@ public:
     alloc or dealloc methods.
 
   */
-  AllocType _mem_type;
+  AllocType _mem_type = NO_ALLOC;
 
   /**
     Points to the allocated memory. This member stores the address of
@@ -232,40 +222,29 @@ public:
     instead use the alloc or dealloc methods.
 
   */
-  char *_data;
+  char *_data = nullptr;
 
-#ifdef TRACK_BUFFER_USER
-  const char *_location;
-#endif
+  const char *_location = nullptr;
 
   /**
     Constructor. Initializes state for a IOBufferData object. Do not use
     this method. Use one of the functions with the 'new_' prefix instead.
 
   */
-  IOBufferData()
-    : _size_index(BUFFER_SIZE_NOT_ALLOCATED),
-      _mem_type(NO_ALLOC),
-      _data(nullptr)
-#ifdef TRACK_BUFFER_USER
-      ,
-      _location(nullptr)
-#endif
-  {
-  }
+  IOBufferData() : _size_index(BUFFER_SIZE_NOT_ALLOCATED) {}
 
   // noncopyable, declaration only
   IOBufferData(const IOBufferData &) = delete;
   IOBufferData &operator=(const IOBufferData &) = delete;
 };
 
-inkcoreapi extern ClassAllocator<IOBufferData> ioDataAllocator;
+extern ClassAllocator<IOBufferData> ioDataAllocator;
 
 /**
   A linkable portion of IOBufferData. IOBufferBlock is a chainable
   buffer block descriptor. The IOBufferBlock represents both the used
   and available space in the underlying block. The IOBufferBlock is not
-  sharable between buffers but rather represents what part of the data
+  shareable between buffers but rather represents what part of the data
   block is both in use and usable by the MIOBuffer it is attached to.
 
 */
@@ -342,7 +321,7 @@ public:
 
   */
   int64_t
-  read_avail()
+  read_avail() const
   {
     return (int64_t)(_end - _start);
   }
@@ -412,13 +391,13 @@ public:
     Create a copy of the IOBufferBlock. Creates and returns a copy of this
     IOBufferBlock that references the same data that this IOBufferBlock
     (it does not allocate an another buffer). The cloned block will not
-    have a writable space since the original IOBufferBlock mantains the
+    have a writable space since the original IOBufferBlock maintains the
     ownership for writing data to the block.
 
     @return copy of this IOBufferBlock.
 
   */
-  IOBufferBlock *clone();
+  IOBufferBlock *clone() const;
 
   /**
     Clear the IOBufferData this IOBufferBlock handles. Clears this
@@ -435,7 +414,7 @@ public:
     section in MIOBuffer.
 
   */
-  void alloc(int64_t i = default_large_iobuffer_size);
+  void alloc(int64_t i);
 
   /**
     Clear the IOBufferData this IOBufferBlock handles. Clears this
@@ -459,9 +438,6 @@ public:
   */
   void set(IOBufferData *d, int64_t len = 0, int64_t offset = 0);
   void set_internal(void *b, int64_t len, int64_t asize_index);
-  void realloc_set_internal(void *b, int64_t buf_size, int64_t asize_index);
-  void realloc(void *b, int64_t buf_size);
-  void realloc(int64_t i);
 
   /**
     Frees the IOBufferBlock object and its underlying memory.
@@ -472,13 +448,11 @@ public:
   */
   void free() override;
 
-  char *_start;
-  char *_end;
-  char *_buf_end;
+  char *_start   = nullptr;
+  char *_end     = nullptr;
+  char *_buf_end = nullptr;
 
-#ifdef TRACK_BUFFER_USER
-  const char *_location;
-#endif
+  const char *_location = nullptr;
 
   /**
     The underlying reference to the allocated memory. A reference to a
@@ -507,7 +481,124 @@ public:
   IOBufferBlock &operator=(const IOBufferBlock &) = delete;
 };
 
-extern inkcoreapi ClassAllocator<IOBufferBlock> ioBlockAllocator;
+extern ClassAllocator<IOBufferBlock> ioBlockAllocator;
+
+/** A class for holding a chain of IO buffer blocks.
+    This class is intended to be used as a member variable for other classes that
+    need to anchor an IO Buffer chain but don't need the full @c MIOBuffer machinery.
+    That is, the owner is the only reader/writer of the data.
+
+    This does not handle incremental reads or writes well. The intent is that data is
+    placed in the instance, held for a while, then used and discarded.
+
+    @note Contrast also with @c IOBufferReader which is similar but requires an
+    @c MIOBuffer as its owner.
+*/
+class IOBufferChain
+{
+  using self_type = IOBufferChain; ///< Self reference type.
+
+public:
+  /// Default constructor - construct empty chain.
+  IOBufferChain() = default;
+  /// Shallow copy.
+  self_type &operator=(self_type const &that);
+
+  /// Shallow append.
+  self_type &operator+=(self_type const &that);
+
+  /// Number of bytes of content.
+  int64_t length() const;
+
+  /// Copy a chain of @a blocks in to this object up to @a length bytes.
+  /// If @a offset is greater than 0 that many bytes are skipped. Those bytes do not count
+  /// as part of @a length.
+  /// This creates a new chain using existing data blocks. This
+  /// breaks the original chain so that changes there (such as appending blocks)
+  /// is not reflected in this chain.
+  /// @return The number of bytes written to the chain.
+  int64_t write(IOBufferBlock *blocks, int64_t length, int64_t offset = 0);
+
+  /// Add the content of a buffer block.
+  /// The buffer block is unchanged.
+  int64_t write(IOBufferData *data, int64_t length = 0, int64_t offset = 0);
+
+  /// Remove @a size bytes of content from the front of the chain.
+  /// @return The actual number of bytes removed.
+  int64_t consume(int64_t size);
+
+  /// Clear current chain.
+  void clear();
+
+  /// Get the first block.
+  IOBufferBlock *head();
+  IOBufferBlock const *head() const;
+
+  /// STL Container support.
+
+  /// Block iterator.
+  /// @internal The reason for this is to override the increment operator.
+  class const_iterator : public std::forward_iterator_tag
+  {
+    using self_type = const_iterator; ///< Self reference type.
+  protected:
+    /// Current buffer block.
+    IOBufferBlock *_b = nullptr;
+
+  public:
+    using value_type = const IOBufferBlock; ///< Iterator value type.
+
+    const_iterator() = default; ///< Default constructor.
+
+    /// Copy constructor.
+    // cppcheck-suppress noExplicitConstructor; copy constructor
+    const_iterator(self_type const &that);
+
+    /// Assignment.
+    self_type &operator=(self_type const &that);
+
+    /// Equality.
+    bool operator==(self_type const &that) const;
+    /// Inequality.
+    bool operator!=(self_type const &that) const;
+
+    value_type &operator*() const;
+    value_type *operator->() const;
+
+    self_type &operator++();
+    self_type operator++(int);
+  };
+
+  class iterator : public const_iterator
+  {
+    using self_type = iterator; ///< Self reference type.
+  public:
+    using value_type = IOBufferBlock; ///< Dereferenced type.
+
+    value_type &operator*() const;
+    value_type *operator->() const;
+  };
+
+  using value_type = IOBufferBlock;
+
+  iterator begin();
+  const_iterator begin() const;
+
+  iterator end();
+  const_iterator end() const;
+
+protected:
+  /// Append @a block.
+  void append(IOBufferBlock *block);
+
+  /// Head of buffer block chain.
+  Ptr<IOBufferBlock> _head;
+  /// Tail of the block chain.
+  IOBufferBlock *_tail = nullptr;
+  /// The amount of data of interest.
+  /// Not necessarily the amount of data in the chain of blocks.
+  int64_t _len = 0;
+};
 
 /**
   An independent reader from an MIOBuffer. A reader for a set of
@@ -581,11 +672,17 @@ public:
   */
   int64_t block_read_avail();
 
+  /** Get a view of the data available to read.
+   *
+   * @return A view encompassing currently available readable data.
+   */
+  std::string_view block_read_view();
+
   void skip_empty_blocks();
 
   /**
     Clears all fields in this IOBuffeReader, rendering it unusable. Drops
-    the reference to the IOBufferBlock list, the accesor, MIOBuffer and
+    the reference to the IOBufferBlock list, the accessor, MIOBuffer and
     resets this reader's state. You have to set those fields in order
     to use this object again.
 
@@ -680,7 +777,7 @@ public:
   /**
     Perform a memchr() across the list of IOBufferBlocks. Returns the
     offset from the current start point of the reader to the first
-    occurence of character 'c' in the buffer.
+    occurrence of character 'c' in the buffer.
 
     @param c character to look for.
     @param len number of characters to check. If len exceeds the number
@@ -690,10 +787,10 @@ public:
     @param offset number of the bytes to skip over before beginning
       the operation.
     @return -1 if c is not found, otherwise position of the first
-      ocurrence.
+      occurrence.
 
   */
-  inkcoreapi int64_t memchr(char c, int64_t len = INT64_MAX, int64_t offset = 0);
+  int64_t memchr(char c, int64_t len = INT64_MAX, int64_t offset = 0);
 
   /**
     Copies and consumes data. Copies len bytes of data from the buffer
@@ -709,7 +806,7 @@ public:
     @return number of bytes copied and consumed.
 
   */
-  inkcoreapi int64_t read(void *buf, int64_t len);
+  int64_t read(void *buf, int64_t len);
 
   /**
     Copy data but do not consume it. Copies 'len' bytes of data from
@@ -728,7 +825,7 @@ public:
       parameter buf is set to this value also.
 
   */
-  inkcoreapi char *memcpy(const void *buf, int64_t len = INT64_MAX, int64_t offset = 0);
+  char *memcpy(void *buf, int64_t len = INT64_MAX, int64_t offset = 0);
 
   /**
     Subscript operator. Returns a reference to the character at the
@@ -754,14 +851,14 @@ public:
     return mbuf;
   }
 
-  MIOBufferAccessor *accessor; // pointer back to the accessor
+  MIOBufferAccessor *accessor = nullptr; // pointer back to the accessor
 
   /**
     Back pointer to this object's MIOBuffer. A pointer back to the
     MIOBuffer this reader is allocated from.
 
   */
-  MIOBuffer *mbuf;
+  MIOBuffer *mbuf = nullptr;
   Ptr<IOBufferBlock> block;
 
   /**
@@ -770,10 +867,10 @@ public:
     of the available data.
 
   */
-  int64_t start_offset;
-  int64_t size_limit;
+  int64_t start_offset = 0;
+  int64_t size_limit   = INT64_MAX;
 
-  IOBufferReader() : accessor(nullptr), mbuf(nullptr), start_offset(0), size_limit(INT64_MAX) {}
+  IOBufferReader() {}
 };
 
 /**
@@ -857,17 +954,7 @@ public:
     control. Returns the number of bytes added.
 
   */
-  inkcoreapi int64_t write(const void *rbuf, int64_t nbytes);
-
-#ifdef WRITE_AND_TRANSFER
-  /**
-    Same functionality as write but for the one small difference. The
-    space available in the last block is taken from the original and
-    this space becomes available to the copy.
-
-  */
-  inkcoreapi int64_t write_and_transfer_left_over_space(IOBufferReader *r, int64_t len = INT64_MAX, int64_t offset = 0);
-#endif
+  int64_t write(const void *rbuf, int64_t nbytes);
 
   /**
     Add by data from IOBufferReader r to the this buffer by reference. If
@@ -894,9 +981,18 @@ public:
     rather than sharing blocks to prevent a build of blocks on the buffer.
 
   */
-  inkcoreapi int64_t write(IOBufferReader *r, int64_t len = INT64_MAX, int64_t offset = 0);
+  int64_t write(IOBufferReader *r, int64_t len = INT64_MAX, int64_t offset = 0);
 
-  int64_t remove_append(IOBufferReader *);
+  /** Copy data from the @a chain to this buffer.
+      New IOBufferBlocks are allocated so this gets a copy of the data that is independent of the source.
+      @a offset bytes are skipped at the start of the @a chain. The length is bounded by @a len and the
+      size in the @a chain.
+
+      @return the number of bytes copied.
+
+      @internal I do not like counting @a offset against @a bytes but that's how @c write works...
+  */
+  int64_t write(IOBufferChain const *chain, int64_t len = INT64_MAX, int64_t offset = 0);
 
   /**
     Returns a pointer to the first writable block on the block chain.
@@ -944,7 +1040,7 @@ public:
 
   /**
     Returns the amount of space of available for writing on the first
-    writable block on the block chain (the one that would be reutrned
+    writable block on the block chain (the one that would be returned
     by first_write_block()).
 
   */
@@ -971,16 +1067,6 @@ public:
 
   */
   int64_t block_size();
-
-  /**
-    Returns the default data block size for this buffer.
-
-  */
-  int64_t
-  total_size()
-  {
-    return block_size();
-  }
 
   /**
     Returns true if amount of the data outstanding on the buffer exceeds
@@ -1015,7 +1101,6 @@ public:
   {
     return current_write_avail() <= water_mark;
   }
-  void set_size_index(int64_t size);
 
   /**
     Allocates a new IOBuffer reader and sets it's its 'accessor' field
@@ -1060,17 +1145,11 @@ public:
   void dealloc_all_readers();
 
   void set(void *b, int64_t len);
-  void alloc(int64_t i = default_large_iobuffer_size);
+  void alloc(int64_t i);
   void append_block_internal(IOBufferBlock *b);
-  int64_t puts(char *buf, int64_t len);
+  int64_t write(IOBufferBlock const *b, int64_t len, int64_t offset);
 
   // internal interface
-
-  bool
-  empty()
-  {
-    return !_writer;
-  }
 
   /**
     Get the maximum amount of available data across all of the readers.
@@ -1133,17 +1212,6 @@ public:
     water_mark = 0;
   }
 
-  void
-  realloc(int64_t i)
-  {
-    _writer->realloc(i);
-  }
-  void
-  realloc(void *b, int64_t buf_size)
-  {
-    _writer->realloc(b, buf_size);
-  }
-
   int64_t size_index;
 
   /**
@@ -1159,11 +1227,10 @@ public:
   Ptr<IOBufferBlock> _writer;
   IOBufferReader readers[MAX_MIOBUFFER_READERS];
 
-#ifdef TRACK_BUFFER_USER
-  const char *_location;
-#endif
+  const char *_location = nullptr;
 
   MIOBuffer(void *b, int64_t bufsize, int64_t aWater_mark);
+  // cppcheck-suppress noExplicitConstructor; allow implicit conversion
   MIOBuffer(int64_t default_size_index);
   MIOBuffer();
   ~MIOBuffer();
@@ -1192,12 +1259,6 @@ struct MIOBufferAccessor {
     return mbuf->block_size();
   }
 
-  int64_t
-  total_size() const
-  {
-    return block_size();
-  }
-
   void reader_for(IOBufferReader *abuf);
   void reader_for(MIOBuffer *abuf);
   void writer_for(MIOBuffer *abuf);
@@ -1209,20 +1270,12 @@ struct MIOBufferAccessor {
     entry = nullptr;
   }
 
-  MIOBufferAccessor()
-    :
-#ifdef DEBUG
-      name(nullptr),
-#endif
-      mbuf(nullptr),
-      entry(nullptr)
-  {
-  }
+  MIOBufferAccessor() {}
 
   ~MIOBufferAccessor();
 
 #ifdef DEBUG
-  const char *name;
+  const char *name = nullptr;
 #endif
 
   // noncopyable
@@ -1230,82 +1283,56 @@ struct MIOBufferAccessor {
   MIOBufferAccessor &operator=(const MIOBufferAccessor &) = delete;
 
 private:
-  MIOBuffer *mbuf;
-  IOBufferReader *entry;
+  MIOBuffer *mbuf       = nullptr;
+  IOBufferReader *entry = nullptr;
 };
 
-extern MIOBuffer *new_MIOBuffer_internal(
-#ifdef TRACK_BUFFER_USER
-  const char *loc,
-#endif
-  int64_t size_index = default_large_iobuffer_size);
+extern MIOBuffer *new_MIOBuffer_internal(const char *loc, int64_t size_index);
 
-#ifdef TRACK_BUFFER_USER
 class MIOBuffer_tracker
 {
   const char *loc;
 
 public:
-  MIOBuffer_tracker(const char *_loc) : loc(_loc) {}
+  explicit MIOBuffer_tracker(const char *_loc) : loc(_loc) {}
   MIOBuffer *
-  operator()(int64_t size_index = default_large_iobuffer_size)
+  operator()(int64_t size_index)
   {
     return new_MIOBuffer_internal(loc, size_index);
   }
 };
-#endif
 
-extern MIOBuffer *new_empty_MIOBuffer_internal(
-#ifdef TRACK_BUFFER_USER
-  const char *loc,
-#endif
-  int64_t size_index = default_large_iobuffer_size);
+extern MIOBuffer *new_empty_MIOBuffer_internal(const char *loc, int64_t size_index);
 
-#ifdef TRACK_BUFFER_USER
 class Empty_MIOBuffer_tracker
 {
   const char *loc;
 
 public:
-  Empty_MIOBuffer_tracker(const char *_loc) : loc(_loc) {}
+  explicit Empty_MIOBuffer_tracker(const char *_loc) : loc(_loc) {}
   MIOBuffer *
-  operator()(int64_t size_index = default_large_iobuffer_size)
+  operator()(int64_t size_index)
   {
     return new_empty_MIOBuffer_internal(loc, size_index);
   }
 };
-#endif
 
 /// MIOBuffer allocator/deallocator
-#ifdef TRACK_BUFFER_USER
 #define new_MIOBuffer MIOBuffer_tracker(RES_PATH("memory/IOBuffer/"))
 #define new_empty_MIOBuffer Empty_MIOBuffer_tracker(RES_PATH("memory/IOBuffer/"))
-#else
-#define new_MIOBuffer new_MIOBuffer_internal
-#define new_empty_MIOBuffer new_empty_MIOBuffer_internal
-#endif
 extern void free_MIOBuffer(MIOBuffer *mio);
 //////////////////////////////////////////////////////////////////////
 
-extern IOBufferBlock *new_IOBufferBlock_internal(
-#ifdef TRACK_BUFFER_USER
-  const char *loc
-#endif
-);
+extern IOBufferBlock *new_IOBufferBlock_internal(const char *loc);
 
-extern IOBufferBlock *new_IOBufferBlock_internal(
-#ifdef TRACK_BUFFER_USER
-  const char *loc,
-#endif
-  IOBufferData *d, int64_t len = 0, int64_t offset = 0);
+extern IOBufferBlock *new_IOBufferBlock_internal(const char *loc, IOBufferData *d, int64_t len = 0, int64_t offset = 0);
 
-#ifdef TRACK_BUFFER_USER
 class IOBufferBlock_tracker
 {
   const char *loc;
 
 public:
-  IOBufferBlock_tracker(const char *_loc) : loc(_loc) {}
+  explicit IOBufferBlock_tracker(const char *_loc) : loc(_loc) {}
   IOBufferBlock *
   operator()()
   {
@@ -1317,53 +1344,33 @@ public:
     return new_IOBufferBlock_internal(loc, d.get(), len, offset);
   }
 };
-#endif
 
 /// IOBufferBlock allocator
-#ifdef TRACK_BUFFER_USER
 #define new_IOBufferBlock IOBufferBlock_tracker(RES_PATH("memory/IOBuffer/"))
-#else
-#define new_IOBufferBlock new_IOBufferBlock_internal
-#endif
 ////////////////////////////////////////////////////////////
 
-extern IOBufferData *new_IOBufferData_internal(
-#ifdef TRACK_BUFFER_USER
-  const char *location,
-#endif
-  int64_t size_index = default_large_iobuffer_size, AllocType type = DEFAULT_ALLOC);
+extern IOBufferData *new_IOBufferData_internal(const char *location, int64_t size_index, AllocType type = DEFAULT_ALLOC);
 
-extern IOBufferData *new_xmalloc_IOBufferData_internal(
-#ifdef TRACK_BUFFER_USER
-  const char *location,
-#endif
-  void *b, int64_t size);
+extern IOBufferData *new_xmalloc_IOBufferData_internal(const char *location, void *b, int64_t size);
 
-#ifdef TRACK_BUFFER_USER
 class IOBufferData_tracker
 {
   const char *loc;
 
 public:
-  IOBufferData_tracker(const char *_loc) : loc(_loc) {}
+  explicit IOBufferData_tracker(const char *_loc) : loc(_loc) {}
   IOBufferData *
-  operator()(int64_t size_index = default_large_iobuffer_size, AllocType type = DEFAULT_ALLOC)
+  operator()(int64_t size_index, AllocType type = DEFAULT_ALLOC)
   {
     return new_IOBufferData_internal(loc, size_index, type);
   }
 };
-#endif
 
 // TODO: remove new_xmalloc_IOBufferData. Because ats_xmalloc() doesn't exist anymore.
-#ifdef TRACK_BUFFER_USER
 #define new_IOBufferData IOBufferData_tracker(RES_PATH("memory/IOBuffer/"))
 #define new_xmalloc_IOBufferData(b, size) new_xmalloc_IOBufferData_internal(RES_PATH("memory/IOBuffer/"), (b), (size))
-#else
-#define new_IOBufferData new_IOBufferData_internal
-#define new_xmalloc_IOBufferData new_xmalloc_IOBufferData_internal
-#endif
 
-extern int64_t iobuffer_size_to_index(int64_t size, int64_t max = max_iobuffer_size);
+extern int64_t iobuffer_size_to_index(int64_t size, int64_t max);
 extern int64_t index_to_buffer_size(int64_t idx);
 /**
   Clone a IOBufferBlock chain. Used to snarf a IOBufferBlock chain
@@ -1388,3 +1395,111 @@ extern IOBufferBlock *iobufferblock_clone(IOBufferBlock *b, int64_t offset, int6
 
 */
 extern IOBufferBlock *iobufferblock_skip(IOBufferBlock *b, int64_t *poffset, int64_t *plen, int64_t write);
+
+inline IOBufferChain &
+IOBufferChain::operator=(self_type const &that)
+{
+  _head = that._head;
+  _tail = that._tail;
+  _len  = that._len;
+  return *this;
+}
+
+inline IOBufferChain &
+IOBufferChain::operator+=(self_type const &that)
+{
+  if (nullptr == _head)
+    *this = that;
+  else {
+    _tail->next = that._head;
+    _tail       = that._tail;
+    _len += that._len;
+  }
+  return *this;
+}
+
+inline int64_t
+IOBufferChain::length() const
+{
+  return _len;
+}
+
+inline IOBufferBlock const *
+IOBufferChain::head() const
+{
+  return _head.get();
+}
+
+inline IOBufferBlock *
+IOBufferChain::head()
+{
+  return _head.get();
+}
+
+inline void
+IOBufferChain::clear()
+{
+  _head = nullptr;
+  _tail = nullptr;
+  _len  = 0;
+}
+
+inline IOBufferChain::const_iterator::const_iterator(self_type const &that) : _b(that._b) {}
+
+inline IOBufferChain::const_iterator &
+IOBufferChain::const_iterator::operator=(self_type const &that)
+{
+  _b = that._b;
+  return *this;
+}
+
+inline bool
+IOBufferChain::const_iterator::operator==(self_type const &that) const
+{
+  return _b == that._b;
+}
+
+inline bool
+IOBufferChain::const_iterator::operator!=(self_type const &that) const
+{
+  return _b != that._b;
+}
+
+inline IOBufferChain::const_iterator::value_type &
+IOBufferChain::const_iterator::operator*() const
+{
+  return *_b;
+}
+
+inline IOBufferChain::const_iterator::value_type *
+IOBufferChain::const_iterator::operator->() const
+{
+  return _b;
+}
+
+inline IOBufferChain::const_iterator &
+IOBufferChain::const_iterator::operator++()
+{
+  _b = _b->next.get();
+  return *this;
+}
+
+inline IOBufferChain::const_iterator
+IOBufferChain::const_iterator::operator++(int)
+{
+  self_type pre{*this};
+  ++*this;
+  return pre;
+}
+
+inline IOBufferChain::iterator::value_type &
+IOBufferChain::iterator::operator*() const
+{
+  return *_b;
+}
+
+inline IOBufferChain::iterator::value_type *
+IOBufferChain::iterator::operator->() const
+{
+  return _b;
+}

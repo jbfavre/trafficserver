@@ -44,24 +44,21 @@ struct PinnedDocTable : public Continuation {
   int remove(CacheKey *key);
   int cleanup(int event, Event *e);
 
-  PinnedDocTable() : Continuation(new_ProxyMutex())
-  {
-    memset(static_cast<void *>(bucket), 0, sizeof(Queue<PinnedDocEntry>) * PINNED_DOC_TABLE_SIZE);
-  }
+  PinnedDocTable() : Continuation(new_ProxyMutex()) { ink_zero(bucket); }
 };
 
 struct CacheTestHost {
-  char *name;
-  unsigned int xlast_cachable_id;
-  double xprev_host_prob;
-  double xnext_host_prob;
+  char *name                     = nullptr;
+  unsigned int xlast_cachable_id = 0;
+  double xprev_host_prob         = 0;
+  double xnext_host_prob         = 0;
 
-  CacheTestHost() : name(nullptr), xlast_cachable_id(0), xprev_host_prob(0), xnext_host_prob(0) {}
+  CacheTestHost() {}
 };
 
 struct CacheTestHeader {
-  CacheTestHeader() : serial(0) {}
-  uint64_t serial;
+  CacheTestHeader() {}
+  uint64_t serial = 0;
 };
 
 struct CacheTestSM : public RegressionSM {
@@ -133,7 +130,7 @@ struct CacheTestSM : public RegressionSM {
 #define CACHE_SM(_t, _sm, _f)                                               \
   struct CacheTestSM__##_sm : public CacheTestSM {                          \
     void                                                                    \
-    make_request_internal() _f                                              \
+    make_request_internal() override _f                                     \
                                                                             \
       CacheTestSM__##_sm(RegressionTest *t)                                 \
       : CacheTestSM(t, #_sm)                                                \
@@ -142,7 +139,7 @@ struct CacheTestSM : public RegressionSM {
                                                                             \
     CacheTestSM__##_sm(const CacheTestSM__##_sm &xsm) : CacheTestSM(xsm) {} \
     RegressionSM *                                                          \
-    clone()                                                                 \
+    clone() override                                                        \
     {                                                                       \
       return new CacheTestSM__##_sm(*this);                                 \
     }                                                                       \

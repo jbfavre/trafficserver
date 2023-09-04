@@ -30,6 +30,7 @@
 #include "LogAccess.h"
 
 class LogObject;
+class LogConfig;
 class LogBufferIterator;
 
 #define LOG_SEGMENT_COOKIE 0xaceface
@@ -64,14 +65,14 @@ struct LogBufferHeader {
   uint32_t cookie;               // so we can find it on disk
   uint32_t version;              // in case we want to change it later
   uint32_t format_type;          // SQUID_LOG, COMMON_LOG, ...
-  uint32_t byte_count;           // acutal # of bytes for the segment
+  uint32_t byte_count;           // actual # of bytes for the segment
   uint32_t entry_count;          // actual number of entries stored
   uint32_t low_timestamp;        // lowest timestamp value of entries
   uint32_t high_timestamp;       // highest timestamp value of entries
   uint32_t log_object_flags;     // log object flags
   uint64_t log_object_signature; // log object signature
 #if defined(LOG_BUFFER_TRACKING)
-  uint32_t int id;
+  uint32_t id;
 #endif // defined(LOG_BUFFER_TRACKING)
 
   // all offsets are computed from the start of the buffer (ie, "this"),
@@ -87,7 +88,6 @@ struct LogBufferHeader {
 
   // some helper functions to return the header strings
 
-  char *fmt_name(); // not used
   char *fmt_fieldlist();
   char *fmt_printf();
   char *src_hostname();
@@ -130,11 +130,13 @@ public:
     LB_BUFFER_TOO_SMALL
   };
 
-  LogBuffer(LogObject *owner, size_t size, size_t buf_align = LB_DEFAULT_ALIGN, size_t write_align = INK_MIN_ALIGN);
+  LogBuffer(const LogConfig *cfg, LogObject *owner, size_t size, size_t buf_align = LB_DEFAULT_ALIGN,
+            size_t write_align = INK_MIN_ALIGN);
   LogBuffer(LogObject *owner, LogBufferHeader *header);
   ~LogBuffer();
 
-  char &operator[](int idx)
+  char &
+  operator[](int idx)
   {
     ink_assert(idx >= 0);
     ink_assert((size_t)idx < m_size);
@@ -187,10 +189,10 @@ public:
   // static functions
   static size_t max_entry_bytes();
   static int to_ascii(LogEntryHeader *entry, LogFormatType type, char *buf, int max_len, const char *symbol_str, char *printf_str,
-                      unsigned buffer_version, const char *alt_format = nullptr);
+                      unsigned buffer_version, const char *alt_format = nullptr, LogEscapeType escape_type = LOG_ESCAPE_NONE);
   static int resolve_custom_entry(LogFieldList *fieldlist, char *printf_str, char *read_from, char *write_to, int write_to_len,
                                   long timestamp, long timestamp_us, unsigned buffer_version, LogFieldList *alt_fieldlist = nullptr,
-                                  char *alt_printf_str = nullptr);
+                                  char *alt_printf_str = nullptr, LogEscapeType escape_type = LOG_ESCAPE_NONE);
 
   static void
   destroy(LogBuffer *&lb)
@@ -223,7 +225,7 @@ private:
   uint32_t m_id; // unique buffer id (for debugging)
 public:
   LB_State m_state; // buffer state
-  int m_references; // oustanding checkout_write references.
+  int m_references; // outstanding checkout_write references.
 
   // noncopyable
   // -- member functions that are not allowed --
@@ -232,7 +234,7 @@ public:
 
 private:
   // private functions
-  size_t _add_buffer_header();
+  size_t _add_buffer_header(const LogConfig *cfg);
   unsigned add_header_str(const char *str, char *buf_ptr, unsigned buf_len);
   void freeLogBuffer();
 
@@ -262,9 +264,9 @@ public:
   ~LogBufferList();
 
   void add(LogBuffer *lb);
-  LogBuffer *get(void);
+  LogBuffer *get();
   int
-  get_size(void)
+  get_size()
   {
     return m_size;
   }

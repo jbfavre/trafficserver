@@ -24,6 +24,7 @@
 #pragma once
 
 #include "tscore/SourceLocation.h"
+#include "tscore/ink_memory.h"
 
 #define NO_REENTRANT 99999
 #define NO_EVENT NO_REENTRANT
@@ -66,7 +67,11 @@ public:
     return history_pos > Count ? Count : history_pos;
   }
 
-  const HistoryEntry &operator[](unsigned int i) const { return history[i]; }
+  const HistoryEntry &
+  operator[](unsigned int i) const
+  {
+    return history[i];
+  }
 
 private:
   HistoryEntry history[Count];

@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Definitions for the LocalManager class.
 
   @section license License
 
@@ -21,23 +21,14 @@
   limitations under the License.
  */
 
-/*
- *
- * LocalManager.h
- *   Definitions for the LocalManager class.
- *
- * $Date: 2007-10-05 16:56:44 $
- *
- *
- */
-
 #pragma once
 
 #include <string>
 
-#include "Alarms.h"
 #include "BaseManager.h"
-#include <records/I_RecHttp.h>
+#include "records/I_RecHttp.h"
+#include "tscore/I_Version.h"
+
 #include <syslog.h>
 #if TS_HAS_WCCP
 #include <wccp/Wccp.h>
@@ -46,6 +37,7 @@
 #include <sys/eventfd.h>
 #endif
 
+class Alarms;
 class FileManager;
 
 enum ManagementPendingOperation {
@@ -64,7 +56,7 @@ enum ManagementPendingOperation {
 class LocalManager : public BaseManager
 {
 public:
-  explicit LocalManager(bool proxy_on);
+  explicit LocalManager(bool proxy_on, bool listen);
   ~LocalManager();
 
   void initAlarm();
@@ -76,7 +68,7 @@ public:
   void sendMgmtMsgToProcesses(int msg_id, const char *data_raw, int data_len);
   void sendMgmtMsgToProcesses(MgmtMessageHdr *mh);
 
-  void signalFileChange(const char *var_name, bool incVersion = true);
+  void signalFileChange(const char *var_name);
   void signalEvent(int msg_id, const char *data_str);
   void signalEvent(int msg_id, const char *data_raw, int data_len);
   void signalAlarm(int alarm_id, const char *desc = nullptr, const char *ip = nullptr);
@@ -84,7 +76,8 @@ public:
   void processEventQueue();
   bool startProxy(const char *onetime_options);
   void listenForProxy();
-  void bindProxyPort(HttpProxyPort &);
+  void bindUdpProxyPort(HttpProxyPort &);
+  void bindTcpProxyPort(HttpProxyPort &);
   void closeProxyPorts();
 
   void mgmtCleanup();
@@ -101,6 +94,7 @@ public:
   bool processRunning();
 
   bool run_proxy;
+  bool listen_for_proxy;
   bool proxy_recoverable = true; // false if traffic_server cannot recover with a reboot
   time_t manager_started_at;
   time_t proxy_started_at                              = -1;

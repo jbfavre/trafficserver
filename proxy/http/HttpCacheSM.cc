@@ -45,7 +45,7 @@
     Debug("http_cache", "[%" PRId64 "] [%s, %s]", master_sm->sm_id, #state_name, HttpDebugNames::get_event_name(event)); \
   }
 
-HttpCacheAction::HttpCacheAction() : sm(nullptr) {}
+HttpCacheAction::HttpCacheAction() {}
 
 void
 HttpCacheAction::cancel(Continuation *c)
@@ -61,25 +61,9 @@ HttpCacheAction::cancel(Continuation *c)
 
 HttpCacheSM::HttpCacheSM()
   : Continuation(nullptr),
-    cache_read_vc(nullptr),
-    cache_write_vc(nullptr),
-    read_locked(false),
-    write_locked(false),
-    readwhilewrite_inprogress(false),
-    master_sm(nullptr),
-    pending_action(nullptr),
-    captive_action(),
-    open_read_cb(false),
-    open_write_cb(false),
-    open_read_tries(0),
-    read_request_hdr(nullptr),
-    http_params(nullptr),
-    read_pin_in_cache(0),
-    retry_write(true),
-    open_write_tries(0),
-    lookup_url(nullptr),
-    lookup_max_recursive(0),
-    current_lookup_level(0)
+
+    captive_action()
+
 {
 }
 
@@ -126,7 +110,7 @@ HttpCacheSM::state_cache_open_read(int event, void *data)
       close_read();
     }
     open_read_cb  = true;
-    cache_read_vc = (CacheVConnection *)data;
+    cache_read_vc = static_cast<CacheVConnection *>(data);
     master_sm->handleEvent(event, data);
     break;
 
@@ -175,20 +159,21 @@ HttpCacheSM::state_cache_open_write(int event, void *data)
 {
   STATE_ENTER(&HttpCacheSM::state_cache_open_write, event);
   ink_assert(captive_action.cancelled == 0);
-  pending_action                = nullptr;
+  pending_action = nullptr;
+
   bool read_retry_on_write_fail = false;
 
   switch (event) {
   case CACHE_EVENT_OPEN_WRITE:
     HTTP_INCREMENT_DYN_STAT(http_current_cache_connections_stat);
     ink_assert(cache_write_vc == nullptr);
-    cache_write_vc = (CacheVConnection *)data;
+    cache_write_vc = static_cast<CacheVConnection *>(data);
     open_write_cb  = true;
     master_sm->handleEvent(event, data);
     break;
 
   case CACHE_EVENT_OPEN_WRITE_FAILED:
-    if (master_sm->t_state.txn_conf->cache_open_write_fail_action == HttpTransact::CACHE_WL_FAIL_ACTION_READ_RETRY) {
+    if (master_sm->t_state.txn_conf->cache_open_write_fail_action == CACHE_WL_FAIL_ACTION_READ_RETRY) {
       // fall back to open_read_tries
       // Note that when CACHE_WL_FAIL_ACTION_READ_RETRY is configured, max_cache_open_write_retries
       // is automatically ignored. Make sure to not disable max_cache_open_read_retries
@@ -197,6 +182,12 @@ HttpCacheSM::state_cache_open_write(int event, void *data)
       if (open_write_tries <= master_sm->t_state.txn_conf->max_cache_open_write_retries) {
         Debug("http_cache", "[%" PRId64 "] [state_cache_open_write] cache open write failure %d. read retry triggered",
               master_sm->sm_id, open_write_tries);
+        if (master_sm->t_state.txn_conf->max_cache_open_read_retries <= 0) {
+          Debug("http_cache",
+                "[%" PRId64 "] [state_cache_open_write] invalid config, cache write fail set to"
+                " read retry, but, max_cache_open_read_retries is not enabled",
+                master_sm->sm_id);
+        }
         open_read_tries          = 0;
         read_retry_on_write_fail = true;
         // make sure it doesn't loop indefinitely
@@ -222,7 +213,7 @@ HttpCacheSM::state_cache_open_write(int event, void *data)
     break;
 
   case EVENT_INTERVAL:
-    if (master_sm->t_state.txn_conf->cache_open_write_fail_action == HttpTransact::CACHE_WL_FAIL_ACTION_READ_RETRY) {
+    if (master_sm->t_state.txn_conf->cache_open_write_fail_action == CACHE_WL_FAIL_ACTION_READ_RETRY) {
       Debug("http_cache",
             "[%" PRId64 "] [state_cache_open_write] cache open write failure %d. "
             "falling back to read retry...",
@@ -276,6 +267,8 @@ HttpCacheSM::do_cache_open_read(const HttpCacheKey &key)
   } else {
     ink_assert(open_read_cb == false);
   }
+  // reset captive_action since HttpSM cancelled it during open read retry
+  captive_action.cancelled = 0;
   // Initialising read-while-write-inprogress flag
   this->readwhilewrite_inprogress = false;
   Action *action_handle = cacheProcessor.open_read(this, &key, this->read_request_hdr, this->http_params, this->read_pin_in_cache);
@@ -296,7 +289,8 @@ HttpCacheSM::do_cache_open_read(const HttpCacheKey &key)
 }
 
 Action *
-HttpCacheSM::open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, OverridableHttpConfigParams *params, time_t pin_in_cache)
+HttpCacheSM::open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, const OverridableHttpConfigParams *params,
+                       time_t pin_in_cache)
 {
   Action *act_return;
 
@@ -312,7 +306,7 @@ HttpCacheSM::open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, Overrida
   current_lookup_level++;
   open_read_cb = false;
   act_return   = do_cache_open_read(cache_key);
-  // the following logic is based on the assumption that the secnod
+  // the following logic is based on the assumption that the second
   // lookup won't happen if the HttpSM hasn't been called back for the
   // first lookup
   if (current_lookup_level == lookup_max_recursive) {
@@ -360,6 +354,7 @@ HttpCacheSM::open_write(const HttpCacheKey *key, URL *url, HTTPHdr *request, Cac
   //  a new write (could happen on a very busy document
   //  that must be revalidated every time)
   // Changed by YTS Team, yamsat Plugin
+  // two criteria, either write retries over the amount OR timeout
   if (open_write_tries > master_sm->redirection_tries &&
       open_write_tries > master_sm->t_state.txn_conf->max_cache_open_write_retries) {
     master_sm->handleEvent(CACHE_EVENT_OPEN_WRITE_FAILED, (void *)-ECACHE_DOC_BUSY);

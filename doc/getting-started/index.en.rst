@@ -123,7 +123,7 @@ RHEL / CentOS
 configured on your machine yet, you must install them first with the following::
 
     wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-    sudo rpm -Uvh epel-release-7*.rpm
+    sudo rpm -Uvh epel-release-latest-7*.rpm
 
 Ensuring that you replace the release number with a value that is appropriate
 for your system. Once you have EPEL installed, you may install |TS| itself. ::
@@ -151,15 +151,15 @@ libraries on the machine used to build |TS|:
 
 - pkgconfig
 - libtool
-- gcc (>= 4.3 or clang > 3.0)
+- C++ compiler (gcc >= 4.3 or clang > 3.0)
 - GNU make
-- openssl
-- tcl
+- OpenSSL or BoringSSL
 - pcre
 - libcap
 - flex (for TPROXY)
 - hwloc
 - lua
+- zlib
 - curses (for traffic_top)
 - curl (for traffic_top)
 
@@ -261,7 +261,7 @@ settings have been configured as shown below::
     This setting requires that a remap rule exist before |TS| will proxy the
     request and ensures that your proxy cannot be used to access the content of
     arbitrary websites (allowing someone of malicious intent to potentially
-    mask their identity to an unknowning third party).
+    mask their identity to an unknowing third party).
 
 :ts:cv:`proxy.config.url_remap.pristine_host_hdr`
     This setting causes |TS| to keep the ``Host:`` client request header intact

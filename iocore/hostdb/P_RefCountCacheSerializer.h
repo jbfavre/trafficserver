@@ -25,6 +25,7 @@
 
 #include "P_RefCountCache.h"
 
+#include <utility>
 #include <vector>
 
 // This continuation is responsible for persisting RefCountCache to disk
@@ -57,7 +58,7 @@ public:
   int write_to_disk(const void *, size_t);
 
   RefCountCacheSerializer(Continuation *acont, RefCountCache<C> *cc, int frequency, std::string dirname, std::string filename);
-  ~RefCountCacheSerializer();
+  ~RefCountCacheSerializer() override;
 
 private:
   std::vector<RefCountCacheHashEntry *> partition_items;
@@ -85,8 +86,8 @@ RefCountCacheSerializer<C>::RefCountCacheSerializer(Continuation *acont, RefCoun
     cache(cc),
     cont(acont),
     fd(-1),
-    dirname(dirname),
-    filename(filename),
+    dirname(std::move(dirname)),
+    filename(std::move(filename)),
     time_per_partition(HRTIME_SECONDS(frequency) / cc->partition_count()),
     start(Thread::get_hrtime()),
     total_items(0),
@@ -117,7 +118,9 @@ template <class C> RefCountCacheSerializer<C>::~RefCountCacheSerializer()
 
   // Note that we have to do the unlink before we send the completion event, otherwise
   // we could unlink the sync file out from under another serializer.
-  cont->handleEvent(REFCOUNT_CACHE_EVENT_SYNC, nullptr);
+
+  // Schedule off the REFCOUNT event, so the continuation gets properly locked
+  this_ethread()->schedule_imm(cont, REFCOUNT_CACHE_EVENT_SYNC);
 }
 
 template <class C>
@@ -289,7 +292,7 @@ RefCountCacheSerializer<C>::finalize_sync()
     return error;
   }
 
-  // Don't bother checking for errors on the close since theere's nothing we can do about it at
+  // Don't bother checking for errors on the close since there's nothing we can do about it at
   // this point anyway.
   socketManager.close(dirfd);
   socketManager.close(this->fd);

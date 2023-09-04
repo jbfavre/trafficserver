@@ -27,6 +27,7 @@ traffic_server_traffic_server_CPPFLAGS = \
 	-I$(abs_top_srcdir)/proxy \
 	-I$(abs_top_srcdir)/proxy/http \
 	-I$(abs_top_srcdir)/proxy/http2 \
+	-I$(abs_top_srcdir)/proxy/http3 \
 	-I$(abs_top_srcdir)/proxy/logging \
 	-I$(abs_top_srcdir)/proxy/http/remap \
 	-I$(abs_top_srcdir)/proxy/hdrs \
@@ -34,15 +35,15 @@ traffic_server_traffic_server_CPPFLAGS = \
 	-I$(abs_top_srcdir)/mgmt \
 	-I$(abs_top_srcdir)/mgmt/utils \
 	$(TS_INCLUDES) \
-	@OPENSSL_INCLUDES@
+	@OPENSSL_INCLUDES@ \
+	@BORINGOCSP_INCLUDES@
 
 traffic_server_traffic_server_LDFLAGS = \
 	$(AM_LDFLAGS) \
-	@YAMLCPP_LDFLAGS@
+	@YAMLCPP_LDFLAGS@ \
+	@BORINGOCSP_LDFLAGS@
 
 traffic_server_traffic_server_SOURCES = \
-	traffic_server/CoreUtils.cc \
-	traffic_server/CoreUtils.h \
 	traffic_server/Crash.cc \
 	traffic_server/EventName.cc \
 	traffic_server/EventName.h \
@@ -52,6 +53,7 @@ traffic_server_traffic_server_SOURCES = \
 	traffic_server/InkAPI.cc \
 	traffic_server/InkIOCoreAPI.cc \
 	traffic_server/SocksProxy.cc \
+	shared/overridable_txn_vars.cc \
 	traffic_server/traffic_server.cc
 
 if BUILD_TESTS
@@ -64,7 +66,6 @@ traffic_server_traffic_server_LDADD = \
 	$(top_builddir)/proxy/http/remap/libhttp_remap.a \
 	$(top_builddir)/proxy/http2/libhttp2.a \
 	$(top_builddir)/proxy/logging/liblogging.a \
-	$(top_builddir)/proxy/logging/liblogcollation.a \
 	$(top_builddir)/proxy/hdrs/libhdrs.a \
 	$(top_builddir)/proxy/shared/libdiagsconfig.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
@@ -73,6 +74,7 @@ traffic_server_traffic_server_LDADD = \
 	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
 	$(top_builddir)/iocore/dns/libinkdns.a \
 	$(top_builddir)/iocore/cache/libinkcache.a \
+	$(top_builddir)/lib/fastlz/libfastlz.a \
 	$(top_builddir)/iocore/aio/libinkaio.a \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
@@ -80,18 +82,26 @@ traffic_server_traffic_server_LDADD = \
 	$(top_builddir)/iocore/net/libinknet.a \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/lib/tsconfig/libtsconfig.la \
 	@HWLOC_LIBS@ \
 	@LIBPCRE@ \
-	@LIBTCL@ \
 	@LIBRESOLV@ \
 	@LIBZ@ \
 	@LIBLZMA@ \
 	@LIBPROFILER@ \
 	@OPENSSL_LIBS@ \
 	@YAMLCPP_LIBS@ \
+	@BORINGOCSP_LIBS@ \
 	-lm
 
 if IS_DARWIN
+if !IS_DARWIN_ARM64
 traffic_server_traffic_server_LDADD += $(LUAJIT_DARWIN_LDFLAGS)
+endif
+endif
+
+if ENABLE_QUIC
+traffic_server_traffic_server_LDADD += \
+  $(top_builddir)/proxy/http3/libhttp3.a \
+  $(top_builddir)/iocore/net/quic/libquic.a \
+  $(top_builddir)/iocore/eventsystem/libinkevent.a
 endif

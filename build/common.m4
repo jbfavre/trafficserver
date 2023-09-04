@@ -37,6 +37,9 @@ EOF
   if test -n "$CXX"; then
     echo "CXX=\"$CXX\"; export CXX" >> $1
   fi
+  if test -n "$LD"; then
+    echo "LD=\"$LD\"; export LD" >> $1
+  fi
   if test -n "$CFLAGS"; then
     echo "CFLAGS=\"$CFLAGS\"; export CFLAGS" >> $1
   fi
@@ -187,7 +190,7 @@ dnl
 AC_DEFUN([TS_TRY_COMPILE_NO_WARNING],
 [ats_save_CFLAGS=$CFLAGS
  CFLAGS="$CFLAGS $CFLAGS_WARN"
- if test "$ac_cv_prog_gcc" = "yes"; then
+ if test "$ac_cv_c_compiler_gnu" = "yes"; then
    CFLAGS="$CFLAGS -Werror"
  fi
  CFLAGS=$(echo $CFLAGS | sed -e 's/^-w$//' -e 's/^-w //' -e 's/ -w$//' -e 's/ -w / /')
@@ -279,11 +282,11 @@ AC_DEFUN([TS_SUBST_LAYOUT_PATH], [
 
 dnl TS_HELP_STRING(LHS, RHS)
 dnl Autoconf 2.50 can not handle substr correctly.  It does have
-dnl AC_HELP_STRING, so let's try to call it if we can.
+dnl AS_HELP_STRING, so let's try to call it if we can.
 dnl Note: this define must be on one line so that it can be properly returned
 dnl as the help string.  When using this macro with a multi-line RHS, ensure
 dnl that you surround the macro invocation with []s
-AC_DEFUN([TS_HELP_STRING], [ifelse(regexp(AC_ACVERSION, 2\.1), -1, AC_HELP_STRING([$1],[$2]),[  ][$1] substr([                       ],len($1))[$2])])
+AC_DEFUN([TS_HELP_STRING], [ifelse(regexp(AC_ACVERSION, 2\.1), -1, AS_HELP_STRING([$1],[$2]),[  ][$1] substr([                       ],len($1))[$2])])
 
 dnl
 dnl TS_LAYOUT(configlayout, layoutname [, extravars])

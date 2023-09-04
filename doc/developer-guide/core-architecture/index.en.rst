@@ -25,4 +25,6 @@ Core Architecture
 .. toctree::
    :maxdepth: 1
 
+   heap.en
    rpc.en
+   url_rewrite_architecture.en.rst

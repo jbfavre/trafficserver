@@ -23,30 +23,21 @@
 
 #include "traffic_ctl.h"
 
-static int
-plugin_msg(unsigned argc, const char **argv)
+void
+CtrlEngine::plugin_msg()
 {
-  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments != 2) {
-    return CtrlCommandUsage("plugin msg TAG DATA");
-  }
-
   TSMgmtError error;
+  auto msg_data = arguments.get("msg");
 
-  error = TSLifecycleMessage(file_arguments[0], file_arguments[1], strlen(file_arguments[1]) + 1);
-  if (error != TS_ERR_OKAY) {
-    CtrlMgmtError(error, "message '%s' not sent", file_arguments[0]);
-    return CTRL_EX_ERROR;
+  if (msg_data.size() == 1) { // no data provided, just the tag
+    error = TSLifecycleMessage(msg_data[0].c_str(), nullptr, 0);
+  } else {
+    error = TSLifecycleMessage(msg_data[0].c_str(), msg_data[1].c_str(), msg_data[1].size() + 1);
   }
 
-  return CTRL_EX_OK;
-}
-
-int
-subcommand_plugin(unsigned argc, const char **argv)
-{
-  const subcommand commands[] = {
-    {plugin_msg, "msg", "Send message to plugins - a TAG and the message DATA"},
-  };
-
-  return CtrlGenericSubcommand("plugin", commands, countof(commands), argc, argv);
+  if (error != TS_ERR_OKAY) {
+    CtrlMgmtError(error, "message '%s' not sent", msg_data[0].c_str());
+    status_code = CTRL_EX_ERROR;
+    return;
+  }
 }

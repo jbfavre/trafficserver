@@ -3,7 +3,7 @@ APACHE TRAFFIC SERVER UNIX QUICKSTART
 
 For complete installation documentation, see the on-line documentation at
 
-    http://trafficserver.apache.org/docs
+    https://docs.trafficserver.apache.org/en/latest/
 
 
 Various popular platforms have up-to-date build instructions available
@@ -18,7 +18,7 @@ BUILD AND INSTALLATION
 Configure & Build from Git source tree:
     $ autoreconf -if  # generate the configure script and Makefile.in files
 
-On Linux, OSX:
+On Linux and macOS:
     $ ./configure [--prefix=PREFIX]
     $ make
 
@@ -68,9 +68,9 @@ questions.  There are many valuable forums to help you get started.
 Please refer your questions to the appropriate forum, such as the
 Users Mailing List at
 
-    http://cwiki.apache.org/confluence/display/TS/Traffic+Server
+    https://cwiki.apache.org/confluence/display/TS/Apache+Traffic+Server
 
-Thanks for using the Apache Traffic Server, version 5.
+Thanks for using the Apache Traffic Server.
 
              The Apache Software Foundation
-             http://www.apache.org/
+             https://www.apache.org/

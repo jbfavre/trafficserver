@@ -25,18 +25,8 @@ You may obtain a copy of the License at
 
 ~~~
 
-lib/wccp and lib/tsconfig developed by Network Geographics.
-Copyright (C) 2010 Network Geographics, Inc.
-
-~~~
-
 WebSocket support developed by LinkedIn
 Copyright (C) 2014 LinkedIn
-
-~~~
-
-stale_while_revalidate Plugin developed by OmniTI on behalf of Oregon Health & Science University
-Copyright (C) 2012 Oregon Health & Science University
 
 ~~~
 
@@ -97,8 +87,12 @@ Copyright (c) 2015-2016 Jason Kenny All Rights Reserved.
 Folly: Facebook Open-source Library
 https://github.com/facebook/folly
 
-
 ~~
 
 yaml-cpp: A YAML parser and emitter in C++
 https://github.com/jbeder/yaml-cpp
+
+~~
+
+fastlz: an ANSI C/C90 implementation of Lempel-Ziv 77 algorithm (LZ77) of lossless data compression.
+https://github.com/ariya/FastLZ

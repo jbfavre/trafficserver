@@ -41,7 +41,13 @@ enum UrlQualifiers {
   URL_QUAL_QUERY,
   URL_QUAL_MATRIX,
   URL_QUAL_SCHEME,
-  URL_QUAL_URL
+  URL_QUAL_URL,
+};
+
+enum NextHopQualifiers {
+  NEXT_HOP_NONE,
+  NEXT_HOP_HOST,
+  NEXT_HOP_PORT,
 };
 
 // NOW data
@@ -53,7 +59,7 @@ enum NowQualifiers {
   NOW_QUAL_HOUR,
   NOW_QUAL_MINUTE,
   NOW_QUAL_WEEKDAY,
-  NOW_QUAL_YEARDAY
+  NOW_QUAL_YEARDAY,
 };
 
 // GEO data
@@ -96,37 +102,17 @@ enum NetworkSessionQualifiers {
 class Statement
 {
 public:
-  Statement() : _next(nullptr), _pdata(nullptr), _rsrc(RSRC_NONE), _initialized(false), _hook(TS_HTTP_READ_RESPONSE_HDR_HOOK)
-  {
-    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Statement");
-  }
+  Statement() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Statement"); }
 
   virtual ~Statement()
   {
     TSDebug(PLUGIN_NAME_DBG, "Calling DTOR for Statement");
-    free_pdata();
     delete _next;
   }
 
-  // Private data
-  void
-  set_pdata(void *pdata)
-  {
-    _pdata = pdata;
-  }
-
-  void *
-  get_pdata() const
-  {
-    return (_pdata);
-  }
-
-  virtual void
-  free_pdata()
-  {
-    TSfree(_pdata);
-    _pdata = nullptr;
-  }
+  // noncopyable
+  Statement(const Statement &) = delete;
+  void operator=(const Statement &) = delete;
 
   // Which hook are we adding this statement to?
   bool set_hook(TSHttpHookID hook);
@@ -166,6 +152,7 @@ protected:
   virtual void initialize_hooks();
 
   UrlQualifiers parse_url_qualifier(const std::string &q) const;
+  NextHopQualifiers parse_next_hop_qualifier(const std::string &q) const;
 
   void
   require_resources(const ResourceIDs ids)
@@ -173,14 +160,11 @@ protected:
     _rsrc = static_cast<ResourceIDs>(_rsrc | ids);
   }
 
-  Statement *_next; // Linked list
+  Statement *_next = nullptr; // Linked list
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(Statement);
-
-  void *_pdata;
-  ResourceIDs _rsrc;
-  bool _initialized;
+  ResourceIDs _rsrc  = RSRC_NONE;
+  bool _initialized  = false;
+  TSHttpHookID _hook = TS_HTTP_READ_RESPONSE_HDR_HOOK;
   std::vector<TSHttpHookID> _allowed_hooks;
-  TSHttpHookID _hook;
 };

@@ -92,10 +92,6 @@ using ThreadFunction = std::function<void()>;
 class Thread
 {
 public:
-  /*-------------------------------------------*\
-  | Common Interface                            |
-  \*-------------------------------------------*/
-
   /**
     System-wide thread identifier. The thread identifier is represented
     by the platform independent type ink_thread and it is the system-wide
@@ -103,6 +99,7 @@ public:
     processors and you should not modify it directly.
 
   */
+  // NOLINTNEXTLINE(modernize-use-nullptr)
   ink_thread tid = 0;
 
   /**
@@ -113,24 +110,20 @@ public:
   */
   Ptr<ProxyMutex> mutex;
 
-  // PRIVATE
-  Thread();
-  Thread(const Thread &) = delete;
-  Thread &operator=(const Thread &) = delete;
-  virtual ~Thread();
+  virtual void set_specific() = 0;
 
-  void set_specific();
-
-  static ink_hrtime cur_time;
-  inkcoreapi static ink_thread_key thread_data_key;
+  static thread_local Thread *this_thread_ptr;
 
   // For THREAD_ALLOC
   ProxyAllocator eventAllocator;
   ProxyAllocator netVCAllocator;
   ProxyAllocator sslNetVCAllocator;
+  ProxyAllocator quicNetVCAllocator;
   ProxyAllocator http1ClientSessionAllocator;
   ProxyAllocator http2ClientSessionAllocator;
   ProxyAllocator http2StreamAllocator;
+  ProxyAllocator httpSMAllocator;
+  ProxyAllocator quicClientSessionAllocator;
   ProxyAllocator httpServerSessionAllocator;
   ProxyAllocator hdrHeapAllocator;
   ProxyAllocator strHeapAllocator;
@@ -142,8 +135,13 @@ public:
   ProxyAllocator ioDataAllocator;
   ProxyAllocator ioAllocator;
   ProxyAllocator ioBlockAllocator;
+  ProxyAllocator preWarmSMAllocator;
+  // From InkAPI (plugins wrappers)
+  ProxyAllocator apiHookAllocator;
+  ProxyAllocator INKContAllocator;
+  ProxyAllocator INKVConnAllocator;
+  ProxyAllocator mHandleAllocator;
 
-public:
   /** Start the underlying thread.
 
       The thread name is set to @a name. The stack for the thread is either @a stack or, if that is
@@ -158,8 +156,8 @@ public:
       This gets a cached copy of the time so it is very fast and reasonably accurate.
       The cached time is updated every time the actual operating system time is fetched which is
       at least every 10ms and generally more frequently.
-      @note The cached copy shared among threads which means the cached copy is udpated
-      for all threads if any thread updates it.
+
+      @note The cached copy is thread local which means each thread need to update the cached copy by itself.
   */
   static ink_hrtime get_hrtime();
 
@@ -171,6 +169,15 @@ public:
       @note This also updates the cached time.
   */
   static ink_hrtime get_hrtime_updated();
+
+  Thread(const Thread &) = delete;
+  Thread &operator=(const Thread &) = delete;
+  virtual ~Thread();
+
+protected:
+  Thread();
+
+  static thread_local ink_hrtime cur_time;
 };
 
 extern Thread *this_thread();

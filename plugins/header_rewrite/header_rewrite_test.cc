@@ -69,10 +69,10 @@ public:
   bool res;
 };
 
-class SimpleTokenizerTest : public SimpleTokenizer
+class SimpleTokenizerTest : public HRWSimpleTokenizer
 {
 public:
-  SimpleTokenizerTest(const std::string &line) : SimpleTokenizer(line), res(true)
+  SimpleTokenizerTest(const std::string &line) : HRWSimpleTokenizer(line), res(true)
   {
     std::cout << "Finished tokenizer test: " << line << std::endl;
   }
@@ -224,11 +224,11 @@ test_parsing()
   }
 
   {
-    ParserTest p(R"(cond %{PATH} /\/foo\/bar/ [OR])");
+    ParserTest p(R"(cond %{CLIENT-URL:PATH} /\/foo\/bar/ [OR])");
 
     CHECK_EQ(p.getTokens().size(), 4UL);
     CHECK_EQ(p.getTokens()[0], "cond");
-    CHECK_EQ(p.getTokens()[1], "%{PATH}");
+    CHECK_EQ(p.getTokens()[1], "%{CLIENT-URL:PATH}");
     CHECK_EQ(p.getTokens()[2], R"(/\/foo\/bar/)");
     CHECK_EQ(p.getTokens()[3], "[OR]");
 
@@ -336,17 +336,6 @@ test_parsing()
   }
 
   {
-    ParserTest p(R"(add-header Client-IP "%<chi>")");
-
-    CHECK_EQ(p.getTokens().size(), 3UL);
-    CHECK_EQ(p.getTokens()[0], "add-header");
-    CHECK_EQ(p.getTokens()[1], "Client-IP");
-    CHECK_EQ(p.getTokens()[2], R"(%<chi>)");
-
-    END_TEST();
-  }
-
-  {
     ParserTest p(R"(add-header X-Url "http://trafficserver.apache.org/")");
 
     CHECK_EQ(p.getTokens().size(), 3UL);
@@ -433,10 +422,10 @@ test_processing()
   }
 
   {
-    ParserTest p(R"(cond %{PATH} /\.html|\.txt/)");
+    ParserTest p(R"(cond %{CLIENT-URL:PATH} /\.html|\.txt/)");
 
     CHECK_EQ(p.getTokens().size(), 3UL);
-    CHECK_EQ(p.get_op(), "PATH");
+    CHECK_EQ(p.get_op(), "CLIENT-URL:PATH");
     CHECK_EQ(p.get_arg(), R"(/\.html|\.txt/)");
     CHECK_EQ(p.is_cond(), true);
 
@@ -444,10 +433,10 @@ test_processing()
   }
 
   {
-    ParserTest p(R"(cond %{PATH} /\/foo\/bar/)");
+    ParserTest p(R"(cond %{CLIENT-URL:PATH} /\/foo\/bar/)");
 
     CHECK_EQ(p.getTokens().size(), 3UL);
-    CHECK_EQ(p.get_op(), "PATH");
+    CHECK_EQ(p.get_op(), "CLIENT-URL:PATH");
     CHECK_EQ(p.get_arg(), R"(/\/foo\/bar/)");
     CHECK_EQ(p.is_cond(), true);
 
@@ -499,10 +488,10 @@ test_tokenizer()
     END_TEST();
   }
   {
-    SimpleTokenizerTest p("A racoon's favorite tag is %<cqhm> in %{NOW:YEAR}!");
+    SimpleTokenizerTest p("A racoon's favorite tag is %{METHOD} in %{NOW:YEAR}!");
     CHECK_EQ(p.get_tokens().size(), 5UL);
     CHECK_EQ(p.get_tokens()[0], "A racoon's favorite tag is ");
-    CHECK_EQ(p.get_tokens()[1], "%<cqhm>");
+    CHECK_EQ(p.get_tokens()[1], "%{METHOD}");
     CHECK_EQ(p.get_tokens()[2], " in ");
     CHECK_EQ(p.get_tokens()[3], "%{NOW:YEAR}");
     CHECK_EQ(p.get_tokens()[4], "!");

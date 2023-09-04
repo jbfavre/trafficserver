@@ -22,7 +22,9 @@ TSThreadPool
 Synopsis
 ========
 
-`#include <ts/apidefs.h>`
+.. code-block:: cpp
+
+    #include <ts/apidefs.h>
 
 .. c:type:: TSThreadPool
 
@@ -31,22 +33,14 @@ Enum typedef.
 Enumeration Members
 ===================
 
-.. c:member:: TSThreadPool TS_THREAD_POOL_DEFAULT
-
 .. c:member:: TSThreadPool TS_THREAD_POOL_NET
 
 .. c:member:: TSThreadPool TS_THREAD_POOL_TASK
 
-.. c:member:: TSThreadPool TS_THREAD_POOL_SSL
-
 .. c:member:: TSThreadPool TS_THREAD_POOL_DNS
 
-.. c:member:: TSThreadPool TS_THREAD_POOL_REMAP
-
-.. c:member:: TSThreadPool TS_THREAD_POOL_CLUSTER
 
 .. c:member:: TSThreadPool TS_THREAD_POOL_UDP
 
 Description
 ===========
-
