@@ -274,18 +274,6 @@
 /* Define to 1 if you have the <net/ppp_defs.h> header file. */
 #undef HAVE_NET_PPP_DEFS_H
 
-/* Define to 1 if you have the `OCSP_REQ_CTX_add1_header' function. */
-#undef HAVE_OCSP_REQ_CTX_ADD1_HEADER
-
-/* Define to 1 if you have the `OCSP_REQ_CTX_set1_req' function. */
-#undef HAVE_OCSP_REQ_CTX_SET1_REQ
-
-/* Define to 1 if you have the `OCSP_sendreq_new' function. */
-#undef HAVE_OCSP_SENDREQ_NEW
-
-/* Define to 1 if you have the <openssl/ocsp.h> header file. */
-#undef HAVE_OPENSSL_OCSP_H
-
 /* Define to 1 if you have the <openssl/ssl.h> header file. */
 #undef HAVE_OPENSSL_SSL_H
 

@@ -236,6 +236,32 @@ Per-Mapping`_ above.
 The ``<part>`` allows the operand to match against just a component of the URL,
 as documented in `URL Parts`_ below.
 
+NEXT-HOP
+~~~~~~~~
+::
+
+    cond %{NEXT-HOP:<part>} <operand>
+
+Returns next hop current selected parent information.  The following qualifiers
+are supported::
+
+    %{NEXT-HOP:HOST} Name of the current selected parent.
+    %{NEXT-HOP:PORT} Port of the current selected parent.
+
+Note that the ``<part>`` of NEXT-HOP will likely not be available unless
+an origin server connection is attempted at which point it will available
+as part of the ``SEND_REQUEST_HDR_HOOK``.
+
+For example::
+
+    cond %{SEND_RESPONSE_HDR_HOOK} [AND]
+    cond %{NEXT-HOP:HOST} =www.firstparent.com
+        set-header HOST vhost.firstparent.com
+
+    cond %{SEND_RESPONSE_HDR_HOOK} [AND]
+    cond %{NEXT-HOP:HOST} =www.secondparent.com
+        set-header HOST vhost.secondparent.com
+
 GEO
 ~~~
 ::
@@ -718,8 +744,8 @@ the appropriate logs even when the debug tag has not been enabled. For
 additional information on |TS| debugging statements, refer to
 :ref:`developer-debug-tags` in the developer's documentation.
 
-+**Note**: This operator is deprecated, use the ``set-http-cntl`` operator instead,
-+with the ``TXN_DEBUG`` control.
+**Note**: This operator is deprecated, use the ``set-http-cntl`` operator instead,
+with the ``TXN_DEBUG`` control.
 
 set-destination
 ~~~~~~~~~~~~~~~
@@ -826,7 +852,7 @@ if necessary.
 
 set-http-cntl
 ~~~~~~~~~~~~~
-;;
+::
 
   set-http-cntl <controller> <flag>
 
