@@ -1917,7 +1917,7 @@ TSdrandom()
 ink_hrtime
 TShrtime()
 {
-  return Thread::get_hrtime();
+  return ink_get_hrtime();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -7245,7 +7245,7 @@ TSVConnFdCreate(int fd)
   vc->action_ = &a;
 
   vc->id          = net_next_connection_number();
-  vc->submit_time = Thread::get_hrtime();
+  vc->submit_time = ink_get_hrtime();
   vc->mutex       = new_ProxyMutex();
   vc->set_is_transparent(false);
   vc->set_context(NET_VCONNECTION_OUT);
@@ -8432,6 +8432,56 @@ TSHttpTxnIsInternal(TSHttpTxn txnp)
   return TSHttpSsnIsInternal(TSHttpTxnSsnGet(txnp));
 }
 
+static void
+txn_error_get(TSHttpTxn txnp, bool client, bool sent, uint32_t &error_class, uint64_t &error_code)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm                                                = reinterpret_cast<HttpSM *>(txnp);
+  HttpTransact::ConnectionAttributes *connection_attributes = nullptr;
+
+  if (client == true) {
+    // client
+    connection_attributes = &sm->t_state.client_info;
+  } else {
+    // server
+    connection_attributes = &sm->t_state.server_info;
+  }
+
+  if (sent == true) {
+    // sent
+    error_code  = connection_attributes->tx_error_code.code;
+    error_class = static_cast<uint32_t>(connection_attributes->tx_error_code.cls);
+  } else {
+    // received
+    error_code  = connection_attributes->rx_error_code.code;
+    error_class = static_cast<uint32_t>(connection_attributes->rx_error_code.cls);
+  }
+}
+
+void
+TSHttpTxnClientReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, true, false, *error_class, *error_code);
+}
+
+void
+TSHttpTxnClientSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, true, true, *error_class, *error_code);
+}
+
+void
+TSHttpTxnServerReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, false, false, *error_class, *error_code);
+}
+
+void
+TSHttpTxnServerSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, false, true, *error_class, *error_code);
+}
+
 TSReturnCode
 TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len)
 {
@@ -9568,6 +9618,14 @@ TSVConnSslConnectionGet(TSVConn sslp)
     ssl = reinterpret_cast<TSSslConnection>(ssl_vc->ssl);
   }
   return ssl;
+}
+
+int
+TSVConnFdGet(TSVConn vconnp)
+{
+  sdk_assert(sdk_sanity_check_null_ptr(vconnp) == TS_SUCCESS);
+  NetVConnection *vc = reinterpret_cast<NetVConnection *>(vconnp);
+  return vc->get_socket();
 }
 
 const char *

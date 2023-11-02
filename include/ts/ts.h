@@ -1289,6 +1289,8 @@ tsapi void TSVConnReenableEx(TSVConn sslvcp, TSEvent event);
 tsapi TSReturnCode TSVConnTunnel(TSVConn sslp);
 /*  Return the SSL object associated with the connection */
 tsapi TSSslConnection TSVConnSslConnectionGet(TSVConn sslp);
+/* Return the file descriptoer associated with the connection */
+int TSVConnFdGet(TSVConn sslp);
 /* Return the intermediate X509StoreCTX object that references the certificate being validated */
 tsapi TSSslVerifyCTX TSVConnSslVerifyCTXGet(TSVConn sslp);
 /*  Fetch a SSL context from the global lookup table */
@@ -2660,6 +2662,42 @@ tsapi void TSHttpTxnResponseActionGet(TSHttpTxn txnp, TSResponseAction *action);
  * Get a TSIOBufferReader to read the buffered body. The return value needs to be freed.
  */
 tsapi TSIOBufferReader TSHttpTxnPostBufferReaderGet(TSHttpTxn txnp);
+
+/**
+ * @brief Get the client error received from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code received from the client
+ */
+void TSHttpTxnClientReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
+
+/**
+ * @brief Get the client error sent from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code sent to the client
+ */
+void TSHttpTxnClientSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
+
+/**
+ * @brief Get the server error received from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code sent from the server
+ */
+void TSHttpTxnServerReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
+
+/**
+ * @brief Get the server error sent from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code sent to the server
+ */
+void TSHttpTxnServerSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
 
 /**
  * Initiate an HTTP/2 Server Push preload request.

@@ -174,9 +174,10 @@ am__dirstamp = $(am__leading_dot)dirstamp
 am_test_LogUtils_OBJECTS = test_LogUtils-LogUtils.$(OBJEXT) \
 	unit-tests/test_LogUtils-test_LogUtils.$(OBJEXT)
 test_LogUtils_OBJECTS = $(am_test_LogUtils_OBJECTS)
-test_LogUtils_DEPENDENCIES = $(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a
+test_LogUtils_DEPENDENCIES =  \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -187,9 +188,9 @@ am_test_RolledLogDeleter_OBJECTS =  \
 	unit-tests/test_RolledLogDeleter-test_RolledLogDeleter.$(OBJEXT)
 test_RolledLogDeleter_OBJECTS = $(am_test_RolledLogDeleter_OBJECTS)
 test_RolledLogDeleter_DEPENDENCIES =  \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -895,9 +896,9 @@ test_LogUtils_SOURCES = \
 	unit-tests/test_LogUtils.cc
 
 test_LogUtils_LDADD = \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
 
 test_RolledLogDeleter_CPPFLAGS = \
 	$(AM_CPPFLAGS) \
@@ -910,9 +911,9 @@ test_RolledLogDeleter_SOURCES = \
 	unit-tests/test_RolledLogDeleter.cc
 
 test_RolledLogDeleter_LDADD = \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
 
 all: all-am
 

@@ -4272,6 +4272,13 @@ HTTP/2 Configuration
    This limit only will be enforced if :ts:cv:`proxy.config.http2.stream_priority_enabled`
    is set to 1.
 
+.. ts:cv:: CONFIG proxy.config.http2.max_rst_stream_frames_per_minute INT 14
+   :reloadable:
+
+   Specifies how many RST_STREAM frames |TS| receives for a minute at maximum.
+   Clients exceeded this limit will be immediately disconnected with an error
+   code of ENHANCE_YOUR_CALM.
+
 .. ts:cv:: CONFIG proxy.config.http2.min_avg_window_update FLOAT 2560.0
    :reloadable:
 
@@ -4864,6 +4871,13 @@ Sockets
    ``1`` Tracks IO Buffer Memory allocations and releases
    ``2`` Tracks IO Buffer Memory and OpenSSL Memory allocations and releases
    ===== ======================================================================
+
+.. ts:cv:: CONFIG proxy.config.system_clock INT 0
+
+   *For advanced users only*. This allows to specify the underlying system clock
+   used by ATS. The default is ``CLOCK_REALTIME`` (``0``), but a higher performance
+   option could be ``CLOCK_REALTIME_COARSE`` (``5``). See ``clock_gettime(2)`` for
+   more details. On Linux, these definitions can be found in ``<linux/time.h>``.
 
 .. ts:cv:: CONFIG proxy.config.allocator.dontdump_iobuffers INT 1
 
