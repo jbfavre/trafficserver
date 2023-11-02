@@ -368,7 +368,7 @@ HttpSM::destroy()
 void
 HttpSM::init(bool from_early_data)
 {
-  milestones[TS_MILESTONE_SM_START] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SM_START] = ink_get_hrtime();
 
   _from_early_data = from_early_data;
 
@@ -502,7 +502,7 @@ HttpSM::start_sub_sm()
 void
 HttpSM::attach_client_session(ProxyTransaction *client_vc)
 {
-  milestones[TS_MILESTONE_UA_BEGIN] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_UA_BEGIN] = ink_get_hrtime();
   ink_assert(client_vc != nullptr);
 
   NetVConnection *netvc = client_vc->get_netvc();
@@ -726,7 +726,7 @@ HttpSM::state_read_client_request_header(int event, void *data)
   //   the accept timeout by the ProxyTransaction
   //
   if ((ua_txn->get_remote_reader()->read_avail() > 0) && (client_request_hdr_bytes == 0)) {
-    milestones[TS_MILESTONE_UA_FIRST_READ] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_UA_FIRST_READ] = ink_get_hrtime();
     ua_txn->set_inactivity_timeout(HRTIME_SECONDS(t_state.txn_conf->transaction_no_activity_timeout_in));
   }
   /////////////////////
@@ -793,7 +793,7 @@ HttpSM::state_read_client_request_header(int event, void *data)
     }
     http_parser_clear(&http_parser);
     ua_entry->vc_handler                         = &HttpSM::state_watch_for_client_abort;
-    milestones[TS_MILESTONE_UA_READ_HEADER_DONE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_UA_READ_HEADER_DONE] = ink_get_hrtime();
   }
 
   switch (state) {
@@ -904,6 +904,13 @@ HttpSM::state_read_client_request_header(int event, void *data)
           t_state.hdr_info.client_request.m_100_continue_required = true;
         }
       }
+    }
+
+    if (t_state.hdr_info.client_request.method_get_wksidx() == HTTP_WKSIDX_PUSH &&
+        t_state.http_config_param->push_method_enabled == 0) {
+      SMDebug("http", "Rejecting PUSH request because push_method_enabled is 0.");
+      call_transact_and_set_next_state(HttpTransact::Forbidden);
+      return 0;
     }
 
     // Call to ensure the content-length and transfer_encoding elements in client_request are filled in
@@ -1031,7 +1038,7 @@ HttpSM::state_watch_for_client_abort(int event, void *data)
     if (ua_entry->read_vio) {
       ua_entry->read_vio->nbytes = ua_entry->read_vio->ndone;
     }
-    milestones[TS_MILESTONE_UA_CLOSE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_UA_CLOSE] = ink_get_hrtime();
     set_ua_abort(HttpTransact::ABORTED, event);
 
     terminate_sm = true;
@@ -1179,7 +1186,7 @@ HttpSM::state_read_push_response_header(int event, void *data)
     // Disable further IO
     ua_entry->read_vio->nbytes = ua_entry->read_vio->ndone;
     http_parser_clear(&http_parser);
-    milestones[TS_MILESTONE_SERVER_READ_HEADER_DONE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_SERVER_READ_HEADER_DONE] = ink_get_hrtime();
   }
 
   switch (state) {
@@ -1213,7 +1220,7 @@ HttpSM::state_raw_http_server_open(int event, void *data)
 {
   STATE_ENTER(&HttpSM::state_raw_http_server_open, event);
   ink_assert(server_entry == nullptr);
-  milestones[TS_MILESTONE_SERVER_CONNECT_END] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SERVER_CONNECT_END] = ink_get_hrtime();
   NetVConnection *netvc                       = nullptr;
 
   pending_action = nullptr;
@@ -1494,6 +1501,9 @@ HttpSM::state_api_callout(int event, void *data)
   // This is a reschedule via the tunnel.  Just fall through
   //
   case EVENT_INTERVAL:
+    if (data != pending_action) {
+      pending_action->cancel();
+    }
     pending_action = nullptr;
   // FALLTHROUGH
   case EVENT_NONE:
@@ -1542,9 +1552,9 @@ plugins required to work with sni_routing.
 
       // Have a mutex but didn't get the lock, reschedule
       if (!lock.is_locked()) {
-        api_timer = -Thread::get_hrtime_updated();
+        api_timer = -ink_get_hrtime();
         HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::state_api_callout);
-        ink_release_assert(pending_action.empty());
+        ink_assert(pending_action == nullptr);
         pending_action = mutex->thread_holding->schedule_in(this, HRTIME_MSECONDS(10));
         return -1;
       }
@@ -1557,13 +1567,13 @@ plugins required to work with sni_routing.
       cur_hook = nullptr;
 
       if (!api_timer) {
-        api_timer = Thread::get_hrtime();
+        api_timer = ink_get_hrtime();
       }
 
       hook->invoke(TS_EVENT_HTTP_READ_REQUEST_HDR + cur_hook_id, this);
       if (api_timer > 0) { // true if the hook did not call TxnReenable()
         this->milestone_update_api_time();
-        api_timer = -Thread::get_hrtime(); // set in order to track non-active callout duration
+        api_timer = -ink_get_hrtime(); // set in order to track non-active callout duration
         // which means that if we get back from the invoke with api_timer < 0 we're already
         // tracking a non-complete callout from a chain so just let it ride. It will get cleaned
         // up in state_api_callback when the plugin re-enables this transaction.
@@ -1868,11 +1878,11 @@ HttpSM::state_http_server_open(int event, void *data)
   SMDebug("http_track", "entered inside state_http_server_open: %s", HttpDebugNames::get_event_name(event));
   STATE_ENTER(&HttpSM::state_http_server_open, event);
   ink_release_assert(event == EVENT_INTERVAL || event == NET_EVENT_OPEN || event == NET_EVENT_OPEN_FAILED ||
-                     pending_action.empty());
+                     pending_action == nullptr);
   if (event != NET_EVENT_OPEN) {
     pending_action = nullptr;
   }
-  milestones[TS_MILESTONE_SERVER_CONNECT_END] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SERVER_CONNECT_END] = ink_get_hrtime();
 
   switch (event) {
   case NET_EVENT_OPEN: {
@@ -1891,7 +1901,7 @@ HttpSM::state_http_server_open(int event, void *data)
     // Since the UnixNetVConnection::action_ or SocksEntry::action_ may be returned from netProcessor.connect_re, and the
     // SocksEntry::action_ will be copied into UnixNetVConnection::action_ before call back NET_EVENT_OPEN from SocksEntry::free(),
     // so we just compare the Continuation between pending_action and VC's action_.
-    ink_release_assert(pending_action.empty() || pending_action.get_continuation() == vc->get_action()->continuation);
+    ink_release_assert(pending_action == nullptr || pending_action->continuation == vc->get_action()->continuation);
     pending_action = nullptr;
 
     if (this->plugin_tunnel_type == HTTP_NO_PLUGIN_TUNNEL) {
@@ -2026,7 +2036,7 @@ HttpSM::state_read_server_response_header(int event, void *data)
   //   the connect timeout when we set up to read the header
   //
   if (server_response_hdr_bytes == 0) {
-    milestones[TS_MILESTONE_SERVER_FIRST_READ] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_SERVER_FIRST_READ] = ink_get_hrtime();
 
     server_txn->set_inactivity_timeout(get_server_inactivity_timeout());
 
@@ -2060,7 +2070,7 @@ HttpSM::state_read_server_response_header(int event, void *data)
     // Disable further IO
     server_entry->read_vio->nbytes = server_entry->read_vio->ndone;
     http_parser_clear(&http_parser);
-    milestones[TS_MILESTONE_SERVER_READ_HEADER_DONE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_SERVER_READ_HEADER_DONE] = ink_get_hrtime();
 
     // If there is a post body in transit, give up on it
     if (tunnel.is_tunnel_alive()) {
@@ -2360,7 +2370,7 @@ HttpSM::process_hostdb_info(HostDBInfo *r)
     ink_assert(!t_state.host_db_info.round_robin);
   }
 
-  milestones[TS_MILESTONE_DNS_LOOKUP_END] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_DNS_LOOKUP_END] = ink_get_hrtime();
 
   if (is_debug_tag_set("http_timeout")) {
     if (t_state.api_txn_dns_timeout_value != -1) {
@@ -2403,8 +2413,12 @@ HttpSM::state_hostdb_lookup(int event, void *data)
     opt.timeout        = (t_state.api_txn_dns_timeout_value != -1) ? t_state.api_txn_dns_timeout_value : 0;
     opt.host_res_style = ats_host_res_from(ua_txn->get_netvc()->get_local_addr()->sa_family, t_state.txn_conf->host_res_data.order);
 
-    pending_action = hostDBProcessor.getbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_hostdb_info, host_name, 0, opt);
-    if (pending_action.empty()) {
+    Action *dns_lookup_action_handle =
+      hostDBProcessor.getbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_hostdb_info, host_name, 0, opt);
+    if (dns_lookup_action_handle != ACTION_RESULT_DONE) {
+      ink_assert(!pending_action);
+      pending_action = dns_lookup_action_handle;
+    } else {
       call_transact_and_set_next_state(nullptr);
     }
   } break;
@@ -2538,18 +2552,16 @@ HttpSM::state_cache_open_write(int event, void *data)
 
   // Make sure we are on the "right" thread
   if (ua_txn) {
-    pending_action = ua_txn->adjust_thread(this, event, data);
-    if (!pending_action.empty()) {
+    if (pending_action) {
+      pending_action->cancel();
+    }
+    if ((pending_action = ua_txn->adjust_thread(this, event, data))) {
       HTTP_INCREMENT_DYN_STAT(http_cache_open_write_adjust_thread_stat);
       return 0; // Go away if we reschedule
     }
-    NetVConnection *vc = ua_txn->get_netvc();
-    ink_release_assert(vc && vc->thread == this_ethread());
   }
 
-  pending_action.clear_if_action_is(reinterpret_cast<Action *>(data));
-
-  milestones[TS_MILESTONE_CACHE_OPEN_WRITE_END] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_CACHE_OPEN_WRITE_END] = ink_get_hrtime();
   pending_action                                = nullptr;
 
   switch (event) {
@@ -2657,8 +2669,6 @@ HttpSM::state_cache_open_read(int event, void *data)
 {
   STATE_ENTER(&HttpSM::state_cache_open_read, event);
 
-  pending_action.clear_if_action_is(reinterpret_cast<Action *>(data));
-
   ink_assert(server_entry == nullptr);
   ink_assert(t_state.cache_info.object_read == nullptr);
 
@@ -2689,13 +2699,13 @@ HttpSM::state_cache_open_read(int event, void *data)
   case CACHE_EVENT_OPEN_READ_FAILED:
     pending_action = nullptr;
 
-    SMDebug("http", "cache_open_read - CACHE_EVENT_OPEN_READ_FAILED with %s (%d)", InkStrerror(-cache_sm.get_last_error()),
-            -cache_sm.get_last_error());
+    SMDebug("http", "[%" PRId64 "] cache_open_read - CACHE_EVENT_OPEN_READ_FAILED with %s (%d)", sm_id,
+            InkStrerror(-(intptr_t)data), (int)(intptr_t)data);
 
     SMDebug("http", "open read failed.");
     // Inform HttpTransact somebody else is updating the document
     // HttpCacheSM already waited so transact should go ahead.
-    if (cache_sm.get_last_error() == -ECACHE_DOC_BUSY) {
+    if ((intptr_t)data == -ECACHE_DOC_BUSY) {
       t_state.cache_lookup_result = HttpTransact::CACHE_LOOKUP_DOC_BUSY;
     } else {
       t_state.cache_lookup_result = HttpTransact::CACHE_LOOKUP_MISS;
@@ -2711,7 +2721,7 @@ HttpSM::state_cache_open_read(int event, void *data)
     break;
   }
 
-  milestones[TS_MILESTONE_CACHE_OPEN_READ_END] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_CACHE_OPEN_READ_END] = ink_get_hrtime();
 
   return 0;
 }
@@ -3080,7 +3090,7 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer *p)
   // TS_MILESTONE_SERVER_CONNECT is set (non-zero), lest certain time
   // statistics are calculated from epoch time.
   if (0 != milestones[TS_MILESTONE_SERVER_CONNECT]) {
-    milestones[TS_MILESTONE_SERVER_CLOSE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_SERVER_CLOSE] = ink_get_hrtime();
   }
 
   bool close_connection = false;
@@ -3354,7 +3364,7 @@ HttpSM::tunnel_handler_ua(int event, HttpTunnelConsumer *c)
 
   STATE_ENTER(&HttpSM::tunnel_handler_ua, event);
   ink_assert(c->vc == ua_txn);
-  milestones[TS_MILESTONE_UA_CLOSE] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_UA_CLOSE] = ink_get_hrtime();
 
   switch (event) {
   case VC_EVENT_EOS:
@@ -4214,9 +4224,6 @@ HttpSM::do_remap_request(bool run_inline)
 
   check_sni_host();
 
-  // Preserve effective url before remap
-  t_state.unmapped_url.create(t_state.hdr_info.client_request.url_get()->m_heap);
-  t_state.unmapped_url.copy(t_state.hdr_info.client_request.url_get());
   // Depending on a variety of factors the HOST field may or may not have been promoted to the
   // client request URL. The unmapped URL should always have that promotion done. If the HOST field
   // is not already there, promote it only in the unmapped_url. This avoids breaking any logic that
@@ -4224,10 +4231,43 @@ HttpSM::do_remap_request(bool run_inline)
   if (!t_state.unmapped_url.m_url_impl->m_ptr_host) {
     MIMEField *host_field = t_state.hdr_info.client_request.field_find(MIME_FIELD_HOST, MIME_LEN_HOST);
     if (host_field) {
-      int host_len;
+      int host_len          = 0;
       const char *host_name = host_field->value_get(&host_len);
       if (host_name && host_len) {
+        int port = -1;
+        // Host header can contain port number, and if it does we need to set host and port separately to unmapped_url.
+        // If header value starts with '[', the value must contain an IPv6 address, and it may contain a port number as well.
+        if (host_name[0] == '[') {   // IPv6
+          host_name = host_name + 1; // Skip '['
+          host_len--;
+          // If header value ends with ']', the value must only contain an IPv6 address (no port number).
+          if (host_name[host_len - 1] == ']') { // Without port number
+            host_len--;                         // Exclude ']'
+          } else {                              // With port number
+            for (int idx = host_len - 1; idx > 0; idx--) {
+              if (host_name[idx] == ':') {
+                port     = ink_atoi(host_name + idx + 1, host_len - (idx + 1));
+                host_len = idx;
+                break;
+              }
+            }
+          }
+        } else { // Anything else (Hostname or IPv4 address)
+          // If the value contains ':' where it does not have IPv6 address, there must be port number
+          if (const char *colon = static_cast<const char *>(memchr(host_name, ':', host_len));
+              colon == nullptr) { // Without port number
+            // Nothing to adjust. Entire value should be used as hostname.
+          } else { // With port number
+            port     = ink_atoi(colon + 1, host_len - ((colon + 1) - host_name));
+            host_len = colon - host_name;
+          }
+        }
+
+        // Set values
         t_state.unmapped_url.host_set(host_name, host_len);
+        if (port >= 0) {
+          t_state.unmapped_url.port_set(port);
+        }
       }
     }
   }
@@ -4241,7 +4281,13 @@ HttpSM::do_remap_request(bool run_inline)
   }
 
   SMDebug("url_rewrite", "Found a remap map entry, attempting to remap request and call any plugins");
-  pending_action = remapProcessor.perform_remap(this, &t_state);
+  Action *remap_action_handle = remapProcessor.perform_remap(this, &t_state);
+
+  if (remap_action_handle != ACTION_RESULT_DONE) {
+    SMDebug("url_rewrite", "Still more remapping needed for [%" PRId64 "]", sm_id);
+    ink_assert(!pending_action);
+    pending_action = remap_action_handle;
+  }
 
   return;
 }
@@ -4250,11 +4296,16 @@ void
 HttpSM::do_hostdb_lookup()
 {
   ink_assert(t_state.dns_info.lookup_name != nullptr);
-  ink_assert(pending_action.empty());
+  ink_assert(pending_action == nullptr);
 
-  milestones[TS_MILESTONE_DNS_LOOKUP_BEGIN] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_DNS_LOOKUP_BEGIN] = ink_get_hrtime();
 
-  if (t_state.txn_conf->srv_enabled) {
+  // If directed to not look up fqdns then mark as resolved
+  if (t_state.http_config_param->no_dns_forward_to_parent && t_state.parent_result.result == PARENT_UNDEFINED) {
+    t_state.dns_info.lookup_success = true;
+    call_transact_and_set_next_state(nullptr);
+    return;
+  } else if (t_state.txn_conf->srv_enabled) {
     char d[MAXDNAME];
 
     // Look at the next_hop_scheme to determine what scheme to put in the SRV lookup
@@ -4267,8 +4318,13 @@ HttpSM::do_hostdb_lookup()
     if (t_state.api_txn_dns_timeout_value != -1) {
       opt.timeout = t_state.api_txn_dns_timeout_value;
     }
-    pending_action = hostDBProcessor.getSRVbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_srv_info, d, 0, opt);
-    if (pending_action.empty()) {
+    Action *srv_lookup_action_handle =
+      hostDBProcessor.getSRVbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_srv_info, d, 0, opt);
+
+    if (srv_lookup_action_handle != ACTION_RESULT_DONE) {
+      ink_assert(!pending_action);
+      pending_action = srv_lookup_action_handle;
+    } else {
       char *host_name = t_state.dns_info.srv_lookup_success ? t_state.dns_info.srv_hostname : t_state.dns_info.lookup_name;
       opt.port        = t_state.dns_info.srv_lookup_success ?
                    t_state.dns_info.srv_port :
@@ -4280,8 +4336,12 @@ HttpSM::do_hostdb_lookup()
       opt.host_res_style =
         ats_host_res_from(ua_txn->get_netvc()->get_local_addr()->sa_family, t_state.txn_conf->host_res_data.order);
 
-      pending_action = hostDBProcessor.getbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_hostdb_info, host_name, 0, opt);
-      if (pending_action.empty()) {
+      Action *dns_lookup_action_handle =
+        hostDBProcessor.getbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_hostdb_info, host_name, 0, opt);
+      if (dns_lookup_action_handle != ACTION_RESULT_DONE) {
+        ink_assert(!pending_action);
+        pending_action = dns_lookup_action_handle;
+      } else {
         call_transact_and_set_next_state(nullptr);
       }
     }
@@ -4312,9 +4372,13 @@ HttpSM::do_hostdb_lookup()
 
     opt.host_res_style = ats_host_res_from(ua_txn->get_netvc()->get_local_addr()->sa_family, t_state.txn_conf->host_res_data.order);
 
-    pending_action = hostDBProcessor.getbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_hostdb_info,
-                                                   t_state.dns_info.lookup_name, 0, opt);
-    if (pending_action.empty()) {
+    Action *dns_lookup_action_handle = hostDBProcessor.getbyname_imm(this, (cb_process_result_pfn)&HttpSM::process_hostdb_info,
+                                                                     t_state.dns_info.lookup_name, 0, opt);
+
+    if (dns_lookup_action_handle != ACTION_RESULT_DONE) {
+      ink_assert(!pending_action);
+      pending_action = dns_lookup_action_handle;
+    } else {
       call_transact_and_set_next_state(nullptr);
     }
     return;
@@ -4327,13 +4391,18 @@ void
 HttpSM::do_hostdb_reverse_lookup()
 {
   ink_assert(t_state.dns_info.lookup_name != nullptr);
-  ink_assert(pending_action.empty());
+  ink_assert(pending_action == nullptr);
 
   SMDebug("http_seq", "Doing reverse DNS Lookup");
 
   IpEndpoint addr;
   ats_ip_pton(t_state.dns_info.lookup_name, &addr.sa);
-  pending_action = hostDBProcessor.getbyaddr_re(this, &addr.sa);
+  Action *dns_lookup_action_handle = hostDBProcessor.getbyaddr_re(this, &addr.sa);
+
+  if (dns_lookup_action_handle != ACTION_RESULT_DONE) {
+    ink_assert(!pending_action);
+    pending_action = dns_lookup_action_handle;
+  }
 
   return;
 }
@@ -4767,14 +4836,14 @@ HttpSM::do_cache_lookup_and_read()
 {
   // TODO decide whether to uncomment after finish testing redirect
   // ink_assert(server_txn == NULL);
-  ink_assert(pending_action.empty());
+  ink_assert(pending_action == nullptr);
 
   t_state.request_sent_time      = UNDEFINED_TIME;
   t_state.response_received_time = UNDEFINED_TIME;
 
   HTTP_INCREMENT_DYN_STAT(http_cache_lookups_stat);
 
-  milestones[TS_MILESTONE_CACHE_OPEN_READ_BEGIN] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_CACHE_OPEN_READ_BEGIN] = ink_get_hrtime();
   t_state.cache_lookup_result                    = HttpTransact::CACHE_LOOKUP_NONE;
   t_state.cache_info.lookup_count++;
   // YTS Team, yamsat Plugin
@@ -4792,7 +4861,7 @@ HttpSM::do_cache_lookup_and_read()
   HttpCacheKey key;
   Cache::generate_key(&key, c_url, t_state.txn_conf->cache_generation_number);
 
-  pending_action = cache_sm.open_read(
+  Action *cache_action_handle = cache_sm.open_read(
     &key, c_url, &t_state.hdr_info.client_request, t_state.txn_conf,
     static_cast<time_t>((t_state.cache_control.pin_in_cache_for < 0) ? 0 : t_state.cache_control.pin_in_cache_for));
   //
@@ -4801,7 +4870,11 @@ HttpSM::do_cache_lookup_and_read()
   // optimize the typical open_read/open_read failed/open_write
   // sequence.
   //
-  REMEMBER((long)pending_action.get(), reentrancy_count);
+  if (cache_action_handle != ACTION_RESULT_DONE) {
+    ink_assert(!pending_action);
+    pending_action = cache_action_handle;
+  }
+  REMEMBER((long)pending_action, reentrancy_count);
 
   return;
 }
@@ -4814,9 +4887,16 @@ HttpSM::do_cache_delete_all_alts(Continuation *cont)
 
   SMDebug("http_seq", "Issuing cache delete for %s", t_state.cache_info.lookup_url->string_get_ref());
 
+  Action *cache_action_handle = nullptr;
   HttpCacheKey key;
   Cache::generate_key(&key, t_state.cache_info.lookup_url, t_state.txn_conf->cache_generation_number);
-  pending_action = cacheProcessor.remove(cont, &key);
+  cache_action_handle = cacheProcessor.remove(cont, &key);
+  if (cont != nullptr) {
+    if (cache_action_handle != ACTION_RESULT_DONE) {
+      ink_assert(!pending_action);
+      pending_action = cache_action_handle;
+    }
+  }
 
   return;
 }
@@ -4824,7 +4904,7 @@ HttpSM::do_cache_delete_all_alts(Continuation *cont)
 inline void
 HttpSM::do_cache_prepare_write()
 {
-  milestones[TS_MILESTONE_CACHE_OPEN_WRITE_BEGIN] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_CACHE_OPEN_WRITE_BEGIN] = ink_get_hrtime();
   do_cache_prepare_action(&cache_sm, t_state.cache_info.object_read, true);
 }
 
@@ -4866,7 +4946,7 @@ HttpSM::do_cache_prepare_action(HttpCacheSM *c_sm, CacheHTTPInfo *object_read_in
   URL *o_url, *s_url;
   bool restore_client_request = false;
 
-  ink_assert(pending_action.empty());
+  ink_assert(!pending_action);
 
   if (t_state.redirect_info.redirect_in_process) {
     o_url = &(t_state.redirect_info.original_url);
@@ -4895,10 +4975,14 @@ HttpSM::do_cache_prepare_action(HttpCacheSM *c_sm, CacheHTTPInfo *object_read_in
   HttpCacheKey key;
   Cache::generate_key(&key, s_url, t_state.txn_conf->cache_generation_number);
 
-  pending_action =
+  Action *cache_action_handle =
     c_sm->open_write(&key, s_url, &t_state.hdr_info.client_request, object_read_info,
                      static_cast<time_t>((t_state.cache_control.pin_in_cache_for < 0) ? 0 : t_state.cache_control.pin_in_cache_for),
                      retry, allow_multiple);
+  if (cache_action_handle != ACTION_RESULT_DONE) {
+    ink_assert(!pending_action);
+    pending_action = cache_action_handle;
+  }
 }
 
 void
@@ -5005,9 +5089,15 @@ HttpSM::do_http_server_open(bool raw)
   auto fam_name = ats_ip_family_name(ip_family);
   SMDebug("http_track", "entered inside do_http_server_open ][%.*s]", static_cast<int>(fam_name.size()), fam_name.data());
 
-  NetVConnection *vc = ua_txn->get_netvc();
-  ink_release_assert(vc && vc->thread == this_ethread());
+  // Make sure we are on the "right" thread
+  if (ua_txn) {
+    if ((pending_action = ua_txn->adjust_thread(this, EVENT_INTERVAL, nullptr))) {
+      HTTP_INCREMENT_DYN_STAT(http_origin_connect_adjust_thread_stat);
+      return; // Go away if we reschedule
+    }
+  }
   pending_action = nullptr;
+  ink_assert(server_entry == nullptr);
 
   // Clean up connection tracking info if any. Need to do it now so the selected group
   // is consistent with the actual upstream in case of retry.
@@ -5026,7 +5116,7 @@ HttpSM::do_http_server_open(bool raw)
   ink_assert(ua_entry != nullptr || t_state.req_flavor == HttpTransact::REQ_FLAVOR_SCHEDULED_UPDATE ||
              t_state.req_flavor == HttpTransact::REQ_FLAVOR_REVPROXY);
 
-  ink_assert(pending_action.empty());
+  ink_assert(pending_action == nullptr);
   ink_assert(t_state.current.server->dst_addr.network_order_port() != 0);
 
   char addrbuf[INET6_ADDRPORTSTRLEN];
@@ -5036,7 +5126,7 @@ HttpSM::do_http_server_open(bool raw)
   SMDebug("http_seq", "Sending request to server");
 
   // set the server first connect milestone here in case we return in the plugin_tunnel case that follows
-  milestones[TS_MILESTONE_SERVER_CONNECT] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SERVER_CONNECT] = ink_get_hrtime();
   if (milestones[TS_MILESTONE_SERVER_FIRST_CONNECT] == 0) {
     milestones[TS_MILESTONE_SERVER_FIRST_CONNECT] = milestones[TS_MILESTONE_SERVER_CONNECT];
   }
@@ -5258,7 +5348,7 @@ HttpSM::do_http_server_open(bool raw)
     if (ccount > t_state.txn_conf->outbound_conntrack.max) {
       ct_state.release();
 
-      ink_assert(pending_action.empty()); // in case of reschedule must not have already pending.
+      ink_assert(pending_action == nullptr); // in case of reschedule must not have already pending.
 
       // If the queue is disabled, reschedule.
       if (t_state.http_config_param->global_outbound_conntrack.queue_size < 0) {
@@ -5296,6 +5386,7 @@ HttpSM::do_http_server_open(bool raw)
   }
 
   // We did not manage to get an existing session and need to open a new connection
+  Action *connect_action_handle;
   NetVCOptions opt;
   opt.f_blocking_connect = false;
   opt.set_sock_param(t_state.txn_conf->sock_recv_buffer_size_out, t_state.txn_conf->sock_send_buffer_size_out,
@@ -5426,14 +5517,19 @@ HttpSM::do_http_server_open(bool raw)
       opt.set_ssl_servername(t_state.server_info.name);
     }
 
-    pending_action = sslNetProcessor.connect_re(this,                                 // state machine
-                                                &t_state.current.server->dst_addr.sa, // addr + port
-                                                &opt);
+    connect_action_handle = sslNetProcessor.connect_re(this,                                 // state machine
+                                                       &t_state.current.server->dst_addr.sa, // addr + port
+                                                       &opt);
   } else {
     SMDebug("http", "calling netProcessor.connect_re");
-    pending_action = netProcessor.connect_re(this,                                 // state machine
-                                             &t_state.current.server->dst_addr.sa, // addr + port
-                                             &opt);
+    connect_action_handle = netProcessor.connect_re(this,                                 // state machine
+                                                    &t_state.current.server->dst_addr.sa, // addr + port
+                                                    &opt);
+  }
+
+  if (connect_action_handle != ACTION_RESULT_DONE) {
+    ink_assert(!pending_action);
+    pending_action = connect_action_handle;
   }
 
   return;
@@ -5475,7 +5571,7 @@ HttpSM::do_api_callout_internal()
     break;
   case HttpTransact::SM_ACTION_API_SEND_RESPONSE_HDR:
     cur_hook_id                             = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
-    milestones[TS_MILESTONE_UA_BEGIN_WRITE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_UA_BEGIN_WRITE] = ink_get_hrtime();
     break;
   case HttpTransact::SM_ACTION_API_SM_SHUTDOWN:
     if (callout_state == HTTP_API_IN_CALLOUT || callout_state == HTTP_API_DEFERED_SERVER_ERROR) {
@@ -6375,7 +6471,7 @@ HttpSM::setup_server_send_request()
     server_request_body_bytes = msg_len;
   }
 
-  milestones[TS_MILESTONE_SERVER_BEGIN_WRITE] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SERVER_BEGIN_WRITE] = ink_get_hrtime();
   server_entry->write_vio                     = server_entry->vc->do_io_write(this, hdr_length, buf_start);
 
   // Make sure the VC is using correct timeouts.  We may be reusing a previously used server session
@@ -6937,13 +7033,6 @@ HttpSM::setup_server_transfer()
 
   nbytes = server_transfer_init(buf, hdr_size);
 
-  if (t_state.is_cacheable_due_to_negative_caching_configuration &&
-      t_state.hdr_info.server_response.status_get() == HTTP_STATUS_NO_CONTENT) {
-    int s = sizeof("No Content") - 1;
-    buf->write("No Content", s);
-    nbytes += s;
-  }
-
   HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::tunnel_handler);
 
   HttpTunnelProducer *p =
@@ -7037,7 +7126,7 @@ HttpSM::setup_blind_tunnel(bool send_response_hdr, IOBufferReader *initial)
   IOBufferReader *r_from = from_ua_buf->alloc_reader();
   IOBufferReader *r_to   = to_ua_buf->alloc_reader();
 
-  milestones[TS_MILESTONE_SERVER_BEGIN_WRITE] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SERVER_BEGIN_WRITE] = ink_get_hrtime();
   if (send_response_hdr) {
     client_response_hdr_bytes = write_response_header_into_buffer(&t_state.hdr_info.client_response, to_ua_buf);
     if (initial && initial->read_avail()) {
@@ -7164,10 +7253,11 @@ HttpSM::kill_this()
     // state. This is because we are depending on the
     // callout to complete for the state machine to
     // get killed.
-    if (callout_state == HTTP_API_NO_CALLOUT && !pending_action.empty()) {
+    if (callout_state == HTTP_API_NO_CALLOUT && pending_action) {
+      pending_action->cancel();
       pending_action = nullptr;
-    } else if (!pending_action.empty()) {
-      ink_assert(pending_action.empty());
+    } else if (pending_action) {
+      ink_assert(pending_action == nullptr);
     }
 
     cache_sm.end_both();
@@ -7227,7 +7317,10 @@ HttpSM::kill_this()
   //   then the value of kill_this_async_done has changed so
   //   we must check it again
   if (kill_this_async_done == true) {
-    pending_action = nullptr;
+    if (pending_action) {
+      pending_action->cancel();
+      pending_action = nullptr;
+    }
     if (t_state.http_config_param->enable_http_stats) {
       update_stats();
     }
@@ -7253,7 +7346,11 @@ HttpSM::kill_this()
       server_txn->transaction_done();
       server_txn = nullptr;
     }
+
     if (ua_txn) {
+      if (ua_txn->get_server_session() != nullptr) {
+        ua_txn->attach_server_session(nullptr);
+      }
       ua_txn->transaction_done();
     }
 
@@ -7265,7 +7362,7 @@ HttpSM::kill_this()
       plugin_tunnel = nullptr;
     }
 
-    ink_assert(pending_action.empty());
+    ink_assert(pending_action == nullptr);
     ink_release_assert(vc_table.is_table_clear() == true);
     ink_release_assert(tunnel.is_tunnel_active() == false);
 
@@ -7289,7 +7386,7 @@ HttpSM::kill_this()
 void
 HttpSM::update_stats()
 {
-  milestones[TS_MILESTONE_SM_FINISH] = Thread::get_hrtime();
+  milestones[TS_MILESTONE_SM_FINISH] = ink_get_hrtime();
 
   if (is_action_tag_set("bad_length_state_dump")) {
     if (t_state.hdr_info.client_response.valid() && t_state.hdr_info.client_response.status_get() == HTTP_STATUS_OK) {
@@ -7318,7 +7415,7 @@ HttpSM::update_stats()
   // ua_close will not be assigned properly in some exceptional situation.
   // TODO: Assign ua_close with suitable value when HttpTunnel terminates abnormally.
   if (milestones[TS_MILESTONE_UA_CLOSE] == 0 && milestones[TS_MILESTONE_UA_READ_HEADER_DONE] > 0) {
-    milestones[TS_MILESTONE_UA_CLOSE] = Thread::get_hrtime();
+    milestones[TS_MILESTONE_UA_CLOSE] = ink_get_hrtime();
   }
 
   // request_process_time  = The time after the header is parsed to the completion of the transaction
@@ -7864,10 +7961,16 @@ HttpSM::set_next_state()
     break;
   }
 
-  case HttpTransact::SM_ACTION_INTERNAL_REQUEST:
+  case HttpTransact::SM_ACTION_INTERNAL_REQUEST: {
     HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::state_handle_stat_page);
-    pending_action = statPagesManager.handle_http(this, &t_state.hdr_info.client_request);
+    Action *action_handle = statPagesManager.handle_http(this, &t_state.hdr_info.client_request);
+
+    if (action_handle != ACTION_RESULT_DONE) {
+      ink_assert(pending_action == nullptr);
+      pending_action = action_handle;
+    }
     break;
+  }
 
   case HttpTransact::SM_ACTION_ORIGIN_SERVER_RR_MARK_DOWN: {
     HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::state_mark_os_down);
@@ -8092,13 +8195,13 @@ HttpSM::redirect_request(const char *arg_redirect_url, const int arg_redirect_le
       // The redirect URL did not begin with a slash, so we parsed some or all
       // of the relative URI path as the host.
       // Prepend a slash and parse again.
-      char redirect_url_leading_slash[arg_redirect_len + 1];
+      std::string redirect_url_leading_slash(arg_redirect_len + 1, '\0');
       redirect_url_leading_slash[0] = '/';
       if (arg_redirect_len > 0) {
-        memcpy(redirect_url_leading_slash + 1, arg_redirect_url, arg_redirect_len);
+        memcpy(redirect_url_leading_slash.data() + 1, arg_redirect_url, arg_redirect_len);
       }
       url_nuke_proxy_stuff(redirectUrl.m_url_impl);
-      redirectUrl.parse(redirect_url_leading_slash, arg_redirect_len + 1);
+      redirectUrl.parse(redirect_url_leading_slash.c_str(), arg_redirect_len + 1);
     }
   }
 
@@ -8270,7 +8373,7 @@ HttpSM::get_http_schedule(int event, void * /* data ATS_UNUSED */)
 
     if (!plugin_lock) {
       HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::get_http_schedule);
-      ink_assert(pending_action.empty());
+      ink_assert(pending_action == nullptr);
       pending_action = mutex->thread_holding->schedule_in(this, HRTIME_MSECONDS(10));
       return 0;
     } else {
@@ -8522,7 +8625,7 @@ HttpSM::milestone_update_api_time()
     if (!active) {
       api_timer = -api_timer;
     }
-    delta     = Thread::get_hrtime_updated() - api_timer;
+    delta     = ink_get_hrtime() - api_timer;
     api_timer = 0;
     // Zero or negative time is a problem because we want to signal *something* happened
     // vs. no API activity at all. This can happen due to graininess or real time

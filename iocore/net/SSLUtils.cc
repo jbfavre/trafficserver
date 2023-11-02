@@ -597,15 +597,21 @@ DH_get_2048_256()
     0x1D, 0xB2, 0x46, 0xC3, 0x2F, 0x63, 0x07, 0x84, 0x90, 0xF0, 0x0E, 0xF8, 0xD6, 0x47, 0xD1, 0x48, 0xD4, 0x79, 0x54, 0x51,
     0x5E, 0x23, 0x27, 0xCF, 0xEF, 0x98, 0xC5, 0x82, 0x66, 0x4B, 0x4C, 0x0F, 0x6C, 0xC4, 0x16, 0x59};
   DH *dh;
+  BIGNUM *p;
+  BIGNUM *g;
 
-  if ((dh = DH_new()) == nullptr)
-    return (nullptr);
-  dh->p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), nullptr);
-  dh->g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), nullptr);
-  if ((dh->p == nullptr) || (dh->g == nullptr)) {
-    DH_free(dh);
-    return (nullptr);
+  if ((dh = DH_new()) == nullptr) {
+    return nullptr;
   }
+  p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), nullptr);
+  g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), nullptr);
+  if (p == nullptr || g == nullptr) {
+    DH_free(dh);
+    BN_free(p);
+    BN_free(g);
+    return nullptr;
+  }
+  DH_set0_pqg(dh, p, nullptr, g);
   return (dh);
 }
 #endif
@@ -1014,8 +1020,8 @@ SSLPrivateKeyHandler(SSL_CTX *ctx, const SSLConfigParams *params, const char *ke
     scoped_BIO bio(BIO_new_mem_buf(secret_data, secret_data_len));
     pkey = PEM_read_bio_PrivateKey(bio.get(), nullptr, nullptr, nullptr);
     if (nullptr == pkey) {
-      Debug("ssl_load", "failed to load server private key from %s",
-            (!keyPath || keyPath[0] == '\0') ? "[empty key path]" : keyPath);
+      Debug("ssl_load", "failed to load server private key (%.*s) from %s", secret_data_len < 50 ? secret_data_len : 50,
+            secret_data, (!keyPath || keyPath[0] == '\0') ? "[empty key path]" : keyPath);
       return false;
     }
     if (!SSL_CTX_use_PrivateKey(ctx, pkey)) {
@@ -2008,7 +2014,8 @@ SSLMultiCertConfigLoader::load(SSLCertLookup *lookup)
   REC_ReadConfigInteger(elevate_setting, "proxy.config.ssl.cert.load_elevated");
   ElevateAccess elevate_access(elevate_setting ? ElevateAccess::FILE_PRIVILEGE : 0);
 
-  line = tokLine(content.data(), &tok_state);
+  bool error_p = false;
+  line         = tokLine(content.data(), &tok_state);
   while (line != nullptr) {
     line_num++;
 
@@ -2031,7 +2038,8 @@ SSLMultiCertConfigLoader::load(SSLCertLookup *lookup)
           // There must be a certificate specified unless the tunnel action is set
           if (sslMultiCertSettings->cert || sslMultiCertSettings->opt != SSLCertContextOption::OPT_TUNNEL) {
             if (!this->_store_ssl_ctx(lookup, sslMultiCertSettings)) {
-              return false;
+              Error("Failed to add certificate from \"%s\"", line);
+              error_p = true;
             }
           } else {
             Warning("No ssl_cert_name specified and no tunnel action set");
@@ -2055,7 +2063,7 @@ SSLMultiCertConfigLoader::load(SSLCertLookup *lookup)
     }
   }
 
-  return true;
+  return !error_p;
 }
 
 // Release SSL_CTX and the associated data. This works for both
@@ -2234,8 +2242,8 @@ SSLMultiCertConfigLoader::load_certs_and_cross_reference_names(
   }
 
   for (size_t i = 0; i < data.cert_names_list.size(); i++) {
-    std::string_view secret_data;
-    std::string_view secret_key_data;
+    std::string secret_data;
+    std::string secret_key_data;
     params->secrets.getOrLoadSecret(data.cert_names_list[i], data.key_list.size() > i ? data.key_list[i] : "", secret_data,
                                     secret_key_data);
     if (secret_data.empty()) {
@@ -2394,8 +2402,8 @@ SSLMultiCertConfigLoader::load_certs(SSL_CTX *ctx, const std::vector<std::string
 
   for (size_t i = 0; i < cert_names_list.size(); i++) {
     std::string keyPath = (i < key_list.size()) ? key_list[i] : "";
-    std::string_view secret_data;
-    std::string_view secret_key_data;
+    std::string secret_data;
+    std::string secret_key_data;
     params->secrets.getOrLoadSecret(cert_names_list[i], keyPath, secret_data, secret_key_data);
     if (secret_data.empty()) {
       SSLError("failed to load certificate secret for %s with key path %s", cert_names_list[i].c_str(),
@@ -2431,6 +2439,7 @@ SSLMultiCertConfigLoader::load_certs(SSL_CTX *ctx, const std::vector<std::string
     }
 
     if (secret_key_data.empty()) {
+      Debug("ssl_load", "empty private key for public key %s", cert_names_list[i].c_str());
       secret_key_data = secret_data;
     }
     if (!SSLPrivateKeyHandler(ctx, params, keyPath.c_str(), secret_key_data.data(), secret_key_data.size())) {
@@ -2593,11 +2602,11 @@ SSLSessionDup(SSL_SESSION *sess)
     return nullptr;
   }
   uint8_t *buf = static_cast<uint8_t *>(alloca(len));
-  uint8_t **tmp = &buf;
+  uint8_t *tmp = buf;
 
-  i2d_SSL_SESSION(sess, tmp);
-  tmp = &buf;
-  if (d2i_SSL_SESSION(&duplicated, const_cast<const uint8_t **>(tmp), len) == nullptr) {
+  i2d_SSL_SESSION(sess, &tmp);
+  tmp = buf;
+  if (d2i_SSL_SESSION(&duplicated, const_cast<const uint8_t **>(&tmp), len) == nullptr) {
     return nullptr;
   }
 

@@ -40,7 +40,7 @@ pv_dir="${pv_name}-${pv_version}"
 pv_tar_filename="${pv_dir}.tar.gz"
 pv_tar="${pv_top_dir}/${pv_tar_filename}"
 pv_tar_url="https://ci.trafficserver.apache.org/bintray/${pv_tar_filename}"
-expected_sha1="d939629949bafe6df8821e5d441762066cc6d556"
+expected_sha1="0f189a37596d7488b5b81b5547df6fc1eadf56a1"
 pv_client="${bin_dir}/verifier-client"
 pv_server="${bin_dir}/verifier-server"
 TAR=${TAR:-tar}
@@ -76,10 +76,31 @@ EOF
     pv_os_dir=""
     case $(uname -s) in
     Darwin)
-        pv_os_dir="${pv_unpack_dir}/${pv_dir}/mac-os"
+        case $(uname -m) in
+        x86_64)
+            pv_os_dir="${pv_unpack_dir}/${pv_dir}/darwin-amd64"
+            ;;
+        arm64)
+            pv_os_dir="${pv_unpack_dir}/${pv_dir}/darwin-arm64"
+            ;;
+        *)
+            fail "Unrecognized Mac architecture: $(uname -m)"
+            ;;
+        esac
         ;;
     Linux)
         pv_os_dir="${pv_unpack_dir}/${pv_dir}/linux"
+        case $(uname -m) in
+        x86_64)
+            pv_os_dir="${pv_unpack_dir}/${pv_dir}/linux-amd64"
+            ;;
+        aarch64)
+            pv_os_dir="${pv_unpack_dir}/${pv_dir}/linux-arm64"
+            ;;
+        *)
+            fail "Unrecognized Linux architecture: $(uname -m)"
+            ;;
+        esac
         ;;
     *)
         fail "We need to build proxy-verifier for $(uname -s)"

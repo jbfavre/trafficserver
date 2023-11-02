@@ -639,8 +639,21 @@ Lagain:
     goto Lagain;
   }
 Llink:
-  dir_set_next(e, dir_next(b));
-  dir_set_next(b, dir_to_offset(e, seg));
+  // dir_probe searches from head to tail of list and resumes from last_collision.
+  // Need to insert at the tail of the list so that no entries can be inserted
+  // before last_collision. This means walking the entire list on each insert,
+  // but at least the lists are completely in memory and should be quite short
+  Dir *prev, *last;
+
+  l    = 0;
+  last = b;
+  do {
+    prev = last;
+    last = next_dir(last, seg);
+  } while (last && (++l <= d->buckets * DIR_DEPTH));
+
+  dir_set_next(e, 0);
+  dir_set_next(prev, dir_to_offset(e, seg));
 Lfill:
   dir_assign_data(e, to_part);
   dir_set_tag(e, key->slice32(2));
@@ -716,8 +729,18 @@ Lagain:
   }
 Llink:
   CACHE_INC_DIR_USED(d->mutex);
-  dir_set_next(e, dir_next(b));
-  dir_set_next(b, dir_to_offset(e, seg));
+  // as with dir_insert above, need to insert new entries at the tail of the linked list
+  Dir *prev, *last;
+
+  l    = 0;
+  last = b;
+  do {
+    prev = last;
+    last = next_dir(last, seg);
+  } while (last && (++l <= d->buckets * DIR_DEPTH));
+
+  dir_set_next(e, 0);
+  dir_set_next(prev, dir_to_offset(e, seg));
 Lfill:
   dir_assign_data(e, dir);
   dir_set_tag(e, t);
@@ -1081,7 +1104,7 @@ Lrestart:
     }
 
     if (!vol->dir_sync_in_progress) {
-      start_time = Thread::get_hrtime();
+      start_time = ink_get_hrtime();
     }
 
     // recompute hit_evacuate_window
@@ -1163,7 +1186,7 @@ Lrestart:
     } else {
       vol->dir_sync_in_progress = false;
       CACHE_INCREMENT_DYN_STAT(cache_directory_sync_count_stat);
-      CACHE_SUM_DYN_STAT(cache_directory_sync_time_stat, Thread::get_hrtime() - start_time);
+      CACHE_SUM_DYN_STAT(cache_directory_sync_time_stat, ink_get_hrtime() - start_time);
       start_time = 0;
       goto Ldone;
     }
@@ -1477,19 +1500,19 @@ EXCLUSIVE_REGRESSION_TEST(Cache_dir)(RegressionTest *t, int /* atype ATS_UNUSED 
   // test insert-delete
   rprintf(t, "insert-delete test\n");
   regress_rand_init(13);
-  ttime = Thread::get_hrtime_updated();
+  ttime = ink_get_hrtime();
   for (i = 0; i < newfree; i++) {
     regress_rand_CacheKey(&key);
     dir_insert(&key, d, &dir);
   }
-  uint64_t us = (Thread::get_hrtime_updated() - ttime) / HRTIME_USECOND;
+  uint64_t us = (ink_get_hrtime() - ttime) / HRTIME_USECOND;
   // On windows us is sometimes 0. I don't know why.
   // printout the insert rate only if its not 0
   if (us) {
     rprintf(t, "insert rate = %d / second\n", static_cast<int>((newfree * static_cast<uint64_t>(1000000)) / us));
   }
   regress_rand_init(13);
-  ttime = Thread::get_hrtime_updated();
+  ttime = ink_get_hrtime();
   for (i = 0; i < newfree; i++) {
     Dir *last_collision = nullptr;
     regress_rand_CacheKey(&key);
@@ -1497,7 +1520,7 @@ EXCLUSIVE_REGRESSION_TEST(Cache_dir)(RegressionTest *t, int /* atype ATS_UNUSED 
       ret = REGRESSION_TEST_FAILED;
     }
   }
-  us = (Thread::get_hrtime_updated() - ttime) / HRTIME_USECOND;
+  us = (ink_get_hrtime() - ttime) / HRTIME_USECOND;
   // On windows us is sometimes 0. I don't know why.
   // printout the probe rate only if its not 0
   if (us) {

@@ -21,12 +21,9 @@
   limitations under the License.
  */
 
-#include <cstdio>
 #include <atomic>
 #include <string_view>
-#include <tuple>
-#include <unordered_map>
-#include <string_view>
+#include <string>
 
 #include "tscore/ink_platform.h"
 #include "tscore/ink_base64.h"
@@ -1362,7 +1359,7 @@ APIHook::prev() const
 int
 APIHook::invoke(int event, void *edata) const
 {
-  if ((event == EVENT_IMMEDIATE) || (event == EVENT_INTERVAL) || event == TS_EVENT_HTTP_TXN_CLOSE) {
+  if (event == EVENT_IMMEDIATE || event == EVENT_INTERVAL || event == TS_EVENT_HTTP_TXN_CLOSE) {
     if (ink_atomic_increment((int *)&m_cont->m_event_count, 1) < 0) {
       ink_assert(!"not reached");
     }
@@ -1372,6 +1369,20 @@ APIHook::invoke(int event, void *edata) const
     // If we cannot get the lock, the caller needs to restructure to handle rescheduling
     ink_release_assert(0);
   }
+  return m_cont->handleEvent(event, edata);
+}
+
+int
+APIHook::blocking_invoke(int event, void *edata) const
+{
+  if (event == EVENT_IMMEDIATE || event == EVENT_INTERVAL || event == TS_EVENT_HTTP_TXN_CLOSE) {
+    if (ink_atomic_increment((int *)&m_cont->m_event_count, 1) < 0) {
+      ink_assert(!"not reached");
+    }
+  }
+
+  WEAK_SCOPED_MUTEX_LOCK(lock, m_cont->mutex, this_ethread());
+
   return m_cont->handleEvent(event, edata);
 }
 
@@ -1431,33 +1442,20 @@ APIHook const *
 HttpHookState::getNext()
 {
   APIHook const *zret = nullptr;
-  do {
-    APIHook const *hg   = _global.candidate();
-    APIHook const *hssn = _ssn.candidate();
-    APIHook const *htxn = _txn.candidate();
-    zret                = nullptr;
 
-    Debug("plugin", "computing next callback for hook %d", _id);
+#ifdef DEBUG
+  Debug("plugin", "computing next callback for hook %d", _id);
+#endif
 
-    if (hg) {
-      zret = hg;
-      ++_global;
-    } else if (hssn) {
-      zret = hssn;
-      ++_ssn;
-    } else if (htxn) {
-      zret = htxn;
-      ++_txn;
-    }
-  } while (zret != nullptr && !this->is_enabled());
+  if (zret = _global.candidate(); zret) {
+    ++_global;
+  } else if (zret = _ssn.candidate(); zret) {
+    ++_ssn;
+  } else if (zret = _txn.candidate(); zret) {
+    ++_txn;
+  }
 
   return zret;
-}
-
-bool
-HttpHookState::is_enabled()
-{
-  return true;
 }
 
 void
@@ -1919,7 +1917,7 @@ TSdrandom()
 ink_hrtime
 TShrtime()
 {
-  return Thread::get_hrtime();
+  return ink_get_hrtime();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -5978,6 +5976,20 @@ TSHttpTxnNextHopNameGet(TSHttpTxn txnp)
   return sm->t_state.current.server->name;
 }
 
+int
+TSHttpTxnNextHopPortGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  auto sm = reinterpret_cast<HttpSM const *>(txnp);
+  /**
+   * Return -1 if the server structure is not yet constructed.
+   */
+  if (nullptr == sm->t_state.current.server) {
+    return -1;
+  }
+  return sm->t_state.current.server->dst_addr.host_order_port();
+}
+
 TSReturnCode
 TSHttpTxnOutgoingTransparencySet(TSHttpTxn txnp, int flag)
 {
@@ -7233,7 +7245,7 @@ TSVConnFdCreate(int fd)
   vc->action_ = &a;
 
   vc->id          = net_next_connection_number();
-  vc->submit_time = Thread::get_hrtime();
+  vc->submit_time = ink_get_hrtime();
   vc->mutex       = new_ProxyMutex();
   vc->set_is_transparent(false);
   vc->set_context(NET_VCONNECTION_OUT);
@@ -8420,6 +8432,56 @@ TSHttpTxnIsInternal(TSHttpTxn txnp)
   return TSHttpSsnIsInternal(TSHttpTxnSsnGet(txnp));
 }
 
+static void
+txn_error_get(TSHttpTxn txnp, bool client, bool sent, uint32_t &error_class, uint64_t &error_code)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm                                                = reinterpret_cast<HttpSM *>(txnp);
+  HttpTransact::ConnectionAttributes *connection_attributes = nullptr;
+
+  if (client == true) {
+    // client
+    connection_attributes = &sm->t_state.client_info;
+  } else {
+    // server
+    connection_attributes = &sm->t_state.server_info;
+  }
+
+  if (sent == true) {
+    // sent
+    error_code  = connection_attributes->tx_error_code.code;
+    error_class = static_cast<uint32_t>(connection_attributes->tx_error_code.cls);
+  } else {
+    // received
+    error_code  = connection_attributes->rx_error_code.code;
+    error_class = static_cast<uint32_t>(connection_attributes->rx_error_code.cls);
+  }
+}
+
+void
+TSHttpTxnClientReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, true, false, *error_class, *error_code);
+}
+
+void
+TSHttpTxnClientSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, true, true, *error_class, *error_code);
+}
+
+void
+TSHttpTxnServerReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, false, false, *error_class, *error_code);
+}
+
+void
+TSHttpTxnServerSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code)
+{
+  txn_error_get(txnp, false, true, *error_class, *error_code);
+}
+
 TSReturnCode
 TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len)
 {
@@ -9558,6 +9620,14 @@ TSVConnSslConnectionGet(TSVConn sslp)
   return ssl;
 }
 
+int
+TSVConnFdGet(TSVConn vconnp)
+{
+  sdk_assert(sdk_sanity_check_null_ptr(vconnp) == TS_SUCCESS);
+  NetVConnection *vc = reinterpret_cast<NetVConnection *>(vconnp);
+  return vc->get_socket();
+}
+
 const char *
 TSVConnSslSniGet(TSVConn sslp, int *length)
 {
@@ -9627,75 +9697,6 @@ TSSslContextFindByAddr(struct sockaddr const *addr)
     SSLCertificateConfig::release(lookup);
   }
   return ret;
-}
-
-/**
- * This function sets the secret cache value for a given secret name.  This allows
- * plugins to load cert/key PEM information on for use by the TLS core
- */
-tsapi TSReturnCode
-TSSslSecretSet(const char *secret_name, int secret_name_length, const char *secret_data, int secret_data_len)
-{
-  TSReturnCode retval          = TS_SUCCESS;
-  SSLConfigParams *load_params = SSLConfig::load_acquire();
-  SSLConfigParams *params      = SSLConfig::acquire();
-  if (load_params != nullptr) { // Update the current data structure
-    Debug("ssl.cert_update", "Setting secrets in SSLConfig load for: %.*s", secret_name_length, secret_name);
-    if (!load_params->secrets.setSecret(std::string(secret_name, secret_name_length), secret_data, secret_data_len)) {
-      retval = TS_ERROR;
-    }
-    load_params->updateCTX(std::string(secret_name, secret_name_length));
-    SSLConfig::load_release(load_params);
-  }
-  if (params != nullptr) {
-    Debug("ssl.cert_update", "Setting secrets in SSLConfig for: %.*s", secret_name_length, secret_name);
-    if (!params->secrets.setSecret(std::string(secret_name, secret_name_length), secret_data, secret_data_len)) {
-      retval = TS_ERROR;
-    }
-    params->updateCTX(std::string(secret_name, secret_name_length));
-    SSLConfig::release(params);
-  }
-  return retval;
-}
-
-tsapi TSReturnCode
-TSSslSecretUpdate(const char *secret_name, int secret_name_length)
-{
-  TSReturnCode retval     = TS_SUCCESS;
-  SSLConfigParams *params = SSLConfig::acquire();
-  if (params != nullptr) {
-    params->updateCTX(std::string(secret_name, secret_name_length));
-  }
-  SSLConfig::release(params);
-  return retval;
-}
-
-tsapi TSReturnCode
-TSSslSecretGet(const char *secret_name, int secret_name_length, const char **secret_data_return, int *secret_data_len)
-{
-  bool loading            = true;
-  TSReturnCode retval     = TS_SUCCESS;
-  SSLConfigParams *params = SSLConfig::load_acquire();
-  if (params == nullptr) {
-    params  = SSLConfig::acquire();
-    loading = false;
-  }
-  std::string_view secret_data;
-  if (!params->secrets.getSecret(std::string(secret_name, secret_name_length), secret_data)) {
-    retval = TS_ERROR;
-  }
-  if (secret_data_return) {
-    *secret_data_return = secret_data.data();
-  }
-  if (secret_data_len) {
-    *secret_data_len = secret_data.size();
-  }
-  if (loading) {
-    SSLConfig::load_release(params);
-  } else {
-    SSLConfig::release(params);
-  }
-  return retval;
 }
 
 /**

@@ -122,7 +122,7 @@ QUICNetProcessor::connect_re(Continuation *cont, sockaddr const *remote_addr, Ne
   Action *status;
   bool result = udpNet.CreateUDPSocket(&fd, remote_addr, &status, *opt);
   if (!result) {
-    vc->free(t);
+    vc->free_thread(t);
     return status;
   }
 
@@ -157,7 +157,7 @@ QUICNetProcessor::connect_re(Continuation *cont, sockaddr const *remote_addr, Ne
   vc->id = net_next_connection_number();
   vc->set_context(NET_VCONNECTION_OUT);
   vc->con.setRemote(remote_addr);
-  vc->submit_time = Thread::get_hrtime();
+  vc->submit_time = ink_get_hrtime();
   vc->mutex       = cont->mutex;
   vc->action_     = cont;
 

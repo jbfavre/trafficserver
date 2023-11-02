@@ -621,7 +621,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
       readSignalError(nh, err);
     } else if (ret == SSL_HANDSHAKE_WANT_READ || ret == SSL_HANDSHAKE_WANT_ACCEPT) {
       if (SSLConfigParams::ssl_handshake_timeout_in > 0) {
-        double handshake_time = (static_cast<double>(Thread::get_hrtime() - this->get_tls_handshake_begin_time()) / 1000000000);
+        double handshake_time = (static_cast<double>(ink_get_hrtime() - this->get_tls_handshake_begin_time()) / 1000000000);
         Debug("ssl", "ssl handshake for vc %p, took %.3f seconds, configured handshake_timer: %d", this, handshake_time,
               SSLConfigParams::ssl_handshake_timeout_in);
         if (handshake_time > SSLConfigParams::ssl_handshake_timeout_in) {
@@ -763,7 +763,7 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf
   // Dynamic TLS record sizing
   ink_hrtime now = 0;
   if (SSLConfigParams::ssl_maxrecord == -1) {
-    now                       = Thread::get_hrtime_updated();
+    now                       = ink_get_hrtime();
     int msec_since_last_write = ink_hrtime_diff_msec(now, sslLastWriteTime);
 
     if (msec_since_last_write > SSL_DEF_TLS_RECORD_MSEC_THRESHOLD) {
@@ -868,7 +868,9 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf
       break;
     }
     case SSL_ERROR_SYSCALL:
-      num_really_written = -errno;
+      // SSL_ERROR_SYSCALL is an IO error. errno is likely 0, so set EPIPE, as
+      // we do with SSL_ERROR_SSL below, to indicate a connection error.
+      num_really_written = -EPIPE;
       SSL_INCREMENT_DYN_STAT(ssl_error_syscall);
       Debug("ssl.error", "SSL_write-SSL_ERROR_SYSCALL");
       break;
@@ -979,7 +981,7 @@ SSLNetVConnection::clear()
   super::clear();
 }
 void
-SSLNetVConnection::free(EThread *t)
+SSLNetVConnection::free_thread(EThread *t)
 {
   ink_release_assert(t == this_ethread());
 

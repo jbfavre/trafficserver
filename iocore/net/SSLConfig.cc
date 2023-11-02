@@ -190,6 +190,67 @@ set_paths_helper(const char *path, const char *filename, char **final_path, char
   }
 }
 
+int
+UpdateServerPolicy(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */, RecData data, void *cookie)
+{
+  SSLConfigParams *params = SSLConfig::acquire();
+  char *verify_server     = data.rec_string;
+  if (params != nullptr && verify_server != nullptr) {
+    Debug("ssl_load", "New Server Policy %s", verify_server);
+    params->SetServerPolicy(verify_server);
+  } else {
+    Debug("ssl_load", "Failed to load new Server Policy %p %p", verify_server, params);
+  }
+  return 0;
+}
+
+int
+UpdateServerPolicyProperties(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */, RecData data, void *cookie)
+{
+  SSLConfigParams *params = SSLConfig::acquire();
+  char *verify_server     = data.rec_string;
+  if (params != nullptr && verify_server != nullptr) {
+    params->SetServerPolicyProperties(verify_server);
+  }
+  return 0;
+}
+
+void
+SSLConfigParams::SetServerPolicyProperties(const char *verify_server)
+{
+  if (strcmp(verify_server, "SIGNATURE") == 0) {
+    verifyServerProperties = YamlSNIConfig::Property::SIGNATURE_MASK;
+  } else if (strcmp(verify_server, "NAME") == 0) {
+    verifyServerProperties = YamlSNIConfig::Property::NAME_MASK;
+  } else if (strcmp(verify_server, "ALL") == 0) {
+    verifyServerProperties = YamlSNIConfig::Property::ALL_MASK;
+  } else if (strcmp(verify_server, "NONE") == 0) {
+    verifyServerProperties = YamlSNIConfig::Property::NONE;
+  } else {
+    Warning("%s is invalid for proxy.config.ssl.client.verify.server.properties.  Should be one of ALL, SIGNATURE, NAME, or NONE. "
+            "Default is ALL",
+            verify_server);
+    verifyServerProperties = YamlSNIConfig::Property::NONE;
+  }
+}
+
+void
+SSLConfigParams::SetServerPolicy(const char *verify_server)
+{
+  if (strcmp(verify_server, "DISABLED") == 0) {
+    verifyServerPolicy = YamlSNIConfig::Policy::DISABLED;
+  } else if (strcmp(verify_server, "PERMISSIVE") == 0) {
+    verifyServerPolicy = YamlSNIConfig::Policy::PERMISSIVE;
+  } else if (strcmp(verify_server, "ENFORCED") == 0) {
+    verifyServerPolicy = YamlSNIConfig::Policy::ENFORCED;
+  } else {
+    Warning("%s is invalid for proxy.config.ssl.client.verify.server.policy.  Should be one of DISABLED, PERMISSIVE, or ENFORCED. "
+            "Default is DISABLED",
+            verify_server);
+    verifyServerPolicy = YamlSNIConfig::Policy::DISABLED;
+  }
+}
+
 void
 SSLConfigParams::initialize()
 {
@@ -380,34 +441,14 @@ SSLConfigParams::initialize()
 
   char *verify_server = nullptr;
   REC_ReadConfigStringAlloc(verify_server, "proxy.config.ssl.client.verify.server.policy");
-  if (strcmp(verify_server, "DISABLED") == 0) {
-    verifyServerPolicy = YamlSNIConfig::Policy::DISABLED;
-  } else if (strcmp(verify_server, "PERMISSIVE") == 0) {
-    verifyServerPolicy = YamlSNIConfig::Policy::PERMISSIVE;
-  } else if (strcmp(verify_server, "ENFORCED") == 0) {
-    verifyServerPolicy = YamlSNIConfig::Policy::ENFORCED;
-  } else {
-    Warning("%s is invalid for proxy.config.ssl.client.verify.server.policy.  Should be one of DISABLED, PERMISSIVE, or ENFORCED",
-            verify_server);
-    verifyServerPolicy = YamlSNIConfig::Policy::DISABLED;
-  }
+  this->SetServerPolicy(verify_server);
   ats_free(verify_server);
+  REC_RegisterConfigUpdateFunc("proxy.config.ssl.client.verify.server.policy", UpdateServerPolicy, nullptr);
 
   REC_ReadConfigStringAlloc(verify_server, "proxy.config.ssl.client.verify.server.properties");
-  if (strcmp(verify_server, "SIGNATURE") == 0) {
-    verifyServerProperties = YamlSNIConfig::Property::SIGNATURE_MASK;
-  } else if (strcmp(verify_server, "NAME") == 0) {
-    verifyServerProperties = YamlSNIConfig::Property::NAME_MASK;
-  } else if (strcmp(verify_server, "ALL") == 0) {
-    verifyServerProperties = YamlSNIConfig::Property::ALL_MASK;
-  } else if (strcmp(verify_server, "NONE") == 0) {
-    verifyServerProperties = YamlSNIConfig::Property::NONE;
-  } else {
-    Warning("%s is invalid for proxy.config.ssl.client.verify.server.properties.  Should be one of SIGNATURE, NAME, or ALL",
-            verify_server);
-    verifyServerProperties = YamlSNIConfig::Property::NONE;
-  }
+  this->SetServerPolicyProperties(verify_server);
   ats_free(verify_server);
+  REC_RegisterConfigUpdateFunc("proxy.config.ssl.client.verify.server.properties", UpdateServerPolicyProperties, nullptr);
 
   ssl_client_cert_filename = nullptr;
   ssl_client_cert_path     = nullptr;
@@ -562,9 +603,9 @@ SSLCertificateConfig::reconfigure()
     retStatus = false;
   }
 
-  // If there are errors in the certificate configs and we had wanted to exit on error
-  // we won't want to reset the config
-  if (retStatus || !params->configExitOnLoadError) {
+  // If there are errors in the certificate configs force the load anyway if there
+  // is no configuration at all (i.e. this is the initial load).
+  if (retStatus || 0 == configid) {
     configid = configProcessor.set(configid, lookup);
   } else {
     delete lookup;
@@ -739,6 +780,24 @@ cleanup_bio(BIO *&biop)
 void
 SSLConfigParams::updateCTX(const std::string &cert_secret_name) const
 {
+  Debug("ssl_config_updateCTX", "Update cert %s, %p", cert_secret_name.c_str(), this);
+
+  // Instances of SSLConfigParams should access by one thread at a time only.  secret_for_updateCTX is accessed
+  // atomically as a fail-safe.
+  //
+  char const *expected = nullptr;
+  if (!secret_for_updateCTX.compare_exchange_strong(expected, cert_secret_name.c_str())) {
+    if (is_debug_tag_set("ssl_config_updateCTX")) {
+      // As a fail-safe, handle it if secret_for_updateCTX doesn't or no longer points to a null-terminated string.
+      //
+      char const *s{expected};
+      for (; *s && (std::size_t(s - expected) < cert_secret_name.size()); ++s) {
+      }
+      Debug("ssl_config_updateCTX", "Update cert, indirect recusive call caused by call for %.*s", int(s - expected), expected);
+    }
+    return;
+  }
+
   // Clear the corresponding client CTXs.  They will be lazy loaded later
   Debug("ssl_load", "Update cert %s", cert_secret_name.c_str());
   this->clearCTX(cert_secret_name);
@@ -746,6 +805,8 @@ SSLConfigParams::updateCTX(const std::string &cert_secret_name) const
   // Update the server cert
   SSLMultiCertConfigLoader loader(this);
   loader.update_ssl_ctx(cert_secret_name);
+
+  secret_for_updateCTX = nullptr;
 }
 
 void
@@ -800,8 +861,8 @@ SSLConfigParams::getCTX(const std::string &client_cert, const std::string &key_f
 
     // Set public and private keys
     if (!client_cert.empty()) {
-      std::string_view secret_data;
-      std::string_view secret_key_data;
+      std::string secret_data;
+      std::string secret_key_data;
 
       // Fetch the client_cert data
       std::string completeSecretPath{Layout::get()->relative_to(this->clientCertPathOnly, client_cert)};
@@ -832,7 +893,8 @@ SSLConfigParams::getCTX(const std::string &client_cert, const std::string &key_f
           SSLError("failed to attach client chain certificate from %s", client_cert.c_str());
           goto fail;
         }
-        X509_free(cert);
+        // Do not free cert becasue SSL_CTX_add_extra_chain_cert takes ownership of cert if it succeeds, unlike
+        // SSL_CTX_use_certificate.
         cert = PEM_read_bio_X509(biop, nullptr, nullptr, nullptr);
       }
 

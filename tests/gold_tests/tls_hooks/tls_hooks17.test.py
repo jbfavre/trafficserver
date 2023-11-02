@@ -26,7 +26,6 @@ Test different combinations of TLS handshake hooks to ensure they are applied co
 
 Test.SkipUnless(
     Condition.HasOpenSSLVersion("1.1.1"),
-    Condition.IsOpenSSL()
 )
 
 ts = Test.MakeATSProcess("ts", select_ports=True, enable_tls=True)
@@ -52,7 +51,7 @@ ts.Disk.remap_config.AddLine(
     'map https://example.com:{1} http://127.0.0.1:{0}'.format(server.Variables.Port, ts.Variables.ssl_port)
 )
 
-Test.PrepareTestPlugin(os.path.join(Test.Variables.AtsTestPluginsDir, 'ssl_hook_test.so'), ts, '-client_hello=1')
+Test.PrepareTestPlugin(os.path.join(Test.Variables.AtsTestPluginsDir, 'ssl_hook_test.so'), ts, '-client_hello=1 -close=1')
 
 tr = Test.AddTestRun("Test one delayed client hello hook")
 tr.Processes.Default.StartBefore(server)
@@ -67,7 +66,7 @@ ts.Disk.traffic_out.Content = "gold/ts-client-hello-delayed-1.gold"
 
 snistring = "Client Hello callback 0"
 ts.Disk.traffic_out.Content = Testers.ContainsExpression(
-    "\A(?:(?!{0}).)*{0}(?!.*{0}).*\Z".format(snistring), "Client Hello message appears only once", reflags=re.S | re.M)
+    r"\A(?:(?!{0}).)*{0}(?!.*{0}).*\Z".format(snistring), "Client Hello message appears only once", reflags=re.S | re.M)
 
 tr.Processes.Default.TimeOut = 15
 tr.TimeOut = 15

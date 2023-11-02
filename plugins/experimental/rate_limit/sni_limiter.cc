@@ -151,12 +151,14 @@ SniRateLimiter::initialize(int argc, const char *argv[])
     {const_cast<char *>("iprep_maxage"), required_argument, nullptr, 'a'},
     {const_cast<char *>("iprep_buckets"), required_argument, nullptr, 'B'},
     {const_cast<char *>("iprep_bucketsize"), required_argument, nullptr, 'S'},
+    {const_cast<char *>("iprep_percentage"), required_argument, nullptr, 'C'},
     {const_cast<char *>("iprep_permablock_limit"), required_argument, nullptr, 'L'},
     {const_cast<char *>("iprep_permablock_pressure"), required_argument, nullptr, 'P'},
     {const_cast<char *>("iprep_permablock_maxage"), required_argument, nullptr, 'A'},
     // EOF
     {nullptr, no_argument, nullptr, '\0'},
   };
+  optind = 1;
 
   TSDebug(PLUGIN_NAME, "Initializing an SNI Rate Limiter");
 
@@ -191,6 +193,9 @@ SniRateLimiter::initialize(int argc, const char *argv[])
       break;
     case 'S':
       this->_iprep_size = strtol(optarg, nullptr, 10);
+      break;
+    case 'C':
+      this->_iprep_percent = strtol(optarg, nullptr, 10);
       break;
     case 'L':
       this->iprep_permablock_count = strtol(optarg, nullptr, 10);

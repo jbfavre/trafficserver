@@ -1289,6 +1289,8 @@ tsapi void TSVConnReenableEx(TSVConn sslvcp, TSEvent event);
 tsapi TSReturnCode TSVConnTunnel(TSVConn sslp);
 /*  Return the SSL object associated with the connection */
 tsapi TSSslConnection TSVConnSslConnectionGet(TSVConn sslp);
+/* Return the file descriptoer associated with the connection */
+int TSVConnFdGet(TSVConn sslp);
 /* Return the intermediate X509StoreCTX object that references the certificate being validated */
 tsapi TSSslVerifyCTX TSVConnSslVerifyCTXGet(TSVConn sslp);
 /*  Fetch a SSL context from the global lookup table */
@@ -1301,13 +1303,6 @@ tsapi TSSslContext TSSslClientContextFindByName(const char *ca_paths, const char
 /* Update SSL certs in internal storage from given path */
 tsapi TSReturnCode TSSslClientCertUpdate(const char *cert_path, const char *key_path);
 tsapi TSReturnCode TSSslServerCertUpdate(const char *cert_path, const char *key_path);
-
-/* Update the transient secret table for SSL_CTX loading */
-tsapi TSReturnCode TSSslSecretSet(const char *secret_name, int secret_name_length, const char *secret_data, int secret_data_len);
-tsapi TSReturnCode TSSslSecretGet(const char *secret_name, int secret_name_length, const char **secret_data_return,
-                                  int *secret_data_len);
-
-tsapi TSReturnCode TSSslSecretUpdate(const char *secret_name, int secret_name_length);
 
 /* Create a new SSL context based on the settings in records.config */
 tsapi TSSslContext TSSslServerContextCreate(TSSslX509 cert, const char *certname, const char *rsp_file);
@@ -1489,6 +1484,16 @@ tsapi struct sockaddr const *TSHttpTxnNextHopAddrGet(TSHttpTxn txnp);
     @return The name of the next hop for transaction @a txnp.
 */
 tsapi const char *TSHttpTxnNextHopNameGet(TSHttpTxn txnp);
+
+/** Get the next hop port.
+ *
+    Retrieves the next hop parent port.
+                Returns -1 if not valid.
+
+    @return The port of the next hop for transaction @a txnp.
+
+ */
+tsapi int TSHttpTxnNextHopPortGet(TSHttpTxn txnp);
 
 tsapi TSReturnCode TSHttpTxnClientFdGet(TSHttpTxn txnp, int *fdp);
 tsapi TSReturnCode TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, struct sockaddr const *addr);
@@ -2657,6 +2662,42 @@ tsapi void TSHttpTxnResponseActionGet(TSHttpTxn txnp, TSResponseAction *action);
  * Get a TSIOBufferReader to read the buffered body. The return value needs to be freed.
  */
 tsapi TSIOBufferReader TSHttpTxnPostBufferReaderGet(TSHttpTxn txnp);
+
+/**
+ * @brief Get the client error received from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code received from the client
+ */
+void TSHttpTxnClientReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
+
+/**
+ * @brief Get the client error sent from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code sent to the client
+ */
+void TSHttpTxnClientSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
+
+/**
+ * @brief Get the server error received from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code sent from the server
+ */
+void TSHttpTxnServerReceivedErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
+
+/**
+ * @brief Get the server error sent from the transaction
+ *
+ * @param txnp The transaction where the error code is stored
+ * @param error_class Either session/connection or stream/transaction error
+ * @param error_code Error code sent to the server
+ */
+void TSHttpTxnServerSentErrorGet(TSHttpTxn txnp, uint32_t *error_class, uint64_t *error_code);
 
 /**
  * Initiate an HTTP/2 Server Push preload request.
