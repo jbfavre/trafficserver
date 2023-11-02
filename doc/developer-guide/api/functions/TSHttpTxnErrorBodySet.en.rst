@@ -26,9 +26,7 @@ Sets an error type body to a transaction.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSHttpTxnErrorBodySet(TSHttpTxn txnp, char * buf, size_t buflength, char * mimetype)
 
@@ -38,4 +36,4 @@ Description
 Note that both string arguments must be allocated with :c:func:`TSmalloc` or
 :c:func:`TSstrdup`.  The :arg:`mimetype` is optional, and if not provided it
 defaults to :literal:`text/html`. Sending an empty string would prevent setting
-a content type header (but that is not advised).
+a content type header (but that is not adviced).

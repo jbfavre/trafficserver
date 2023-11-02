@@ -5,10 +5,11 @@
 > Accept: */*
 ``
 < HTTP/2 200 ``
-``
-< content-type: application/json; encoding=utf-8
+< server: ATS/``
 < date: ``
+< content-type: application/json
+``
 < content-length: ``
 < age: ``
 < via: ``ApacheTrafficServer/``
-< server: ATS/``
+``

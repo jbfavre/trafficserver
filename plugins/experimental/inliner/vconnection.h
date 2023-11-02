@@ -82,7 +82,7 @@ namespace io
           }
         } break;
         default:
-          assert(false); // UNREACHABLE.
+          assert(false); // UNRECHEABLE.
           break;
         }
         return TS_SUCCESS;

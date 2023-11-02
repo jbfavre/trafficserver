@@ -21,6 +21,8 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _TEST_RECORDS_CONFIG_H_
 
 void RecordsConfigRegister();
+
+#endif

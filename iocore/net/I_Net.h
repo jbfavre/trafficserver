@@ -22,9 +22,9 @@
 
   @section details Details
 
-  Net subsystem is a layer on top the operations system network apis. It
+  Net subsystem is a layer on top the operations sytem network apis. It
   provides an interface for accepting/creating new connection oriented
-  (TCP) and connection less (UDP) connections and for reading/writing
+  (TCP) and connection less (UDP) connetions and for reading/writing
   data through these. The net system can manage 1000s of connections
   very efficiently. Another advantage of using the net system is that
   the SMs dont have be concerned about differences in the net apis of
@@ -50,9 +50,12 @@
 #define NET_MAX_IOV UIO_MAXIOV
 #endif
 
-static constexpr ts::ModuleVersion NET_SYSTEM_MODULE_PUBLIC_VERSION(1, 0, ts::ModuleVersion::PUBLIC);
+#define NET_SYSTEM_MODULE_MAJOR_VERSION 1
+#define NET_SYSTEM_MODULE_MINOR_VERSION 0
+#define NET_SYSTEM_MODULE_VERSION \
+  makeModuleVersion(NET_SYSTEM_MODULE_MAJOR_VERSION, NET_SYSTEM_MODULE_MINOR_VERSION, PUBLIC_MODULE_HEADER)
 
-static constexpr int NO_FD = -1;
+static int const NO_FD = -1;
 
 // All in milli-seconds
 extern int net_config_poll_timeout;
@@ -93,4 +96,4 @@ extern std::string_view net_ccp_out;
 #include "I_NetProcessor.h"
 #include "I_SessionAccept.h"
 
-void ink_net_init(ts::ModuleVersion version);
+void ink_net_init(ModuleVersion version);

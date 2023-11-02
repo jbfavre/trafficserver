@@ -49,6 +49,12 @@ libhdrs_a_SOURCES = \
 	XPACK.cc \
 	XPACK.h
 
+if BUILD_TESTS
+libhdrs_a_SOURCES += \
+	HdrTest.cc \
+	HdrTest.h
+endif
+
 load_http_hdr_SOURCES = \
 	HTTP.h \
 	HdrHeap.h \
@@ -57,11 +63,12 @@ load_http_hdr_SOURCES = \
 
 load_http_hdr_LDADD = -L. -lhdrs \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	@LIBTCL@
 
 check_PROGRAMS = \
 	test_proxy_hdrs \
-	test_hdr_heap \
+	test_mime \
 	test_Huffmancode \
 	test_XPACK
 
@@ -72,10 +79,8 @@ test_proxy_hdrs_CPPFLAGS = $(AM_CPPFLAGS) \
 
 test_proxy_hdrs_SOURCES = \
 	unit_tests/unit_test_main.cc \
-	unit_tests/test_Hdrs.cc \
-	unit_tests/test_HdrUtils.cc \
 	unit_tests/test_URL.cc \
-	unit_tests/test_mime.cc
+	unit_tests/test_Hdrs.cc
 
 test_proxy_hdrs_LDADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
@@ -87,18 +92,9 @@ test_proxy_hdrs_LDADD = \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
 	@HWLOC_LIBS@ \
-	@LIBCAP@
+	@LIBTCL@ @LIBCAP@
 
-test_hdr_heap_CPPFLAGS = $(AM_CPPFLAGS) \
-	-I$(abs_top_srcdir)/tests/include
-
-test_hdr_heap_SOURCES = \
-	unit_tests/unit_test_main.cc \
-	unit_tests/test_HdrHeap.cc
-
-test_hdr_heap_LDADD = -L. -lhdrs \
-	$(top_builddir)/src/tscore/libtscore.la \
-	-L. -lhdrs \
+test_mime_LDADD = -L. -lhdrs \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
@@ -106,7 +102,9 @@ test_hdr_heap_LDADD = -L. -lhdrs \
 	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
 	@HWLOC_LIBS@ \
-	@LIBCAP@
+	@LIBTCL@ @LIBCAP@
+
+test_mime_SOURCES = test_mime.cc
 
 test_Huffmancode_LDADD = \
 	$(top_builddir)/src/tscore/libtscore.la \

@@ -182,7 +182,7 @@ void
 Transaction::setErrorBody(const std::string &page)
 {
   LOG_DEBUG("Transaction tshttptxn=%p setting error body page length: %lu", state_->txn_, page.length());
-  char *body = static_cast<char *>(TSmalloc(page.length()));
+  char *body = (char *)TSmalloc(page.length());
   memcpy(body, page.data(), page.length());
   TSHttpTxnErrorBodySet(state_->txn_, body, page.length(), nullptr); // Default to text/html
 }
@@ -191,7 +191,7 @@ void
 Transaction::setErrorBody(const std::string &page, const std::string &mimetype)
 {
   LOG_DEBUG("Transaction tshttptxn=%p setting error body page length: %lu", state_->txn_, page.length());
-  char *body = static_cast<char *>(TSmalloc(page.length()));
+  char *body = (char *)TSmalloc(page.length());
   memcpy(body, page.data(), page.length());
   TSHttpTxnErrorBodySet(state_->txn_, body, page.length(), TSstrdup(mimetype.c_str()));
 }
@@ -280,7 +280,7 @@ Transaction::setCacheUrl(const string &cache_url)
 void
 Transaction::setSkipRemapping(int flag)
 {
-  TSHttpTxnCntlSet(state_->txn_, TS_HTTP_CNTL_SKIP_REMAPPING, flag);
+  TSSkipRemappingSet(state_->txn_, flag);
 }
 
 const sockaddr *
@@ -413,7 +413,7 @@ namespace
  * @param constructor takes a function pointer of type GetterFunction
  * @param txn a TSHttpTxn
  * @param hdr_buf the address where the hdr buf will be stored
- * @param hdr_loc the address where the mem loc will be stored
+ * @param hdr_loc the address where the mem loc will be storeds
  * @param name name of the entity - used for logging
  */
 class initializeHandles

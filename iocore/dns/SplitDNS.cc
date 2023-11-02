@@ -30,8 +30,8 @@
 
 #include "tscore/ink_platform.h"
 #include "tscore/Tokenizer.h"
-#include "tscore/Filenames.h"
 
+#ifdef SPLIT_DNS
 #include <sys/types.h>
 #include "P_SplitDNS.h"
 #include "tscore/MatcherUtils.h"
@@ -74,12 +74,14 @@ Ptr<ProxyMutex> SplitDNSConfig::dnsHandler_mutex;
 /* --------------------------------------------------------------
    SplitDNSResult::SplitDNSResult()
    -------------------------------------------------------------- */
-inline SplitDNSResult::SplitDNSResult() {}
+inline SplitDNSResult::SplitDNSResult() : r(DNS_SRVR_UNDEFINED), m_line_number(0), m_rec(nullptr), m_wrap_around(false) {}
 
 /* --------------------------------------------------------------
    SplitDNS::SplitDNS()
    -------------------------------------------------------------- */
-SplitDNS::SplitDNS() {}
+SplitDNS::SplitDNS() : m_DNSSrvrTable(nullptr), m_SplitDNSlEnable(0), m_bEnableFastPath(false), m_pxLeafArray(nullptr), m_numEle(0)
+{
+}
 
 SplitDNS::~SplitDNS()
 {
@@ -94,7 +96,7 @@ SplitDNS::~SplitDNS()
 SplitDNS *
 SplitDNSConfig::acquire()
 {
-  return static_cast<SplitDNS *>(configProcessor.get(SplitDNSConfig::m_id));
+  return (SplitDNS *)configProcessor.get(SplitDNSConfig::m_id);
 }
 
 /* --------------------------------------------------------------
@@ -128,15 +130,13 @@ SplitDNSConfig::reconfigure()
     return;
   }
 
-  Note("%s loading ...", ts::filename::SPLITDNS);
-
   SplitDNS *params = new SplitDNS;
 
   params->m_SplitDNSlEnable = gsplit_dns_enabled;
   params->m_DNSSrvrTable    = new DNS_table("proxy.config.dns.splitdns.filename", modulePrefix, &sdns_dest_tags);
 
   if (nullptr == params->m_DNSSrvrTable || (0 == params->m_DNSSrvrTable->getEntryCount())) {
-    Warning("Failed to load %s - No NAMEDs provided! Disabling SplitDNS", ts::filename::SPLITDNS);
+    Warning("No NAMEDs provided! Disabling SplitDNS");
     gsplit_dns_enabled = 0;
     delete params;
     return;
@@ -146,7 +146,7 @@ SplitDNSConfig::reconfigure()
   if (nullptr != params->m_DNSSrvrTable->getHostMatcher() && nullptr == params->m_DNSSrvrTable->getReMatcher() &&
       nullptr == params->m_DNSSrvrTable->getIPMatcher() && 4 >= params->m_numEle) {
     HostLookup *pxHL          = params->m_DNSSrvrTable->getHostMatcher()->getHLookup();
-    params->m_pxLeafArray     = pxHL->get_leaf_array();
+    params->m_pxLeafArray     = (void *)pxHL->getLArray();
     params->m_bEnableFastPath = true;
   }
 
@@ -155,8 +155,6 @@ SplitDNSConfig::reconfigure()
   if (is_debug_tag_set("splitdns_config")) {
     SplitDNSConfig::print();
   }
-
-  Note("%s finished loading", ts::filename::SPLITDNS);
 }
 
 /* --------------------------------------------------------------
@@ -216,40 +214,43 @@ SplitDNS::findServer(RequestData *rdata, SplitDNSResult *result)
 
   result->m_rec         = nullptr;
   result->m_line_number = 0xffffffff;
+  result->m_wrap_around = false;
 
   /* ---------------------------
      the 'alleged' fast path ...
      --------------------------- */
-  if (m_bEnableFastPath && m_pxLeafArray) {
+  if (m_bEnableFastPath) {
     SplitDNSRecord *data_ptr = nullptr;
-    char *pHost              = const_cast<char *>(rdata->get_host());
+    char *pHost              = (char *)rdata->get_host();
     if (nullptr == pHost) {
       Warning("SplitDNS: No host to match !");
       return;
     }
 
-    int len = strlen(pHost);
-    int n   = std::min(static_cast<size_t>(m_numEle), m_pxLeafArray->size());
-    for (int i = 0; i < n; i++) {
-      const HostLeaf &pxHL = m_pxLeafArray->at(i);
+    int len        = strlen(pHost);
+    HostLeaf *pxHL = (HostLeaf *)m_pxLeafArray;
+    for (int i = 0; i < m_numEle; i++) {
+      if (nullptr == pxHL) {
+        break;
+      }
 
-      if (false == pxHL.isNot && static_cast<int>(pxHL.match.size()) > len) {
+      if (false == pxHL[i].isNot && pxHL[i].len > len) {
         continue;
       }
 
-      int idx            = len - pxHL.match.size();
-      char *pH           = &pHost[idx];
-      const char *pMatch = pxHL.match.data();
-      char cNot          = *pMatch;
+      int idx      = len - pxHL[i].len;
+      char *pH     = &pHost[idx];
+      char *pMatch = (char *)pxHL[i].match;
+      char cNot    = *pMatch;
 
       if ('!' == cNot) {
         pMatch++;
       }
 
-      int res = memcmp(pH, pMatch, pxHL.match.size());
+      int res = memcmp(pH, pMatch, pxHL[i].len);
 
       if ((0 != res && '!' == cNot) || (0 == res && '!' != cNot)) {
-        data_ptr = static_cast<SplitDNSRecord *>(pxHL.opaque_data);
+        data_ptr = (SplitDNSRecord *)pxHL[i].opaque_data;
         data_ptr->UpdateMatch(result, rdata);
         break;
       }
@@ -292,7 +293,9 @@ SplitDNSRecord::ProcessDNSHosts(char *val)
 {
   Tokenizer pTok(",; \t\r");
   int numTok;
-  int port  = 0;
+  const char *current;
+  int port = 0;
+  char *tmp;
   int totsz = 0, sz = 0;
 
   numTok = pTok.Initialize(val, SHARE_TOKS);
@@ -309,8 +312,8 @@ SplitDNSRecord::ProcessDNSHosts(char *val)
      set of servers specified
      ------------------------------------------------ */
   for (int i = 0; i < numTok; i++) {
-    const char *current = pTok[i];
-    char *tmp           = const_cast<char *>(strchr(current, ':'));
+    current = pTok[i];
+    tmp     = (char *)strchr(current, ':');
     // coverity[secure_coding]
     if (tmp != nullptr && sscanf(tmp + 1, "%d", &port) != 1) {
       return "Malformed DNS port";
@@ -336,7 +339,7 @@ SplitDNSRecord::ProcessDNSHosts(char *val)
       if (tmp - current > (MAXDNAME - 1)) {
         return "DNS server name (ip) is too long";
       } else if (tmp - current == 0) {
-        return "server string is empty";
+        return "server string is emtpy";
       }
       *tmp = 0;
     }
@@ -394,8 +397,9 @@ SplitDNSRecord::ProcessDomainSrchList(char *val)
 {
   Tokenizer pTok(",; \t\r");
   int numTok;
-  int sz    = 0;
+  int cnt = 0, sz = 0;
   char *pSp = nullptr;
+  const char *current;
 
   numTok = pTok.Initialize(val, SHARE_TOKS);
 
@@ -406,8 +410,8 @@ SplitDNSRecord::ProcessDomainSrchList(char *val)
   pSp = &m_servers.x_domain_srch_list[0];
 
   for (int i = 0; i < numTok; i++) {
-    const char *current = pTok[i];
-    int cnt             = sz += strlen(current);
+    current = pTok[i];
+    cnt     = sz += strlen(current);
 
     if (MAXDNAME - 1 < sz) {
       break;
@@ -431,11 +435,14 @@ Result
 SplitDNSRecord::Init(matcher_line *line_info)
 {
   const char *errPtr = nullptr;
+  const char *tmp;
+  char *label;
+  char *val;
 
   this->line_num = line_info->line_num;
   for (int i = 0; i < MATCHER_MAX_TOKENS; i++) {
-    char *label = line_info->line[0][i];
-    char *val   = line_info->line[1][i];
+    label = line_info->line[0][i];
+    val   = line_info->line[1][i];
 
     if (label == nullptr) {
       continue;
@@ -470,7 +477,7 @@ SplitDNSRecord::Init(matcher_line *line_info)
   }
 
   if (!ats_is_ip(&m_servers.x_server_ip[0].sa)) {
-    return Result::failure("%s No server specified in %s at line %d", modulePrefix, ts::filename::SPLITDNS, line_num);
+    return Result::failure("%s No server specified in splitdns.config at line %d", modulePrefix, line_num);
   }
 
   DNSHandler *dnsH  = new DNSHandler;
@@ -497,9 +504,9 @@ SplitDNSRecord::Init(matcher_line *line_info)
      Process any modifiers to the directive, if they exist
      ----------------------------------------------------- */
   if (line_info->num_el > 0) {
-    const char *tmp = ProcessModifiers(line_info);
+    tmp = ProcessModifiers(line_info);
     if (tmp != nullptr) {
-      return Result::failure("%s %s at line %d in %s", modulePrefix, tmp, line_num, ts::filename::SPLITDNS);
+      return Result::failure("%s %s at line %d in splitdns.config", modulePrefix, tmp, line_num);
     }
   }
 
@@ -526,7 +533,7 @@ SplitDNSRecord::UpdateMatch(SplitDNSResult *result, RequestData * /* rdata ATS_U
     SplitDNSRecord::Print()
    -------------------------------------------------------------- */
 void
-SplitDNSRecord::Print() const
+SplitDNSRecord::Print()
 {
   for (int i = 0; i < m_dnsSrvr_cnt; i++) {
     char ab[INET6_ADDRPORTSTRLEN];
@@ -535,14 +542,16 @@ SplitDNSRecord::Print() const
 }
 
 void
-ink_split_dns_init(ts::ModuleVersion v)
+ink_split_dns_init(ModuleVersion v)
 {
   static int init_called = 0;
 
-  ink_release_assert(v.check(SPLITDNS_MODULE_INTERNAL_VERSION));
+  ink_release_assert(!checkModuleVersion(v, SPLITDNS_MODULE_VERSION));
   if (init_called) {
     return;
   }
 
   init_called = 1;
 }
+
+#endif // SPLIT_DNS

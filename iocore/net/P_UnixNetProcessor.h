@@ -43,7 +43,6 @@ public:
   NetVConnection *allocate_vc(EThread *t) override;
 
   void init() override;
-  void init_socks() override;
 
   Event *accept_thread_event;
 
@@ -51,7 +50,7 @@ public:
   off_t netHandler_offset;
   off_t pollCont_offset;
 
-  // we probably won't need these members
+  // we probably wont need these members
   int n_netthreads;
   EThread **netthreads;
 };
@@ -67,6 +66,8 @@ extern UnixNetProcessor unix_netProcessor;
 //
 // Set up a thread to receive events from the NetProcessor
 // This function should be called for all threads created to
-// accept such events by the EventProcessor.
+// accept such events by the EventProcesor.
 //
 extern void initialize_thread_for_net(EThread *thread);
+
+//#include "UnixNet.h"

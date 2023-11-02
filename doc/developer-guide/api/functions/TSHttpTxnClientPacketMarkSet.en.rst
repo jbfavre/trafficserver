@@ -23,9 +23,7 @@ TSHttpTxnClientPacketMarkSet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSHttpTxnClientPacketMarkSet(TSHttpTxn txnp, int mark)
 

@@ -24,9 +24,7 @@ Test whether a request is attempting to initiate Websocket connection.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int TSHttpTxnIsWebsocket(TSHttpTxn txnp)
 

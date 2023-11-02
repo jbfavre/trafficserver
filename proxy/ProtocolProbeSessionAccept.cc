@@ -27,12 +27,11 @@
 #include "http2/HTTP2.h"
 #include "ProxyProtocol.h"
 #include "I_NetVConnection.h"
-#include "http/HttpConfig.h"
 
 static bool
 proto_is_http2(IOBufferReader *reader)
 {
-  char buf[HTTP2_CONNECTION_PREFACE_LEN];
+  char buf[HTTP2_CONNECTION_PREFACE_LEN] = {0};
   char *end;
   ptrdiff_t nbytes;
 
@@ -67,8 +66,7 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
   {
     VIO *vio;
     NetVConnection *netvc;
-    SessionAccept *acceptor = nullptr;
-    ProtoGroupKey key       = N_PROTO_GROUPS; // use this as an invalid value.
+    ProtoGroupKey key = N_PROTO_GROUPS; // use this as an invalid value.
 
     vio   = static_cast<VIO *>(edata);
     netvc = static_cast<NetVConnection *>(vio->vc_server);
@@ -95,34 +93,34 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
     }
 
     // if proxy_protocol is enabled via port descriptor AND the src IP is in
-    // the trusted allowlist for proxy protocol, then check to see if it is
+    // the trusted whitelist for proxy protocol, then check to see if it is
     // present
 
     IpMap *pp_ipmap;
     pp_ipmap = probeParent->proxy_protocol_ipmap;
 
-    if (netvc->get_is_proxy_protocol() && netvc->get_proxy_protocol_version() == ProxyProtocolVersion::UNDEFINED) {
+    if (netvc->get_is_proxy_protocol()) {
       Debug("proxyprotocol", "ioCompletionEvent: proxy protocol is enabled on this port");
-      if (pp_ipmap->count() > 0) {
-        Debug("proxyprotocol", "ioCompletionEvent: proxy protocol has a configured allowlist of trusted IPs - checking");
+      if (pp_ipmap->getCount() > 0) {
+        Debug("proxyprotocol", "ioCompletionEvent: proxy protocol has a configured whitelist of trusted IPs - checking");
         void *payload = nullptr;
         if (!pp_ipmap->contains(netvc->get_remote_addr(), &payload)) {
           Debug("proxyprotocol",
-                "ioCompletionEvent: proxy protocol src IP is NOT in the configured allowlist of trusted IPs - closing connection");
+                "ioCompletionEvent: proxy protocol src IP is NOT in the configured whitelist of trusted IPs - closing connection");
           goto done;
         } else {
           char new_host[INET6_ADDRSTRLEN];
-          Debug("proxyprotocol", "ioCompletionEvent: Source IP [%s] is trusted in the allowlist for proxy protocol",
+          Debug("proxyprotocol", "ioCompletionEvent: Source IP [%s] is trusted in the whitelist for proxy protocol",
                 ats_ip_ntop(netvc->get_remote_addr(), new_host, sizeof(new_host)));
         }
       } else {
         Debug("proxyprotocol",
-              "ioCompletionEvent: proxy protocol DOES NOT have a configured allowlist of trusted IPs but proxy protocol is "
+              "ioCompletionEvent: proxy protocol DOES NOT have a configured whitelist of trusted IPs but proxy protocol is "
               "ernabled on this port - processing all connections");
       }
 
-      if (netvc->has_proxy_protocol(reader)) {
-        Debug("proxyprotocol", "ioCompletionEvent: http has proxy protocol header");
+      if (http_has_proxy_v1(reader, netvc)) {
+        Debug("proxyprotocol", "ioCompletionEvent: http has proxy_v1 header");
         netvc->set_remote_addr(netvc->get_proxy_protocol_src_addr());
       } else {
         Debug("proxyprotocol",
@@ -138,17 +136,15 @@ struct ProtocolProbeTrampoline : public Continuation, public ProtocolProbeSessio
       key = PROTO_HTTP;
     }
 
-    acceptor = probeParent->endpoint[key];
-    if (acceptor == nullptr) {
+    netvc->do_io_read(nullptr, 0, nullptr); // Disable the read IO that we started.
+
+    if (probeParent->endpoint[key] == nullptr) {
       Warning("Unregistered protocol type %d", key);
       goto done;
     }
 
-    // Disable the read IO that we started.
-    netvc->do_io_read(acceptor, 0, nullptr);
-
     // Directly invoke the session acceptor, letting it take ownership of the input buffer.
-    if (!acceptor->accept(netvc, this->iobuf, reader)) {
+    if (!probeParent->endpoint[key]->accept(netvc, this->iobuf, reader)) {
       // IPAllow check fails in XxxSessionAccept::accept() if false returned.
       goto done;
     }
@@ -174,14 +170,10 @@ ProtocolProbeSessionAccept::mainEvent(int event, void *data)
     ink_assert(data);
 
     VIO *vio;
-    NetVConnection *netvc          = static_cast<NetVConnection *>(data);
+    NetVConnection *netvc          = (NetVConnection *)data;
     ProtocolProbeTrampoline *probe = new ProtocolProbeTrampoline(this, netvc->mutex, nullptr, nullptr);
 
-    // The connection has completed, set the accept inactivity timeout here to watch over the difference between the
-    // connection set up and the first transaction..
-    HttpConfigParams *param = HttpConfig::acquire();
-    netvc->set_inactivity_timeout(HRTIME_SECONDS(param->accept_no_activity_timeout));
-    HttpConfig::release(param);
+    // XXX we need to apply accept inactivity timeout here ...
 
     if (!probe->reader->is_read_avail_more_than(0)) {
       Debug("http", "probe needs data, read..");
@@ -189,13 +181,13 @@ ProtocolProbeSessionAccept::mainEvent(int event, void *data)
       vio->reenable();
     } else {
       Debug("http", "probe already has data, call ioComplete directly..");
-      vio = netvc->do_io_read(this, 0, nullptr);
+      vio = netvc->do_io_read(nullptr, 0, nullptr);
       probe->ioCompletionEvent(VC_EVENT_READ_COMPLETE, (void *)vio);
     }
     return EVENT_CONT;
   }
 
-  ink_abort("Protocol probe received a fatal error: errno = %d", -(static_cast<int>((intptr_t)data)));
+  ink_abort("Protocol probe received a fatal error: errno = %d", -((int)(intptr_t)data));
   return EVENT_CONT;
 }
 

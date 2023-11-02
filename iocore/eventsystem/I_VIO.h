@@ -118,7 +118,7 @@ public:
     as they hurt system throughput and waste CPU.
 
   */
-  void reenable();
+  inkcoreapi void reenable();
 
   /**
     Reenable the IO operation.
@@ -135,7 +135,7 @@ public:
     as they hurt system throughput and waste CPU.
 
   */
-  void reenable_re();
+  inkcoreapi void reenable_re();
 
   void disable();
   bool is_disabled() const;
@@ -162,7 +162,7 @@ public:
     call with events for this operation.
 
   */
-  Continuation *cont = nullptr;
+  Continuation *cont;
 
   /**
     Number of bytes to be done for this operation.
@@ -170,7 +170,7 @@ public:
     The total number of bytes this operation must complete.
 
   */
-  int64_t nbytes = 0;
+  int64_t nbytes;
 
   /**
     Number of bytes already completed.
@@ -180,7 +180,7 @@ public:
     the lock.
 
   */
-  int64_t ndone = 0;
+  int64_t ndone;
 
   /**
     Type of operation.
@@ -188,7 +188,7 @@ public:
     The type of operation that this VIO represents.
 
   */
-  int op = VIO::NONE;
+  int op;
 
   /**
     Provides access to the reader or writer for this operation.
@@ -204,7 +204,7 @@ public:
     functions.
 
   */
-  VConnection *vc_server = nullptr;
+  VConnection *vc_server;
 
   /**
     Reference to the state machine's mutex.

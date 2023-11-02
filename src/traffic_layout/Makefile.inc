@@ -29,7 +29,7 @@ traffic_layout_traffic_layout_CPPFLAGS = \
 
 traffic_layout_traffic_layout_LDFLAGS =	\
     $(AM_LDFLAGS) \
-    @YAMLCPP_LDFLAGS@ $(BROTLIENC_LIB)
+    @YAMLCPP_LDFLAGS@
 
 traffic_layout_traffic_layout_SOURCES = \
 	traffic_layout/traffic_layout.cc \
@@ -47,4 +47,4 @@ traffic_layout_traffic_layout_LDADD = \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	@HWLOC_LIBS@ @YAMLCPP_LIBS@ @LIBLZMA@
+	@LIBTCL@ @HWLOC_LIBS@ @YAMLCPP_LIBS@

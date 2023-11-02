@@ -45,7 +45,7 @@
 typedef void (*Transform_fn)(MIOBufferAccessor &in_buf, MIOBufferAccessor &out_buf);
 
 /**
-  A generic state machine that connects two virtual connections. A
+  A generic state machine that connects two virtual conections. A
   OneWayTunnel is a module that connects two virtual connections, a source
   vc and a target vc, and copies the data between source and target. Once
   the tunnel is started using the init() call, it handles all the events
@@ -189,21 +189,21 @@ struct OneWayTunnel : public Continuation {
 
   bool last_connection();
 
-  VIO *vioSource             = nullptr;
-  VIO *vioTarget             = nullptr;
-  Continuation *cont         = nullptr;
-  Transform_fn manipulate_fn = nullptr;
-  int n_connections          = 0;
-  int lerrno                 = 0;
+  VIO *vioSource;
+  VIO *vioTarget;
+  Continuation *cont;
+  Transform_fn manipulate_fn;
+  int n_connections;
+  int lerrno;
 
-  bool single_buffer    = false;
-  bool close_source     = false;
-  bool close_target     = false;
-  bool tunnel_till_done = false;
+  bool single_buffer;
+  bool close_source;
+  bool close_target;
+  bool tunnel_till_done;
 
   /** Non-nullptr when this is one side of a two way tunnel. */
-  OneWayTunnel *tunnel_peer = nullptr;
-  bool free_vcs             = true;
+  OneWayTunnel *tunnel_peer;
+  bool free_vcs;
 
   // noncopyable
   OneWayTunnel(const OneWayTunnel &) = delete;

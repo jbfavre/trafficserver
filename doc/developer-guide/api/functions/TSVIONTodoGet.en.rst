@@ -24,9 +24,7 @@ TSVIONTodoGet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int64_t TSVIONTodoGet(TSVIO viop)
 

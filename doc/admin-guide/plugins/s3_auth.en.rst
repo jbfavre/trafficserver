@@ -36,7 +36,6 @@ Using the plugin in a remap rule would be e.g.::
 
    ...  @plugin=s3_auth.so @pparam=--access_key @pparam=my-key \
                            @pparam=--secret_key @pparam=my-secret \
-                           @pparam=--session_token @pparam=my-token \
                            @pparam=--virtual_host
 
 
@@ -72,7 +71,6 @@ Configuration options::
     --version=4
 
     # Optional
-    --session_token=<token>
     --v4-include-headers=<comma-separated-list-of-headers-to-be-signed>
     --v4-exclude-headers=<comma-separated-list-of-headers-not-to-be-signed>
     --v4-region-map=region_map.config
@@ -89,7 +87,6 @@ The ``s3_auth_v4.config`` config file could look like this::
 
     access_key=<access_id>
     secret_key=<secret_key>
-    session_token=<token>
     version=4
     v4-include-headers=<comma-separated-list-of-headers-to-be-signed>
     v4-exclude-headers=<comma-separated-list-of-headers-not-to-be-signed>
@@ -117,7 +114,7 @@ According to `Transferring Payload in a Single Chunk <http://docs.aws.amazon.com
 the ``CanonicalHeaders`` list *must* include the ``Host`` header,  the ``Content-Type`` header if present in the request and all the ``x-amz-*`` headers
 so ``--v4-include-headers`` and ``--v4-exclude-headers`` do not impact those headers and they are *always* signed.
 
-The ``Via`` and ``X-Forwarded-For`` headers are *always* excluded from the signature since they are meant to be changed by the proxies and signing them could lead to invalidation of the signature.
+The ``Via`` and ``X-Forwarded-For`` headers are *always* excluded from the signature since they are meant to be changed by the proxies and signing them could lead to invalidation of the signatue.
 
 If ``--v4-include-headers`` is not specified all headers except those specified in ``--v4-exclude-headers`` will be signed.
 
@@ -138,13 +135,12 @@ There are 4 plugin configuration options for version 2::
     --config        <config file>
     --version=2
 
-This is a pretty bare bone start for the S3 services, it is missing a number of features:
+This is a pretty barebone start for the S3 services, it is missing a number of features:
 
 - It does not do UTF8 encoding (as required)
 - It does not deal with canonicalization of AMZ headers.
 - It does not handle POST requests (but do we need to ?)
 - It does not incorporate query parameters.
-- It does not support session tokens.
 
 
 Contributions to any of these would be appreciated.

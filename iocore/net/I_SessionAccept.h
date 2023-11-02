@@ -70,8 +70,10 @@ public:
 
    */
   virtual bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *) = 0;
-  /// The proxy port on which this session arrived.
-  HttpProxyPort *proxyPort = nullptr;
+  HttpProxyPort *proxyPort                                             = nullptr;
+  /* Returns nullptr if the specified client_ip is not allowed by ip_allow
+   * Returns a pointer to the relevant IP policy for later processing otherwise */
+  static const AclRecord *testIpAllowPolicy(sockaddr const *client_ip);
 
 private:
   virtual int mainEvent(int event, void *netvc) = 0;

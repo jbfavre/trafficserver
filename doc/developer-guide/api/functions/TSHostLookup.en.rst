@@ -24,9 +24,7 @@ TSHostLookup
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSAction TSHostLookup(TSCont contp, const char * hostname, size_t namelen)
 

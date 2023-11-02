@@ -21,7 +21,7 @@ Cache Promote Plugin
 ********************
 
 The :program:`cache_promote` plugin provides a means to control when an object should
-be allowed to enter the cache. This is orthogonal from normal ``Cache-Control``
+be allowed to enter the cache. This is orthogonal from normal Cache-Control
 directives, providing a different set of policies to apply. The typical use
 case for this plugin is when you have a very large data set, where you want to
 avoid churning the ATS cache for the long tail content.
@@ -50,13 +50,7 @@ If :option:`--policy` is set to ``lru`` the following options are also available
 
 .. option:: --hits
 
-   The minimum number of requests before promotion.
-
-.. option:: --bytes
-
-   In addition to requests, also count bytes that are cache misses. If specified,
-   default is ``0``, whichever triggers first of bytes and requests (hits) will
-   cause promotion.
+   The minimum number of hits before promotion.
 
 .. option:: --buckets
 
@@ -77,11 +71,7 @@ If :option:`--policy` is set to ``lru`` the following options are also available
 *  **plugin.cache_promote.${remap-identifier}.promoted** - count requests promoted, available in all policies.
 *  **plugin.cache_promote.${remap-identifier}.total_requests** - count of all requests.
 
-.. option:: --internal-enabled
-
-   Allow cache promote to operate on internal (plugin-initiated) requests.
-
-These options combined with your usage patterns will control how likely a
+These two options combined with your usage patterns will control how likely a
 URL is to become promoted to enter the cache.
 
 Examples

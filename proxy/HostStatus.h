@@ -30,16 +30,24 @@
 
 #pragma once
 
-#include <ctime>
+#include <time.h>
 #include <string>
 #include <sstream>
 #include "tscore/ink_rwlock.h"
 #include "records/P_RecProcess.h"
+#include "tscore/ink_hash_table.h"
+#include "tscore/ink_rwlock.h"
 
 #include <unordered_map>
 
 // host_status stats prefix.
 static const std::string stat_prefix = "proxy.process.host_status.";
+
+enum HostStatus_t {
+  HOST_STATUS_INIT,
+  HOST_STATUS_DOWN,
+  HOST_STATUS_UP,
+};
 
 static const constexpr char *HostStatusNames[3] = {"HOST_STATUS_INIT", "HOST_STATUS_DOWN", "HOST_STATUS_UP"};
 static const constexpr char *ReasonStatus[2]    = {"UP", "DOWN"};
@@ -91,7 +99,7 @@ struct Reason {
 
 // host status POD
 struct HostStatRec {
-  TSHostStatus status;
+  HostStatus_t status;
   unsigned int reasons;
   // time the host was marked down for a given reason.
   time_t active_marked_down;
@@ -180,13 +188,12 @@ struct HostStatus {
     static HostStatus instance;
     return instance;
   }
-  void setHostStatus(const std::string_view name, const TSHostStatus status, const unsigned int down_time,
-                     const unsigned int reason);
-  HostStatRec *getHostStatus(const std::string_view name);
-  void createHostStat(const std::string_view name, const char *data = nullptr);
+  void setHostStatus(const char *name, const HostStatus_t status, const unsigned int down_time, const unsigned int reason);
+  HostStatRec *getHostStatus(const char *name);
+  void createHostStat(const char *name, const char *data = nullptr);
   void loadHostStatusFromStats();
-  void loadRecord(std::string_view name, HostStatRec &h);
-  RecErrT getHostStat(std::string &stat_name, char *buf, unsigned int buf_len);
+  void loadRecord(std::string &name, HostStatRec &h);
+  int getHostStat(std::string &stat_name, char *buf, unsigned int buf_len);
 
 private:
   HostStatus();

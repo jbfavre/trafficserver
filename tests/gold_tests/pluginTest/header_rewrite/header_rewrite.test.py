@@ -16,10 +16,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 Test.Summary = '''
 Test a basic remap of a http connection
 '''
-
+# need Curl
+Test.SkipUnless(
+    Condition.HasProgram("curl", "Curl need to be installed on system for this test to work")
+)
 Test.ContinueOnFail = True
 # Define default ATS
 ts = Test.MakeATSProcess("ts")
@@ -53,9 +57,10 @@ tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl --proxy 127.0.0.1:{0} "http://www.example.com" -H "Proxy-Connection: keep-alive" --verbose'.format(
     ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
+# time delay as proxy.config.http.wait_for_cache could be broken
 tr.Processes.Default.StartBefore(server, ready=When.PortOpen(server.Variables.Port))
 tr.Processes.Default.StartBefore(Test.Processes.ts)
 tr.Processes.Default.Streams.stderr = "gold/header_rewrite-303.gold"
 tr.StillRunningAfter = server
 
-ts.Disk.traffic_out.Content = "gold/header_rewrite-tag.gold"
+ts.Streams.All = "gold/header_rewrite-tag.gold"

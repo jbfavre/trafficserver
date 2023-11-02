@@ -24,9 +24,7 @@ TSMimeParserClear
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSMimeParserClear(TSMimeParser parser)
 

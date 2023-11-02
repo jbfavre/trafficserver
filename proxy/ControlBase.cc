@@ -32,6 +32,7 @@
 #include "tscore/ink_defs.h"
 #include "tscore/ink_time.h"
 
+#include "Main.h"
 #include "URL.h"
 #include "tscore/Tokenizer.h"
 #include "ControlBase.h"
@@ -56,7 +57,7 @@
     reinterpret_cast<unsigned const char *>(&(x))[2], reinterpret_cast<unsigned char const *>(&(x))[3]
 
 // ----------
-ControlBase::Modifier::~Modifier() = default;
+ControlBase::Modifier::~Modifier() {}
 ControlBase::Modifier::Type
 ControlBase::Modifier::type() const
 {
@@ -439,7 +440,7 @@ struct MultiTextMod : public ControlBase::Modifier {
   void print(FILE *f) const override;
 };
 
-MultiTextMod::MultiTextMod() = default;
+MultiTextMod::MultiTextMod() {}
 MultiTextMod::~MultiTextMod()
 {
   text_vec.clear();
@@ -694,8 +695,10 @@ ControlBase::clear()
   _mods.clear();
 }
 
+// static const modifier_el default_el = { MOD_INVALID, NULL };
+
 void
-ControlBase::Print() const
+ControlBase::Print()
 {
   int n = _mods.size();
 

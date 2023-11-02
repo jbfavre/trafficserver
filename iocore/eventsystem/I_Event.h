@@ -73,14 +73,12 @@
 #define HTTP2_SESSION_EVENTS_START 2250
 #define HTTP_TUNNEL_EVENTS_START 2300
 #define HTTP_SCH_UPDATE_EVENTS_START 2400
-#define QUIC_EVENT_EVENTS_START 2500
-#define HTTP3_SESSION_EVENTS_START 2600
-#define QPACK_EVENT_EVENTS_START 2700
 #define NT_ASYNC_CONNECT_EVENT_EVENTS_START 3000
 #define NT_ASYNC_IO_EVENT_EVENTS_START 3100
 #define RAFT_EVENT_EVENTS_START 3200
 #define SIMPLE_EVENT_EVENTS_START 3300
 #define UPDATE_EVENT_EVENTS_START 3500
+#define LOG_COLLATION_EVENT_EVENTS_START 3800
 #define AIO_EVENT_EVENTS_START 3900
 #define BLOCK_CACHE_EVENT_EVENTS_START 4000
 #define UTILS_EVENT_EVENTS_START 5000
@@ -90,6 +88,7 @@
 
 // define misc events here
 #define ONE_WAY_TUNNEL_EVENT_PEER_CLOSE (SIMPLE_EVENT_EVENTS_START + 1)
+#define PREFETCH_EVENT_SEND_URL (SIMPLE_EVENT_EVENTS_START + 2)
 
 typedef int EventType;
 const int ET_CALL         = 0;
@@ -169,7 +168,7 @@ public:
      Instructs the event object to reschedule itself at the time
      specified in atimeout_at on the EventProcessor.
 
-     @param atimeout_at Time at which to call the callback. See the Remarks section.
+     @param atimeout_at Time at which to callcallback. See the Remarks section.
      @param callback_event Event code to return at the completion of this event. See the Remarks section.
 
   */
@@ -180,7 +179,7 @@ public:
      Instructs the event object to reschedule itself at the time
      specified in atimeout_at on the EventProcessor.
 
-     @param atimeout_in Time at which to call the callback. See the Remarks section.
+     @param atimeout_in Time at which to callcallback. See the Remarks section.
      @param callback_event Event code to return at the completion of this event. See the Remarks section.
 
   */
@@ -191,7 +190,7 @@ public:
      the event object to reschedule itself to callback every 'aperiod'
      from now.
 
-     @param aperiod Time period at which to call the callback. See the Remarks section.
+     @param aperiod Time period at which to callcallback. See the Remarks section.
      @param callback_event Event code to return at the completion of this event. See the Remarks section.
 
   */
@@ -199,11 +198,6 @@ public:
 
   // inherited from Action::cancel
   // virtual void cancel(Continuation * c = nullptr);
-
-#ifdef ENABLE_EVENT_TRACKER
-  void set_location();
-  const void *get_location() const;
-#endif
 
   void free();
 
@@ -243,14 +237,6 @@ public:
 
 private:
   void *operator new(size_t size); // use the fast allocators
-
-#ifdef ENABLE_EVENT_TRACKER
-  /**
-    Address of who scheduled this event
-    To get symbols, use backtrace_symbols(3) or external tools like `addr2line(1)` (Linux) or `atos(1)`(BSD).
-   */
-  const void *_location = nullptr;
-#endif
 
 public:
   LINK(Event, link);

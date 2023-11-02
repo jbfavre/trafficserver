@@ -32,7 +32,7 @@
 class IOHandle
 {
 public:
-  IOHandle(){};
+  IOHandle() : vio(nullptr), buffer(nullptr), reader(nullptr){};
 
   ~IOHandle()
   {
@@ -48,9 +48,9 @@ public:
   }
 
 public:
-  TSVIO vio               = nullptr;
-  TSIOBuffer buffer       = nullptr;
-  TSIOBufferReader reader = nullptr;
+  TSVIO vio;
+  TSIOBuffer buffer;
+  TSIOBufferReader reader;
 };
 
 class Mp4TransformContext

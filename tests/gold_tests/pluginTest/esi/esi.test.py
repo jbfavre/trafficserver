@@ -207,8 +207,8 @@ echo date('l jS \of F Y h:i:s A');
         tr = Test.AddTestRun("Verify the ESI plugin can gzip a response")
         EsiTest._output_counter += 1
         unzipped_body_file = os.path.join(
-            tr.RunDirectory,
-            "non_empty_curl_output_{}".format(EsiTest._output_counter))
+                tr.RunDirectory,
+                "non_empty_curl_output_{}".format(EsiTest._output_counter))
         gzipped_body_file = unzipped_body_file + ".gz"
         tr.Processes.Default.Command = \
             ('curl http://127.0.0.1:{0}/esi.php -H"Host: www.example.com" '
@@ -223,7 +223,7 @@ echo date('l jS \of F Y h:i:s A');
         zipped_body_disk_file.Exists = True
 
         # Now, unzip the file and make sure its size is the expected body.
-        tr = Test.AddTestRun("Verify the file unzips to the expected body.")
+        tr = Test.AddTestRun("Verify the file uzips to the expected body.")
         tr.Processes.Default.Command = "gunzip {}".format(gzipped_body_file)
         tr.Processes.Default.Ready = When.FileExists(unzipped_body_file)
         tr.Processes.Default.ReturnCode = 0
@@ -234,8 +234,8 @@ echo date('l jS \of F Y h:i:s A');
         tr = Test.AddTestRun("Verify we can handle an empty response.")
         EsiTest._output_counter += 1
         empty_body_file = os.path.join(
-            tr.RunDirectory,
-            "empty_curl_output_{}".format(EsiTest._output_counter))
+                tr.RunDirectory,
+                "empty_curl_output_{}".format(EsiTest._output_counter))
         gzipped_empty_body = empty_body_file + ".gz"
         tr.Processes.Default.Command = \
             ('curl http://127.0.0.1:{0}/expect_empty_body -H"Host: www.example.com" '
@@ -252,7 +252,7 @@ echo date('l jS \of F Y h:i:s A');
         gz_disk_file.Size = Testers.GreaterThan(0)
 
         # Now, unzip the file and make sure its size is the original 0 size body.
-        tr = Test.AddTestRun("Verify the file unzips to a zero sized file.")
+        tr = Test.AddTestRun("Verify the file uzips to a zero sized file.")
         tr.Processes.Default.Command = "gunzip {}".format(gzipped_empty_body)
         tr.Processes.Default.Ready = When.FileExists(empty_body_file)
         tr.Processes.Default.ReturnCode = 0
@@ -301,14 +301,8 @@ first_byte_flush_test.run_cases_expecting_gzip()
 
 # For these test cases, the behavior should remain the same with
 # --packed-node-support set.
-#
-# Packed node support is incomplete and the following test does not work. Our
-# documentation advises users not to use the --packed-node-support feature.
-# This test is left here, commented out, so that it is conveniently available
-# for and potential future development on this feature if desired.
-#
-# packed_node_support_test = EsiTest(plugin_config='esi.so --packed-node-support')
-# packed_node_support_test.run_cases_expecting_gzip()
+packed_node_support_test = EsiTest(plugin_config='esi.so --packed-node-support')
+packed_node_support_test.run_cases_expecting_gzip()
 
 # Run a set of cases verifying that the plugin does not zip content if
 # --disable-gzip-output is set.

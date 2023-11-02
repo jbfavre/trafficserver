@@ -43,7 +43,7 @@ typedef struct llq_s {
   ink_semaphore sema;
 } LLQ;
 
-LLQ *create_queue();
+LLQ *create_queue(void);
 int enqueue(LLQ *q, void *data);
 void *dequeue(LLQ *q);
 bool queue_is_empty(LLQ *q);

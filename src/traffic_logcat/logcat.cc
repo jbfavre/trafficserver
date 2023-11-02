@@ -38,10 +38,12 @@
 #include "LogFilter.h"
 #include "LogFormat.h"
 #include "LogFile.h"
+#include "LogHost.h"
 #include "LogObject.h"
 #include "LogConfig.h"
 #include "LogBuffer.h"
 #include "LogUtils.h"
+#include "LogSock.h"
 #include "Log.h"
 
 // logcat-specific command-line flags
@@ -119,6 +121,7 @@ process_file(int in_fd, int out_fd)
 {
   char buffer[MAX_LOGBUFFER_SIZE];
   int nread, buffer_bytes;
+  unsigned bytes = 0;
 
   while (true) {
     // read the next buffer from file descriptor
@@ -195,11 +198,11 @@ process_file(int in_fd, int out_fd)
     // see if there is an alternate format request from the command
     // line
     //
-    const char *alt_format = nullptr;
+    const char *alt_format = NULL;
     // convert the buffer to ascii entries and place onto stdout
     //
     if (header->fmt_fieldlist()) {
-      LogFile::write_ascii_logbuffer(header, out_fd, ".", alt_format);
+      bytes += LogFile::write_ascii_logbuffer(header, out_fd, ".", alt_format);
     } else {
       // TODO investigate why this buffer goes wonky
     }
@@ -207,32 +210,32 @@ process_file(int in_fd, int out_fd)
 }
 
 static int
-open_output_file(char *output_file_p)
+open_output_file(char *output_file)
 {
   int file_desc = 0;
 
   if (!overwrite_existing_file) {
-    if (access(output_file_p, F_OK)) {
+    if (access(output_file, F_OK)) {
       if (errno != ENOENT) {
-        fprintf(stderr, "Error accessing output file %s: ", output_file_p);
-        perror(nullptr);
+        fprintf(stderr, "Error accessing output file %s: ", output_file);
+        perror(0);
         file_desc = -1;
       }
     } else {
       fprintf(stderr,
               "Error, output file %s already exists.\n"
               "Select a different filename or use the -w flag\n",
-              output_file_p);
+              output_file);
       file_desc = -1;
     }
   }
 
   if (file_desc == 0) {
-    file_desc = open(output_file_p, O_WRONLY | O_TRUNC | O_CREAT, 0640);
+    file_desc = open(output_file, O_WRONLY | O_TRUNC | O_CREAT, 0640);
 
     if (file_desc < 0) {
-      fprintf(stderr, "Error while opening output file %s: ", output_file_p);
-      perror(nullptr);
+      fprintf(stderr, "Error while opening output file %s: ", output_file);
+      perror(0);
     }
   }
 
@@ -300,16 +303,15 @@ main(int /* argc ATS_UNUSED */, const char *argv[])
       int in_fd = open(file_arguments[i], O_RDONLY);
       if (in_fd < 0) {
         fprintf(stderr, "Error opening input file %s: ", file_arguments[i]);
-        perror(nullptr);
+        perror(0);
         error = DATA_PROCESSING_ERROR;
       } else {
 #if HAVE_POSIX_FADVISE
         // If we don't plan on following the log file, we should let the kernel know
         // that we plan on reading the entire file so the kernel can do
         // some fancy optimizations.
-        if (!follow_flag) {
+        if (!follow_flag)
           posix_fadvise(in_fd, 0, 0, POSIX_FADV_WILLNEED);
-        }
 
         // We're always reading the file sequentially so this will always help
         posix_fadvise(in_fd, 0, 0, POSIX_FADV_SEQUENTIAL);

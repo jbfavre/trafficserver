@@ -32,9 +32,7 @@ AM_CPPFLAGS += \
 	-I$(abs_top_srcdir)/proxy/http/remap \
 	-I$(abs_top_srcdir)/proxy/logging \
 	-I$(abs_top_srcdir)/proxy/http2 \
-	-I$(abs_top_srcdir)/proxy/http3 \
-	$(TS_INCLUDES) \
-	@YAMLCPP_INCLUDES@
+	$(TS_INCLUDES)
 
 noinst_HEADERS = HttpProxyServerMain.h
 noinst_LIBRARIES = libhttp.a
@@ -49,10 +47,7 @@ libhttp_a_SOURCES = \
 	Http1ClientSession.cc \
 	Http1ClientSession.h \
 	Http1ClientTransaction.cc \
-	Http1Transaction.h \
 	Http1ClientTransaction.h \
-	Http1ServerTransaction.h \
-	Http1ServerTransaction.cc \
 	HttpConfig.cc \
 	HttpConfig.h \
 	HttpConnectionCount.cc \
@@ -65,8 +60,8 @@ libhttp_a_SOURCES = \
 	HttpProxyServerMain.h \
 	HttpSM.cc \
 	HttpSM.h \
-	Http1ServerSession.cc \
-	Http1ServerSession.h \
+	HttpServerSession.cc \
+	HttpServerSession.h \
 	HttpSessionManager.cc \
 	HttpSessionManager.h \
 	HttpTransact.cc \
@@ -77,96 +72,31 @@ libhttp_a_SOURCES = \
 	HttpTransactHeaders.h \
 	HttpTunnel.cc \
 	HttpTunnel.h \
-	ForwardedConfig.cc \
-	PreWarmConfig.cc \
-	PreWarmManager.cc
+	HttpUpdateSM.cc \
+	HttpUpdateSM.h \
+	ForwardedConfig.cc
 
 if BUILD_TESTS
-libhttp_a_SOURCES += RegressionHttpTransact.cc
+libhttp_a_SOURCES += HttpUpdateTester.cc \
+	RegressionHttpTransact.cc
 endif
 
-check_PROGRAMS = test_proxy_http test_PreWarm test_HttpTransact
+check_PROGRAMS = \
+test_ForwardedConfig
 
 TESTS = $(check_PROGRAMS)
 
-test_proxy_http_CPPFLAGS = $(AM_CPPFLAGS)\
+test_ForwardedConfig_CPPFLAGS = $(AM_CPPFLAGS)\
 	-I$(abs_top_srcdir)/tests/include
 
-test_proxy_http_SOURCES = \
-	unit_tests/unit_test_main.cc \
+test_ForwardedConfig_SOURCES = \
 	unit_tests/test_ForwardedConfig.cc \
 	ForwardedConfig.cc \
-	unit_tests/test_error_page_selection.cc \
-	HttpBodyFactory.cc \
-	HttpBodyFactory.h
+	unit_tests/test_ForwardedConfig_mocks.cc
 
-test_proxy_http_LDADD = \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+test_ForwardedConfig_LDADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/proxy/hdrs/libhdrs.a \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/proxy/logging/liblogging.a \
-	$(top_builddir)/lib/records/librecords_p.a \
-	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
-	$(top_builddir)/mgmt/libmgmt_p.la \
-	$(top_builddir)/iocore/utils/libinkutils.a \
-	@HWLOC_LIBS@ \
-	@LIBCAP@ \
-	@YAMLCPP_LIBS@
-
-test_PreWarm_CPPFLAGS = \
-	$(AM_CPPFLAGS) \
-	-I$(abs_top_srcdir)/tests/include
-
-test_PreWarm_LDADD = \
-	$(top_builddir)/src/tscore/libtscore.la \
-	@YAMLCPP_LIBS@
-
-test_PreWarm_SOURCES = \
-	unit_tests/test_PreWarm.cc
-
-test_HttpTransact_CPPFLAGS = \
-	$(AM_CPPFLAGS) \
-	-I$(abs_top_srcdir)/tests/include
-
-if OS_LINUX
-test_HttpTransact_LDFLAGS = $(AM_LDFLAGS)
-else
-test_HttpTransact_LDFLAGS = $(AM_LDFLAGS)\
-	-Wl,-undefined -Wl,suppress -Wl,-flat_namespace -Wl,-dead_strip
-endif
-
-test_HttpTransact_LDADD = \
-	$(top_builddir)/proxy/http/libhttp.a \
-	$(top_builddir)/proxy/http/remap/libhttp_remap.a \
-	$(top_builddir)/proxy/logging/liblogging.a \
-	$(top_builddir)/proxy/hdrs/libhdrs.a \
-	$(top_builddir)/mgmt/libmgmt_p.la \
-	$(top_builddir)/iocore/utils/libinkutils.a \
-	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
-	$(top_builddir)/iocore/dns/libinkdns.a \
-	$(top_builddir)/iocore/cache/libinkcache.a \
-	$(top_builddir)/lib/fastlz/libfastlz.a \
-	$(top_builddir)/iocore/aio/libinkaio.a \
-	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	$(top_builddir)/proxy/libproxy.a \
-	$(top_builddir)/iocore/net/libinknet.a \
-	$(top_builddir)/lib/records/librecords_p.a \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	@HWLOC_LIBS@ \
-	@LIBPCRE@ \
-	@LIBRESOLV@ \
-	@LIBZ@ \
-	@LIBLZMA@ \
-	@OPENSSL_LIBS@ \
-	-lm \
-	@YAMLCPP_LIBS@
-
-test_HttpTransact_SOURCES = \
-	../../iocore/cache/test/stub.cc \
-	unit_tests/main.cc \
-	unit_tests/test_HttpTransact.cc
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
 
 clang-tidy-local: $(libhttp_a_SOURCES) $(noinst_HEADERS)
 	$(CXX_Clang_Tidy)

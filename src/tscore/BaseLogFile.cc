@@ -22,10 +22,9 @@
  */
 
 #include "tscore/BaseLogFile.h"
-#include "tscore/ink_sock.h"
 
 /*
- * This constructor creates a BaseLogFile based on a given name.
+ * This consturctor creates a BaseLogFile based on a given name.
  * This is the most common way BaseLogFiles are created.
  */
 BaseLogFile::BaseLogFile(const char *name) : m_name(ats_strdup(name))
@@ -34,7 +33,7 @@ BaseLogFile::BaseLogFile(const char *name) : m_name(ats_strdup(name))
 }
 
 /*
- * This constructor creates a BaseLogFile based on a given name.
+ * This consturctor creates a BaseLogFile based on a given name.
  * Similar to above constructor, but is overloaded with the object signature
  */
 BaseLogFile::BaseLogFile(const char *name, uint64_t sig) : m_name(ats_strdup(name)), m_signature(sig), m_has_signature(true)
@@ -47,13 +46,15 @@ BaseLogFile::BaseLogFile(const char *name, uint64_t sig) : m_name(ats_strdup(nam
  * This copy constructor creates a BaseLogFile based on a given copy.
  */
 BaseLogFile::BaseLogFile(const BaseLogFile &copy)
-  : m_start_time(copy.m_start_time),
-
+  : m_fp(nullptr),
+    m_start_time(copy.m_start_time),
+    m_end_time(0L),
+    m_bytes_written(0),
     m_name(ats_strdup(copy.m_name)),
     m_hostname(ats_strdup(copy.m_hostname)),
-
+    m_is_regfile(false),
     m_is_init(copy.m_is_init),
-
+    m_meta_info(nullptr),
     m_signature(copy.m_signature),
     m_has_signature(copy.m_has_signature)
 {
@@ -156,7 +157,7 @@ BaseLogFile::roll(long interval_start, long interval_end)
     // produce overlapping filenames (the problem is that we have
     // no easy way of keeping track of the timestamp of the first
     // transaction
-    log_log_trace("in BaseLogFile::roll(..), didn't use metadata starttime, used earliest available starttime\n");
+    log_log_trace("in BaseLogFile::roll(..), didn't use metadata starttime, used earlist available starttime\n");
     if (interval_start == 0) {
       start = m_start_time;
     } else {
@@ -168,8 +169,8 @@ BaseLogFile::roll(long interval_start, long interval_end)
 
   // Now that we have our timestamp values, convert them to the proper
   // timestamp formats and create the rolled file name.
-  timestamp_to_str(static_cast<long>(start), start_time_ext, sizeof(start_time_ext));
-  timestamp_to_str(static_cast<long>(end), end_time_ext, sizeof(start_time_ext));
+  timestamp_to_str((long)start, start_time_ext, sizeof(start_time_ext));
+  timestamp_to_str((long)end, end_time_ext, sizeof(start_time_ext));
   snprintf(roll_name, LOGFILE_ROLL_MAXPATHLEN, "%s%s%s.%s-%s%s", m_name.get(), (m_hostname.get() ? LOGFILE_SEPARATOR_STRING : ""),
            (m_hostname.get() ? m_hostname.get() : ""), start_time_ext, end_time_ext, LOGFILE_ROLLED_EXTENSION);
 
@@ -205,7 +206,7 @@ BaseLogFile::roll(long interval_start, long interval_end)
 }
 
 /*
- * The more convenient rolling function. Intended use is for less
+ * The more convienent rolling function. Intended use is for less
  * critical logs such as diags.log or traffic.out, since _exact_
  * timestamps may be less important
  *
@@ -237,8 +238,8 @@ BaseLogFile::roll()
 bool
 BaseLogFile::rolled_logfile(char *path)
 {
-  const int target_len = static_cast<int>(strlen(LOGFILE_ROLLED_EXTENSION));
-  int len              = static_cast<int>(strlen(path));
+  const int target_len = (int)strlen(LOGFILE_ROLLED_EXTENSION);
+  int len              = (int)strlen(path);
   if (len > target_len) {
     char *str = &path[len - target_len];
     if (!strcmp(str, LOGFILE_ROLLED_EXTENSION)) {
@@ -303,9 +304,9 @@ BaseLogFile::open_file(int perm)
     // The log file does not exist, so we create a new MetaInfo object
     //  which will save itself to disk right away (in the constructor)
     if (m_has_signature) {
-      m_meta_info = new BaseMetaInfo(m_name.get(), static_cast<long>(time(nullptr)), m_signature);
+      m_meta_info = new BaseMetaInfo(m_name.get(), (long)time(nullptr), m_signature);
     } else {
-      m_meta_info = new BaseMetaInfo(m_name.get(), static_cast<long>(time(nullptr)));
+      m_meta_info = new BaseMetaInfo(m_name.get(), (long)time(nullptr));
     }
   }
 
@@ -332,41 +333,26 @@ BaseLogFile::open_file(int perm)
     }
   }
 
-  // set m_bytes_written to force the rolling based on file size.
-  fseek(m_fp, 0, SEEK_END);
-  m_bytes_written = ftell(m_fp);
+  // set m_bytes_written to force the rolling based on filesize.
+  m_bytes_written = fseek(m_fp, 0, SEEK_CUR);
 
   log_log_trace("BaseLogFile %s is now open (fd=%d)\n", m_name.get(), fileno(m_fp));
   m_is_init = true;
   return LOG_FILE_NO_ERROR;
 }
 
-/**
- * @brief Close the managed log file.
- *
- * @note This closes the actual log file, not its metainfo.
- *
- * @return The result of calling fclose on the file descriptor or 0 if the file
- * was not open. If the result is non-zero, fclose failed and errno is set
- * appropriately.
+/*
+ * Closes actual log file, not metainfo
  */
-int
+void
 BaseLogFile::close_file()
 {
-  int ret = 0;
   if (is_open()) {
+    fclose(m_fp);
     log_log_trace("BaseLogFile %s is closed\n", m_name.get());
-
-    // Both log_log_trace and fclose may set errno. Thus, keep fclose after
-    // log_log_trace so that by the time this function completes if errno was
-    // set by fclose it will remain upon function return.
-    ret       = fclose(m_fp);
     m_fp      = nullptr;
     m_is_init = false;
-    delete m_meta_info;
-    m_meta_info = nullptr;
   }
-  return ret;
 }
 
 /*
@@ -466,7 +452,7 @@ BaseMetaInfo::_build_name(const char *filename)
 
   // 7 = 1 (dot at beginning) + 5 (".meta") + 1 (null terminating)
   //
-  _filename = static_cast<char *>(ats_malloc(l + 7));
+  _filename = (char *)ats_malloc(l + 7);
 
   if (i < 0) {
     ink_string_concatenate_strings(_filename, ".", filename, ".meta", nullptr);
@@ -497,7 +483,7 @@ BaseMetaInfo::_read_from_file()
         if (strcmp(t, "creation_time") == 0) {
           t = tok.getNext();
           if (t) {
-            _creation_time = static_cast<time_t>(ink_atoi64(t));
+            _creation_time = (time_t)ink_atoi64(t);
             _flags |= VALID_CREATION_TIME;
           }
         } else if (strcmp(t, "object_signature") == 0) {
@@ -534,23 +520,24 @@ BaseMetaInfo::_write_to_file()
   }
   log_log_trace("Successfully opened metafile=%s\n", _filename);
 
+  int n;
   if (_flags & VALID_CREATION_TIME) {
     log_log_trace("Writing creation time to %s\n", _filename);
-    int const num_to_write = snprintf(_buffer, BUF_SIZE, "creation_time = %lu\n", static_cast<unsigned long>(_creation_time));
+    n = snprintf(_buffer, BUF_SIZE, "creation_time = %lu\n", (unsigned long)_creation_time);
     // TODO modify this runtime check so that it is not an assertion
-    ink_release_assert(num_to_write <= BUF_SIZE);
-    if (safe_write(fd, _buffer, num_to_write) == -1) {
-      log_log_error("Could not write creation_time: %s\n", strerror(errno));
+    ink_release_assert(n <= BUF_SIZE);
+    if (write(fd, _buffer, n) == -1) {
+      log_log_trace("Could not write creation_time");
     }
   }
 
   if (_flags & VALID_SIGNATURE) {
     log_log_trace("Writing signature to %s\n", _filename);
-    int const num_to_write = snprintf(_buffer, BUF_SIZE, "object_signature = %" PRIu64 "\n", _log_object_signature);
+    n = snprintf(_buffer, BUF_SIZE, "object_signature = %" PRIu64 "\n", _log_object_signature);
     // TODO modify this runtime check so that it is not an assertion
-    ink_release_assert(num_to_write <= BUF_SIZE);
-    if (safe_write(fd, _buffer, num_to_write) == -1) {
-      log_log_error("Could not write object_signature: %s\n", strerror(errno));
+    ink_release_assert(n <= BUF_SIZE);
+    if (write(fd, _buffer, n) == -1) {
+      log_log_error("Could not write object_signaure\n");
     }
     log_log_trace("BaseMetaInfo::_write_to_file\n"
                   "\tfilename = %s\n"
@@ -559,9 +546,6 @@ BaseMetaInfo::_write_to_file()
                   _filename, _log_object_signature, _buffer);
   }
 
-  if (fsync(fd) == -1) {
-    log_log_error("Could not fsync the log meta file: %s\n", strerror(errno));
-  }
   close(fd);
 }
 

@@ -77,42 +77,42 @@ class MockTsInterface : public TsInterface
 {
 public:
   const char *
-  getMethod(int *length) override
+  getMethod(int *length)
   {
     *length = _method.length();
     return _method.c_str();
   }
   const char *
-  getHost(int *length) override
+  getHost(int *length)
   {
     *length = _host.length();
     return _host.c_str();
   }
   const char *
-  getPath(int *length) override
+  getPath(int *length)
   {
     *length = _path.length();
     return _path.c_str();
   }
   const char *
-  getParams(int *length) override
+  getParams(int *length)
   {
     *length = _params.length();
     return _params.c_str();
   }
   const char *
-  getQuery(int *length) override
+  getQuery(int *length)
   {
     *length = _query.length();
     return _query.c_str();
   }
   HeaderIterator
-  headerBegin() override
+  headerBegin()
   {
     return HeaderIterator(_headers.begin());
   }
   HeaderIterator
-  headerEnd() override
+  headerEnd()
   {
     return HeaderIterator(_headers.end());
   }
@@ -130,7 +130,7 @@ String base16Encode(const char *in, size_t inLen);
 String uriEncode(const String &in, bool isObjectName = false);
 bool isUriEncoded(const String &in, bool isObjectName = false);
 String lowercase(const char *in, size_t inLen);
-String trimWhiteSpacesAndSqueezeInnerSpaces(const char *in, size_t inLen);
+const char *trimWhiteSpaces(const char *in, size_t inLen, size_t &newLen);
 
 String getCanonicalRequestSha256Hash(TsInterface &api, bool signPayload, const StringSet &includeHeaders,
                                      const StringSet &excludeHeaders, String &signedHeaders);

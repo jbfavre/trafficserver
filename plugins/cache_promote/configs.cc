@@ -26,15 +26,13 @@
 // to add to this list, making them more modular.
 static const struct option longopt[] = {
   {const_cast<char *>("policy"), required_argument, nullptr, 'p'},
-  {const_cast<char *>("stats-enable-with-id"), required_argument, nullptr, 'e'},
   // This is for both Chance and LRU (optional) policy
   {const_cast<char *>("sample"), required_argument, nullptr, 's'},
   // For the LRU policy
   {const_cast<char *>("buckets"), required_argument, nullptr, 'b'},
   {const_cast<char *>("hits"), required_argument, nullptr, 'h'},
-  {const_cast<char *>("bytes"), required_argument, nullptr, 'B'},
+  {const_cast<char *>("stats-enable-with-id"), required_argument, nullptr, 'e'},
   {const_cast<char *>("label"), required_argument, nullptr, 'l'},
-  {const_cast<char *>("internal-enabled"), no_argument, nullptr, 'i'},
   // EOF
   {nullptr, no_argument, nullptr, '\0'},
 };
@@ -42,9 +40,7 @@ static const struct option longopt[] = {
 // The destructor is responsible for returning the policy to the PolicyManager.
 PromotionConfig::~PromotionConfig()
 {
-  if (_policy != nullptr) {
-    _manager->releasePolicy(_policy);
-  }
+  _manager->releasePolicy(_policy);
 }
 
 // Parse the command line arguments to the plugin, and instantiate the appropriate policy
@@ -52,7 +48,7 @@ bool
 PromotionConfig::factory(int argc, char *argv[])
 {
   while (true) {
-    int opt = getopt_long(argc, (char *const *)argv, "", longopt, nullptr);
+    int opt = getopt_long(argc, (char *const *)argv, "psbhe", longopt, nullptr);
 
     if (opt == -1) {
       break;
@@ -74,7 +70,7 @@ PromotionConfig::factory(int argc, char *argv[])
         return false;
       } else {
         if (_policy && _policy->stats_add(optarg)) {
-          _policy->_stats_enabled = true;
+          _policy->stats_enabled = true;
           TSDebug(PLUGIN_NAME, "stats collection is enabled");
         }
       }
@@ -83,13 +79,12 @@ PromotionConfig::factory(int argc, char *argv[])
         // The --sample (-s) option is allowed for all configs, but only after --policy is specified.
         if (opt == 's') {
           _policy->setSample(optarg);
-        } else if (opt == 'i') {
-          _policy->setInternalEnabled(true);
-          TSDebug(PLUGIN_NAME, "internal_enabled set to true");
         } else {
           if (!_policy->parseOption(opt, optarg)) {
-            TSError("[%s] The specified policy (%s) does not support the -%c option; skipping this argument", PLUGIN_NAME,
-                    _policy->policyName(), opt);
+            TSError("[%s] The specified policy (%s) does not support the -%c option", PLUGIN_NAME, _policy->policyName(), opt);
+            delete _policy;
+            _policy = nullptr;
+            return false;
           }
         }
       } else {
@@ -97,10 +92,6 @@ PromotionConfig::factory(int argc, char *argv[])
         return false;
       }
     }
-  }
-
-  if (_policy == nullptr) {
-    return false;
   }
 
   // Coalesce any LRU policies via the LRU manager. This is a little ugly, but it makes configuration

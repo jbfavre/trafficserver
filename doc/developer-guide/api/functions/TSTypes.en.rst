@@ -28,10 +28,8 @@ TSAPI Types
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
-    #include <ts/remap.h>
+`#include <ts/ts.h>`
+`#include <ts/remap.h>`
 
 Description
 ===========
@@ -60,6 +58,8 @@ more widely. Those are described on this page.
 
 .. type:: TSConfig
 
+.. type:: TSConfigDestroyFunc
+
 .. type:: TSCont
 
    An opaque type that represents a Traffic Server :term:`continuation`.
@@ -78,47 +78,11 @@ more widely. Those are described on this page.
 
    A 64 bit time value, measured in nanoseconds.
 
-.. type:: TSHttpConnectOptions
-
-   A type that encapsulates options passed into the :func:`TSHttpConnectPlugin` function.
-
-   .. member:: TSConnectType connect_type
-
-      The type of data represented in the struct.
-
-   .. member:: sockaddr const *addr
-
-      Network address of the target of the connection.
-
-   .. member:: const char *tag
-
-      Tag that is passed through to the HTTP state machine.
-
-   .. member:: int64_t id
-
-      Numeric identifier passed through to the HTTP state machine.
-
-   .. member:: TSIOBufferSizeIndex buffer_index
-
-      A numeric buffer size index used to derive actual sizes used when constructing
-      IOBuffers; see :type:`TSIOBufferSizeIndex`.
-
-   .. member:: TSIOBufferWaterMark buffer_water_mark
-
-      A numeric value specifying the minimum number of bytes that must be written to
-      an IOBuffer before any continuation is called back to read from the buffer.
-      See the :c:func:`TSIOBufferWaterMarkGet` and :c:func:`TSIOBufferWaterMarkSet`
-      functions for further detail.
-
-.. type:: TSConnectType
-
-   Enumeration that specifies the type of data within a :c:type:`TSHttpConnectOptions` structure.
-
 .. type:: TSHttpParser
 
 .. type:: TSHttpSsn
 
-   An opaque type that represents a Traffic Server :term:`session`.
+   An opaque type that represents a Traffic SeUuirver :term:`session`.
 
 .. type:: TSHttpTxn
 
@@ -132,20 +96,11 @@ more widely. Those are described on this page.
 
 .. type:: TSIOBufferSizeIndex
 
-.. type:: TSIOBufferWaterMark
-
-   An enumeration that contains valid watermark values, currently only defaults.
-
 .. type:: TSLifecycleHookID
 
    An enumeration that identifies a :ref:`life cycle hook <ts-lifecycle-hook-add>`.
 
 .. type:: TSMBuffer
-
-   Internally, data for a transaction is stored in one or more :term:`header heap`\s. These are
-   storage local to the transaction, and generally each HTTP header is stored in a separate one.
-   This type is a handle to a header heap, and is provided or required by functions that locate HTTP
-   header related data.
 
 .. type:: TSMgmtCounter
 
@@ -165,12 +120,6 @@ more widely. Those are described on this page.
 
 .. type:: TSMLoc
 
-   This is a memory location relative to a :term:`header heap` represented by a :c:type:`TSMBuffer` and
-   must always be used in conjunction with that :c:type:`TSMBuffer` instance. It identifies a specific
-   object in the :c:type:`TSMBuffer`. This indirection is needed so that the :c:type:`TSMBuffer`
-   can reallocate space as needed. Therefore a raw address obtained from a :c:type:`TSMLoc` should
-   be considered volatile that may become invalid across any API call.
-
 .. var:: TSMLoc TS_NULL_MLOC
 
    A predefined null valued :type:`TSMLoc` used to indicate the absence of an :type:`TSMLoc`.
@@ -185,67 +134,7 @@ more widely. Those are described on this page.
 
 .. type:: TSRemapInterface
 
-   Data passed to a remap plugin via :func:`TSRemapInit`.
-
-   .. member:: unsigned long size
-
-      The size of the structure in bytes, including this member.
-
-   .. member:: unsigned long tsremap_version
-
-      The API version of the C API. The lower 16 bits are the minor version, and the upper bits
-      the major version.
-
 .. type:: TSRemapRequestInfo
-
-   Data passed to a remap plugin during the invocation of a remap rule.
-
-   .. member:: TSMBuffer requestBufp
-
-      The client request. All of the other :type:`TSMLoc` values use this as the base buffer.
-
-   .. member:: TSMLoc requestHdrp
-
-      The client request.
-
-   .. member:: TSMLoc mapFromUrl
-
-      The match URL in the remap rule.
-
-   .. member:: TSMLoc mapToUrl
-
-      The target URL in the remap rule.
-
-   .. member:: TSMLoc requestUrl
-
-      The current request URL. The remap rule and plugins listed earlier in the remap rule can modify this
-      from the client request URL. Remap plugins are expected to modify this value to perform the
-      remapping of the request. Note this is the same :code:`TSMLoc` as would be obtained by
-      calling :func:`TSHttpTxnClientReqGet`.
-
-   .. member:: int redirect
-
-      Flag for using the remapped URL as an explicit redirection. This can be set by the remap plugin.
-
-.. type:: TSSecretID
-
-   Contains the data for a TLS certificate and key.
-
-   .. member:: const char * cert_name;
-
-      The TLS certificate name.
-
-   .. member:: size_t cert_name_len;
-
-      The length of the TLS certificate name.
-
-   .. member:: const char * key_name;
-
-      The name of the TLS key.
-
-   .. member:: size_t key_name_len;
-
-      The length of the name of the TLS key.
 
 .. type:: TSSslX509
 
@@ -261,31 +150,13 @@ more widely. Those are described on this page.
 
 .. type:: TSThread
 
-      This represents an internal |TS| thread, created by the |TS| core. It is an opaque type which
-      can be used only to check for equality / inequality, and passed to API functions. An instance
-      that refers to the current thread can be obtained with :func:`TSThreadSelf`.
-
-.. type:: TSEventThread
-
-      This type represents an :term:`event thread`. It is an opaque which is used to specify a
-      particular event processing thread in |TS|. If plugin code is executing in an event thread
-      (which will be true if called from a hook or a scheduled event) then the current event thread
-      can be obtained via :func:`TSEventThreadSelf`.
-
-      A :code:`TSEventThread` is also a :type:`TSThread` and can be passed as an argument to any
-      parameter of type :type:`TSThread`.
-
 .. type:: TSThreadFunc
 
-.. type:: TSUserArgType
-
-   An enum for the supported types of user arguments.
-
-.. enum:: TSUuidVersion
+.. type:: TSUuidVersion
 
    A version value for at :type:`TSUuid`.
 
-   .. enumerator:: TS_UUID_V4
+   .. member:: TS_UUID_V4
 
       A version 4 UUID. Currently only this value is used.
 
@@ -313,11 +184,13 @@ more widely. Those are described on this page.
 
 .. cpp:class:: template<typename T> DLL
 
-    An anchor for a double linked intrusive list of instance of :arg:`T`.
+    An anchor for a double linked instrusive list of instance of :arg:`T`.
 
 .. cpp:class:: template<typename T> Queue
 
 .. type:: TSAcceptor
+
+.. type:: TSNextProtocolSet
 
 .. cpp:class:: template <typename T> LINK
 
@@ -332,44 +205,3 @@ more widely. Those are described on this page.
    .. cpp:member:: short int ink_minor
 
       Minor version number.
-
-.. type:: TSFetchUrlParams_t
-.. type:: TSFetchSM
-.. type:: TSFetchEvent
-
-.. type:: TSHttpPriority
-
-   The abstract type of the various HTTP priority implementations.
-
-   .. member:: uint8_t priority_type
-
-      The reference to the concrete HTTP priority implementation. This will be
-      a value from TSHttpPriorityType
-
-   .. member:: uint8_t data[7]
-
-      The space allocated for the concrete priority implementation.
-
-      Note that this has to take padding into account. There is a static_assert
-      in ``InkAPI.cc`` to verify that :type:`TSHttpPriority` is at least as large as
-      :type:`TSHttp2Priority`. As other structures are added that are represented by
-      :type:`TSHttpPriority` add more static_asserts to verify that :type:`TSHttpPriority` is as
-      large as it needs to be.
-
-
-.. type:: TSHttp2Priority
-
-   A structure for HTTP/2 priority. For an explanation of these terms with respect
-   to HTTP/2, see RFC 7540, section 5.3.
-
-   .. member:: uint8_t priority_type
-
-      HTTP_PROTOCOL_TYPE_HTTP_2
-
-   .. member:: uint8_t weight
-
-   .. member:: int32_t stream_dependency
-
-      The stream dependency. Per spec, see RFC 7540 section 6.2, this is 31
-      bits. We use a signed 32 bit structure to store either a valid dependency
-      or -1 if the stream has no dependency.

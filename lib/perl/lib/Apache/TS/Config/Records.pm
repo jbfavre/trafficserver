@@ -15,14 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 ############################################################################
 # This is a simple module to let you read, modify and add to an Apache
 # Traffic Server records.config file. The idea is that you would write a
 # simple script (like example below) to update a "stock" records.config with
-# the changes applicable to your application. This allows you to upgrade to
+# the changes applicable to your application. This allows you to uprade to
 # a newer default config file from a new release. See the embedded
 # perldoc for more details.
 ############################################################################
+
 
 package Apache::TS::Config::Records;
 
@@ -36,22 +38,22 @@ use Carp;
 
 our $VERSION = "1.0";
 
+
 #
 # Constructor
 #
-sub new
-{
+sub new {
     my ($class, %args) = @_;
     my $self = {};
-    my $fn   = $args{file};
+    my $fn = $args{file};
 
     $fn = $args{filename} unless defined($fn);
-    $fn = "-"             unless defined($fn);
+    $fn = "-" unless defined($fn);
 
-    $self->{_filename} = $fn;    # Filename to open when loading and saving
-    $self->{_configs}  = [];     # Storage, and to to preserve order
-    $self->{_lookup}   = {};     # For faster lookup, indexes into the above
-    $self->{_ix}       = -1;     # Empty
+    $self->{_filename} = $fn;  # Filename to open when loading and saving
+    $self->{_configs} = [];            # Storage, and to to preserve order
+    $self->{_lookup} = {};             # For faster lookup, indexes into the above
+    $self->{_ix} = -1;                 # Empty
     bless $self, $class;
 
     $self->load() if $self->{_filename};
@@ -59,16 +61,16 @@ sub new
     return $self;
 }
 
+
 #
 # Load a records.config file
 #
-sub load
-{
+sub load {
     my $self = shift;
     my %args = @_;
-    my $fn   = $args{file};
+    my $fn = $args{file};
 
-    $fn = $args{filename}    unless defined($fn);
+    $fn = $args{filename} unless defined($fn);
     $fn = $self->{_filename} unless defined($fn);
 
     open(FH, "<$fn") || die "Can't open file $fn for reading";
@@ -86,14 +88,14 @@ sub load
     }
 }
 
+
 #
 # Get an existing configuration line, as an anon array.
 #
-sub get
-{
+sub get {
     my $self = shift;
     my %args = @_;
-    my $c    = $args{conf};
+    my $c = $args{conf};
 
     $c = $args{config} unless defined($c);
     my $ix = $self->{_lookup}->{$c};
@@ -102,26 +104,26 @@ sub get
     return $self->{_configs}->[$ix];
 }
 
+
 #
 # Modify one configuration value
 #
-sub set
-{
+sub set {
     my $self = shift;
     my %args = @_;
-    my $c    = $args{conf};
-    my $v    = $args{val};
+    my $c = $args{conf};
+    my $v = $args{val};
 
     $c = $args{config} unless defined($c);
-    $v = $args{value}  unless defined($v);
+    $v = $args{value} unless defined($v);
 
     my $ix = $self->{_lookup}->{$c};
 
     if (!defined($ix)) {
-        my $type = $args{type};
+      my $type = $args{type};
 
-        $type = "INT" unless defined($type);
-        $self->append(line => "CONFIG $c $type $v");
+      $type = "INT" unless defined($type);
+      $self->append(line => "CONFIG $c $type $v");
     } else {
         my $val = $self->{_configs}->[$ix];
 
@@ -130,14 +132,14 @@ sub set
     }
 }
 
+
 #
 # Remove a configuration from the file.
 #
-sub remove
-{
+sub remove {
     my $self = shift;
     my %args = @_;
-    my $c    = $args{conf};
+    my $c = $args{conf};
 
     $c = $args{config} unless defined($c);
 
@@ -146,11 +148,11 @@ sub remove
     $self->{_configs}->[$ix]->[2] = TS_CONF_REMOVED if defined($ix);
 }
 
+
 #
 # Append anything to the "end" of the configuration.
 #
-sub append
-{
+sub append {
     my $self = shift;
     my %args = @_;
     my $line = $args{line};
@@ -168,17 +170,17 @@ sub append
     $self->{_lookup}->{$p[1]} = $self->{_ix} if ($#p == 3) && (($p[0] eq "LOCAL") || ($p[0] eq "CONFIG"));
 }
 
+
 #
 # Write the new configuration file to STDOUT, or provided
 #
-sub write
-{
+sub write {
     my $self = shift;
     my %args = @_;
-    my $fn   = $args{file};
+    my $fn = $args{file};
 
     $fn = $args{filename} unless defined($fn);
-    $fn = "-"             unless defined($fn);
+    $fn = "-" unless defined($fn);
 
     if ($fn ne "-") {
         close(STDOUT);

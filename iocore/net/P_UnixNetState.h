@@ -30,7 +30,7 @@
 
    State information for a particular channel of a NetVConnection
    This information is private to the Net module.   It is only here
-   because the C++ compiler needs it to define NetVConnection.
+   because of the the C++ compiler needs it to define NetVConnection.
 
 
  ****************************************************************************/
@@ -40,15 +40,15 @@
 #include "I_VIO.h"
 
 class Event;
-class NetEvent;
+class UnixNetVConnection;
 
 struct NetState {
-  int enabled = 0;
+  int enabled;
   VIO vio;
-  Link<NetEvent> ready_link;
-  SLink<NetEvent> enable_link;
-  int in_enabled_list = 0;
-  int triggered       = 0;
+  Link<UnixNetVConnection> ready_link;
+  SLink<UnixNetVConnection> enable_link;
+  int in_enabled_list;
+  int triggered;
 
-  NetState() : vio(VIO::NONE) {}
+  NetState() : enabled(0), vio(VIO::NONE), in_enabled_list(0), triggered(0) {}
 };

@@ -27,18 +27,13 @@
 #include "tscore/Diags.h"
 #include "tscore/ink_atomic.h"
 
-#if TS_HAS_MIMALLOC
-#include <mimalloc-new-delete.h>
-#include <mimalloc-override.h>
-#endif
-
 #if !defined(kfreebsd) && defined(freebsd)
 #include <malloc_np.h> // for malloc_usable_size
 #endif
 
 #include <cassert>
 #if defined(linux)
-// XXX: Shouldn't that be part of CPPFLAGS?
+// XXX: SHouldn't that be part of CPPFLAGS?
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
 #endif
@@ -136,10 +131,34 @@ ats_free_null(void *ptr)
   return nullptr;
 } /* End ats_free_null */
 
-ats_unique_buf
-ats_unique_malloc(size_t size)
+void
+ats_memalign_free(void *ptr)
 {
-  return ats_unique_buf(static_cast<uint8_t *>(ats_malloc(size)));
+  if (likely(ptr)) {
+    free(ptr);
+  }
+}
+
+// This effectively makes mallopt() a no-op (currently) when tcmalloc
+// or jemalloc is used. This might break our usage for increasing the
+// number of mmap areas (ToDo: Do we still really need that??).
+//
+// TODO: I think we might be able to get rid of this?
+int
+ats_mallopt(int param ATS_UNUSED, int value ATS_UNUSED)
+{
+#if TS_HAS_JEMALLOC
+// TODO: jemalloc code ?
+#else
+#if TS_HAS_TCMALLOC
+// TODO: tcmalloc code ?
+#else
+#if defined(__GLIBC__)
+  return mallopt(param, value);
+#endif // ! defined(__GLIBC__)
+#endif // ! TS_HAS_TCMALLOC
+#endif // ! TS_HAS_JEMALLOC
+  return 0;
 }
 
 int
@@ -149,7 +168,7 @@ ats_msync(caddr_t addr, size_t len, caddr_t end, int flags)
 
   // align start back to page boundary
   caddr_t a = (caddr_t)(((uintptr_t)addr) & ~(pagesize - 1));
-  // align length to page boundary covering region
+  // align length to page boundry covering region
   size_t l = (len + (addr - a) + (pagesize - 1)) & ~(pagesize - 1);
   if ((a + l) > end) {
     l = end - a; // strict limit
@@ -246,27 +265,15 @@ _xstrdup(const char *str, int length, const char * /* path ATS_UNUSED */)
       length = strlen(str);
     }
 
-    newstr = static_cast<char *>(ats_malloc(length + 1));
+    newstr = (char *)ats_malloc(length + 1);
     // If this is a zero length string just null terminate and return.
     if (unlikely(length == 0)) {
       *newstr = '\0';
     } else {
       strncpy(newstr, str, length); // we cannot do length + 1 because the string isn't
-      newstr[length] = '\0';        // guaranteed to be null terminated!
+      newstr[length] = '\0';        // guaranteeed to be null terminated!
     }
     return newstr;
   }
   return nullptr;
-}
-
-ats_scoped_str &
-ats_scoped_str::operator=(std::string_view s)
-{
-  this->clear();
-  if (!s.empty()) {
-    _r = static_cast<char *>(ats_malloc(s.size() + 1));
-    memcpy(_r, s.data(), s.size());
-    _r[s.size()] = '\0';
-  }
-  return *this;
 }

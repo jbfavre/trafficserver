@@ -37,6 +37,7 @@
 extern int hostdb_enable;
 extern int hostdb_migrate_on_demand;
 extern int hostdb_lookup_timeout;
+extern int hostdb_insert_timeout;
 extern int hostdb_re_dns_on_reload;
 
 // 0 = obey, 1 = ignore, 2 = min(X,ttl), 3 = max(X,ttl)
@@ -136,12 +137,10 @@ struct HostEnt;
 // Stats
 enum HostDB_Stats {
   hostdb_total_lookups_stat,
-  hostdb_total_hits_stat,        // D == total hits
-  hostdb_total_serve_stale_stat, // D == total times we served a stale response
-  hostdb_ttl_stat,               // D average TTL
-  hostdb_ttl_expires_stat,       // D == TTL Expires
+  hostdb_total_hits_stat,  // D == total hits
+  hostdb_ttl_stat,         // D average TTL
+  hostdb_ttl_expires_stat, // D == TTL Expires
   hostdb_re_dns_on_reload_stat,
-  hostdb_insert_duplicate_to_pending_dns_stat,
   HostDB_Stat_Count
 };
 
@@ -184,6 +183,7 @@ typedef std::map<ts::ConstBuffer, IpAddr, CmpConstBuffferCaseInsensitive> HostsF
 struct RefCountedHostsFileMap : public RefCountObj {
   HostsFileMap hosts_file_map;
   ats_scoped_str HostFileText;
+  ink_time_t next_sync_time; // time of the next sync
 };
 
 //
@@ -194,12 +194,12 @@ struct HostDBCache {
   // Map to contain all of the host file overrides, initialize it to empty
   Ptr<RefCountedHostsFileMap> hosts_file_ptr;
   // TODO: make ATS call a close() method or something on shutdown (it does nothing of the sort today)
-  RefCountCache<HostDBInfo> *refcountcache = nullptr;
+  RefCountCache<HostDBInfo> *refcountcache;
 
   // TODO configurable number of items in the cache
-  Queue<HostDBContinuation, Continuation::Link_link> *pending_dns = nullptr;
+  Queue<HostDBContinuation, Continuation::Link_link> *pending_dns;
   Queue<HostDBContinuation, Continuation::Link_link> &pending_dns_for_hash(const CryptoHash &hash);
-  Queue<HostDBContinuation, Continuation::Link_link> *remoteHostDBQueue = nullptr;
+  Queue<HostDBContinuation, Continuation::Link_link> *remoteHostDBQueue;
   HostDBCache();
   bool is_pending_dns_for_hash(const CryptoHash &hash);
 };
@@ -306,9 +306,10 @@ HostDBRoundRobin::select_best_http(sockaddr const *client_ip, ink_time_t now, in
     Debug("hostdb", "Using default round robin");
     unsigned int best_hash_any = 0;
     unsigned int best_hash_up  = 0;
+    sockaddr const *ip;
     for (int i = 0; i < good; i++) {
-      sockaddr const *ip = info(i).ip();
-      unsigned int h     = HOSTDB_CLIENT_IP_HASH(client_ip, ip);
+      ip             = info(i).ip();
+      unsigned int h = HOSTDB_CLIENT_IP_HASH(client_ip, ip);
       if (best_hash_any <= h) {
         best_any      = i;
         best_hash_any = h;
@@ -370,7 +371,7 @@ HostDBRoundRobin::select_best_srv(char *target, InkRand *rand, ink_time_t now, i
   if (len == 0) { // all failed
     result = &info(current++ % good);
   } else if (weight == 0) { // srv weight is 0
-    result = infos[current++ % len];
+    result = &info(current++ % len);
   } else {
     uint32_t xx = rand->random() % weight;
     for (i = 0; i < len - 1 && xx >= infos[i]->data.srv.srv_weight; ++i)
@@ -398,16 +399,16 @@ struct HostDBHash {
 
   CryptoHash hash; ///< The hash value.
 
-  const char *host_name = nullptr; ///< Host name.
-  int host_len          = 0;       ///< Length of @a _host_name
-  IpAddr ip;                       ///< IP address.
-  in_port_t port = 0;              ///< IP port (host order).
+  const char *host_name; ///< Host name.
+  int host_len;          ///< Length of @a _host_name
+  IpAddr ip;             ///< IP address.
+  in_port_t port;        ///< IP port (host order).
   /// DNS server. Not strictly part of the hash data but
   /// it's both used by @c HostDBContinuation and provides access to
   /// hash data. It's just handier to store it here for both uses.
-  DNSServer *dns_server = nullptr;
-  SplitDNS *pSD         = nullptr;             ///< Hold the container for @a dns_server.
-  HostDBMark db_mark    = HOSTDB_MARK_GENERIC; ///< Mark / type of record.
+  DNSServer *dns_server;
+  SplitDNS *pSD;      ///< Hold the container for @a dns_server.
+  HostDBMark db_mark; ///< Mark / type of record.
 
   /// Default constructor.
   HostDBHash();
@@ -460,6 +461,7 @@ struct HostDBContinuation : public Continuation {
   int dnsPendingEvent(int event, Event *e);
   int backgroundEvent(int event, Event *e);
   int retryEvent(int event, Event *e);
+  int removeEvent(int event, Event *e);
   int setbyEvent(int event, Event *e);
 
   /// Recompute the hash and update ancillary values.
@@ -488,12 +490,12 @@ struct HostDBContinuation : public Continuation {
   struct Options {
     typedef Options self; ///< Self reference type.
 
-    int timeout                 = 0;             ///< Timeout value. Default 0
-    HostResStyle host_res_style = HOST_RES_NONE; ///< IP address family fallback. Default @c HOST_RES_NONE
-    bool force_dns              = false;         ///< Force DNS lookup. Default @c false
-    Continuation *cont          = nullptr;       ///< Continuation / action. Default @c nullptr (none)
+    int timeout;                 ///< Timeout value. Default 0
+    HostResStyle host_res_style; ///< IP address family fallback. Default @c HOST_RES_NONE
+    bool force_dns;              ///< Force DNS lookup. Default @c false
+    Continuation *cont;          ///< Continuation / action. Default @c nullptr (none)
 
-    Options() {}
+    Options() : timeout(0), host_res_style(HOST_RES_NONE), force_dns(false), cont(nullptr) {}
   };
   static const Options DEFAULT_OPTIONS; ///< Default defaults.
   void init(HostDBHash const &hash, Options const &opt = DEFAULT_OPTIONS);
@@ -504,7 +506,7 @@ struct HostDBContinuation : public Continuation {
   {
     ink_zero(hash_host_name_store);
     ink_zero(hash.hash);
-    SET_HANDLER(&HostDBContinuation::probeEvent);
+    SET_HANDLER((HostDBContHandler)&HostDBContinuation::probeEvent);
   }
 };
 

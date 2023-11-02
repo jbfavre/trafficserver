@@ -33,16 +33,8 @@
 template <class T, size_t entries> class Milestones
 {
 public:
-  ink_hrtime &
-  operator[](T ms)
-  {
-    return this->_milestones[static_cast<size_t>(ms)];
-  }
-  ink_hrtime
-  operator[](T ms) const
-  {
-    return this->_milestones[static_cast<size_t>(ms)];
-  }
+  ink_hrtime &operator[](T ms) { return this->_milestones[static_cast<size_t>(ms)]; }
+  ink_hrtime operator[](T ms) const { return this->_milestones[static_cast<size_t>(ms)]; }
 
   /**
    * Mark given milestone with timestamp if it's not marked yet
@@ -53,7 +45,7 @@ public:
   mark(T ms)
   {
     if (this->_milestones[static_cast<size_t>(ms)] == 0) {
-      this->_milestones[static_cast<size_t>(ms)] = ink_get_hrtime();
+      this->_milestones[static_cast<size_t>(ms)] = Thread::get_hrtime();
     }
   }
 
@@ -64,10 +56,10 @@ public:
    * @return The difference time in milliseconds
    */
   int64_t
-  difference_msec(T ms_start, T ms_end, int64_t missing = -1) const // Return "missing" when Milestone is not set
+  difference_msec(T ms_start, T ms_end) const
   {
     if (this->_milestones[static_cast<size_t>(ms_end)] == 0) {
-      return missing;
+      return -1;
     }
     return ink_hrtime_to_msec(this->_milestones[static_cast<size_t>(ms_end)] - this->_milestones[static_cast<size_t>(ms_start)]);
   }

@@ -102,8 +102,7 @@ register_net_stats()
   const std::pair<const char *, Net_Stats> non_persistent[] = {
     {"proxy.process.net.accepts_currently_open", net_accepts_currently_open_stat},
     {"proxy.process.net.connections_currently_open", net_connections_currently_open_stat},
-    {"proxy.process.net.default_inactivity_timeout_applied", default_inactivity_timeout_applied_stat},
-    {"proxy.process.net.default_inactivity_timeout_count", default_inactivity_timeout_count_stat},
+    {"proxy.process.net.default_inactivity_timeout_applied", default_inactivity_timeout_stat},
     {"proxy.process.net.dynamic_keep_alive_timeout_in_count", keep_alive_queue_timeout_count_stat},
     {"proxy.process.net.dynamic_keep_alive_timeout_in_total", keep_alive_queue_timeout_total_stat},
     {"proxy.process.socks.connections_currently_open", socks_connections_currently_open_stat},
@@ -131,8 +130,7 @@ register_net_stats()
   NET_CLEAR_DYN_STAT(socks_connections_currently_open_stat);
   NET_CLEAR_DYN_STAT(keep_alive_queue_timeout_total_stat);
   NET_CLEAR_DYN_STAT(keep_alive_queue_timeout_count_stat);
-  NET_CLEAR_DYN_STAT(default_inactivity_timeout_count_stat);
-  NET_CLEAR_DYN_STAT(default_inactivity_timeout_applied_stat);
+  NET_CLEAR_DYN_STAT(default_inactivity_timeout_stat);
 
   RecRegisterRawStat(net_rsb, RECT_PROCESS, "proxy.process.tcp.total_accepts", RECD_INT, RECP_NON_PERSISTENT,
                      static_cast<int>(net_tcp_accept_stat), RecRawStatSyncSum);
@@ -142,21 +140,18 @@ register_net_stats()
                      (int)net_connections_throttled_in_stat, RecRawStatSyncSum);
   RecRegisterRawStat(net_rsb, RECT_PROCESS, "proxy.process.net.connections_throttled_out", RECD_INT, RECP_PERSISTENT,
                      (int)net_connections_throttled_out_stat, RecRawStatSyncSum);
-  RecRegisterRawStat(net_rsb, RECT_PROCESS, "proxy.process.net.max.requests_throttled_in", RECD_INT, RECP_PERSISTENT,
-                     (int)net_requests_max_throttled_in_stat, RecRawStatSyncSum);
 }
 
 void
-ink_net_init(ts::ModuleVersion version)
+ink_net_init(ModuleVersion version)
 {
   static int init_called = 0;
 
-  ink_release_assert(version.check(NET_SYSTEM_MODULE_INTERNAL_VERSION));
-
+  ink_release_assert(!checkModuleVersion(version, NET_SYSTEM_MODULE_VERSION));
   if (!init_called) {
     // do one time stuff
     // create a stat block for NetStats
-    net_rsb = RecAllocateRawStatBlock(static_cast<int>(Net_Stat_Count));
+    net_rsb = RecAllocateRawStatBlock((int)Net_Stat_Count);
     configure_net();
     register_net_stats();
   }
