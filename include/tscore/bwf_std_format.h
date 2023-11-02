@@ -24,7 +24,6 @@
 #pragma once
 
 #include <atomic>
-#include <array>
 #include <string_view>
 #include "tscpp/util/TextView.h"
 #include "tscore/BufferWriterForward.h"
@@ -37,13 +36,10 @@ bwformat(ts::BufferWriter &w, ts::BWFSpec const &spec, atomic<T> const &v)
 {
   return ts::bwformat(w, spec, v.load());
 }
-
 } // end namespace std
 
 namespace ts
 {
-BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, std::error_code const &ec);
-
 namespace bwf
 {
   using namespace std::literals; // enable ""sv
@@ -70,36 +66,6 @@ namespace bwf
     Date(std::string_view fmt = DEFAULT_FORMAT);
   };
 
-  namespace detail
-  {
-    // Special case conversions - these handle nullptr because the @c std::string_view spec is stupid.
-    inline std::string_view FirstOfConverter(std::nullptr_t) { return std::string_view{}; }
-    inline std::string_view
-    FirstOfConverter(char const *s)
-    {
-      return std::string_view{s ? s : ""};
-    }
-    // Otherwise do any compliant conversion.
-    template <typename T>
-    std::string_view
-    FirstOfConverter(T &&t)
-    {
-      return t;
-    }
-  } // namespace detail
-  /// Print the first of a list of strings that is not an empty string.
-  /// All arguments must be convertible to @c std::string.
-  template <typename... Args>
-  std::string_view
-  FirstOf(Args &&... args)
-  {
-    std::array<std::string_view, sizeof...(args)> strings{{detail::FirstOfConverter(args)...}};
-    for (auto &s : strings) {
-      if (!s.empty())
-        return s;
-    }
-    return std::string_view{};
-  };
   /** For optional printing strings along with suffixes and prefixes.
    *  If the wrapped string is null or empty, nothing is printed. Otherwise the prefix, string,
    *  and suffix are printed. The default are a single space for suffix and nothing for the prefix.
@@ -124,8 +90,7 @@ namespace bwf
       }
     }
   };
-
-}; // namespace bwf
+} // namespace bwf
 
 BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, bwf::Errno const &e);
 BufferWriter &bwformat(BufferWriter &w, BWFSpec const &spec, bwf::Date const &date);

@@ -33,10 +33,10 @@
 class Lockfile
 {
 public:
-  Lockfile() { fname[0] = '\0'; }
+  Lockfile(void) : fd(0) { fname[0] = '\0'; }
   // coverity[uninit_member]
-  Lockfile(const char *filename) { ink_strlcpy(fname, filename, sizeof(fname)); }
-  ~Lockfile() {}
+  Lockfile(const char *filename) : fd(0) { ink_strlcpy(fname, filename, sizeof(fname)); }
+  ~Lockfile(void) {}
   void
   SetLockfileName(const char *filename)
   {
@@ -44,7 +44,7 @@ public:
   }
 
   const char *
-  GetLockfileName()
+  GetLockfileName(void)
   {
     return fname;
   }
@@ -69,7 +69,7 @@ public:
   // Close()
   //
   // Closes the file handle on the opened Lockfile.
-  void Close();
+  void Close(void);
 
   // Kill()
   // KillGroup()
@@ -79,12 +79,12 @@ public:
   // If the lock file open succeeds, it closes the lock file releasing
   // the lock.
   //
-  // The initial signal can be used to generate a core from the process while
+  // The intial signal can be used to generate a core from the process while
   // still ensuring it dies.
   void Kill(int sig, int initial_sig = 0, const char *pname = nullptr);
   void KillGroup(int sig, int initial_sig = 0, const char *pname = nullptr);
 
 private:
   char fname[PATH_NAME_MAX];
-  int fd = 0;
+  int fd;
 };

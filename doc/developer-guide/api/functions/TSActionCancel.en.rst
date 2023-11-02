@@ -24,17 +24,9 @@ TSActionCancel
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSActionCancel(TSAction actionp)
 
 Description
 ===========
-
-Cancels the action.
-
-.. note::
-    The argument :arg:`actionp` must be checked prior to calling this function,
-    since the function assumes :arg:`actionp` is a valid action pointer.

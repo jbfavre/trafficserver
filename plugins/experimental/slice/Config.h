@@ -26,8 +26,8 @@
 #include <pcre.h>
 #endif
 
-#include <string>
 #include <mutex>
+#include <string>
 
 // Data Structures and Classes
 struct Config {
@@ -42,15 +42,9 @@ struct Config {
   RegexType m_regex_type{None};
   pcre *m_regex{nullptr};
   pcre_extra *m_regex_extra{nullptr};
-  int m_paceerrsecs{0};   // -1 disable logging, 0 no pacing, max 60s
-  int m_prefetchcount{0}; // 0 disables prefetching
+  int m_paceerrsecs{0}; // -1 disable logging, 0 no pacing, max 60s
   enum RefType { First, Relative };
-  RefType m_reftype{First};           // reference slice is relative to request
-  const char *m_method_type{nullptr}; // type of header request
-  bool m_head_strip_range{false};     // strip range header for head requests
-
-  std::string m_skip_header;
-  std::string m_crr_ims_header;
+  RefType m_reftype{First}; // reference slice is relative to request
 
   // Convert optarg to bytes
   static int64_t bytesFrom(char const *const valstr);
@@ -61,7 +55,7 @@ struct Config {
   // Parse from args, ast one wins
   bool fromArgs(int const argc, char const *const argv[]);
 
-  // Check if the error should can be logged, if successful may update m_nexttime
+  // Check if the error should can be logged, if sucessful may update m_nexttime
   bool canLogError();
 
   // Check if regex supplied
@@ -69,13 +63,6 @@ struct Config {
   hasRegex() const
   {
     return None != m_regex_type;
-  }
-
-  // Check if response only expects header
-  bool
-  onlyHeader() const
-  {
-    return (m_method_type == TS_HTTP_METHOD_HEAD || m_method_type == TS_HTTP_METHOD_PURGE);
   }
 
   // If no null reg, true, otherwise check against regex

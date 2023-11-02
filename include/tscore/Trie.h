@@ -20,7 +20,6 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-
 #pragma once
 
 #include <cstdio>
@@ -28,7 +27,6 @@
 #include <cstring>
 
 #include "tscore/List.h"
-#include "tscore/Diags.h"
 
 // Note that you should provide the class to use here, but we'll store
 // pointers to such objects internally.
@@ -43,7 +41,7 @@ public:
   // will return false if not found; else value_ptr will point to found value
   T *Search(const char *key, int key_len = -1) const;
   void Clear();
-  void Print() const;
+  void Print();
 
   bool
   Empty() const
@@ -52,18 +50,6 @@ public:
   }
 
   virtual ~Trie() { Clear(); }
-
-  using const_iterator = typename Queue<T>::const_iterator;
-  const_iterator
-  begin() const
-  {
-    return m_value_list.begin();
-  }
-  const_iterator
-  end() const
-  {
-    return m_value_list.end();
-  }
 
 private:
   static const int N_NODE_CHILDREN = 256;
@@ -242,7 +228,7 @@ Trie<T>::Clear()
 
 template <typename T>
 void
-Trie<T>::Print() const
+Trie<T>::Print()
 {
   // The class we contain must provide a ::Print() method.
   forl_LL(T, iter, m_value_list) iter->Print();

@@ -1,18 +1,19 @@
-.. Licensed to the Apache Software Foundation (ASF) under one or more
-   contributor license agreements.  See the NOTICE file distributed
-   with this work for additional information regarding copyright
-   ownership.  The ASF licenses this file to you under the Apache
-   License, Version 2.0 (the "License"); you may not use this file
-   except in compliance with the License.  You may obtain a copy of
-   the License at
+.. Licensed to the Apache Software Foundation (ASF) under one
+   or more contributor license agreements.  See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.  The ASF licenses this file
+   to you under the Apache License, Version 2.0 (the
+   "License"); you may not use this file except in compliance
+   with the License.  You may obtain a copy of the License at
 
    http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-   implied.  See the License for the specific language governing
-   permissions and limitations under the License.
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License.
 
 .. include:: ../../../common.defs
 
@@ -26,9 +27,7 @@ TSLifecycleHookAdd
 Synopsis
 ========
 
-.. code-block:: c
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSLifecycleHookAdd(TSLifecycleHookID id, TSCont contp)
 
@@ -40,8 +39,8 @@ specified by :arg:`id`. Lifecycle hooks are based on the Traffic Server
 process, not on any specific transaction or session. These will typically be
 called only once during the execution of the Traffic Server process and
 therefore should be added in :func:`TSPluginInit` (which could itself be
-considered a lifecycle hook). Unlike other hooks, lifecycle hooks may not have
-a well defined ordering and use of them should not assume that one of the hooks
+considered a lifecyle hook). Unlike other hooks, lifecycle hooks may not have a
+well defined ordering and use of them should not assume that one of the hooks
 is always called before another unless specifically mentioned.
 
 Types
@@ -99,34 +98,21 @@ Types
 
       Called after every SSL context initialization used by |TS| for inbound connections (|TS| as the server).
 
-   .. cpp:enumerator:: TS_LIFECYCLE_TASK_THREADS_READY_HOOK
+.. c:type:: TSPluginMsg
 
-      Called after |TS| task threads have been started.
+   The format of the data for the plugin message event :c:data:`TS_EVENT_LIFECYCLE_MSG`.
 
-      Invoked with the event :c:data:`TS_EVENT_LIFECYCLE_TASK_THREADS_READY` and ``NULL``
-      data.
+.. c:member:: const char * TSPluginMsg::tag
 
-   .. cpp:enumerator:: TS_LIFECYCLE_SHUTDOWN_HOOK
+   The tag of the message. This is a null terminated string.
 
-      Called after |TS| receiving a shutdown signal, such as SIGTERM.
+.. c:member:: const void * TSPluginMsg::data
 
-      Invoked with the event :c:data:`TS_EVENT_LIFECYCLE_SHUTDOWN` and ``NULL`` data.
+   Message data (payload). This is a raw slab of bytes - no structure is guaranteed.
 
-.. c:struct:: TSPluginMsg
+.. c:member:: size_t TSPluginMsg::data_size
 
-   The data for the plugin message event :c:data:`TS_EVENT_LIFECYCLE_MSG`.
-
-   .. c:var:: const char * tag
-
-      The tag of the message. This is a null terminated string.
-
-   .. c:var:: const void * data
-
-      Message data (payload). This is a raw slab of bytes - no structure is guaranteed.
-
-   .. c:var:: size_t data_size
-
-      The number of valid bytes pointed at by :var:`TSPluginMsg.data`.
+   The size of :member:`TSPluginMsg::data`.
 
 Ordering
 ========
@@ -182,7 +168,7 @@ initialization, which was problematic because all of them could effectively
 only be called from :func:`TSPluginInit` . The solution was to move
 :func:`TSPluginInit` as early as possible in the process initialization and
 provide hooks for API calls that needed to be invoked later which served
-essentially as additional plugin initialization points.
+essentially as additional pluging initialization points.
 
 See Also
 ========

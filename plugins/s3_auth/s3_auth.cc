@@ -23,7 +23,6 @@
 #include <ctime>
 #include <cstring>
 #include <getopt.h>
-#include <ios>
 #include <sys/time.h>
 
 #include <cstdio>
@@ -38,18 +37,12 @@
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
 
-#include <chrono>
-#include <atomic>
-#include <thread>
-#include <mutex>
-#include <shared_mutex>
-
 #include <ts/ts.h>
 #include <ts/remap.h>
-#include <tscpp/util/TsSharedMutex.h>
 #include "tscore/ink_config.h"
-#include "tscpp/util/TextView.h"
 
+// Special snowflake here, only availbale when building inside the ATS source tree.
+#include "tscore/ink_atomic.h"
 #include "aws_auth_v4.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -85,6 +78,7 @@ loadRegionMap(StringMap &m, const String &filename)
 
   std::ifstream ifstr;
   String line;
+  unsigned lineno = 0;
 
   ifstr.open(path.c_str());
   if (!ifstr) {
@@ -98,6 +92,8 @@ loadRegionMap(StringMap &m, const String &filename)
 
   while (std::getline(ifstr, line)) {
     String::size_type pos;
+
+    ++lineno;
 
     // Allow #-prefixed comments.
     pos = line.find_first_of('#');
@@ -141,7 +137,7 @@ loadRegionMap(StringMap &m, const String &filename)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Cache for the secrets file, to avoid reading / loading them repeatedly on
+// Cache for the secrets file, to avoid reading / loding them repeatedly on
 // a reload of remap.config. This gets cached for 60s (not configurable).
 //
 class S3Config;
@@ -152,31 +148,7 @@ public:
   S3Config *get(const char *fname);
 
 private:
-  struct _ConfigData {
-    // This is incremented before and after cnf and load_time are set.
-    // Thus, an odd value indicates an update is in progress.
-    std::atomic<unsigned> update_status{0};
-
-    // A config from a file and the last time it was loaded.
-    // config should be written before load_time.  That way,
-    // if config is read after load_time, the load time will
-    // never indicate config is fresh when it isn't.
-    std::atomic<S3Config *> config;
-    std::atomic<time_t> load_time;
-
-    _ConfigData() {}
-
-    _ConfigData(S3Config *config_, time_t load_time_) : config(config_), load_time(load_time_) {}
-
-    _ConfigData(_ConfigData &&lhs)
-    {
-      update_status = lhs.update_status.load();
-      config        = lhs.config.load();
-      load_time     = lhs.load_time.load();
-    }
-  };
-
-  std::unordered_map<std::string, _ConfigData> _cache;
+  std::unordered_map<std::string, std::pair<S3Config *, int>> _cache;
   static const int _ttl = 60;
 };
 
@@ -186,7 +158,6 @@ ConfigCache gConfCache;
 // One configuration setup
 //
 int event_handler(TSCont, TSEvent, void *); // Forward declaration
-int config_reloader(TSCont, TSEvent, void *);
 
 class S3Config
 {
@@ -196,25 +167,14 @@ public:
     if (get_cont) {
       _cont = TSContCreate(event_handler, nullptr);
       TSContDataSet(_cont, static_cast<void *>(this));
-
-      _conf_rld = TSContCreate(config_reloader, TSMutexCreate());
-      TSContDataSet(_conf_rld, static_cast<void *>(this));
     }
   }
 
   ~S3Config()
   {
-    _secret_len = _keyid_len = _token_len = 0;
+    _secret_len = _keyid_len = 0;
     TSfree(_secret);
     TSfree(_keyid);
-    TSfree(_token);
-    TSfree(_conf_fname);
-    if (_conf_rld_act) {
-      TSActionCancel(_conf_rld_act);
-    }
-    if (_conf_rld) {
-      TSContDestroy(_conf_rld);
-    }
     if (_cont) {
       TSContDestroy(_cont);
     }
@@ -232,16 +192,13 @@ public:
     /* Optional parameters, issue warning if v2 parameters are used with v4 and vice-versa (wrong parameters are ignored anyways) */
     if (2 == _version) {
       if (_v4includeHeaders_modified && !_v4includeHeaders.empty()) {
-        TSDebug("[%s] headers are not being signed with AWS auth v2, included headers parameter ignored", PLUGIN_NAME);
+        TSError("[%s] headers are not being signed with AWS auth v2, included headers parameter ignored", PLUGIN_NAME);
       }
       if (_v4excludeHeaders_modified && !_v4excludeHeaders.empty()) {
-        TSDebug("[%s] headers are not being signed with AWS auth v2, excluded headers parameter ignored", PLUGIN_NAME);
+        TSError("[%s] headers are not being signed with AWS auth v2, excluded headers parameter ignored", PLUGIN_NAME);
       }
       if (_region_map_modified && !_region_map.empty()) {
-        TSDebug("[%s] region map is not used with AWS auth v2, parameter ignored", PLUGIN_NAME);
-      }
-      if (nullptr != _token || _token_len > 0) {
-        TSDebug("[%s] session token support with AWS auth v2 is not implemented, parameter ignored", PLUGIN_NAME);
+        TSError("[%s] region map is not used with AWS auth v2, parameter ignored", PLUGIN_NAME);
       }
     } else {
       /* 4 == _version */
@@ -250,27 +207,35 @@ public:
     return true;
   }
 
+  void
+  acquire()
+  {
+    ink_atomic_increment(&_ref_count, 1);
+  }
+
+  void
+  release()
+  {
+    TSDebug(PLUGIN_NAME, "ref_count is %d", _ref_count);
+    if (1 >= ink_atomic_decrement(&_ref_count, 1)) {
+      TSDebug(PLUGIN_NAME, "configuration deleted, due to ref-counting");
+      delete this;
+    }
+  }
+
   // Used to copy relevant configurations that can be configured in a config file. Note: we intentionally
   // don't override/use the assignment operator, since we only copy things IF they have been modified.
   void
   copy_changes_from(const S3Config *src)
   {
     if (src->_secret) {
-      TSfree(_secret);
       _secret     = TSstrdup(src->_secret);
       _secret_len = src->_secret_len;
     }
 
     if (src->_keyid) {
-      TSfree(_keyid);
       _keyid     = TSstrdup(src->_keyid);
       _keyid_len = src->_keyid_len;
-    }
-
-    if (src->_token) {
-      TSfree(_token);
-      _token     = TSstrdup(src->_token);
-      _token_len = src->_token_len;
     }
 
     if (src->_version_modified) {
@@ -297,13 +262,6 @@ public:
       _region_map          = src->_region_map;
       _region_map_modified = true;
     }
-
-    _expiration = src->_expiration;
-
-    if (src->_conf_fname) {
-      TSfree(_conf_fname);
-      _conf_fname = TSstrdup(src->_conf_fname);
-    }
   }
 
   // Getters
@@ -325,12 +283,6 @@ public:
     return _keyid;
   }
 
-  const char *
-  token() const
-  {
-    return _token;
-  }
-
   int
   secret_len() const
   {
@@ -341,12 +293,6 @@ public:
   keyid_len() const
   {
     return _keyid_len;
-  }
-
-  int
-  token_len() const
-  {
-    return _token_len;
   }
 
   int
@@ -373,24 +319,6 @@ public:
     return _region_map;
   }
 
-  long
-  expiration() const
-  {
-    return _expiration;
-  }
-
-  const char *
-  conf_fname() const
-  {
-    return _conf_fname;
-  }
-
-  int
-  incr_conf_reload_count()
-  {
-    return _conf_reload_count++;
-  }
-
   // Setters
   void
   set_secret(const char *s)
@@ -405,13 +333,6 @@ public:
     TSfree(_keyid);
     _keyid     = TSstrdup(s);
     _keyid_len = strlen(s);
-  }
-  void
-  set_token(const char *s)
-  {
-    TSfree(_token);
-    _token     = TSstrdup(s);
-    _token_len = strlen(s);
   }
   void
   set_virt_host(bool f = true)
@@ -452,25 +373,6 @@ public:
     _region_map_modified = true;
   }
 
-  void
-  set_expiration(const char *s)
-  {
-    _expiration = strtol(s, nullptr, 10);
-  }
-
-  void
-  set_conf_fname(const char *s)
-  {
-    TSfree(_conf_fname);
-    _conf_fname = TSstrdup(s);
-  }
-
-  void
-  reset_conf_reload_count()
-  {
-    _conf_reload_count = 0;
-  }
-
   // Parse configs from an external file
   bool parse_config(const std::string &filename);
 
@@ -480,54 +382,26 @@ public:
   schedule(TSHttpTxn txnp) const
   {
     TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_REQUEST_HDR_HOOK, _cont);
+    TSHttpTxnHookAdd(txnp, TS_HTTP_TXN_CLOSE_HOOK, _cont); // To release the config lease
   }
-
-  void
-  schedule_conf_reload(long delay)
-  {
-    if (_conf_rld_act != nullptr && !TSActionDone(_conf_rld_act)) {
-      TSActionCancel(_conf_rld_act);
-    }
-    _conf_rld_act = TSContScheduleOnPool(_conf_rld, delay * 1000, TS_THREAD_POOL_TASK);
-  }
-
-  /**
-     Clear _conf_rld_act if the event handler is handling the action
-   */
-  void
-  check_current_action(void *edata)
-  {
-    // Following what's TSContScheduleOnPool does before returning TSAction
-    if (_conf_rld_act == ((TSAction)((uintptr_t)edata | 0x1))) {
-      _conf_rld_act = nullptr;
-    }
-  }
-
-  ts::shared_mutex reload_mutex;
 
 private:
   char *_secret            = nullptr;
   size_t _secret_len       = 0;
   char *_keyid             = nullptr;
   size_t _keyid_len        = 0;
-  char *_token             = nullptr;
-  size_t _token_len        = 0;
   bool _virt_host          = false;
   int _version             = 2;
   bool _version_modified   = false;
   bool _virt_host_modified = false;
   TSCont _cont             = nullptr;
-  TSCont _conf_rld         = nullptr;
-  TSAction _conf_rld_act   = nullptr;
+  int _ref_count           = 1;
   StringSet _v4includeHeaders;
   bool _v4includeHeaders_modified = false;
   StringSet _v4excludeHeaders;
   bool _v4excludeHeaders_modified = false;
   StringMap _region_map;
   bool _region_map_modified = false;
-  long _expiration          = 0;
-  char *_conf_fname         = nullptr;
-  int _conf_reload_count    = 0;
 };
 
 bool
@@ -537,51 +411,57 @@ S3Config::parse_config(const std::string &config_fname)
     TSError("[%s] called without a config file, this is broken", PLUGIN_NAME);
     return false;
   } else {
-    std::ifstream file;
-    file.open(config_fname, std::ios_base::in);
+    char line[512]; // These are long lines ...
+    FILE *file = fopen(config_fname.c_str(), "r");
 
-    if (!file.is_open()) {
+    if (nullptr == file) {
       TSError("[%s] unable to open %s", PLUGIN_NAME, config_fname.c_str());
       return false;
     }
 
-    for (std::string buf; std::getline(file, buf);) {
-      ts::TextView line{buf};
+    while (fgets(line, sizeof(line), file) != nullptr) {
+      char *pos1, *pos2;
 
-      // Skip leading/trailing white spaces
-      ts::TextView key_val = line.trim_if(&isspace);
+      // Skip leading white spaces
+      pos1 = line;
+      while (*pos1 && isspace(*pos1)) {
+        ++pos1;
+      }
+      if (!*pos1 || ('#' == *pos1)) {
+        continue;
+      }
 
-      // Skip empty or comment lines
-      if (key_val.empty() || ('#' == key_val[0])) {
+      // Skip trailig white spaces
+      pos2 = pos1;
+      pos1 = pos2 + strlen(pos2) - 1;
+      while ((pos1 > pos2) && isspace(*pos1)) {
+        *(pos1--) = '\0';
+      }
+      if (pos1 == pos2) {
         continue;
       }
 
       // Identify the keys (and values if appropriate)
-      std::string key_str{key_val.take_prefix_at('=').trim_if(&isspace)};
-      std::string val_str{key_val.trim_if(&isspace)};
-
-      if (key_str == "secret_key") {
-        set_secret(val_str.c_str());
-      } else if (key_str == "access_key") {
-        set_keyid(val_str.c_str());
-      } else if (key_str == "session_token") {
-        set_token(val_str.c_str());
-      } else if (key_str == "version") {
-        set_version(val_str.c_str());
-      } else if (key_str == "virtual_host") {
+      if (0 == strncasecmp(pos2, "secret_key=", 11)) {
+        set_secret(pos2 + 11);
+      } else if (0 == strncasecmp(pos2, "access_key=", 11)) {
+        set_keyid(pos2 + 11);
+      } else if (0 == strncasecmp(pos2, "version=", 8)) {
+        set_version(pos2 + 8);
+      } else if (0 == strncasecmp(pos2, "virtual_host", 12)) {
         set_virt_host();
-      } else if (key_str == "v4-include-headers") {
-        set_include_headers(val_str.c_str());
-      } else if (key_str == "v4-exclude-headers") {
-        set_exclude_headers(val_str.c_str());
-      } else if (key_str == "v4-region-map") {
-        set_region_map(val_str.c_str());
-      } else if (key_str == "expiration") {
-        set_expiration(val_str.c_str());
+      } else if (0 == strncasecmp(pos2, "v4-include-headers=", 19)) {
+        set_include_headers(pos2 + 19);
+      } else if (0 == strncasecmp(pos2, "v4-exclude-headers=", 19)) {
+        set_exclude_headers(pos2 + 19);
+      } else if (0 == strncasecmp(pos2, "v4-region-map=", 14)) {
+        set_region_map(pos2 + 14);
       } else {
-        TSWarning("[%s] unknown config key: %s", PLUGIN_NAME, key_str.c_str());
+        // ToDo: warnings?
       }
     }
+
+    fclose(file);
   }
 
   return true;
@@ -597,8 +477,6 @@ S3Config::parse_config(const std::string &config_fname)
 S3Config *
 ConfigCache::get(const char *fname)
 {
-  S3Config *s3;
-
   struct timeval tv;
 
   gettimeofday(&tv, nullptr);
@@ -609,56 +487,44 @@ ConfigCache::get(const char *fname)
   auto it = _cache.find(config_fname);
 
   if (it != _cache.end()) {
-    unsigned update_status = it->second.update_status;
-    if (tv.tv_sec > (it->second.load_time + _ttl)) {
-      if (!(update_status & 1) && it->second.update_status.compare_exchange_strong(update_status, update_status + 1)) {
-        TSDebug(PLUGIN_NAME, "Configuration from %s is stale, reloading", config_fname.c_str());
-        s3 = new S3Config(false); // false == this config does not get the continuation
+    if (tv.tv_sec > (it->second.second + _ttl)) {
+      // Update the cached configuration file.
+      S3Config *s3 = new S3Config(false); // false == this config does not get the continuation
 
-        if (s3->parse_config(config_fname)) {
-          s3->set_conf_fname(fname);
-        } else {
-          // Failed the configuration parse... Set the cache response to nullptr
-          delete s3;
-          s3 = nullptr;
-          TSAssert(!"Configuration parsing / caching failed");
-        }
-
-        delete it->second.config;
-        it->second.config    = s3;
-        it->second.load_time = tv.tv_sec;
-
-        // Update is complete.
-        ++it->second.update_status;
+      TSDebug(PLUGIN_NAME, "Configuration from %s is stale, reloading", config_fname.c_str());
+      it->second.second = tv.tv_sec;
+      if (nullptr != it->second.first) {
+        // The previous config update / reload attempt did not fail, safe to call release.
+        it->second.first->release();
+      }
+      if (s3->parse_config(config_fname)) {
+        it->second.first = s3;
       } else {
-        // This thread lost the race with another thread that is also reloading
-        // the config for this file. Wait for the other thread to finish reloading.
-        while (it->second.update_status & 1) {
-          // Hopefully yielding will sleep the thread at least until the next
-          // scheduler interrupt, preventing a busy wait.
-          std::this_thread::yield();
-        }
-        s3 = it->second.config;
+        // Failed the configuration parse... Set the cache response to nullptr
+        s3->release();
+        it->second.first = nullptr;
       }
     } else {
       TSDebug(PLUGIN_NAME, "Configuration from %s is fresh, reusing", config_fname.c_str());
-      s3 = it->second.config;
     }
+    return it->second.first;
   } else {
     // Create a new cached file.
-    s3 = new S3Config(false); // false == this config does not get the continuation
+    S3Config *s3 = new S3Config(false); // false == this config does not get the continuation
 
-    TSDebug(PLUGIN_NAME, "Parsing and caching configuration from %s, version:%d", config_fname.c_str(), s3->version());
     if (s3->parse_config(config_fname)) {
-      s3->set_conf_fname(fname);
-      _cache.emplace(config_fname, _ConfigData(s3, tv.tv_sec));
+      _cache[config_fname] = std::make_pair(s3, tv.tv_sec);
+      TSDebug(PLUGIN_NAME, "Parsing and caching configuration from %s, version:%d", config_fname.c_str(), s3->version());
     } else {
-      delete s3;
-      s3 = nullptr;
-      TSAssert(!"Configuration parsing / caching failed");
+      s3->release();
+      return nullptr;
     }
+
+    return s3;
   }
-  return s3;
+
+  TSAssert(!"Configuration parsing / caching failed");
+  return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -747,7 +613,7 @@ S3Request::set_header(const char *header, int header_len, const char *val, int v
   return ret;
 }
 
-// dst points to starting offset of dst buffer
+// dst poinsts to starting offset of dst buffer
 // dst_len remaining space in buffer
 static size_t
 str_concat(char *dst, size_t dst_len, const char *src, size_t src_len)
@@ -795,12 +661,6 @@ S3Request::authorizeV4(S3Config *s3)
   size_t dateTimeLen   = 0;
   const char *dateTime = util.getDateTime(&dateTimeLen);
   if (!set_header(X_AMX_DATE.c_str(), X_AMX_DATE.length(), dateTime, dateTimeLen)) {
-    return TS_HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  }
-
-  /* set X-Amz-Security-Token if we have a token */
-  if (nullptr != s3->token() && '\0' != *(s3->token()) &&
-      !set_header(X_AMZ_SECURITY_TOKEN.data(), X_AMZ_SECURITY_TOKEN.size(), s3->token(), s3->token_len())) {
     return TS_HTTP_STATUS_INTERNAL_SERVER_ERROR;
   }
 
@@ -945,22 +805,22 @@ S3Request::authorizeV2(S3Config *s3)
 #endif
   HMAC_Init_ex(ctx, s3->secret(), s3->secret_len(), EVP_sha1(), nullptr);
   HMAC_Update(ctx, (unsigned char *)method, method_len);
-  HMAC_Update(ctx, reinterpret_cast<const unsigned char *>("\n"), 1);
+  HMAC_Update(ctx, (unsigned char *)"\n", 1);
   HMAC_Update(ctx, (unsigned char *)con_md5, con_md5_len);
-  HMAC_Update(ctx, reinterpret_cast<const unsigned char *>("\n"), 1);
+  HMAC_Update(ctx, (unsigned char *)"\n", 1);
   HMAC_Update(ctx, (unsigned char *)con_type, con_type_len);
-  HMAC_Update(ctx, reinterpret_cast<const unsigned char *>("\n"), 1);
-  HMAC_Update(ctx, reinterpret_cast<unsigned char *>(date), date_len);
-  HMAC_Update(ctx, reinterpret_cast<const unsigned char *>("\n/"), 2);
+  HMAC_Update(ctx, (unsigned char *)"\n", 1);
+  HMAC_Update(ctx, (unsigned char *)date, date_len);
+  HMAC_Update(ctx, (unsigned char *)"\n/", 2);
 
   if (host && host_endp) {
     HMAC_Update(ctx, (unsigned char *)host, host_endp - host);
-    HMAC_Update(ctx, reinterpret_cast<const unsigned char *>("/"), 1);
+    HMAC_Update(ctx, (unsigned char *)"/", 1);
   }
 
   HMAC_Update(ctx, (unsigned char *)path, path_len);
   if (param) {
-    HMAC_Update(ctx, reinterpret_cast<const unsigned char *>(";"), 1); // TSUrlHttpParamsGet() does not include ';'
+    HMAC_Update(ctx, (unsigned char *)";", 1); // TSUrlHttpParamsGet() does not include ';'
     HMAC_Update(ctx, (unsigned char *)param, param_len);
   }
 
@@ -972,7 +832,7 @@ S3Request::authorizeV2(S3Config *s3)
 #endif
 
   // Do the Base64 encoding and set the Authorization header.
-  if (TS_SUCCESS == TSBase64Encode(reinterpret_cast<const char *>(hmac), hmac_len, hmac_b64, sizeof(hmac_b64) - 1, &hmac_b64_len)) {
+  if (TS_SUCCESS == TSBase64Encode((const char *)hmac, hmac_len, hmac_b64, sizeof(hmac_b64) - 1, &hmac_b64_len)) {
     char auth[256]; // This is way bigger than any string we can think of.
     int auth_len = snprintf(auth, sizeof(auth), "AWS %s:%.*s", s3->keyid(), static_cast<int>(hmac_b64_len), hmac_b64);
 
@@ -995,96 +855,38 @@ S3Request::authorizeV2(S3Config *s3)
 int
 event_handler(TSCont cont, TSEvent event, void *edata)
 {
-  TSHttpTxn txnp       = static_cast<TSHttpTxn>(edata);
-  S3Config *s3         = static_cast<S3Config *>(TSContDataGet(cont));
+  TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
+  S3Config *s3   = static_cast<S3Config *>(TSContDataGet(cont));
+
+  S3Request request(txnp);
+  TSHttpStatus status  = TS_HTTP_STATUS_INTERNAL_SERVER_ERROR;
   TSEvent enable_event = TS_EVENT_HTTP_CONTINUE;
 
-  {
-    S3Request request(txnp);
-    TSHttpStatus status = TS_HTTP_STATUS_INTERNAL_SERVER_ERROR;
-
-    switch (event) {
-    case TS_EVENT_HTTP_SEND_REQUEST_HDR:
-      if (request.initialize()) {
-        std::shared_lock lock(s3->reload_mutex);
-        status = request.authorize(s3);
-      }
-
-      if (TS_HTTP_STATUS_OK == status) {
-        TSDebug(PLUGIN_NAME, "Successfully signed the AWS S3 URL");
-      } else {
-        TSDebug(PLUGIN_NAME, "Failed to sign the AWS S3 URL, status = %d", status);
-        TSHttpTxnStatusSet(txnp, status);
-        enable_event = TS_EVENT_HTTP_ERROR;
-      }
-      break;
-    default:
-      TSError("[%s] Unknown event for this plugin", PLUGIN_NAME);
-      TSDebug(PLUGIN_NAME, "unknown event for this plugin");
-      break;
+  switch (event) {
+  case TS_EVENT_HTTP_SEND_REQUEST_HDR:
+    if (request.initialize()) {
+      status = request.authorize(s3);
     }
-    // Most get S3Request out of scope in case the later plugins invalidate the TSAPI
-    // objects it references.  Some cases were causing asserts from the destructor
+
+    if (TS_HTTP_STATUS_OK == status) {
+      TSDebug(PLUGIN_NAME, "Succesfully signed the AWS S3 URL");
+    } else {
+      TSDebug(PLUGIN_NAME, "Failed to sign the AWS S3 URL, status = %d", status);
+      TSHttpTxnStatusSet(txnp, status);
+      enable_event = TS_EVENT_HTTP_ERROR;
+    }
+    break;
+  case TS_EVENT_HTTP_TXN_CLOSE:
+    s3->release(); // Release the configuration lease when txn closes
+    break;
+  default:
+    TSError("[%s] Unknown event for this plugin", PLUGIN_NAME);
+    TSDebug(PLUGIN_NAME, "unknown event for this plugin");
+    break;
   }
 
   TSHttpTxnReenable(txnp, enable_event);
   return 0;
-}
-
-// If the token has more than one hour to expire, reload is scheduled one hour before expiration.
-// If the token has less than one hour to expire, reload is scheduled 15 minutes before expiration.
-// If the token has less than 15 minutes to expire, reload is scheduled at the expiration time.
-static long
-cal_reload_delay(long time_diff)
-{
-  if (time_diff > 3600) {
-    return time_diff - 3600;
-  } else if (time_diff > 900) {
-    return time_diff - 900;
-  } else {
-    return time_diff;
-  }
-}
-
-int
-config_reloader(TSCont cont, TSEvent event, void *edata)
-{
-  TSDebug(PLUGIN_NAME, "reloading configs");
-  S3Config *s3          = static_cast<S3Config *>(TSContDataGet(cont));
-  S3Config *file_config = gConfCache.get(s3->conf_fname());
-
-  if (!file_config || !file_config->valid()) {
-    TSError("[%s] requires both shared and AWS secret configuration", PLUGIN_NAME);
-    return TS_ERROR;
-  }
-
-  {
-    std::unique_lock lock(s3->reload_mutex);
-    s3->copy_changes_from(file_config);
-    s3->check_current_action(edata);
-  }
-
-  if (s3->expiration() == 0) {
-    TSDebug(PLUGIN_NAME, "disabling auto config reload");
-  } else {
-    // auto reload is scheduled to be 5 minutes before the expiration time to get some headroom
-    long time_diff = s3->expiration() -
-                     std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    if (time_diff > 0) {
-      long delay = cal_reload_delay(time_diff);
-      TSDebug(PLUGIN_NAME, "scheduling config reload with %ld seconds delay", delay);
-      s3->reset_conf_reload_count();
-      s3->schedule_conf_reload(delay);
-    } else {
-      TSDebug(PLUGIN_NAME, "config expiration time is in the past, re-checking in 1 minute");
-      if (s3->incr_conf_reload_count() == 10) {
-        TSError("[%s] tried to reload config automatically but failed, please try manual reloading the config", PLUGIN_NAME);
-      }
-      s3->schedule_conf_reload(60);
-    }
-  }
-
-  return TS_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1123,7 +925,6 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
     {const_cast<char *>("v4-include-headers"), required_argument, nullptr, 'i'},
     {const_cast<char *>("v4-exclude-headers"), required_argument, nullptr, 'e'},
     {const_cast<char *>("v4-region-map"), required_argument, nullptr, 'm'},
-    {const_cast<char *>("session_token"), required_argument, nullptr, 't'},
     {nullptr, no_argument, nullptr, '\0'},
   };
 
@@ -1144,6 +945,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
       if (!file_config) {
         TSError("[%s] invalid configuration file, %s", PLUGIN_NAME, optarg);
         *ih = nullptr;
+        s3->release();
         return TS_ERROR;
       }
       break;
@@ -1152,9 +954,6 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
       break;
     case 's':
       s3->set_secret(optarg);
-      break;
-    case 't':
-      s3->set_token(optarg);
       break;
     case 'h':
       s3->set_virt_host();
@@ -1186,30 +985,15 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
   // Make sure we got both the shared secret and the AWS secret
   if (!s3->valid()) {
     TSError("[%s] requires both shared and AWS secret configuration", PLUGIN_NAME);
+    s3->release();
     *ih = nullptr;
     return TS_ERROR;
   }
 
-  if (s3->expiration() == 0) {
-    TSDebug(PLUGIN_NAME, "disabling auto config reload");
-  } else {
-    // auto reload is scheduled to be 5 minutes before the expiration time to get some headroom
-    long time_diff = s3->expiration() -
-                     std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    if (time_diff > 0) {
-      long delay = cal_reload_delay(time_diff);
-      TSDebug(PLUGIN_NAME, "scheduling config reload with %ld seconds delay", delay);
-      s3->reset_conf_reload_count();
-      s3->schedule_conf_reload(delay);
-    } else {
-      TSDebug(PLUGIN_NAME, "config expiration time is in the past, re-checking in 1 minute");
-      s3->schedule_conf_reload(60);
-    }
-  }
-
+  // Note that we don't acquire() the s3 config, it's implicit that we hold at least one ref
   *ih = static_cast<void *>(s3);
-  TSDebug(PLUGIN_NAME, "New rule: access_key=%s, virtual_host=%s, version=%d", s3->keyid(), s3->virt_host() ? "yes" : "no",
-          s3->version());
+  TSDebug(PLUGIN_NAME, "New rule: secret_key=%s, access_key=%s, virtual_host=%s, version=%d", s3->secret(), s3->keyid(),
+          s3->virt_host() ? "yes" : "no", s3->version());
 
   return TS_SUCCESS;
 }
@@ -1218,7 +1002,8 @@ void
 TSRemapDeleteInstance(void *ih)
 {
   S3Config *s3 = static_cast<S3Config *>(ih);
-  delete s3;
+
+  s3->release();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1231,6 +1016,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo * /* rri */)
 
   if (s3) {
     TSAssert(s3->valid());
+    s3->acquire(); // Increasement ref-count
     // Now schedule the continuation to update the URL when going to origin.
     // Note that in most cases, this is a No-Op, assuming you have reasonable
     // cache hit ratio. However, the scheduling is next to free (very cheap).

@@ -118,7 +118,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
-  TSDebug(PLUGIN_NAME, "plugin is successfully initialized");
+  TSDebug(PLUGIN_NAME, "plugin is succesfully initialized");
   return TS_SUCCESS;
 }
 
@@ -196,7 +196,6 @@ reset_pacing_cont(TSCont contp, TSEvent event, void *edata)
 #endif
 
   TSfree(txn_data);
-  TSContDestroy(contp);
   TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
   return 0;
 }

@@ -26,9 +26,7 @@ Traffic Server plugin loading and registration.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSPluginInit(int argc, const char* argv[])
 .. function:: TSReturnCode TSPluginRegister(TSPluginRegistrationInfo* plugin_info)

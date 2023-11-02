@@ -24,9 +24,7 @@ TSHttpHdrMethodSet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSHttpHdrMethodSet(TSMBuffer bufp, TSMLoc offset, const char * value, int length)
 

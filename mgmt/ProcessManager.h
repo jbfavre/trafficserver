@@ -1,8 +1,6 @@
 /** @file
 
-  Process Manager Class, derived from BaseManager. Class provides callback
-  registration for management events as well as the interface to the outside
-  world.
+  A brief file description
 
   @section license License
 
@@ -23,18 +21,26 @@
   limitations under the License.
  */
 
+/*
+ *
+ * ProcessManager.h
+ *   Process Manager Class, derived from BaseManager. Class provides callback
+ * registration for management events as well as the interface to the outside
+ * world.
+ *
+ * $Date: 2003-06-01 18:37:18 $
+ *
+ *
+ */
+
 #pragma once
-
-#include <functional>
-#include <string_view>
-
-#include <ts/apidefs.h>
 
 #include "MgmtUtils.h"
 #include "BaseManager.h"
 #include "tscore/ink_sock.h"
-#include "tscore/ink_llqueue.h"
+
 #include "tscore/ink_apidefs.h"
+#include <functional>
 
 #if HAVE_EVENTFD
 #include <sys/eventfd.h>
@@ -51,26 +57,14 @@ public:
   // Start a thread for the process manager. If @a cb is set then it
   // is called after the thread is started and before any messages are
   // processed.
-  void start(std::function<TSThread()> const &cb_init        = std::function<TSThread()>(),
-             std::function<void(TSThread)> const &cb_destroy = std::function<void(TSThread)>());
+  void start(std::function<void()> const &cb = std::function<void()>());
 
   // Stop the process manager, dropping any unprocessed messages.
   void stop();
 
-  void signalConfigFileChild(const char *parent, const char *child);
-  void signalManager(int msg_id, const char *data_str);
-  void signalManager(int msg_id, const char *data_raw, int data_len);
-
-  /** Send a management message of type @a msg_id with @a text.
-   *
-   * @param msg_id ID for the message.
-   * @param text Content for the message.
-   *
-   * A terminating null character is added automatically.
-   */
-  void signalManager(int msg_id, std::string_view text);
-
-  void signalManager(MgmtMessageHdr *mh);
+  inkcoreapi void signalConfigFileChild(const char *parent, const char *child, unsigned int options);
+  inkcoreapi void signalManager(int msg_id, const char *data_str);
+  inkcoreapi void signalManager(int msg_id, const char *data_raw, int data_len);
 
   void reconfigure();
   void initLMConnection();
@@ -97,9 +91,7 @@ private:
 
   /// Thread initialization callback.
   /// This allows @c traffic_server and @c traffic_manager to perform different initialization in the thread.
-  std::function<TSThread()> init;
-  std::function<void(TSThread)> destroy;
-  TSThread managerThread = nullptr;
+  std::function<void()> init;
 
   int local_manager_sockfd;
 #if HAVE_EVENTFD
@@ -112,4 +104,4 @@ private:
   static void *processManagerThread(void *arg);
 };
 
-extern ProcessManager *pmgmt;
+inkcoreapi extern ProcessManager *pmgmt;

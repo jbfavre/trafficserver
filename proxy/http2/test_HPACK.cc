@@ -67,9 +67,10 @@ int
 unpack(string &packed, uint8_t *unpacked)
 {
   int n = packed.length() / 2;
+  int u, l;
   for (int i = 0; i < n; ++i) {
-    int u       = packed[i * 2];
-    int l       = packed[i * 2 + 1];
+    u           = packed[i * 2];
+    l           = packed[i * 2 + 1];
     unpacked[i] = (((u >= 'a') ? u - 'a' + 10 : u - '0') << 4) + ((l >= 'a') ? l - 'a' + 10 : l - '0');
   }
   return n;
@@ -128,19 +129,21 @@ print_difference(const char *a_str, const int a_str_len, const char *b_str, cons
 int
 compare_header_fields(HTTPHdr *a, HTTPHdr *b)
 {
+  const char *a_str, *b_str;
+  int a_str_len, b_str_len;
+  MIMEFieldIter a_iter, b_iter;
+
+  const MIMEField *a_field = a->iter_get_first(&a_iter);
+  const MIMEField *b_field = b->iter_get_first(&b_iter);
+
   // compare fields count
   if (a->fields_count() != b->fields_count()) {
     return -1;
   }
-
-  auto a_spot = a->begin(), a_limit = a->end();
-  auto b_spot = b->begin(), b_limit = b->end();
-
-  while (a_spot != a_limit && b_spot != b_limit) {
-    int a_str_len, b_str_len;
+  for (; a_field != nullptr; a_field = a->iter_get_next(&a_iter), b_field = b->iter_get_next(&b_iter)) {
     // compare header name
-    const char *a_str = a_spot->name_get(&a_str_len);
-    const char *b_str = b_spot->name_get(&b_str_len);
+    a_str = a_field->name_get(&a_str_len);
+    b_str = b_field->name_get(&b_str_len);
     if (a_str_len != b_str_len) {
       if (memcmp(a_str, b_str, a_str_len) != 0) {
         print_difference(a_str, a_str_len, b_str, b_str_len);
@@ -148,16 +151,14 @@ compare_header_fields(HTTPHdr *a, HTTPHdr *b)
       }
     }
     // compare header value
-    a_str = a_spot->value_get(&a_str_len);
-    b_str = b_spot->value_get(&b_str_len);
+    a_str = a_field->value_get(&a_str_len);
+    b_str = b_field->value_get(&b_str_len);
     if (a_str_len != b_str_len) {
       if (memcmp(a_str, b_str, a_str_len) != 0) {
         print_difference(a_str, a_str_len, b_str, b_str_len);
         return -1;
       }
     }
-    ++a_spot;
-    ++b_spot;
   }
 
   return 0;

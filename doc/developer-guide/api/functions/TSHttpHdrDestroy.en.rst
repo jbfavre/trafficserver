@@ -24,9 +24,7 @@ TSHttpHdrDestroy
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSHttpHdrDestroy(TSMBuffer bufp, TSMLoc offset)
 

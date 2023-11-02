@@ -29,7 +29,6 @@
 namespace atscppapi
 {
 struct TransformationPluginState;
-class Continuation;
 
 /**
  * @brief The interface used when you wish to transform Request or Response body content.
@@ -46,7 +45,7 @@ class Continuation;
  * the appropriate callback for any hooks you register.
  *
  * A simple example of how to use the TransformationPlugin interface follows, this is an example
- * of a Response transformation, the available options are REQUEST_TRANSFORMATION and RESPONSE_TRANSFORMATION
+ * of a Response transformation, the avialable options are REQUEST_TRANSFORMATION and RESPONSE_TRANSFORMATION
  * which are defined in Type.
  *
  * This example is a Null Transformation, meaning it will just spit out the content it receives without
@@ -98,19 +97,13 @@ public:
 
   /**
    * Call this method if you wish to pause the transformation.
+   * Schedule the return value continuation to resume the transforamtion.
+   * If the continuation is scheduled and called after the transform is destroyed it
+   * won't do anything beyond cleanups.
+   * Note: You must schedule the continuation or destroy it (using TSContDestroy) yourself,
+   * otherwise it will leak.
    */
-  void pause();
-
-  /**
-   * Returns true if the transformation is paused, false otherwise.
-   */
-  bool isPaused() const;
-
-  /**
-   * Returns a reference to the Continuation to schedule to resume (unpause) the transformation.  It will be resumed when this
-   * continuation is executed.  Must not call this unless the transformation is paused.
-   */
-  Continuation &resumeCont();
+  TSCont pause();
 
   /**
    * A method that you must implement when writing a TransformationPlugin, this method
@@ -128,7 +121,7 @@ protected:
 
   /**
    * This is the method that you must call when you're done producing output for
-   * the downstream TransformationPlugin.
+   * the downstream TranformationPlugin.
    */
   size_t setOutputComplete();
 

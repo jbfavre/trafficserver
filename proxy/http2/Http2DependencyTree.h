@@ -41,7 +41,7 @@ namespace Http2DependencyTree
 class Node
 {
 public:
-  explicit Node(void *t = nullptr) : t(t)
+  Node(void *t = nullptr) : t(t)
   {
     entry = new PriorityQueueEntry<Node *>(this);
     queue = new PriorityQueue<Node *>();
@@ -71,9 +71,6 @@ public:
     }
   }
 
-  Node(const Node &) = delete;
-  Node &operator=(const Node &) = delete;
-
   LINK(Node, link);
 
   bool
@@ -81,7 +78,6 @@ public:
   {
     return point < n.point;
   }
-
   bool
   operator>(const Node &n) const
   {
@@ -115,7 +111,7 @@ public:
 template <typename T> class Tree
 {
 public:
-  explicit Tree(uint32_t max_concurrent_streams) : _max_depth(MIN(max_concurrent_streams, HTTP2_DEPENDENCY_TREE_MAX_DEPTH))
+  Tree(uint32_t max_concurrent_streams) : _max_depth(MIN(max_concurrent_streams, HTTP2_DEPENDENCY_TREE_MAX_DEPTH))
   {
     _ancestors.resize(_max_ancestors);
   }
@@ -123,7 +119,7 @@ public:
   Node *find(uint32_t id, bool *is_max_leaf = nullptr);
   Node *find_shadow(uint32_t id, bool *is_max_leaf = nullptr);
   Node *add(uint32_t parent_id, uint32_t id, uint32_t weight, bool exclusive, T t, bool shadow = false);
-  Node *reprioritize(uint32_t id, uint32_t new_parent_id, bool exclusive);
+  Node *reprioritize(uint32_t new_parent_id, uint32_t id, bool exclusive);
   Node *reprioritize(Node *node, uint32_t id, bool exclusive);
   Node *top();
   void remove(Node *node);
@@ -147,7 +143,7 @@ private:
   void _dump(Node *node, std::ostream &output) const;
   Node *_find(Node *node, uint32_t id, uint32_t depth = 1, bool *is_max_leaf = nullptr);
   Node *_top(Node *node);
-  void _change_parent(Node *node, Node *new_parent, bool exclusive);
+  void _change_parent(Node *new_parent, Node *node, bool exclusive);
   bool in_parent_chain(Node *maybe_parent, Node *target);
 
   Node *_root = new Node(this);
@@ -181,7 +177,7 @@ template <typename T>
 void
 Tree<T>::_dump(Node *node, std::ostream &output) const
 {
-  output << R"({ "id":")" << node->id << "/" << node->weight << "/" << node->point << "/" << ((node->t != nullptr) ? "1" : "0")
+  output << "{ \"id\":\"" << node->id << "/" << node->weight << "/" << node->point << "/" << ((node->t != nullptr) ? "1" : "0")
          << "/" << ((node->active) ? "a" : "d") << "\",";
   // Dump the children
   output << " \"c\":[";
@@ -359,7 +355,7 @@ Tree<T>::remove(Node *node)
     return;
   }
 
-  // Make a note of node's ancestry
+  // Make a note of node's ancestory
   add_ancestor(node);
 
   Node *parent = node->parent;

@@ -19,26 +19,15 @@
 #  limitations under the License.
 
 # Update the PKGDATE with the new version date when making a new clang-format binary package.
-PKGDATE="20200514"
+PKGDATE="20180413"
 
 function main() {
   set -e # exit on error
   ROOT=${ROOT:-$(cd $(dirname $0) && git rev-parse --show-toplevel)/.git/fmt/${PKGDATE}}
-  # The presence of this file indicates clang-format was successfully installed.
-  INSTALLED_SENTINEL=${ROOT}/.clang-format-installed
 
-  # Check for the option to just install clang-format without running it.
-  just_install=0
-  if [ $1 = "--install" ] ; then
-    just_install=1
-    if [ $# -ne 1 ] ; then
-      echo "No other arguments should be used with --install."
-      exit 2
-    fi
-  fi
-  DIR=${@:-.}
+  DIR=${1:-.}
   PACKAGE="clang-format-${PKGDATE}.tar.bz2"
-  VERSION="clang-format version 10.0.0 (https://github.com/llvm/llvm-project.git d32170dbd5b0d54436537b6b75beaf44324e0c28)"
+  VERSION="clang-format version 6.0.1 (http://llvm.org/git/clang.git d5f48a217f404c3462537527f4169bb45eed3904) (http://llvm.org/git/llvm.git aa0c91ae818e0b9e7981a42236dededc85997568)"
 
   URL=${URL:-https://ci.trafficserver.apache.org/bintray/${PACKAGE}}
 
@@ -73,7 +62,7 @@ function main() {
     ${CURL} -L --progress-bar -o ${ARCHIVE} ${URL}
     ${TAR} -x -C ${ROOT} -f ${ARCHIVE}
     cat > ${ROOT}/sha1 << EOF
-5eec43e5c7f3010d6e6f37639491cabe51de0ab2  ${ARCHIVE}
+26aff1bc6dc315c695c62cadde38c934acd22d06  ${ARCHIVE}
 EOF
     ${SHASUM} -c ${ROOT}/sha1
     chmod +x ${FORMAT}
@@ -87,32 +76,12 @@ EOF
       echo "See https://bintray.com/apache/trafficserver/clang-format-tools/view for a newer version,"
       echo "or alternatively, undefine the FORMAT environment variable"
       exit 1
-  fi
-  touch ${INSTALLED_SENTINEL}
-  [ ${just_install} -eq 1 ] && return
-
-  # Efficiently retrieving modification timestamps in a platform
-  # independent way is challenging. We use find's -newer argument, which
-  # seems to be broadly supported. The following file is created and has a
-  # timestamp just before running clang-format. Any file with a timestamp
-  # after this we assume was modified by clang-format.
-  start_time_file=$(mktemp -t clang-format-start-time.XXXXXXXXXX)
-  touch ${start_time_file}
-
-  target_files=$(find $DIR -iname \*.[ch] -o -iname \*.cc -o -iname \*.h.in)
-  for file in ${target_files}; do
-    # The ink_autoconf.h and ink_autoconf.h.in files are generated files,
-    # so they do not need to be re-formatted by clang-format. Doing so
-    # results in make rebuilding all our files, so we skip formatting them
-    # here.
-    base_name=$(basename ${file})
-    [ ${base_name} = 'ink_autoconf.h.in' -o ${base_name} = 'ink_autoconf.h' ] && continue
-
+  else
+      for file in $(find $DIR -iname \*.[ch] -o -iname \*.cc); do
+    echo $file
     ${FORMAT} -i $file
-  done
-
-  find ${target_files} -newer ${start_time_file}
-  rm ${start_time_file}
+      done
+  fi
 }
 
 if [[ "$(basename -- "$0")" == 'clang-format.sh' ]]; then

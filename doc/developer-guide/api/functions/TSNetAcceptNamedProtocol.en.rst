@@ -26,9 +26,7 @@ Listen on all SSL ports for connections for the specified protocol name.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSNetAcceptNamedProtocol(TSCont contp, const char * protocol)
 

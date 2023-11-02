@@ -21,43 +21,46 @@
   limitations under the License.
  */
 
-#include "P_SSLCertLookup.h"
-
 #include "tscore/ink_config.h"
+
+#include "P_SSLCertLookup.h"
+#include "P_SSLUtils.h"
+#include "P_SSLConfig.h"
+#include "I_EventSystem.h"
 #include "tscore/I_Layout.h"
 #include "tscore/MatcherUtils.h"
 #include "tscore/Regex.h"
 #include "tscore/Trie.h"
-#include "tscore/ink_config.h"
-#include "tscore/BufferWriter.h"
-#include "tscore/bwf_std_format.h"
 #include "tscore/TestBox.h"
 
-#include "I_EventSystem.h"
+// Check if the ticket_key callback #define is available, and if so, enable session tickets.
+#ifdef SSL_CTX_set_tlsext_ticket_key_cb
 
-#include "P_SSLUtils.h"
-#include "P_SSLConfig.h"
-#include "SSLSessionTicket.h"
+#define HAVE_OPENSSL_SESSION_TICKETS 1
 
-#include <unordered_map>
-#include <utility>
-#include <vector>
-#include <algorithm>
+#endif /* SSL_CTX_set_tlsext_ticket_key_cb */
 
 struct SSLAddressLookupKey {
-  explicit SSLAddressLookupKey(const IpEndpoint &ip)
+  explicit SSLAddressLookupKey(const IpEndpoint &ip) : sep(0)
   {
-    // For IP addresses, the cache key is the hex address with the port concatenated. This makes the
-    // lookup insensitive to address formatting and also allow the longest match semantic to produce
-    // different matches if there is a certificate on the port.
+    static const char hextab[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-    ts::FixedBufferWriter w{key, sizeof(key)};
-    w.print("{}", ts::bwf::Hex_Dump(ip)); // dump as raw hex bytes, don't format as IP address.
-    if (in_port_t port = ip.host_order_port(); port) {
-      sep = static_cast<unsigned char>(w.size());
-      w.print(".{:x}", port);
+    int nbytes;
+    uint16_t port = ntohs(ip.port());
+
+    // For IP addresses, the cache key is the hex address with the port concatenated. This makes the lookup
+    // insensitive to address formatting and also allow the longest match semantic to produce different matches
+    // if there is a certificate on the port.
+    nbytes = ats_ip_to_hex(&ip.sa, key, sizeof(key));
+    if (port) {
+      sep           = nbytes;
+      key[nbytes++] = '.';
+      key[nbytes++] = hextab[(port >> 12) & 0x000F];
+      key[nbytes++] = hextab[(port >> 8) & 0x000F];
+      key[nbytes++] = hextab[(port >> 4) & 0x000F];
+      key[nbytes++] = hextab[(port)&0x000F];
     }
-    w.write('\0'); // force C-string termination.
+    key[nbytes++] = 0;
   }
 
   const char *
@@ -78,7 +81,7 @@ struct SSLAddressLookupKey {
 
 private:
   char key[(TS_IP6_SIZE * 2) /* hex addr */ + 1 /* dot */ + 4 /* port */ + 1 /* nullptr */];
-  unsigned char sep = 0; // offset of address/port separator
+  unsigned char sep; // offset of address/port separator
 };
 
 struct SSLContextStorage {
@@ -96,15 +99,16 @@ public:
   /// cert context.
   /// @return @a idx
   int insert(const char *name, int idx);
-  SSLCertContext *lookup(const std::string &name);
+  SSLCertContext *lookup(const char *name) const;
   void printWildDomains() const;
+  void freeWildDomains() const;
   unsigned
   count() const
   {
-    return this->ctx_store.size();
+    return this->ctx_store.length();
   }
   SSLCertContext *
-  get(unsigned i)
+  get(unsigned i) const
   {
     return &this->ctx_store[i];
   }
@@ -115,48 +119,30 @@ private:
       linkage required by @c Trie.
   */
   struct ContextRef {
-    ContextRef() {}
+    ContextRef() : idx(-1) {}
     explicit ContextRef(int n) : idx(n) {}
     void
     Print() const
     {
       Debug("ssl", "Item=%p SSL_CTX=#%d", this, idx);
     }
-    int idx = -1;           ///< Index in the context store.
+    int idx;                ///< Index in the context store.
     LINK(ContextRef, link); ///< Require by @c Trie
   };
 
   /// We can only match one layer with the wildcards
   /// This table stores the wildcarded subdomain
-  std::unordered_map<std::string, int> wilddomains;
+  mutable HashMap<cchar *, StringHashFns, int> wilddomains;
   /// Contexts stored by IP address or FQDN
-  std::unordered_map<std::string, int> hostnames;
+  InkHashTable *hostnames;
   /// List for cleanup.
   /// Exactly one pointer to each SSL context is stored here.
-  std::vector<SSLCertContext> ctx_store;
+  Vec<SSLCertContext> ctx_store;
 
   /// Add a context to the clean up list.
   /// @return The index of the added context.
   int store(SSLCertContext const &cc);
 };
-
-namespace
-{
-/** Copy @a src to @a dst, transforming to lower case.
- *
- * @param src Input string.
- * @param dst Output buffer.
- */
-inline void
-transform_lower(std::string_view src, ts::MemSpan<char> dst)
-{
-  if (src.size() > dst.size() - 1) { // clip @a src, reserving space for the terminal nul.
-    src = std::string_view{src.data(), dst.size() - 1};
-  }
-  auto final = std::transform(src.begin(), src.end(), dst.data(), [](char c) -> char { return std::tolower(c); });
-  *final++   = '\0';
-}
-} // namespace
 
 // Zero out and free the heap space allocated for ticket keys to avoid leaking secrets.
 // The first several bytes stores the number of keys and the rest stores the ticket keys.
@@ -164,7 +150,7 @@ void
 ticket_block_free(void *ptr)
 {
   if (ptr) {
-    ssl_ticket_key_block *key_block_ptr = static_cast<ssl_ticket_key_block *>(ptr);
+    ssl_ticket_key_block *key_block_ptr = (ssl_ticket_key_block *)ptr;
     unsigned num_ticket_keys            = key_block_ptr->num_keys;
     memset(ptr, 0, sizeof(ssl_ticket_key_block) + num_ticket_keys * sizeof(ssl_ticket_key_t));
   }
@@ -177,7 +163,7 @@ ticket_block_alloc(unsigned count)
   ssl_ticket_key_block *ptr;
   size_t nbytes = sizeof(ssl_ticket_key_block) + count * sizeof(ssl_ticket_key_t);
 
-  ptr = static_cast<ssl_ticket_key_block *>(ats_malloc(nbytes));
+  ptr = (ssl_ticket_key_block *)ats_malloc(nbytes);
   memset(ptr, 0, nbytes);
   ptr->num_keys = count;
 
@@ -217,7 +203,7 @@ fail:
 ssl_ticket_key_block *
 ssl_create_ticket_keyblock(const char *ticket_key_path)
 {
-#if TS_HAS_TLS_SESSION_TICKET
+#if HAVE_OPENSSL_SESSION_TICKETS
   ats_scoped_str ticket_key_data;
   int ticket_key_len;
   ssl_ticket_key_block *keyblock = nullptr;
@@ -242,74 +228,33 @@ fail:
   ticket_block_free(keyblock);
   return nullptr;
 
-#else  /* !TS_HAS_TLS_SESSION_TICKET */
+#else  /* !HAVE_OPENSSL_SESSION_TICKETS */
   (void)ticket_key_path;
   return nullptr;
-#endif /* TS_HAS_TLS_SESSION_TICKET */
+#endif /* HAVE_OPENSSL_SESSION_TICKETS */
 }
-
-SSLCertContext::SSLCertContext(SSLCertContext const &other)
-{
-  opt        = other.opt;
-  userconfig = other.userconfig;
-  keyblock   = other.keyblock;
-  ctx_type   = other.ctx_type;
-  std::lock_guard<std::mutex> lock(other.ctx_mutex);
-  ctx = other.ctx;
-}
-
-SSLCertContext &
-SSLCertContext::operator=(SSLCertContext const &other)
-{
-  if (&other != this) {
-    this->opt        = other.opt;
-    this->userconfig = other.userconfig;
-    this->keyblock   = other.keyblock;
-    this->ctx_type   = other.ctx_type;
-    std::lock_guard<std::mutex> lock(other.ctx_mutex);
-    this->ctx = other.ctx;
-  }
-  return *this;
-}
-
-shared_SSL_CTX
-SSLCertContext::getCtx()
-{
-  std::lock_guard<std::mutex> lock(ctx_mutex);
-  return ctx;
-}
-
 void
-SSLCertContext::setCtx(shared_SSL_CTX sc)
+SSLCertContext::release()
 {
-  std::lock_guard<std::mutex> lock(ctx_mutex);
-  ctx = std::move(sc);
+  if (keyblock) {
+    ticket_block_free(keyblock);
+    keyblock = nullptr;
+  }
+
+  SSLReleaseContext(ctx);
+  ctx = nullptr;
 }
 
-SSLCertLookup::SSLCertLookup()
-  : ssl_storage(new SSLContextStorage()), ec_storage(new SSLContextStorage()), ssl_default(nullptr), is_valid(true)
-{
-}
+SSLCertLookup::SSLCertLookup() : ssl_storage(new SSLContextStorage()), ssl_default(nullptr), is_valid(true) {}
 
 SSLCertLookup::~SSLCertLookup()
 {
   delete this->ssl_storage;
-  delete this->ec_storage;
 }
 
 SSLCertContext *
-SSLCertLookup::find(const std::string &address, SSLCertContextType ctxType) const
+SSLCertLookup::find(const char *address) const
 {
-#ifdef OPENSSL_IS_BORINGSSL
-  // If the context is EC supportable, try finding that first.
-  if (ctxType == SSLCertContextType::EC) {
-    auto ctx = this->ec_storage->lookup(address);
-    if (ctx != nullptr) {
-      return ctx;
-    }
-  }
-#endif
-  // non-EC last resort
   return this->ssl_storage->lookup(address);
 }
 
@@ -319,31 +264,13 @@ SSLCertLookup::find(const IpEndpoint &address) const
   SSLCertContext *cc;
   SSLAddressLookupKey key(address);
 
-#ifdef OPENSSL_IS_BORINGSSL
-  // If the context is EC supportable, try finding that first.
-  if ((cc = this->ec_storage->lookup(key.get()))) {
-    return cc;
-  }
-
-  // If that failed, try the address without the port.
-  if (address.network_order_port()) {
-    key.split();
-    if ((cc = this->ec_storage->lookup(key.get()))) {
-      return cc;
-    }
-  }
-
-  // reset for search across RSA
-  key = SSLAddressLookupKey(address);
-#endif
-
   // First try the full address.
   if ((cc = this->ssl_storage->lookup(key.get()))) {
     return cc;
   }
 
   // If that failed, try the address without the port.
-  if (address.network_order_port()) {
+  if (address.port()) {
     key.split();
     return this->ssl_storage->lookup(key.get());
   }
@@ -354,41 +281,14 @@ SSLCertLookup::find(const IpEndpoint &address) const
 int
 SSLCertLookup::insert(const char *name, SSLCertContext const &cc)
 {
-#ifdef OPENSSL_IS_BORINGSSL
-  switch (cc.ctx_type) {
-  case SSLCertContextType::GENERIC:
-  case SSLCertContextType::RSA:
-    return this->ssl_storage->insert(name, cc);
-  case SSLCertContextType::EC:
-    return this->ec_storage->insert(name, cc);
-  default:
-    ink_assert(false);
-    return -1;
-  }
-#else
   return this->ssl_storage->insert(name, cc);
-#endif
 }
 
 int
 SSLCertLookup::insert(const IpEndpoint &address, SSLCertContext const &cc)
 {
   SSLAddressLookupKey key(address);
-
-#ifdef OPENSSL_IS_BORINGSSL
-  switch (cc.ctx_type) {
-  case SSLCertContextType::GENERIC:
-  case SSLCertContextType::RSA:
-    return this->ssl_storage->insert(key.get(), cc);
-  case SSLCertContextType::EC:
-    return this->ec_storage->insert(key.get(), cc);
-  default:
-    ink_assert(false);
-    return -1;
-  }
-#else
   return this->ssl_storage->insert(key.get(), cc);
-#endif
 }
 
 unsigned
@@ -403,129 +303,19 @@ SSLCertLookup::get(unsigned i) const
   return ssl_storage->get(i);
 }
 
-void
-SSLCertLookup::register_cert_secrets(std::vector<std::string> const &cert_secrets, std::set<std::string> &lookup_names)
+static void
+make_to_lower_case(const char *name, char *lower_case_name, int buf_len)
 {
-  for (auto &secret : cert_secrets) {
-    auto iter = cert_secret_registry.find(secret);
-    if (iter == cert_secret_registry.end()) {
-      std::vector<std::string> add_names;
-      cert_secret_registry.insert(std::make_pair(secret, add_names));
-      iter = cert_secret_registry.find(secret);
-    }
-    iter->second.insert(iter->second.end(), lookup_names.begin(), lookup_names.end());
+  int name_len = strlen(name);
+  int i;
+  if (name_len > (buf_len - 1)) {
+    name_len = buf_len - 1;
   }
+  for (i = 0; i < name_len; i++) {
+    lower_case_name[i] = ParseRules::ink_tolower(name[i]);
+  }
+  lower_case_name[i] = '\0';
 }
-
-void
-SSLCertLookup::getPolicies(const std::string &secret_name, std::set<shared_SSLMultiCertConfigParams> &policies) const
-{
-  auto iter = cert_secret_registry.find(secret_name);
-  if (iter != cert_secret_registry.end()) {
-    for (auto name : iter->second) {
-      SSLCertContext *cc = this->find(name);
-      if (cc) {
-        policies.insert(cc->userconfig);
-      }
-    }
-  }
-}
-
-SSLContextStorage::SSLContextStorage() {}
-
-SSLContextStorage::~SSLContextStorage() {}
-
-int
-SSLContextStorage::store(SSLCertContext const &cc)
-{
-  this->ctx_store.push_back(cc);
-  return this->ctx_store.size() - 1;
-}
-
-int
-SSLContextStorage::insert(const char *name, SSLCertContext const &cc)
-{
-  int idx = this->store(cc);
-  idx     = this->insert(name, idx);
-  if (idx < 0) {
-    this->ctx_store.pop_back();
-  }
-  return idx;
-}
-
-int
-SSLContextStorage::insert(const char *name, int idx)
-{
-  ats_wildcard_matcher wildcard;
-  char lower_case_name[TS_MAX_HOST_NAME_LEN + 1];
-  transform_lower(name, lower_case_name);
-
-  shared_SSL_CTX ctx = this->ctx_store[idx].getCtx();
-  if (wildcard.match(lower_case_name)) {
-    // Strip the wildcard and store the subdomain
-    const char *subdomain = index(lower_case_name, '*');
-    if (subdomain && subdomain[1] == '.') {
-      subdomain += 2; // Move beyond the '.'
-    } else {
-      subdomain = nullptr;
-    }
-    if (subdomain) {
-      if (auto it = this->wilddomains.find(subdomain); it != this->wilddomains.end()) {
-        Debug("ssl", "previously indexed '%s' with SSL_CTX #%d, cannot index it with SSL_CTX #%d now", lower_case_name, it->second,
-              idx);
-        idx = -1;
-      } else {
-        this->wilddomains.emplace(subdomain, idx);
-        Debug("ssl", "indexed '%s' with SSL_CTX %p [%d]", lower_case_name, ctx.get(), idx);
-      }
-    }
-  } else {
-    if (auto it = this->hostnames.find(lower_case_name); it != this->hostnames.end() && idx != it->second) {
-      Debug("ssl", "previously indexed '%s' with SSL_CTX %d, cannot index it with SSL_CTX #%d now", lower_case_name, it->second,
-            idx);
-      idx = -1;
-    } else {
-      this->hostnames.emplace(lower_case_name, idx);
-      Debug("ssl", "indexed '%s' with SSL_CTX %p [%d]", lower_case_name, ctx.get(), idx);
-    }
-  }
-  return idx;
-}
-
-void
-SSLContextStorage::printWildDomains() const
-{
-  for (auto &&it : this->wilddomains) {
-    Debug("ssl", "Stored wilddomain %s", it.first.c_str());
-  }
-}
-
-SSLCertContext *
-SSLContextStorage::lookup(const std::string &name)
-{
-  // First look for an exact name match
-  if (auto it = this->hostnames.find(name); it != this->hostnames.end()) {
-    return &(this->ctx_store[it->second]);
-  }
-  // Try lower casing it
-  char lower_case_name[TS_MAX_HOST_NAME_LEN + 1];
-  transform_lower(name, lower_case_name);
-  if (auto it_lower = this->hostnames.find(lower_case_name); it_lower != this->hostnames.end()) {
-    return &(this->ctx_store[it_lower->second]);
-  }
-
-  // Then strip off the top domain name and look for a wildcard domain match
-  const char *subdomain = index(lower_case_name, '.');
-  if (subdomain) {
-    ++subdomain; // Move beyond the '.'
-    if (auto it = this->wilddomains.find(subdomain); it != this->wilddomains.end()) {
-      return &(this->ctx_store[it->second]);
-    }
-  }
-  return nullptr;
-}
-
-#if TS_HAS_TESTS
 
 static char *
 reverse_dns_name(const char *hostname, char (&reversed)[TS_MAX_HOST_NAME_LEN + 1])
@@ -554,10 +344,144 @@ reverse_dns_name(const char *hostname, char (&reversed)[TS_MAX_HOST_NAME_LEN + 1
       *(--ptr) = '.';
     }
   }
-  transform_lower(ptr, {ptr, strlen(ptr) + 1});
+  make_to_lower_case(ptr, ptr, strlen(ptr) + 1);
 
   return ptr;
 }
+
+SSLContextStorage::SSLContextStorage() : wilddomains(-1), hostnames(ink_hash_table_create(InkHashTableKeyType_String)) {}
+
+bool
+SSLCtxCompare(SSLCertContext const &cc1, SSLCertContext const &cc2)
+{
+  // Either they are both real ctx pointers and cc1 has the smaller pointer
+  // Or only cc2 has a non-null pointer
+  return cc1.ctx < cc2.ctx;
+}
+
+SSLContextStorage::~SSLContextStorage()
+{
+  // First sort the array so we can efficiently detect duplicates
+  // and avoid the double free
+  this->ctx_store.qsort(SSLCtxCompare);
+  SSL_CTX *last_ctx = nullptr;
+  for (unsigned i = 0; i < this->ctx_store.length(); ++i) {
+    if (this->ctx_store[i].ctx != last_ctx) {
+      last_ctx = this->ctx_store[i].ctx;
+      this->ctx_store[i].release();
+    }
+  }
+
+  ink_hash_table_destroy(this->hostnames);
+  freeWildDomains();
+}
+
+int
+SSLContextStorage::store(SSLCertContext const &cc)
+{
+  int idx = this->ctx_store.length();
+  this->ctx_store.add(cc);
+  return idx;
+}
+
+int
+SSLContextStorage::insert(const char *name, SSLCertContext const &cc)
+{
+  int idx = this->store(cc);
+  idx     = this->insert(name, idx);
+  if (idx < 0) {
+    this->ctx_store.drop();
+  }
+  return idx;
+}
+
+int
+SSLContextStorage::insert(const char *name, int idx)
+{
+  ats_wildcard_matcher wildcard;
+  InkHashTableValue value;
+  char lower_case_name[TS_MAX_HOST_NAME_LEN + 1];
+  make_to_lower_case(name, lower_case_name, sizeof(lower_case_name));
+  if (wildcard.match(lower_case_name)) {
+    // Strip the wildcard and store the subdomain
+    const char *subdomain = index(lower_case_name, '*');
+    if (subdomain && subdomain[1] == '.') {
+      subdomain += 2; // Move beyond the '.'
+    } else {
+      subdomain = nullptr;
+    }
+    if (subdomain) {
+      auto index = this->wilddomains.get(subdomain);
+      if (index != -1) {
+        Debug("ssl", "previously indexed '%s' with SSL_CTX #%d, cannot index it with SSL_CTX #%d now", lower_case_name, index, idx);
+        idx = -1;
+      } else {
+        this->wilddomains.put(ats_strdup(subdomain), idx);
+        Debug("ssl", "indexed '%s' with SSL_CTX %p [%d]", lower_case_name, this->ctx_store[idx].ctx, idx);
+      }
+    }
+  } else {
+    if (ink_hash_table_lookup(this->hostnames, lower_case_name, &value) && reinterpret_cast<InkHashTableValue>(idx) != value) {
+      Debug("ssl", "previously indexed '%s' with SSL_CTX %p, cannot index it with SSL_CTX #%d now", lower_case_name, value, idx);
+      idx = -1;
+    } else {
+      ink_hash_table_insert(this->hostnames, lower_case_name, reinterpret_cast<void *>(static_cast<intptr_t>(idx)));
+      Debug("ssl", "indexed '%s' with SSL_CTX %p [%d]", lower_case_name, this->ctx_store[idx].ctx, idx);
+    }
+  }
+  return idx;
+}
+
+void
+SSLContextStorage::printWildDomains() const
+{
+  Vec<cchar *> keys;
+  this->wilddomains.get_keys(keys);
+  for (size_t i = 0; i < keys.length(); i++) {
+    Debug("ssl", "Stored wilddomain %s", keys.get(i));
+  }
+}
+
+void
+SSLContextStorage::freeWildDomains() const
+{
+  Vec<cchar *> keys;
+  this->wilddomains.get_keys(keys);
+  size_t n = keys.length();
+  for (size_t i = 0; i < n; i++) {
+    ats_free((char *)keys.get(i));
+  }
+  this->wilddomains.clear();
+}
+
+SSLCertContext *
+SSLContextStorage::lookup(const char *name) const
+{
+  InkHashTableValue value;
+  // First look for an exact name match
+  if (ink_hash_table_lookup(const_cast<InkHashTable *>(this->hostnames), name, &value)) {
+    return &(this->ctx_store[reinterpret_cast<intptr_t>(value)]);
+  }
+  // Try lower casing it
+  char lower_case_name[TS_MAX_HOST_NAME_LEN + 1];
+  make_to_lower_case(name, lower_case_name, sizeof(lower_case_name));
+  if (ink_hash_table_lookup(const_cast<InkHashTable *>(this->hostnames), lower_case_name, &value)) {
+    return &(this->ctx_store[reinterpret_cast<intptr_t>(value)]);
+  }
+
+  // Then strip off the top domain name and look for a wildcard domain match
+  const char *subdomain = index(lower_case_name, '.');
+  if (subdomain) {
+    ++subdomain; // Move beyond the '.'
+    auto index = this->wilddomains.get(subdomain);
+    if (index >= 0) {
+      return &(this->ctx_store[index]);
+    }
+  }
+  return nullptr;
+}
+
+#if TS_HAS_TESTS
 
 REGRESSION_TEST(SSLWildcardMatch)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
 {

@@ -25,7 +25,8 @@
 
 struct RamCacheLRUEntry {
   CryptoHash key;
-  uint64_t auxkey;
+  uint32_t auxkey1;
+  uint32_t auxkey2;
   LINK(RamCacheLRUEntry, lru_link);
   LINK(RamCacheLRUEntry, hash_link);
   Ptr<IOBufferData> data;
@@ -38,10 +39,11 @@ struct RamCacheLRU : public RamCache {
   int64_t bytes     = 0;
   int64_t objects   = 0;
 
-  // returns 1 on found/stored, 0 on not found/stored, if provided auxkey must match
-  int get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint64_t auxkey = 0) override;
-  int put(CryptoHash *key, IOBufferData *data, uint32_t len, bool copy = false, uint64_t auxkey = 0) override;
-  int fixup(const CryptoHash *key, uint64_t old_auxkey, uint64_t new_auxkey) override;
+  // returns 1 on found/stored, 0 on not found/stored, if provided auxkey1 and auxkey2 must match
+  int get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1 = 0, uint32_t auxkey2 = 0) override;
+  int put(CryptoHash *key, IOBufferData *data, uint32_t len, bool copy = false, uint32_t auxkey1 = 0,
+          uint32_t auxkey2 = 0) override;
+  int fixup(const CryptoHash *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2) override;
   int64_t size() const override;
 
   void init(int64_t max_bytes, Vol *vol) override;
@@ -83,7 +85,7 @@ RamCacheLRU::resize_hashtable()
   int anbuckets = bucket_sizes[ibuckets];
   DDebug("ram_cache", "resize hashtable %d", anbuckets);
   int64_t s                                      = anbuckets * sizeof(DList(RamCacheLRUEntry, hash_link));
-  DList(RamCacheLRUEntry, hash_link) *new_bucket = static_cast<DList(RamCacheLRUEntry, hash_link) *>(ats_malloc(s));
+  DList(RamCacheLRUEntry, hash_link) *new_bucket = (DList(RamCacheLRUEntry, hash_link) *)ats_malloc(s);
   memset(static_cast<void *>(new_bucket), 0, s);
   if (bucket) {
     for (int64_t i = 0; i < nbuckets; i++) {
@@ -99,7 +101,7 @@ RamCacheLRU::resize_hashtable()
   ats_free(seen);
   int size = bucket_sizes[ibuckets] * sizeof(uint16_t);
   if (cache_config_ram_cache_use_seen_filter) {
-    seen = static_cast<uint16_t *>(ats_malloc(size));
+    seen = (uint16_t *)ats_malloc(size);
     memset(seen, 0, size);
   }
 }
@@ -117,7 +119,7 @@ RamCacheLRU::init(int64_t abytes, Vol *avol)
 }
 
 int
-RamCacheLRU::get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint64_t auxkey)
+RamCacheLRU::get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1, uint32_t auxkey2)
 {
   if (!max_bytes) {
     return 0;
@@ -125,17 +127,17 @@ RamCacheLRU::get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint64_t auxkey)
   uint32_t i          = key->slice32(3) % nbuckets;
   RamCacheLRUEntry *e = bucket[i].head;
   while (e) {
-    if (e->key == *key && e->auxkey == auxkey) {
+    if (e->key == *key && e->auxkey1 == auxkey1 && e->auxkey2 == auxkey2) {
       lru.remove(e);
       lru.enqueue(e);
       (*ret_data) = e->data;
-      DDebug("ram_cache", "get %X %" PRIu64 " HIT", key->slice32(3), auxkey);
+      DDebug("ram_cache", "get %X %d %d HIT", key->slice32(3), auxkey1, auxkey2);
       CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_hits_stat, 1);
       return 1;
     }
     e = e->hash_link.next;
   }
-  DDebug("ram_cache", "get %X %" PRIu64 " MISS", key->slice32(3), auxkey);
+  DDebug("ram_cache", "get %X %d %d MISS", key->slice32(3), auxkey1, auxkey2);
   CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_misses_stat, 1);
   return 0;
 }
@@ -149,7 +151,7 @@ RamCacheLRU::remove(RamCacheLRUEntry *e)
   lru.remove(e);
   bytes -= ENTRY_OVERHEAD + e->data->block_size();
   CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_bytes_stat, -(ENTRY_OVERHEAD + e->data->block_size()));
-  DDebug("ram_cache", "put %X %" PRIu64 " FREED", e->key.slice32(3), e->auxkey);
+  DDebug("ram_cache", "put %X %d %d FREED", e->key.slice32(3), e->auxkey1, e->auxkey2);
   e->data = nullptr;
   THREAD_FREE(e, ramCacheLRUEntryAllocator, this_thread());
   objects--;
@@ -158,7 +160,7 @@ RamCacheLRU::remove(RamCacheLRUEntry *e)
 
 // ignore 'copy' since we don't touch the data
 int
-RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint64_t auxkey)
+RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint32_t auxkey1, uint32_t auxkey2)
 {
   if (!max_bytes) {
     return 0;
@@ -168,15 +170,15 @@ RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint64
     uint16_t k  = key->slice32(3) >> 16;
     uint16_t kk = seen[i];
     seen[i]     = k;
-    if ((kk != k)) {
-      DDebug("ram_cache", "put %X %" PRIu64 " len %d UNSEEN", key->slice32(3), auxkey, len);
+    if ((kk != (uint16_t)k)) {
+      DDebug("ram_cache", "put %X %d %d len %d UNSEEN", key->slice32(3), auxkey1, auxkey2, len);
       return 0;
     }
   }
   RamCacheLRUEntry *e = bucket[i].head;
   while (e) {
     if (e->key == *key) {
-      if (e->auxkey == auxkey) {
+      if (e->auxkey1 == auxkey1 && e->auxkey2 == auxkey2) {
         lru.remove(e);
         lru.enqueue(e);
         return 1;
@@ -187,10 +189,11 @@ RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint64
     }
     e = e->hash_link.next;
   }
-  e         = THREAD_ALLOC(ramCacheLRUEntryAllocator, this_ethread());
-  e->key    = *key;
-  e->auxkey = auxkey;
-  e->data   = data;
+  e          = THREAD_ALLOC(ramCacheLRUEntryAllocator, this_ethread());
+  e->key     = *key;
+  e->auxkey1 = auxkey1;
+  e->auxkey2 = auxkey2;
+  e->data    = data;
   bucket[i].push(e);
   lru.enqueue(e);
   bytes += ENTRY_OVERHEAD + data->block_size();
@@ -204,7 +207,7 @@ RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint64
       break;
     }
   }
-  DDebug("ram_cache", "put %X %" PRIu64 " INSERTED", key->slice32(3), auxkey);
+  DDebug("ram_cache", "put %X %d %d INSERTED", key->slice32(3), auxkey1, auxkey2);
   if (objects > nbuckets) {
     ++ibuckets;
     resize_hashtable();
@@ -213,7 +216,7 @@ RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint64
 }
 
 int
-RamCacheLRU::fixup(const CryptoHash *key, uint64_t old_auxkey, uint64_t new_auxkey)
+RamCacheLRU::fixup(const CryptoHash *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2)
 {
   if (!max_bytes) {
     return 0;
@@ -221,8 +224,9 @@ RamCacheLRU::fixup(const CryptoHash *key, uint64_t old_auxkey, uint64_t new_auxk
   uint32_t i          = key->slice32(3) % nbuckets;
   RamCacheLRUEntry *e = bucket[i].head;
   while (e) {
-    if (e->key == *key && e->auxkey == old_auxkey) {
-      e->auxkey = new_auxkey;
+    if (e->key == *key && e->auxkey1 == old_auxkey1 && e->auxkey2 == old_auxkey2) {
+      e->auxkey1 = new_auxkey1;
+      e->auxkey2 = new_auxkey2;
       return 1;
     }
     e = e->hash_link.next;

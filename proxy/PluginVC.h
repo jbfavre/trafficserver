@@ -44,10 +44,10 @@ class PluginVCCore;
 struct PluginVCState {
   PluginVCState();
   VIO vio;
-  bool shutdown = false;
+  bool shutdown;
 };
 
-inline PluginVCState::PluginVCState() : vio() {}
+inline PluginVCState::PluginVCState() : vio(), shutdown(false) {}
 
 enum PluginVC_t {
   PLUGIN_VC_UNKNOWN,
@@ -89,8 +89,6 @@ public:
   // Timeouts
   void set_active_timeout(ink_hrtime timeout_in) override;
   void set_inactivity_timeout(ink_hrtime timeout_in) override;
-  void set_default_inactivity_timeout(ink_hrtime timeout_in) override;
-  bool is_default_inactivity_timeout() override;
   void cancel_active_timeout() override;
   void cancel_inactivity_timeout() override;
   void add_to_keep_alive_queue() override;
@@ -99,12 +97,13 @@ public:
   ink_hrtime get_active_timeout() override;
   ink_hrtime get_inactivity_timeout() override;
 
-  // Pure virtual functions we need to compile
+  // Pure virutal functions we need to compile
   SOCKET get_socket() override;
   void set_local_addr() override;
   void set_remote_addr() override;
   void set_remote_addr(const sockaddr *) override;
   void set_mptcp_state() override;
+  int set_tcp_init_cwnd(int init_cwnd) override;
   int set_tcp_congestion_control(int) override;
 
   void apply_options() override;
@@ -149,8 +148,8 @@ public:
   int main_handler(int event, void *data);
 
 private:
-  void process_read_side();
-  void process_write_side();
+  void process_read_side(bool);
+  void process_write_side(bool);
   void process_close();
   void process_timeout(Event **e, int event_to_send);
 
@@ -203,8 +202,7 @@ public:
 
   // Allocate a PluginVCCore object, passing the continuation which
   // will receive NET_EVENT_ACCEPT to accept the new session.
-  static PluginVCCore *alloc(Continuation *acceptor, int64_t buffer_index = BUFFER_SIZE_INDEX_32K,
-                             int64_t buffer_water_mark = DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK);
+  static PluginVCCore *alloc(Continuation *acceptor);
 
   int state_send_accept(int event, void *data);
   int state_send_accept_failed(int event, void *data);
@@ -247,26 +245,40 @@ public:
   PluginVC passive_vc;
 
 private:
-  void init(int64_t buffer_index = BUFFER_SIZE_INDEX_32K, int64_t buffer_water_mark = DEFAULT_PLUGIN_VC_BUFFER_WATER_MARK);
+  void init();
   void destroy();
 
-  Continuation *connect_to = nullptr;
-  bool connected           = false;
+  Continuation *connect_to;
+  bool connected;
+
+  MIOBuffer *p_to_a_buffer;
+  IOBufferReader *p_to_a_reader;
+
+  MIOBuffer *a_to_p_buffer;
+  IOBufferReader *a_to_p_reader;
 
   IpEndpoint passive_addr_struct;
   IpEndpoint active_addr_struct;
 
-  void *passive_data = nullptr;
-  void *active_data  = nullptr;
+  void *passive_data;
+  void *active_data;
 
   static int32_t nextid;
-  unsigned id = 0;
-
-  uint64_t buffer_size = BUFFER_SIZE_FOR_INDEX(BUFFER_SIZE_INDEX_32K);
+  unsigned id;
 };
 
-inline PluginVCCore::PluginVCCore() : active_vc(this), passive_vc(this)
-
+inline PluginVCCore::PluginVCCore()
+  : active_vc(this),
+    passive_vc(this),
+    connect_to(nullptr),
+    connected(false),
+    p_to_a_buffer(nullptr),
+    p_to_a_reader(nullptr),
+    a_to_p_buffer(nullptr),
+    a_to_p_reader(nullptr),
+    passive_data(nullptr),
+    active_data(nullptr),
+    id(0)
 {
   memset(&active_addr_struct, 0, sizeof active_addr_struct);
   memset(&passive_addr_struct, 0, sizeof passive_addr_struct);

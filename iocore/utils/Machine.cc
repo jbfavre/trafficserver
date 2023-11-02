@@ -31,6 +31,22 @@
 #include <ifaddrs.h>
 #endif
 
+static void
+make_to_lower_case(const char *name, char *lower_case_name, int buf_len)
+{
+  int name_len = strlen(name);
+  int i;
+
+  if (name_len > (buf_len - 1)) {
+    name_len = buf_len - 1;
+  }
+
+  for (i = 0; i < name_len; i++) {
+    lower_case_name[i] = ParseRules::ink_tolower(name[i]);
+  }
+  lower_case_name[i] = '\0';
+}
+
 // Singleton
 Machine *Machine::_instance = nullptr;
 
@@ -50,24 +66,34 @@ Machine::init(char const *name, sockaddr const *ip)
 }
 
 Machine::Machine(char const *the_hostname, sockaddr const *addr)
+  : hostname(nullptr),
+    hostname_len(0),
+    ip_string_len(0),
+    ip_hex_string_len(0),
+    machine_id_strings(ink_hash_table_create(InkHashTableKeyType_String)),
+    machine_id_ipaddrs(ink_hash_table_create(InkHashTableKeyType_String))
 {
-  int status; // return for system calls.
-  ip_text_buffer ip_strbuf;
   char localhost[1024];
+  char ip_strbuf[INET6_ADDRSTRLEN];
+  int status; // return for system calls.
+
+  ip_string[0]     = 0;
+  ip_hex_string[0] = 0;
+  ink_zero(ip);
+  ink_zero(ip4);
+  ink_zero(ip6);
 
   uuid.initialize(TS_UUID_V4);
   ink_release_assert(nullptr != uuid.getString()); // The Process UUID must be available on startup
 
+  localhost[sizeof(localhost) - 1] = 0; // ensure termination.
+
   if (!ats_is_ip(addr)) {
     if (!the_hostname) {
-      // @c gethostname has a broken interface - there's no way to determine the actual size of
-      // the host name explicitly - the error case doesn't return the size. The standards based
-      // limit is 63, or 255 for a FQDN.
-      auto result = gethostname(localhost, sizeof(localhost));
-      ink_release_assert(result == 0);
-      host_name.assign(localhost, strlen(localhost));
-      insert_id(localhost);
+      ink_release_assert(!gethostname(localhost, sizeof(localhost) - 1));
+      the_hostname = localhost;
     }
+    hostname = ats_strdup(the_hostname);
 
 #if HAVE_IFADDRS_H
     ifaddrs *ifa_addrs = nullptr;
@@ -78,7 +104,7 @@ Machine::Machine(char const *the_hostname, sockaddr const *addr)
     // you would expect. On a normal system with just two interfaces and
     // one address / interface the return count is 120. Stack space is
     // cheap so it's best to go big.
-    static constexpr int N_REQ = 1024;
+    static const int N_REQ = 1024;
     ifconf conf;
     ifreq req[N_REQ];
     if (0 <= s) {
@@ -91,8 +117,7 @@ Machine::Machine(char const *the_hostname, sockaddr const *addr)
 #endif
 
     if (0 != status) {
-      Warning("Unable to determine local host '%.*s' address information - %s", int(host_name.size()), host_name.data(),
-              strerror(errno));
+      Warning("Unable to determine local host '%s' address information - %s", hostname, strerror(errno));
     } else {
       // Loop through the interface addresses and prefer by type.
       enum {
@@ -153,7 +178,8 @@ Machine::Machine(char const *the_hostname, sockaddr const *addr)
           if (spot_type != LL && getnameinfo(ifip, ats_ip_size(ifip), localhost, sizeof(localhost) - 1, nullptr, 0, 0) == 0) {
             insert_id(localhost);
           }
-          insert_id(IpAddr(ifip));
+          IpAddr *ipaddr = new IpAddr(ifip);
+          insert_id(ipaddr);
           if (ats_is_ip4(ifip)) {
             if (spot_type > ip4_type) {
               ats_ip_copy(&ip4, ifip);
@@ -196,60 +222,92 @@ Machine::Machine(char const *the_hostname, sockaddr const *addr)
       ip_text_buffer ipbuff;
       Warning("Failed to find hostname for address '%s' - %s", ats_ip_ntop(addr, ipbuff, sizeof(ipbuff)), gai_strerror(status));
     } else {
-      host_name.assign(localhost);
-      insert_id(localhost);
+      hostname = ats_strdup(localhost);
     }
   }
 
-  char hex_buff[TS_IP6_SIZE * 2 + 1];
-  ats_ip_to_hex(&ip.sa, hex_buff, sizeof(hex_buff));
-  ip_hex_string.assign(hex_buff);
+  hostname_len = hostname ? strlen(hostname) : 0;
+
+  ats_ip_ntop(&ip.sa, ip_string, sizeof(ip_string));
+  ip_string_len     = strlen(ip_string);
+  ip_hex_string_len = ats_ip_to_hex(&ip.sa, ip_hex_string, sizeof(ip_hex_string));
 }
 
-Machine::~Machine() {}
-
-bool
-Machine::is_self(std::string const &name)
+Machine::~Machine()
 {
-  return machine_id_strings.find(name) != machine_id_strings.end();
+  ats_free(hostname);
+
+  // release machine_id_strings hash table.
+  InkHashTableIteratorState ht_iter;
+  InkHashTableEntry *ht_entry = nullptr;
+  ht_entry                    = ink_hash_table_iterator_first(machine_id_strings, &ht_iter);
+
+  while (ht_entry != nullptr) {
+    char *value = static_cast<char *>(ink_hash_table_entry_value(machine_id_strings, ht_entry));
+    ats_free(value);
+    ht_entry = ink_hash_table_iterator_next(machine_id_strings, &ht_iter);
+  }
+  ink_hash_table_destroy(machine_id_strings);
+
+  // release machine_id_ipaddrs hash table.
+  ht_entry = nullptr;
+  ht_entry = ink_hash_table_iterator_first(machine_id_ipaddrs, &ht_iter);
+  while (ht_entry != nullptr) {
+    IpAddr *ipaddr = static_cast<IpAddr *>(ink_hash_table_entry_value(machine_id_ipaddrs, ht_entry));
+    delete ipaddr;
+    ht_entry = ink_hash_table_iterator_next(machine_id_ipaddrs, &ht_iter);
+  }
+  ink_hash_table_destroy(machine_id_ipaddrs);
 }
 
 bool
-Machine::is_self(std::string_view name)
+Machine::is_self(const char *name)
 {
-  return this->is_self(std::string(name));
+  char lower_case_name[TS_MAX_HOST_NAME_LEN + 1] = {0};
+  void *value                                    = nullptr;
+
+  if (name == nullptr) {
+    return false;
+  }
+
+  make_to_lower_case(name, lower_case_name, sizeof(lower_case_name));
+
+  return ink_hash_table_lookup(machine_id_strings, lower_case_name, &value) == 1 ? true : false;
 }
 
 bool
-Machine::is_self(char const *name)
+Machine::is_self(const IpAddr *ipaddr)
 {
-  return this->is_self(std::string(name));
-}
+  void *value                             = nullptr;
+  char string_value[INET6_ADDRSTRLEN + 1] = {0};
 
-bool
-Machine::is_self(IpAddr const &ipaddr)
-{
-  return machine_id_ipaddrs.end() != machine_id_ipaddrs.find(ipaddr);
-}
-
-bool
-Machine::is_self(struct sockaddr const *addr)
-{
-  return machine_id_ipaddrs.find(IpAddr(addr)) != machine_id_ipaddrs.end();
+  if (ipaddr == nullptr) {
+    return false;
+  }
+  ipaddr->toString(string_value, sizeof(string_value));
+  return ink_hash_table_lookup(machine_id_ipaddrs, string_value, &value) == 1 ? true : false;
 }
 
 void
-Machine::insert_id(char const *id)
+Machine::insert_id(char *id)
 {
-  machine_id_strings.emplace(id);
+  char lower_case_name[TS_MAX_HOST_NAME_LEN + 1] = {0};
+  char *value                                    = nullptr;
+
+  make_to_lower_case(id, lower_case_name, sizeof(lower_case_name));
+  value = ats_strndup(lower_case_name, strlen(lower_case_name));
+  ink_hash_table_insert(machine_id_strings, lower_case_name, value);
 }
 
 void
-Machine::insert_id(IpAddr const &ipaddr)
+Machine::insert_id(IpAddr *ipaddr)
 {
-  ip_text_buffer buff;
+  int length = INET6_ADDRSTRLEN + 1;
 
-  ipaddr.toString(buff, sizeof(buff));
-  machine_id_strings.emplace(buff);
-  machine_id_ipaddrs.emplace(ipaddr);
+  if (ipaddr != nullptr) {
+    char *string_value = static_cast<char *>(ats_calloc(length, 1));
+    ipaddr->toString(string_value, length);
+    ink_hash_table_insert(machine_id_strings, string_value, string_value);
+    ink_hash_table_insert(machine_id_ipaddrs, string_value, ipaddr);
+  }
 }

@@ -23,6 +23,40 @@
 
 #include "tscore/ink_config.h"
 #include "RecordsConfig.h"
+#include "tscore/ParseRules.h"
+
+//-------------------------------------------------------------------------
+// RecordsConfigOverrideFromEnvironment
+//-------------------------------------------------------------------------
+
+static void
+override_record(const RecordElement *record, void *)
+{
+  if (REC_TYPE_IS_CONFIG(record->type)) {
+    const char *value;
+    RecData data = {0};
+
+    if ((value = RecConfigOverrideFromEnvironment(record->name, nullptr))) {
+      if (RecDataSetFromString(record->value_type, &data, value)) {
+        // WARNING: If we are not the record owner, RecSetRecord() doesn't set our copy
+        // of the record. It sends a set message to the local manager. This can cause
+        // "interesting" results if you are trying to override configuration values
+        // early in startup (before we have synced with the local manager).
+        RecSetRecord(record->type, record->name, record->value_type, &data, nullptr, REC_SOURCE_ENV, false);
+        RecDataZero(record->value_type, &data);
+      }
+    }
+  }
+}
+
+// We process environment variable overrides when we parse the records.config configuration file, but the
+// operator might choose to override a variable that is not present in records.config so we have to post-
+// process the full set of configuration variables as well.
+void
+RecordsConfigOverrideFromEnvironment()
+{
+  RecordsConfigIterate(override_record, nullptr);
+}
 
 //-------------------------------------------------------------------------
 // LibRecordsConfigInit
@@ -87,12 +121,12 @@ initialize_record(const RecordElement *record, void *)
 
     switch (record->value_type) {
     case RECD_INT:
-      tempInt = static_cast<RecInt>(ink_atoi64(record->value));
+      tempInt = (RecInt)ink_atoi64(record->value);
       RecRegisterStatInt(type, record->name, tempInt, RECP_NON_PERSISTENT);
       break;
 
     case RECD_FLOAT:
-      tempFloat = static_cast<RecFloat>(atof(record->value));
+      tempFloat = (RecFloat)atof(record->value);
       RecRegisterStatFloat(type, record->name, tempFloat, RECP_NON_PERSISTENT);
       break;
 
@@ -101,7 +135,7 @@ initialize_record(const RecordElement *record, void *)
       break;
 
     case RECD_COUNTER:
-      tempCounter = static_cast<RecCounter>(ink_atoi64(record->value));
+      tempCounter = (RecCounter)ink_atoi64(record->value);
       RecRegisterStatCounter(type, record->name, tempCounter, RECP_NON_PERSISTENT);
       break;
 
@@ -116,4 +150,12 @@ void
 LibRecordsConfigInit()
 {
   RecordsConfigIterate(initialize_record, nullptr);
+}
+
+void
+test_librecords()
+{
+  RecRegisterStatInt(RECT_PROCESS, "proxy.process.librecords.testing.int", (RecInt)100, RECP_NON_PERSISTENT);
+  RecRegisterStatFloat(RECT_NODE, "proxy.node.librecords.testing.float", (RecFloat)100.1, RECP_NON_PERSISTENT);
+  RecRegisterStatCounter(RECT_LOCAL, "proxy.local.librecords.testing.counter", (RecCounter)99, RECP_NON_PERSISTENT);
 }

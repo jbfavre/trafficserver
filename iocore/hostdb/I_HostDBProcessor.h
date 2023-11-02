@@ -28,7 +28,6 @@
 #include "tscore/CryptoHash.h"
 #include "tscore/ink_align.h"
 #include "tscore/ink_resolver.h"
-#include "tscore/HTTPVersion.h"
 #include "I_EventSystem.h"
 #include "SRV.h"
 #include "P_RefCountCache.h"
@@ -52,7 +51,7 @@ struct HostDBContinuation;
 // IP address.
 //
 // Since host information is relatively small, we can afford to have
-// a reasonable size memory cache, and use a (relatively) sparse
+// a reasonable size memory cache, and use a (relatively) sparce
 // disk representation to decrease # of seeks.
 //
 extern int hostdb_enable;
@@ -62,8 +61,6 @@ extern unsigned int hostdb_ip_timeout_interval;
 extern unsigned int hostdb_ip_fail_timeout_interval;
 extern unsigned int hostdb_serve_stale_but_revalidate;
 extern unsigned int hostdb_round_robin_max_count;
-
-extern int hostdb_max_iobuf_index;
 
 static inline unsigned int
 makeHostHash(const char *string)
@@ -84,17 +81,13 @@ makeHostHash(const char *string)
 // Types
 //
 
-/** Host information metadata used by various parts of HostDB.
- * It is stored as generic data in the cache.
- *
- * As a @c union only one of the members is valid, Which one depends on context data in the
- * @c HostDBInfo. This data is written literally to disk therefore if any change is made,
- * the @c object_version for the cache must be updated by modifying @c HostDBInfo::version.
- *
- * @see HostDBInfo::version
- */
+//
+// This structure contains the host information required by
+// the application.  Except for the initial fields it
+// is treated as opacque by the database.
+//
+
 union HostDBApplicationInfo {
-  /// Generic storage. This is verified to be the size of the union.
   struct application_data_allotment {
     unsigned int application1;
     unsigned int application2;
@@ -103,23 +96,35 @@ union HostDBApplicationInfo {
   //////////////////////////////////////////////////////////
   // http server attributes in the host database          //
   //                                                      //
-  // http_version       - one of HTTPVersion              //
+  // http_version       - one of HttpVersion_t            //
+  // pipeline_max       - max pipeline.     (up to 127).  //
+  //                      0 - no keep alive               //
+  //                      1 - no pipeline, only keepalive //
+  // keep_alive_timeout - in seconds. (up to 63 seconds). //
   // last_failure       - UNIX time for the last time     //
   //                      we tried the server & failed    //
   // fail_count         - Number of times we tried and    //
   //                       and failed to contact the host //
   //////////////////////////////////////////////////////////
   struct http_server_attr {
-    uint32_t last_failure;
-    HTTPVersion http_version;
-    uint8_t fail_count;
-    http_server_attr() : http_version() {}
+    unsigned int http_version : 3;
+    unsigned int pipeline_max : 7;
+    unsigned int keepalive_timeout : 6;
+    unsigned int fail_count : 8;
+    unsigned int unused1 : 8;
+    unsigned int last_failure : 32;
   } http_data;
+
+  enum HttpVersion_t {
+    HTTP_VERSION_UNDEFINED = 0,
+    HTTP_VERSION_09        = 1,
+    HTTP_VERSION_10        = 2,
+    HTTP_VERSION_11        = 3,
+  };
 
   struct application_data_rr {
     unsigned int offset;
   } rr;
-  HostDBApplicationInfo() : http_data() {}
 };
 
 struct HostDBRoundRobin;
@@ -141,32 +146,27 @@ struct HostDBInfo : public RefCountObj {
   alloc(int size = 0)
   {
     size += sizeof(HostDBInfo);
-    int iobuffer_index = iobuffer_size_to_index(size, hostdb_max_iobuf_index);
+    int iobuffer_index = iobuffer_size_to_index(size);
     ink_release_assert(iobuffer_index >= 0);
     void *ptr = ioBufAllocator[iobuffer_index].alloc_void();
     memset(ptr, 0, size);
-    HostDBInfo *ret      = new (ptr) HostDBInfo();
-    ret->_iobuffer_index = iobuffer_index;
+    HostDBInfo *ret     = new (ptr) HostDBInfo();
+    ret->iobuffer_index = iobuffer_index;
     return ret;
   }
 
   void
   free() override
   {
-    ink_release_assert(from_alloc());
-    Debug("hostdb", "freeing %d bytes at [%p]", (1 << (7 + _iobuffer_index)), this);
-    ioBufAllocator[_iobuffer_index].free_void((void *)(this));
+    Debug("hostdb", "freeing %d bytes at [%p]", (1 << (7 + iobuffer_index)), this);
+    ioBufAllocator[iobuffer_index].free_void((void *)(this));
   }
 
-  /// Effectively the @c object_version for cache data.
-  /// This is used to indicate incompatible changes in the binary layout of HostDB records.
-  /// It must be updated if any such change is made, even if it is functionally equivalent.
-  static ts::VersionNumber
+  // return a version number-- so we can manage compatibility with the marshal/unmarshal
+  static VersionNumber
   version()
   {
-    /// - 1.0 Initial version.
-    /// - 1.1 tweak HostDBApplicationInfo::http_data.
-    return ts::VersionNumber(1, 1);
+    return VersionNumber(1, 0);
   }
 
   static HostDBInfo *
@@ -176,12 +176,12 @@ struct HostDBInfo : public RefCountObj {
       return nullptr;
     }
     HostDBInfo *ret = HostDBInfo::alloc(size - sizeof(HostDBInfo));
-    int buf_index   = ret->_iobuffer_index;
+    int buf_index   = ret->iobuffer_index;
     memcpy((void *)ret, buf, size);
     // Reset the refcount back to 0, this is a bit ugly-- but I'm not sure we want to expose a method
     // to mess with the refcount, since this is a fairly unique use case
-    ret                  = new (ret) HostDBInfo();
-    ret->_iobuffer_index = buf_index;
+    ret                 = new (ret) HostDBInfo();
+    ret->iobuffer_index = buf_index;
     return ret;
   }
 
@@ -319,7 +319,9 @@ struct HostDBInfo : public RefCountObj {
     }
   }
 
-  uint64_t key{0};
+  int iobuffer_index;
+
+  uint64_t key;
 
   // Application specific data. NOTE: We need an integral number of
   // these per block. This structure is 32 bytes. (at 200k hosts =
@@ -332,57 +334,28 @@ struct HostDBInfo : public RefCountObj {
     SRVInfo srv;
   } data;
 
-  unsigned int hostname_offset{0}; // always maintain a permanent copy of the hostname for non-rev dns records.
+  unsigned int hostname_offset; // always maintain a permanent copy of the hostname for non-rev dns records.
 
-  unsigned int ip_timestamp{0};
+  unsigned int ip_timestamp;
 
-  unsigned int ip_timeout_interval{0}; // bounded between 1 and HOST_DB_MAX_TTL (0x1FFFFF, 24 days)
+  unsigned int ip_timeout_interval; // bounded between 1 and HOST_DB_MAX_TTL (0x1FFFFF, 24 days)
 
   unsigned int is_srv : 1;
   unsigned int reverse_dns : 1;
 
   unsigned int round_robin : 1;     // This is the root of a round robin block
   unsigned int round_robin_elt : 1; // This is an address in a round robin block
-
-  HostDBInfo() : _iobuffer_index{-1} {}
-
-  HostDBInfo(HostDBInfo const &src) : RefCountObj()
-  {
-    memcpy(static_cast<void *>(this), static_cast<const void *>(&src), sizeof(*this));
-    _iobuffer_index = -1;
-  }
-
-  HostDBInfo &
-  operator=(HostDBInfo const &src)
-  {
-    if (this != &src) {
-      int iob_idx = _iobuffer_index;
-      memcpy(static_cast<void *>(this), static_cast<const void *>(&src), sizeof(*this));
-      _iobuffer_index = iob_idx;
-    }
-    return *this;
-  }
-
-  bool
-  from_alloc() const
-  {
-    return _iobuffer_index >= 0;
-  }
-
-private:
-  // The value of this will be -1 for objects that are not created by the alloc() static member function.
-  int _iobuffer_index;
 };
 
 struct HostDBRoundRobin {
   /** Total number (to compute space used). */
-  short rrcount = 0;
+  short rrcount;
 
   /** Number which have not failed a connect. */
-  short good = 0;
+  short good;
 
-  unsigned short current    = 0;
-  ink_time_t timed_rr_ctime = 0;
+  unsigned short current;
+  ink_time_t timed_rr_ctime;
 
   // This is the equivalent of a variable length array, we can't use a VLA because
   // HostDBInfo is a non-POD type-- so this is the best we can do.
@@ -416,19 +389,19 @@ struct HostDBRoundRobin {
   HostDBInfo *select_next(sockaddr const *addr);
   HostDBInfo *select_best_http(sockaddr const *client_ip, ink_time_t now, int32_t fail_window);
   HostDBInfo *select_best_srv(char *target, InkRand *rand, ink_time_t now, int32_t fail_window);
-  HostDBRoundRobin() {}
+  HostDBRoundRobin() : rrcount(0), good(0), current(0), timed_rr_ctime(0) {}
 };
 
 struct HostDBCache;
-struct HostDBHash;
 
-// Prototype for inline completion function or
+// Prototype for inline completion functionf or
 //  getbyname_imm()
-typedef void (Continuation::*cb_process_result_pfn)(HostDBInfo *r);
+typedef void (Continuation::*process_hostdb_info_pfn)(HostDBInfo *r);
+typedef void (Continuation::*process_srv_info_pfn)(HostDBInfo *r);
 
 Action *iterate(Continuation *cont);
 
-/** The Host Database access interface. */
+/** The Host Databse access interface. */
 struct HostDBProcessor : public Processor {
   friend struct HostDBSync;
   // Public Interface
@@ -451,13 +424,13 @@ struct HostDBProcessor : public Processor {
 
   /// Optional parameters for getby...
   struct Options {
-    typedef Options self;                                  ///< Self reference type.
-    int port                    = 0;                       ///< Target service port (default 0 -> don't care)
-    int flags                   = HOSTDB_DO_NOT_FORCE_DNS; ///< Processing flags (default HOSTDB_DO_NOT_FORCE_DNS)
-    int timeout                 = 0;                       ///< Timeout value (default 0 -> default timeout)
-    HostResStyle host_res_style = HOST_RES_IPV4;           ///< How to query host (default HOST_RES_IPV4)
+    typedef Options self;        ///< Self reference type.
+    int port;                    ///< Target service port (default 0 -> don't care)
+    int flags;                   ///< Processing flags (default HOSTDB_DO_NOT_FORCE_DNS)
+    int timeout;                 ///< Timeout value (default 0 -> default timeout)
+    HostResStyle host_res_style; ///< How to query host (default HOST_RES_IPV4)
 
-    Options() {}
+    Options() : port(0), flags(HOSTDB_DO_NOT_FORCE_DNS), timeout(0), host_res_style(HOST_RES_IPV4) {}
     /// Set the flags.
     self &
     setFlags(int f)
@@ -471,20 +444,24 @@ struct HostDBProcessor : public Processor {
   static Options const DEFAULT_OPTIONS;
 
   HostDBProcessor() {}
-  Action *getbyname_re(Continuation *cont, const char *hostname, int len, Options const &opt = DEFAULT_OPTIONS);
+  inkcoreapi Action *getbyname_re(Continuation *cont, const char *hostname, int len, Options const &opt = DEFAULT_OPTIONS);
 
   Action *getbynameport_re(Continuation *cont, const char *hostname, int len, Options const &opt = DEFAULT_OPTIONS);
 
-  Action *getSRVbyname_imm(Continuation *cont, cb_process_result_pfn process_srv_info, const char *hostname, int len,
+  Action *getSRVbyname_imm(Continuation *cont, process_srv_info_pfn process_srv_info, const char *hostname, int len,
                            Options const &opt = DEFAULT_OPTIONS);
 
-  Action *getbyname_imm(Continuation *cont, cb_process_result_pfn process_hostdb_info, const char *hostname, int len,
+  Action *getbyname_imm(Continuation *cont, process_hostdb_info_pfn process_hostdb_info, const char *hostname, int len,
                         Options const &opt = DEFAULT_OPTIONS);
 
   Action *iterate(Continuation *cont);
 
   /** Lookup Hostinfo by addr */
-  Action *getbyaddr_re(Continuation *cont, sockaddr const *aip);
+  Action *
+  getbyaddr_re(Continuation *cont, sockaddr const *aip)
+  {
+    return getby(cont, nullptr, 0, aip, false, HOST_RES_NONE, 0);
+  }
 
   /** Set the application information (fire-and-forget). */
   void
@@ -523,7 +500,8 @@ struct HostDBProcessor : public Processor {
   HostDBCache *cache();
 
 private:
-  Action *getby(Continuation *cont, cb_process_result_pfn cb_process_result, HostDBHash &hash, Options const &opt);
+  Action *getby(Continuation *cont, const char *hostname, int len, sockaddr const *ip, bool aforce_dns, HostResStyle host_res_style,
+                int timeout);
 
 public:
   /** Set something.
@@ -542,6 +520,6 @@ public:
 
 void run_HostDBTest();
 
-extern HostDBProcessor hostDBProcessor;
+extern inkcoreapi HostDBProcessor hostDBProcessor;
 
-void ink_hostdb_init(ts::ModuleVersion version);
+void ink_hostdb_init(ModuleVersion version);

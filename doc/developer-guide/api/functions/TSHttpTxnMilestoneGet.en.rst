@@ -27,9 +27,7 @@ Get a specified :arg:`milestone` timer value for the current transaction.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSReturnCode TSHttpTxnMilestoneGet(TSHttpTxn txnp, TSMilestonesType milestone, TSHRTime * time)
 
@@ -42,105 +40,105 @@ lifetime of a transaction and are measured in nanoseconds from the beginning of
 the transaction. :arg:`time` is used a pointer to storage to update if the call
 is successful.
 
-.. enum:: TSMilestonesType
+.. type:: TSMilestonesType
 
-   An enumeration of the valid indices of transaction milestone data.
+	An enumeration of the valid indices of transaction milestone data.
 
-   .. enumerator:: TS_MILESTONE_SM_START
+	.. macro:: TS_MILESTONE_SM_START
 
-      Transaction state machine is initialized.
+		Transaction state machine is initialized.
 
-   .. enumerator:: TS_MILESTONE_UA_BEGIN
+	.. macro:: TS_MILESTONE_UA_BEGIN
 
-      The client connection is accepted.
+		The client connection is accepted.
 
-   .. enumerator:: TS_MILESTONE_UA_READ_HEADER_DONE
+	.. macro:: TS_MILESTONE_UA_READ_HEADER_DONE
 
-      The request header from the client has been read and parsed.
+		The request header from the client has been read and parsed.
 
-   .. enumerator:: TS_MILESTONE_CACHE_OPEN_READ_BEGIN
+	.. macro:: TS_MILESTONE_CACHE_OPEN_READ_BEGIN
 
-      Initiate read of the cache.
+		Initiate read of the cache.
 
-   .. enumerator:: TS_MILESTONE_CACHE_OPEN_READ_END
+	.. macro:: TS_MILESTONE_CACHE_OPEN_READ_END
 
-      Initial cache read has resolved.
+		Initial cache read has resolved.
 
-   .. enumerator:: TS_MILESTONE_CACHE_OPEN_WRITE_BEGIN
+	.. macro:: TS_MILESTONE_CACHE_OPEN_WRITE_BEGIN
 
-      Start open for cache write.
+		Start open for cache write.
 
-   .. enumerator:: TS_MILESTONE_CACHE_OPEN_WRITE_END
+	.. macro:: TS_MILESTONE_CACHE_OPEN_WRITE_END
 
-      Cache has been opened for write.
+		Cache has been opened for write.
 
-   .. enumerator:: TS_MILESTONE_DNS_LOOKUP_BEGIN
+	.. macro:: TS_MILESTONE_DNS_LOOKUP_BEGIN
 
-      Initiate host resolution in HostDB
+		Initiate host resolution in HostDB
 
-   .. enumerator:: TS_MILESTONE_DNS_LOOKUP_END
+	.. macro:: TS_MILESTONE_DNS_LOOKUP_END
 
-      Host resolution resolves.
+		Host resolution resolves.
 
-   .. enumerator:: TS_MILESTONE_SERVER_FIRST_CONNECT
+	.. macro:: TS_MILESTONE_SERVER_FIRST_CONNECT
 
-      First time origin server connect attempted or shared session attached.
+		First time origin server connect attempted or shared shared session attached.
 
-   .. enumerator:: TS_MILESTONE_SERVER_CONNECT
+	.. macro:: TS_MILESTONE_SERVER_CONNECT
 
-      Most recent time origin server connect attempted or shared session attached.
+		Most recent time origin server connect attempted or shared session attached.
 
-   .. enumerator:: TS_MILESTONE_SERVER_CONNECT_END
+	.. macro:: TS_MILESTONE_SERVER_CONNECT_END
 
-      More recent time a connection attempt was resolved.
+		More recent time a connection attempt was resolved.
 
-   .. enumerator:: TS_MILESTONE_SERVER_BEGIN_WRITE
+	.. macro:: TS_MILESTONE_SERVER_BEGIN_WRITE
 
-      First byte is written to the origin server connection.
+		First byte is written to the origin server connection.
 
-   .. enumerator:: TS_MILESTONE_SERVER_FIRST_READ
+	.. macro:: TS_MILESTONE_SERVER_FIRST_READ
 
-      First byte is read from connection to origin server.
+		First byte is read from connection to origin server.
 
-   .. enumerator:: TS_MILESTONE_SERVER_READ_HEADER_DONE
+	.. macro:: TS_MILESTONE_SERVER_READ_HEADER_DONE
 
-      Origin server response has been read and parsed.
+		Origin server response has been read and parsed.
 
-   .. enumerator:: TS_MILESTONE_UA_BEGIN_WRITE
+	.. macro:: TS_MILESTONE_UA_BEGIN_WRITE
 
-      The response header write to the client starts.
+		The response header write to the client starts.
 
-   .. enumerator:: TS_MILESTONE_SERVER_CLOSE
+	.. macro:: TS_MILESTONE_SERVER_CLOSE
 
-      Last I/O activity on origin server connection.
+		Last I/O activity on origin server connection.
 
-   .. enumerator:: TS_MILESTONE_UA_CLOSE
+	.. macro:: TS_MILESTONE_UA_CLOSE
 
-      Last I/O activity on the client socket, or connection abort.
+		Last I/O activity on the client socket, or connection abort.
 
-   .. enumerator:: TS_MILESTONE_SM_FINISH
+	.. macro:: TS_MILESTONE_SM_FINISH
 
-      Transaction has finished, state machine final logging has started.
+		Transaction has finished, state machine final logging has started.
 
-   .. enumerator:: TS_MILESTONE_PLUGIN_ACTIVE
+	.. macro:: TS_MILESTONE_PLUGIN_ACTIVE
 
-      Amount of time plugins were active (running plugin code).
+		Amount of time plugins were active (running plugin code).
 
-   .. enumerator:: TS_MILESTONE_PLUGIN_TOTAL
+	.. macro:: TS_MILESTONE_PLUGIN_TOTAL
 
-      Amount of time spent in or waiting for plugins.
+		Amount of time spent in or waiting for plugins.
 
-   .. enumerator:: TS_MILESTONE_TLS_HANDSHAKE_START
+   .. macro:: TS_MILESTONE_TLS_HANDSHAKE_START
 
       Timestamp when the server starts the TLS handshake. 0 if no handshake is performed (connection reuse).
 
-   .. enumerator:: TS_MILESTONE_TLS_HANDSHAKE_END
+   .. macro:: TS_MILESTONE_TLS_HANDSHAKE_END
 
       Timestamp when the server completes the TLS handshake. 0 if no handshake is performed (connection reuse).
 
-   .. enumerator:: TS_MILESTONE_LAST_ENTRY
+	.. macro:: TS_MILESTONE_LAST_ENTRY
 
-      A pseudo index which is set to be one more than the last valid index. This is useful for looping over the data.
+		A psuedo index which is set to be one more than the last valid index. This is useful for looping over the data.
 
 
 *  The server connect times predate the transmission of the :literal:`SYN`

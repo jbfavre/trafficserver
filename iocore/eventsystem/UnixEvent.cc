@@ -29,8 +29,6 @@
 *****************************************************************************/
 #include "P_EventSystem.h"
 
-#include "tscore/ink_stack_trace.h"
-
 ClassAllocator<Event> eventAllocator("eventAllocator", 256);
 
 void
@@ -76,7 +74,7 @@ Event::schedule_in(ink_hrtime atimeout_in, int acallback_event)
   if (in_the_priority_queue) {
     ethread->EventQueue.remove(this);
   }
-  timeout_at = ink_get_hrtime() + atimeout_in;
+  timeout_at = Thread::get_hrtime() + atimeout_in;
   period     = 0;
   immediate  = false;
   mutex      = continuation->mutex;
@@ -97,7 +95,7 @@ Event::schedule_every(ink_hrtime aperiod, int acallback_event)
   if (aperiod < 0) {
     timeout_at = aperiod;
   } else {
-    timeout_at = ink_get_hrtime() + aperiod;
+    timeout_at = Thread::get_hrtime() + aperiod;
   }
   period    = aperiod;
   immediate = false;
@@ -106,19 +104,3 @@ Event::schedule_every(ink_hrtime aperiod, int acallback_event)
     ethread->EventQueueExternal.enqueue_local(this);
   }
 }
-
-#ifdef ENABLE_EVENT_TRACKER
-
-void
-Event::set_location()
-{
-  _location = ink_backtrace(3);
-}
-
-const void *
-Event::get_location() const
-{
-  return _location;
-}
-
-#endif

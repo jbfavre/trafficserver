@@ -1,5 +1,3 @@
-.. include:: ../../common.defs
-
 .. _admin-plugins-memcache:
 
 Memcache Plugin
@@ -44,7 +42,7 @@ Alternatively, a configuration can also be specified::
 
     tsmemcache.so <path-to-plugin>/sample.tsmemcache.config
 
-After modifying plugin.config, restart |TS| (sudo traffic_ctl
+After modifying plugin.config, restart traffic server (sudo traffic_ctl
 server restart) the configuration is also re-read when a management
 update is given (sudo traffic_ctl config reload)
 

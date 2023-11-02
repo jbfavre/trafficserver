@@ -14,5 +14,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+if BUILD_HEALTHCHECK_PLUGIN
+
 pkglib_LTLIBRARIES += healthchecks/healthchecks.la
 healthchecks_healthchecks_la_SOURCES = healthchecks/healthchecks.c
+
+endif

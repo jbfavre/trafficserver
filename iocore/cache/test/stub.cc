@@ -21,16 +21,10 @@
   limitations under the License.
  */
 
-#include <string_view>
-
 #include "HttpSessionManager.h"
 #include "HttpBodyFactory.h"
 #include "DiagsConfig.h"
 #include "ts/InkAPIPrivateIOCore.h"
-
-#include "tscore/I_Version.h"
-
-AppVersionInfo appVersionInfo;
 
 void
 initialize_thread_for_http_sessions(EThread *, int)
@@ -45,14 +39,7 @@ APIHooks::append(INKContInternal *cont)
 }
 
 int
-APIHook::invoke(int, void *) const
-{
-  ink_assert(false);
-  return 0;
-}
-
-int
-APIHook::blocking_invoke(int, void *) const
+APIHook::invoke(int, void *)
 {
   ink_assert(false);
   return 0;
@@ -66,32 +53,19 @@ APIHook::next() const
 }
 
 APIHook *
-APIHooks::head() const
+APIHooks::get() const
 {
   return nullptr;
+}
+
+void
+APIHooks::prepend(INKContInternal *cont)
+{
 }
 
 void
 APIHooks::clear()
 {
-}
-
-HttpHookState::HttpHookState() {}
-
-void
-HttpHookState::init(TSHttpHookID id, HttpAPIHooks const *global, HttpAPIHooks const *ssn, HttpAPIHooks const *txn)
-{
-}
-
-void
-api_init()
-{
-}
-
-APIHook const *
-HttpHookState::getNext()
-{
-  return nullptr;
 }
 
 void
@@ -175,19 +149,18 @@ ts::svtoi(TextView src, TextView *out, int base)
 }
 
 void
-HostStatus::setHostStatus(const std::string_view name, const TSHostStatus status, const unsigned int down_time,
-                          const unsigned int reason)
+HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned int down_time, const unsigned int reason)
 {
 }
 
 HostStatRec *
-HostStatus::getHostStatus(const std::string_view name)
+HostStatus::getHostStatus(const char *name)
 {
   return nullptr;
 }
 
 void
-HostStatus::createHostStat(const std::string_view name, const char *data)
+HostStatus::createHostStat(const char *name, const char *data)
 {
 }
 
@@ -267,7 +240,7 @@ INKVConnInternal::retry(unsigned int delay)
 {
 }
 
-INKContInternal::INKContInternal(TSEventFunc funcp, TSMutex mutexp) : DummyVConnection(reinterpret_cast<ProxyMutex *>(mutexp)) {}
+INKContInternal::INKContInternal(TSEventFunc funcp, TSMutex mutexp) : DummyVConnection((ProxyMutex *)mutexp) {}
 
 INKContInternal::INKContInternal() : DummyVConnection(nullptr) {}
 

@@ -68,12 +68,11 @@ getCacheLookupResultName(TSCacheLookupResult result)
 static bool
 cont_check_cacheable(TSHttpTxn txnp)
 {
-  if (TSHttpTxnIsInternal(txnp)) {
+  if (TSHttpTxnIsInternal(txnp))
     return false;
-  }
   int lookupStatus;
   TSHttpTxnCacheLookupStatusGet(txnp, &lookupStatus);
-  TSDebug(PLUGIN_NAME, "lookup status: %s", getCacheLookupResultName(static_cast<TSCacheLookupResult>(lookupStatus)));
+  TSDebug(PLUGIN_NAME, "lookup status: %s", getCacheLookupResultName((TSCacheLookupResult)lookupStatus));
   bool ret = false;
   if (TS_CACHE_LOOKUP_MISS == lookupStatus || TS_CACHE_LOOKUP_HIT_STALE == lookupStatus) {
     bool const nostore = TSHttpTxnServerRespNoStoreGet(txnp);
@@ -113,7 +112,7 @@ cont_handle_cache(TSCont contp, TSEvent event, void *edata)
     if (requested) // Made a background fetch request, do not cache the response
     {
       TSDebug(PLUGIN_NAME, "setting no store");
-      TSHttpTxnCntlSet(txnp, TS_HTTP_CNTL_SERVER_NO_STORE, true);
+      TSHttpTxnServerRespNoStoreSet(txnp, 1);
       TSHttpTxnCacheLookupStatusSet(txnp, TS_CACHE_LOOKUP_MISS);
     }
 

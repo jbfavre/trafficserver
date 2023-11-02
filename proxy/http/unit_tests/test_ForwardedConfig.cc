@@ -27,6 +27,7 @@
 #include <bitset>
 #include <initializer_list>
 
+#define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
 #include "HttpConfig.h"
@@ -36,7 +37,7 @@ using namespace HttpForwarded;
 class OptionBitSetListInit : public OptionBitSet
 {
 public:
-  explicit OptionBitSetListInit(std::initializer_list<std::size_t> il)
+  OptionBitSetListInit(std::initializer_list<std::size_t> il)
   {
     for (std::size_t i : il) {
       this->set(i);
@@ -68,7 +69,7 @@ private:
   std::string s;
 
 public:
-  explicit XS(const char *in) : s{nextWs()}
+  XS(const char *in) : s{nextWs()}
   {
     bool upper{true};
     for (; *in; ++in) {
@@ -92,7 +93,7 @@ public:
 };
 
 void
-test(const char *spec, const char *reqErr, const OptionBitSet &bS)
+test(const char *spec, const char *reqErr, OptionBitSet bS)
 {
   ts::LocalBufferWriter<1024> error;
 

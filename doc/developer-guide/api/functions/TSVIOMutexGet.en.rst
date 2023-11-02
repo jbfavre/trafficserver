@@ -24,9 +24,7 @@ TSVIOMutexGet
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSMutex TSVIOMutexGet(TSVIO viop)
 

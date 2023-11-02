@@ -24,9 +24,7 @@ TSMimeHdrFieldsCount
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int TSMimeHdrFieldsCount(TSMBuffer bufp, TSMLoc offset)
 

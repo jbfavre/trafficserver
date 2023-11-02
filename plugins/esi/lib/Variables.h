@@ -37,14 +37,14 @@ class Variables : private ComponentBase
 {
 public:
   Variables(const char *debug_tag, ComponentBase::Debug debug_func, ComponentBase::Error error_func,
-            Utils::HeaderValueList allowlistCookies)
+            Utils::HeaderValueList whitelistCookies)
     : ComponentBase(debug_tag, debug_func, error_func),
       _headers_parsed(false),
       _query_string(""),
       _query_string_parsed(false),
       _cookie_jar_created(false)
   {
-    _allowlistCookies.insert(_allowlistCookies.end(), allowlistCookies.begin(), allowlistCookies.end());
+    _whitelistCookies.insert(_whitelistCookies.end(), whitelistCookies.begin(), whitelistCookies.end());
   };
 
   /** currently 'host', 'referer', 'accept-language', 'cookie' and 'user-agent' headers are parsed */
@@ -150,7 +150,7 @@ private:
   Utils::HeaderValueList _cached_simple_headers[N_SIMPLE_HEADERS];
   Utils::HeaderValueList _cached_special_headers[N_SPECIAL_HEADERS];
 
-  Utils::HeaderValueList _allowlistCookies;
+  Utils::HeaderValueList _whitelistCookies;
   std::string _cookie_str;
   bool _headers_parsed;
   std::string _query_string;

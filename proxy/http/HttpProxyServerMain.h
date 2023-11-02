@@ -36,9 +36,9 @@ void prep_HttpProxyServer();
  */
 void init_accept_HttpProxyServer(int n_accept_threads = 0);
 
-/** Checks whether we can call start_HttpProxyServer().
+/** Checkes whether we can call start_HttpProxyServer().
  */
-void init_HttpProxyServer();
+void init_HttpProxyServer(EThread *);
 
 /** Start the proxy server.
     The port data should have been created by @c prep_HttpProxyServer().
@@ -47,12 +47,10 @@ void start_HttpProxyServer();
 
 void stop_HttpProxyServer();
 
+void start_HttpProxyServerBackDoor(int port, int accept_threads = 0);
+
 NetProcessor::AcceptOptions make_net_accept_options(const HttpProxyPort *port, unsigned nthreads);
 
 extern std::mutex proxyServerMutex;
 extern std::condition_variable proxyServerCheck;
 extern bool et_net_threads_ready;
-
-extern std::mutex etUdpMutex;
-extern std::condition_variable etUdpCheck;
-extern bool et_udp_threads_ready;

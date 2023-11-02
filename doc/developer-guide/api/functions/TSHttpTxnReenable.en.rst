@@ -27,9 +27,7 @@ processing the current hook.
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: void TSHttpTxnReenable(TSHttpTxn txnp, TSEvent event)
 
@@ -41,6 +39,6 @@ The plugin tells the transaction :arg:`txnp` to either continue
 
 .. important::
 
-   You must always re-enable the HTTP transaction after the processing of
-   each transaction event.  However, never re-enable twice.  Reenabling
+   You must always reenable the HTTP transaction after the processing of
+   each transaction event.  However, never reenable twice.  Reenabling
    twice is a serious error.

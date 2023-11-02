@@ -46,7 +46,7 @@ Options
 
 .. option:: --address IP address to bind.
 
-.. option:: --router Bootstrap IP address for routers.
+.. option:: --router Booststrap IP address for routers.
 
 .. option:: --service Path to service group definitions.
 

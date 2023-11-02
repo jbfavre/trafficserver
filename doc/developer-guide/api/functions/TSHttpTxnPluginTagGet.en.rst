@@ -24,9 +24,7 @@ Fetch the tag of the plugin that created this transaction.
 
 Synopsis
 ========
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: const char * TSHttpTxnPluginTagGet(TSHttpTxn txnp)
 
@@ -38,6 +36,5 @@ tag is set by the plugin that created the transaction.
 
 See also
 ========
-:manpage:`TSHttpConnectPlugin(3ts)`,
 :manpage:`TSHttpConnectWithPluginId(3ts)`,
 :manpage:`TSAPI(3ts)`

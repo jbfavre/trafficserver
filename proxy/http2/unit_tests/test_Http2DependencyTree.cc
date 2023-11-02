@@ -282,7 +282,7 @@ TEST_CASE("Http2DependencyTree_Chrome_50", "[http2][Http2DependencyTree]")
 
   ostringstream oss;
 
-  for (int index = 0; index < 108; ++index) {
+  for (int i = 0; i < 108; ++i) {
     Node *node = tree->top();
     oss << static_cast<string *>(node->t)->c_str();
 
@@ -336,7 +336,7 @@ TEST_CASE("Http2DependencyTree_Chrome_51", "[http2][Http2DependencyTree]")
 
   ostringstream oss;
 
-  for (int index = 0; index < 9; ++index) {
+  for (int i = 0; i < 9; ++i) {
     Node *node = tree->top();
     if (node != nullptr) {
       oss << static_cast<string *>(node->t)->c_str();
@@ -352,7 +352,7 @@ TEST_CASE("Http2DependencyTree_Chrome_51", "[http2][Http2DependencyTree]")
   tree->activate(node_f);
   tree->activate(node_h);
 
-  for (int index = 0; index < 9; ++index) {
+  for (int i = 0; i < 9; ++i) {
     Node *node = tree->top();
     if (node != nullptr) {
       oss << static_cast<string *>(node->t)->c_str();

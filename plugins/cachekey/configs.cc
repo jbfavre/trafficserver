@@ -274,11 +274,11 @@ makeConfigPath(const String &path)
 /**
  * @brief a helper function which loads the classifier from files.
  * @param args classname + filename in '<classname>:<filename>' format.
- * @param denylist true - load as a denylist classifier, false - allowlist.
+ * @param blacklist true - load as a blacklist classifier, false - whitelist.
  * @return true if successful, false otherwise.
  */
 bool
-Configs::loadClassifiers(const String &args, bool denylist)
+Configs::loadClassifiers(const String &args, bool blacklist)
 {
   static const char *EXPECTED_FORMAT = "<classname>:<filename>";
 
@@ -310,7 +310,7 @@ Configs::loadClassifiers(const String &args, bool denylist)
   }
 
   MultiPattern *multiPattern;
-  if (denylist) {
+  if (blacklist) {
     multiPattern = new NonMatchingMultiPattern(classname);
   } else {
     multiPattern = new MultiPattern(classname);
@@ -341,11 +341,11 @@ Configs::loadClassifiers(const String &args, bool denylist)
     p = new Pattern();
 
     if (nullptr != p && p->init(regex)) {
-      if (denylist) {
-        CacheKeyDebug("Added pattern '%s' to deny list '%s'", regex.c_str(), classname.c_str());
+      if (blacklist) {
+        CacheKeyDebug("Added pattern '%s' to black list '%s'", regex.c_str(), classname.c_str());
         multiPattern->add(p);
       } else {
-        CacheKeyDebug("Added pattern '%s' to allow list '%s'", regex.c_str(), classname.c_str());
+        CacheKeyDebug("Added pattern '%s' to white list '%s'", regex.c_str(), classname.c_str());
         multiPattern->add(p);
       }
     } else {
@@ -385,8 +385,8 @@ Configs::init(int argc, const char *argv[], bool perRemapConfig)
     {const_cast<char *>("include-headers"), optional_argument, nullptr, 'g'},
     {const_cast<char *>("include-cookies"), optional_argument, nullptr, 'h'},
     {const_cast<char *>("ua-capture"), optional_argument, nullptr, 'i'},
-    {const_cast<char *>("ua-allowlist"), optional_argument, nullptr, 'j'},
-    {const_cast<char *>("ua-denylist"), optional_argument, nullptr, 'k'},
+    {const_cast<char *>("ua-whitelist"), optional_argument, nullptr, 'j'},
+    {const_cast<char *>("ua-blacklist"), optional_argument, nullptr, 'k'},
     {const_cast<char *>("static-prefix"), optional_argument, nullptr, 'l'},
     {const_cast<char *>("capture-prefix"), optional_argument, nullptr, 'm'},
     {const_cast<char *>("capture-prefix-uri"), optional_argument, nullptr, 'n'},
@@ -452,15 +452,15 @@ Configs::init(int argc, const char *argv[], bool perRemapConfig)
         status = false;
       }
       break;
-    case 'j': /* ua-allowlist */
-      if (!loadClassifiers(optarg, /* denylist = */ false)) {
-        CacheKeyError("failed to load User-Agent pattern allow-list '%s'", optarg);
+    case 'j': /* ua-whitelist */
+      if (!loadClassifiers(optarg, /* blacklist = */ false)) {
+        CacheKeyError("failed to load User-Agent pattern white-list '%s'", optarg);
         status = false;
       }
       break;
-    case 'k': /* ua-denylist */
-      if (!loadClassifiers(optarg, /* denylist = */ true)) {
-        CacheKeyError("failed to load User-Agent pattern deny-list '%s'", optarg);
+    case 'k': /* ua-blacklist */
+      if (!loadClassifiers(optarg, /* blacklist = */ true)) {
+        CacheKeyError("failed to load User-Agent pattern black-list '%s'", optarg);
         status = false;
       }
       break;

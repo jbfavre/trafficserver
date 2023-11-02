@@ -24,6 +24,9 @@
 #pragma once
 
 #include "HttpSM.h"
+#include "MIME.h"
+#include "Transform.h"
+#include "P_EventSystem.h"
 
 class TransformVConnection;
 
@@ -55,21 +58,21 @@ class TransformVConnection : public TransformVCChain
 {
 public:
   TransformVConnection(Continuation *cont, APIHook *hooks);
-  ~TransformVConnection() override;
+  ~TransformVConnection();
 
   int handle_event(int event, void *edata);
 
-  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override;
-  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override;
-  void do_io_close(int lerrno = -1) override;
-  void do_io_shutdown(ShutdownHowTo_t howto) override;
+  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf);
+  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false);
+  void do_io_close(int lerrno = -1);
+  void do_io_shutdown(ShutdownHowTo_t howto);
 
-  void reenable(VIO *vio) override;
+  void reenable(VIO *vio);
 
   /** Compute the backlog.
       @return The actual backlog, or a value at least @a limit.
   */
-  uint64_t backlog(uint64_t limit = UINT64_MAX) override;
+  virtual uint64_t backlog(uint64_t limit = UINT64_MAX);
 
 public:
   VConnection *m_transform;
@@ -87,16 +90,16 @@ public:
 
 public:
   APIHooks m_hooks;
-  VConnection *m_tvc         = nullptr;
-  IOBufferReader *m_read_buf = nullptr;
-  MIOBuffer *m_write_buf     = nullptr;
+  VConnection *m_tvc;
+  IOBufferReader *m_read_buf;
+  MIOBuffer *m_write_buf;
 };
 
 class NullTransform : public INKVConnInternal
 {
 public:
   NullTransform(ProxyMutex *mutex);
-  ~NullTransform() override;
+  ~NullTransform();
 
   int handle_event(int event, void *edata);
 
@@ -111,8 +114,9 @@ class RangeTransform : public INKVConnInternal
 public:
   RangeTransform(ProxyMutex *mutex, RangeRecord *ranges, int num_fields, HTTPHdr *transform_resp, const char *content_type,
                  int content_type_len, int64_t content_length);
-  ~RangeTransform() override;
+  ~RangeTransform();
 
+  // void parse_range_and_compare();
   int handle_event(int event, void *edata);
 
   void transform_to_range();
@@ -125,6 +129,7 @@ public:
   MIOBuffer *m_output_buf;
   IOBufferReader *m_output_reader;
 
+  // MIMEField *m_range_field;
   HTTPHdr *m_transform_resp;
   VIO *m_output_vio;
   int64_t m_range_content_length;
@@ -137,3 +142,13 @@ public:
   int64_t m_output_cl;
   int64_t m_done;
 };
+
+#ifdef PREFETCH
+class PrefetchProcessor
+{
+public:
+  void start();
+};
+
+extern PrefetchProcessor prefetchProcessor;
+#endif // PREFETCH
