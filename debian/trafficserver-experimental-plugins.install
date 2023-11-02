@@ -1,4 +1,5 @@
 usr/lib/trafficserver/modules/access_control.so
+usr/lib/trafficserver/modules/block_errors.so
 usr/lib/trafficserver/modules/acme.so
 usr/lib/trafficserver/modules/cache_fill.so
 usr/lib/trafficserver/modules/cache_key_genid.so
