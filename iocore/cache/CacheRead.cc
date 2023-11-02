@@ -307,7 +307,7 @@ CacheVC::openReadFromWriter(int event, Event *e)
     // before the open_write, but the reader could not get the volume
     // lock. If we don't reset the clock here, we won't choose any writer
     // and hence fail the read request.
-    start_time                = Thread::get_hrtime();
+    start_time                = ink_get_hrtime();
     f.read_from_writer_called = 1;
   }
   cancel_trigger();
@@ -614,19 +614,20 @@ CacheVC::openReadReadDone(int event, Event *e)
       }
     }
     // fall through for truncated documents
+  Lerror : {
+    // Keep the lock on vol->mutex, for dir_delete.
+    char tmpstring[CRYPTO_HEX_SIZE];
+    if (request.valid()) {
+      int url_length;
+      const char *url_text = request.url_get()->string_get_ref(&url_length);
+      Warning("Document %s truncated, url[%.*s] .. clearing", earliest_key.toHexStr(tmpstring), url_length, url_text);
+    } else {
+      Warning("Document %s truncated .. clearing", earliest_key.toHexStr(tmpstring));
+    }
+    dir_delete(&earliest_key, vol, &earliest_dir);
   }
-Lerror : {
-  char tmpstring[CRYPTO_HEX_SIZE];
-  if (request.valid()) {
-    int url_length;
-    const char *url_text = request.url_get()->string_get_ref(&url_length);
-    Warning("Document %s truncated, url[%.*s] .. clearing", earliest_key.toHexStr(tmpstring), url_length, url_text);
-  } else {
-    Warning("Document %s truncated .. clearing", earliest_key.toHexStr(tmpstring));
   }
-  dir_delete(&earliest_key, vol, &earliest_dir);
   return calluser(VC_EVENT_ERROR);
-}
 Ldone:
   return calluser(VC_EVENT_EOS);
 Lcallreturn:
