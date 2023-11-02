@@ -1,3 +1,14 @@
+trafficserver (9.2.3+ds-1) unstable; urgency=medium
+
+  * New upstream version 9.2.3+ds
+  * Update d/trafficserver-experimental-plugins for 9.2.3 release
+  * CVEs fixes (Closes: #1054427, Closes: #1053801)
+    - CVE-2023-39456: Improper Input Validation vulnerability
+    - CVE-2023-41752: Exposure of Sensitive Information to an Unauthorized Actor
+    - CVE-2023-44487: The HTTP/2 protocol allows a denial of service
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 02 Nov 2023 13:46:58 +0100
+
 trafficserver (9.2.2+ds-1) unstable; urgency=medium
 
   [ Emanuele Rocca ]
