@@ -4,3 +4,4 @@
 0013-fix-perl-interpreter-path.patch
 0014-use_system_yaml-cpp.patch
 0021-workaround-obsolete-plantuml.patch
+0022-workaround-missing-sphinxcontrib.jquery.patch
