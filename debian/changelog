@@ -1,3 +1,11 @@
+trafficserver (8.1.10+ds-1~deb11u1) bullseye-security; urgency=medium
+
+  * New upstream version 8.1.10+ds
+  * CVEs fix (Closes: #1068417)
+    - CVE-2024-31309: HTTP/2 CONTINUATION DoS attack
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 13 Apr 2024 11:54:31 +0200
+
 trafficserver (8.1.9+ds-1~deb11u1) bullseye-security; urgency=medium
 
   * New upstream version 8.1.9+ds
