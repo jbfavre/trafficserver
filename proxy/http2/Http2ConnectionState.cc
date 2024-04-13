@@ -528,7 +528,7 @@ rcv_rst_stream_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
   if (cstate.get_received_rst_stream_frame_count() > Http2::max_rst_stream_frames_per_minute) {
     HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_RST_STREAM_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
     Http2StreamDebug(cstate.ua_session, stream_id, "Observed too frequent RST_STREAM frames: %u frames within a last minute",
-                     cstate.get_received_settings_frame_count());
+                     cstate.get_received_rst_stream_frame_count());
     return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_ENHANCE_YOUR_CALM,
                       "reset too frequent RST_STREAM frames");
   }
@@ -905,6 +905,17 @@ rcv_continuation_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
       return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR,
                         "continuation bad state");
     }
+  }
+
+  // Update CONTINUATION frame count per minute.
+  cstate.increment_received_continuation_frame_count();
+  // Close this connection if its CONTINUATION frame count exceeds a limit.
+  if (cstate.get_received_continuation_frame_count() > Http2::max_continuation_frames_per_minute) {
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_CONTINUATION_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
+    Http2StreamDebug(cstate.ua_session, stream_id, "Observed too frequent CONTINUATION frames: %u frames within a last minute",
+                     cstate.get_received_continuation_frame_count());
+    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_ENHANCE_YOUR_CALM,
+                      "reset too frequent CONTINUATION frames");
   }
 
   // keep track of how many bytes we get in the frame
@@ -1974,6 +1985,18 @@ uint32_t
 Http2ConnectionState::get_received_rst_stream_frame_count()
 {
   return this->_received_rst_stream_frame_counter.get_count();
+}
+
+void
+Http2ConnectionState::increment_received_continuation_frame_count()
+{
+  this->_received_continuation_frame_counter.increment();
+}
+
+uint32_t
+Http2ConnectionState::get_received_continuation_frame_count()
+{
+  return this->_received_continuation_frame_counter.get_count();
 }
 
 // Return min_concurrent_streams_in when current client streams number is larger than max_active_streams_in.
