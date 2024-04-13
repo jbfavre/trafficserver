@@ -197,7 +197,6 @@ static ArgumentDescription argument_descriptions[] = {
   {"net_threads", 'n', "Number of Net Threads", "I", &num_of_net_threads, "PROXY_NET_THREADS", nullptr},
   {"udp_threads", 'U', "Number of UDP Threads", "I", &num_of_udp_threads, "PROXY_UDP_THREADS", nullptr},
   {"accept_thread", 'a', "Use an Accept Thread", "T", &num_accept_threads, "PROXY_ACCEPT_THREAD", nullptr},
-  {"accept_till_done", 'b', "Accept Till Done", "T", &accept_till_done, "PROXY_ACCEPT_TILL_DONE", nullptr},
   {"httpport", 'p', "Port descriptor for HTTP Accept", "S*", &http_accept_port_descriptor, "PROXY_HTTP_ACCEPT_PORT", nullptr},
   {"disable_freelist", 'f', "Disable the freelist memory allocator", "T", &cmd_disable_freelist, "PROXY_DPRINTF_LEVEL", nullptr},
   {"disable_pfreelist", 'F', "Disable the freelist memory allocator in ProxyAllocator", "T", &cmd_disable_pfreelist,
@@ -977,6 +976,11 @@ enum class plugin_type_t {
 
 /** Attempt to load a plugin shared object file.
  *
+ * Note that this function is only used to load plugins for the purpose of
+ * verifying that they are valid plugins. It is not used to load plugins for
+ * normal operation. Any loaded plugin will be closed immediately after loading
+ * it.
+ *
  * @param[in] plugin_type The type of plugin for which to create a PluginInfo.
  * @param[in] plugin_path The path to the plugin's shared object file.
  * @param[out] error Some description of why the plugin failed to load if
@@ -985,12 +989,18 @@ enum class plugin_type_t {
  * @return True if the plugin loaded successfully, false otherwise.
  */
 static bool
-load_plugin(plugin_type_t plugin_type, const fs::path &plugin_path, std::string &error)
+try_loading_plugin(plugin_type_t plugin_type, const fs::path &plugin_path, std::string &error)
 {
   switch (plugin_type) {
   case plugin_type_t::GLOBAL: {
-    void *handle, *initptr;
-    return plugin_dso_load(plugin_path.c_str(), handle, initptr, error);
+    void *handle             = nullptr;
+    void *initptr            = nullptr;
+    bool const plugin_loaded = plugin_dso_load(plugin_path.c_str(), handle, initptr, error);
+    if (handle != nullptr) {
+      dlclose(handle);
+      handle = nullptr;
+    }
+    return plugin_loaded;
   }
   case plugin_type_t::REMAP: {
     auto temporary_directory = fs::temp_directory_path();
@@ -1044,7 +1054,7 @@ verify_plugin_helper(char *args, plugin_type_t plugin_type)
 
   auto ret = CMD_OK;
   std::string error;
-  if (load_plugin(plugin_type, plugin_path, error)) {
+  if (try_loading_plugin(plugin_type, plugin_path, error)) {
     fprintf(stderr, "NOTE: verifying plugin '%s' Success\n", plugin_filename);
   } else {
     fprintf(stderr, "ERROR: verifying plugin '%s' Fail: %s\n", plugin_filename, error.c_str());

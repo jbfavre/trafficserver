@@ -759,6 +759,8 @@ static const RecordElement RecordsConfig[] =
   //# Net Subsystem
   //#
   //##############################################################################
+  {RECT_CONFIG, "proxy.config.net.additional_accepts", RECD_INT, "-1", RECU_DYNAMIC, RR_NULL, RECC_INT, "^-1|[0-9]+$", RECA_NULL}
+   ,
   {RECT_CONFIG, "proxy.config.net.connections_throttle", RECD_INT, "30000", RECU_RESTART_TS, RR_REQUIRED, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.net.listen_backlog", RECD_INT, "-1", RECU_NULL, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
@@ -1392,6 +1394,8 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.http2.max_priority_frames_per_minute", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http2.max_rst_stream_frames_per_minute", RECD_INT, "200", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http2.max_continuation_frames_per_minute", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http2.min_avg_window_update", RECD_FLOAT, "2560.0", RECU_DYNAMIC, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
   ,

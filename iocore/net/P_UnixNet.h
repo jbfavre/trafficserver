@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <bitset>
 
 #include "tscore/ink_platform.h"
@@ -327,6 +329,7 @@ public:
   void remove_from_keep_alive_queue(NetEvent *ne);
   bool add_to_active_queue(NetEvent *ne);
   void remove_from_active_queue(NetEvent *ne);
+  static int get_additional_accepts();
 
   /// Per process initialization logic.
   static void init_for_process();
@@ -384,6 +387,13 @@ public:
   NetHandler();
 
 private:
+  // The following settings are used potentially by accept threads. These are
+  // shared across threads via std::atomic rather than being pulled through a
+  // TS_EVENT_MGMT_UPDATE event like with the Config settings above because
+  // accept threads are not always on a standard NET thread with a NetHandler
+  // that has TS_EVENT_MGMT_UPDATE handling logic.
+  static std::atomic<uint32_t> additional_accepts;
+
   void _close_ne(NetEvent *ne, ink_hrtime now, int &handle_event, int &closed, int &total_idle_time, int &total_idle_count);
 
   /// Static method used as the callback for runtime configuration updates.

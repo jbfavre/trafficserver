@@ -27,7 +27,6 @@
 #include "P_Net.h"
 
 using NetAcceptHandler = int (NetAccept::*)(int, void *);
-int accept_till_done   = 1;
 
 // we need to protect naVec since it might be accessed
 // in different threads at the same time
@@ -48,9 +47,10 @@ net_accept(NetAccept *na, void *ep, bool blockable)
   Event *e               = static_cast<Event *>(ep);
   int res                = 0;
   int count              = 0;
-  int loop               = accept_till_done;
   UnixNetVConnection *vc = nullptr;
   Connection con;
+
+  int additional_accepts = NetHandler::get_additional_accepts();
 
   if (!blockable) {
     if (!MUTEX_TAKE_TRY_LOCK(na->action_->mutex, e->ethread)) {
@@ -83,7 +83,7 @@ net_accept(NetAccept *na, void *ep, bool blockable)
       goto Ldone; // note: @a con will clean up the socket when it goes out of scope.
     }
 
-    ++count;
+    count++;
     NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, 1);
     vc->id = net_next_connection_number();
     vc->con.move(con);
@@ -124,11 +124,19 @@ net_accept(NetAccept *na, void *ep, bool blockable)
       vc->mutex = h->mutex;
       t->schedule_imm(vc);
     }
-  } while (loop);
+  } while (count < additional_accepts);
 
 Ldone:
   if (!blockable) {
     MUTEX_UNTAKE_LOCK(na->action_->mutex, e->ethread);
+  }
+
+  // if we stop looping as a result of hitting the accept limit,
+  // resechedule accepting to the end of the thread event queue
+  // for the goal of fairness between accepting and other work
+  Debug("iocore_net_accepts", "exited accept loop - count: %d, limit: %d", count, additional_accepts);
+  if (count >= additional_accepts) {
+    this_ethread()->schedule_imm_local(na);
   }
   return count;
 }
@@ -285,10 +293,12 @@ int
 NetAccept::do_blocking_accept(EThread *t)
 {
   int res                = 0;
-  int loop               = accept_till_done;
   UnixNetVConnection *vc = nullptr;
   Connection con;
   con.sock_type = SOCK_STREAM;
+
+  int count              = 0;
+  int additional_accepts = NetHandler::get_additional_accepts();
 
   // do-while for accepting all the connections
   // added by YTS Team, yamsat
@@ -340,6 +350,7 @@ NetAccept::do_blocking_accept(EThread *t)
       return -1;
     }
 
+    count++;
     NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, 1);
     vc->id = net_next_connection_number();
     vc->con.move(con);
@@ -372,7 +383,7 @@ NetAccept::do_blocking_accept(EThread *t)
     // Assign NetHandler->mutex to NetVC
     vc->mutex = h->mutex;
     localt->schedule_imm(vc);
-  } while (loop);
+  } while (count < additional_accepts);
 
   return 1;
 }
@@ -428,7 +439,8 @@ NetAccept::acceptFastEvent(int event, void *ep)
   con.sock_type = SOCK_STREAM;
 
   UnixNetVConnection *vc = nullptr;
-  int loop               = accept_till_done;
+  int count              = 0;
+  int additional_accepts = NetHandler::get_additional_accepts();
 
   do {
     socklen_t sz = sizeof(con.addr);
@@ -493,6 +505,7 @@ NetAccept::acceptFastEvent(int event, void *ep)
     vc = (UnixNetVConnection *)this->getNetProcessor()->allocate_vc(e->ethread);
     ink_release_assert(vc);
 
+    count++;
     NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, 1);
     vc->id = net_next_connection_number();
     vc->con.move(con);
@@ -528,9 +541,16 @@ NetAccept::acceptFastEvent(int event, void *ep)
     SCOPED_MUTEX_LOCK(lock, vc->mutex, e->ethread);
     vc->handleEvent(EVENT_NONE, nullptr);
     vc = nullptr;
-  } while (loop);
+  } while (count < additional_accepts);
 
 Ldone:
+  // if we stop looping as a result of hitting the accept limit,
+  // resechedule accepting to the end of the thread event queue
+  // for the goal of fairness between accepting and other work
+  Debug("iocore_net_accepts", "exited accept loop - count: %d, limit: %d", count, additional_accepts);
+  if (count >= additional_accepts) {
+    this_ethread()->schedule_imm_local(this);
+  }
   return EVENT_CONT;
 
 Lerror:

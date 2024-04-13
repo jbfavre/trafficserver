@@ -521,6 +521,13 @@ rcv_rst_stream_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
                       "reset access stream with invalid id");
   }
 
+  // A RST_STREAM frame with a length other than 4 octets MUST be treated
+  // as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
+  if (frame.header().length != HTTP2_RST_STREAM_LEN) {
+    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                      "reset frame wrong length");
+  }
+
   Http2Stream *stream = cstate.find_stream(stream_id);
   if (stream == nullptr) {
     if (cstate.is_valid_streamid(stream_id)) {
@@ -531,13 +538,6 @@ rcv_rst_stream_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     }
   }
 
-  // A RST_STREAM frame with a length other than 4 octets MUST be treated
-  // as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-  if (frame.header().length != HTTP2_RST_STREAM_LEN) {
-    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_FRAME_SIZE_ERROR,
-                      "reset frame wrong length");
-  }
-
   // Update RST_STREAM frame count per minute
   cstate.increment_received_rst_stream_frame_count();
   // Close this connection if its RST_STREAM frame count exceeds a limit
@@ -545,7 +545,7 @@ rcv_rst_stream_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
       cstate.get_received_rst_stream_frame_count() > cstate.configured_max_rst_stream_frames_per_minute) {
     HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_RST_STREAM_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
     Http2StreamDebug(cstate.session, stream_id, "Observed too frequent RST_STREAM frames: %u frames within a last minute",
-                     cstate.get_received_settings_frame_count());
+                     cstate.get_received_rst_stream_frame_count());
     return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_ENHANCE_YOUR_CALM,
                       "reset too frequent RST_STREAM frames");
   }
@@ -753,7 +753,7 @@ rcv_goaway_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
 {
   Http2Goaway goaway;
   char buf[HTTP2_GOAWAY_LEN];
-  unsigned nbytes               = 0;
+  char *end;
   const Http2StreamId stream_id = frame.header().streamid;
 
   Http2StreamDebug(cstate.session, stream_id, "Received GOAWAY frame");
@@ -765,13 +765,11 @@ rcv_goaway_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
                       "goaway id non-zero");
   }
 
-  while (nbytes < frame.header().length) {
-    unsigned read_bytes = read_rcv_buffer(buf, sizeof(buf), nbytes, frame);
+  end = frame.reader()->memcpy(buf, sizeof(buf), 0);
 
-    if (!http2_parse_goaway(make_iovec(buf, read_bytes), goaway)) {
-      return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR,
-                        "goaway failed parse");
-    }
+  if (!http2_parse_goaway(make_iovec(buf, end - buf), goaway)) {
+    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR,
+                      "goaway failed parse");
   }
 
   Http2StreamDebug(cstate.session, stream_id, "GOAWAY: last stream id=%d, error code=%d", goaway.last_streamid,
@@ -924,6 +922,18 @@ rcv_continuation_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
       return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR,
                         "continuation bad state");
     }
+  }
+
+  // Update CONTINUATION frame count per minute.
+  cstate.increment_received_continuation_frame_count();
+  // Close this connection if its CONTINUATION frame count exceeds a limit.
+  if (cstate.configured_max_continuation_frames_per_minute != 0 &&
+      cstate.get_received_continuation_frame_count() > cstate.configured_max_continuation_frames_per_minute) {
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_MAX_CONTINUATION_FRAMES_PER_MINUTE_EXCEEDED, this_ethread());
+    Http2StreamDebug(cstate.session, stream_id, "Observed too frequent CONTINUATION frames: %u frames within a last minute",
+                     cstate.get_received_continuation_frame_count());
+    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_ENHANCE_YOUR_CALM,
+                      "reset too frequent CONTINUATION frames");
   }
 
   uint32_t header_blocks_offset = stream->header_blocks_length;
@@ -1090,10 +1100,11 @@ Http2ConnectionState::init(Http2CommonSession *ssn)
     dependency_tree = new DependencyTree(Http2::max_concurrent_streams_in);
   }
 
-  configured_max_settings_frames_per_minute   = Http2::max_settings_frames_per_minute;
-  configured_max_ping_frames_per_minute       = Http2::max_ping_frames_per_minute;
-  configured_max_priority_frames_per_minute   = Http2::max_priority_frames_per_minute;
-  configured_max_rst_stream_frames_per_minute = Http2::max_rst_stream_frames_per_minute;
+  configured_max_settings_frames_per_minute     = Http2::max_settings_frames_per_minute;
+  configured_max_ping_frames_per_minute         = Http2::max_ping_frames_per_minute;
+  configured_max_priority_frames_per_minute     = Http2::max_priority_frames_per_minute;
+  configured_max_rst_stream_frames_per_minute   = Http2::max_rst_stream_frames_per_minute;
+  configured_max_continuation_frames_per_minute = Http2::max_continuation_frames_per_minute;
   if (auto snis = dynamic_cast<TLSSNISupport *>(session->get_netvc()); snis) {
     if (snis->hints_from_sni.http2_max_settings_frames_per_minute.has_value()) {
       configured_max_settings_frames_per_minute = snis->hints_from_sni.http2_max_settings_frames_per_minute.value();
@@ -1106,6 +1117,9 @@ Http2ConnectionState::init(Http2CommonSession *ssn)
     }
     if (snis->hints_from_sni.http2_max_rst_stream_frames_per_minute.has_value()) {
       configured_max_rst_stream_frames_per_minute = snis->hints_from_sni.http2_max_rst_stream_frames_per_minute.value();
+    }
+    if (snis->hints_from_sni.http2_max_continuation_frames_per_minute.has_value()) {
+      configured_max_continuation_frames_per_minute = snis->hints_from_sni.http2_max_continuation_frames_per_minute.value();
     }
   }
 
@@ -2140,6 +2154,18 @@ uint32_t
 Http2ConnectionState::get_received_rst_stream_frame_count()
 {
   return this->_received_rst_stream_frame_counter.get_count();
+}
+
+void
+Http2ConnectionState::increment_received_continuation_frame_count()
+{
+  this->_received_continuation_frame_counter.increment();
+}
+
+uint32_t
+Http2ConnectionState::get_received_continuation_frame_count()
+{
+  return this->_received_continuation_frame_counter.get_count();
 }
 
 // Return min_concurrent_streams_in when current client streams number is larger than max_active_streams_in.

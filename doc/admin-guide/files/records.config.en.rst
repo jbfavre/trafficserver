@@ -430,6 +430,18 @@ Thread Variables
 Network
 =======
 
+.. ts:cv:: CONFIG proxy.config.net.additional_accepts INT -1
+   :reloadable:
+
+   This config addresses an issue that can sometimes happen if threads are caught in
+   a net accept while loop, become busy exclusviely accepting connections, and are prevented
+   from doing other work. This can cause an increase in latency and average event
+   loop time. When set to 0, a thread accepts only 1 connection per event loop.
+   When set to any other positive integer x, a thread will accept up to x+1 connections
+   per event loop. When set to -1 (default), a thread will accept connections as long
+   as there are connections waiting in its listening queue.is equivalent to "accept all",
+   and setting to 0 is equivalent to "accept one".
+
 .. ts:cv:: CONFIG proxy.config.net.connections_throttle INT 30000
 
    The total number of client and origin server connections that the server
@@ -4272,11 +4284,18 @@ HTTP/2 Configuration
    This limit only will be enforced if :ts:cv:`proxy.config.http2.stream_priority_enabled`
    is set to 1.
 
-.. ts:cv:: CONFIG proxy.config.http2.max_rst_stream_frames_per_minute INT 14
+.. ts:cv:: CONFIG proxy.config.http2.max_rst_stream_frames_per_minute INT 200
    :reloadable:
 
-   Specifies how many RST_STREAM frames |TS| receives for a minute at maximum.
-   Clients exceeded this limit will be immediately disconnected with an error
+   Specifies how many RST_STREAM frames |TS| receives per minute at maximum.
+   Clients exceeding this limit will be immediately disconnected with an error
+   code of ENHANCE_YOUR_CALM.
+
+.. ts:cv:: CONFIG proxy.config.http2.max_continuation_frames_per_minute INT 120
+   :reloadable:
+
+   Specifies how many CONTINUATION frames |TS| receives per minute at maximum.
+   Clients exceeding this limit will be immediately disconnected with an error
    code of ENHANCE_YOUR_CALM.
 
 .. ts:cv:: CONFIG proxy.config.http2.min_avg_window_update FLOAT 2560.0
