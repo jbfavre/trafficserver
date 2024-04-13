@@ -1,3 +1,12 @@
+trafficserver (9.2.4+ds-0+deb12u1) bookworm-security; urgency=medium
+
+  * New upstream version 9.2.4+ds
+  * Refresh d/patches for 9.2.4 release
+  * CVEs fix (Closes: #1068417)
+    - CVE-2024-31309: HTTP/2 CONTINUATION DoS attack
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 13 Apr 2024 11:21:19 +0200
+
 trafficserver (9.2.3+ds-1+deb12u1) bookworm-security; urgency=medium
 
   * Multiple CVE fixes for 9.2.x (Closes: #1054427, Closes: #1053801)
