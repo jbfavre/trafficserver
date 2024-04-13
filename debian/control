@@ -15,7 +15,7 @@ Build-Depends: debhelper-compat (= 13), libssl-dev, tcl-dev, libexpat1-dev,
   libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips],
   netbase, python3-sphinxcontrib.jquery
 Rules-Requires-Root: binary-targets
-Standards-Version: 4.6.2
+Standards-Version: 4.7.0
 Homepage: https://trafficserver.apache.org/
 Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
 Vcs-Browser: https://salsa.debian.org/debian/trafficserver
