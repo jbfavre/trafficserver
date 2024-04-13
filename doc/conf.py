@@ -27,33 +27,19 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-from sphinx.writers import manpage
-from docutils.transforms import frontmatter
-from docutils.utils import unescape
-from docutils.utils import punctuation_chars
-from docutils.parsers.rst import states
-from docutils import nodes
-import re
 import sys
 import os
 from datetime import date
 from sphinx import version_info
-# Import man_pages from manpages.py to get the list of manpages to generate in
-# separate files. Default is to put everything in apachetrafficserver.1
-# For these reasons, despite what linting tools might say, this import is required.
-from manpages import man_pages
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
+#sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('ext'))
 sys.path.insert(0, os.path.abspath('.'))
 
-
-# Allow for us to add our override CSS file (new with Sphinx 1.x)
-def setup(app):
-    app.add_css_file('override.css')
-
+from manpages import man_pages
 
 # -- General configuration -----------------------------------------------------
 
@@ -67,18 +53,16 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinxcontrib.plantuml',
-    'sphinxcontrib.jquery',
     'traffic-server',
 ]
 
 # Contains values that are dependent on configure.ac.
-LOCAL_CONFIG = os.path.join(os.environ['PWD'], "ext", "local-config.py")
-with open(LOCAL_CONFIG) as f:
-    exec(compile(f.read(), LOCAL_CONFIG, 'exec'))
+exec(compile(open('ext/local-config.py', "rb").read(), 'ext/local-config.py', 'exec'))
 
-if version_info < (3, 0):
-    print("Documentation requires Sphinx 3.0 or later.")
-    exit(1)
+if version_info >= (1, 4):
+    extensions.append('sphinx.ext.imgmath')
+else:
+    extensions.append('sphinx.ext.pngmath')
 
 # XXX Disabling docxygen for now, since it make RTD documentation builds time
 # out, eg. https://readthedocs.org/projects/trafficserver/builds/3525976/
@@ -99,8 +83,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Apache Traffic Server'
-copyright = f'{date.today().year}, dev@trafficserver.apache.org'
+project = 'Apache Traffic Server'
+copyright = '{}, dev@trafficserver.apache.org'.format(date.today().year)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -110,8 +94,10 @@ copyright = f'{date.today().year}, dev@trafficserver.apache.org'
 # work identically when building with Autotools (e.g. $ make html)
 # and without (e.g. on Read the Docs)
 
+import re
+
 contents = open('../configure.ac').read()
-match = re.compile(r'm4_define\(\[TS_VERSION_S],\[(.*?)]\)').search(contents)
+match = re.compile('m4_define\(\[TS_VERSION_S],\[(.*?)]\)').search(contents)
 
 # The full version, including alpha/beta/rc tags.
 release = match.group(1)
@@ -128,7 +114,7 @@ gettext_compact = False
 # Generate .mo files just in time
 if os.environ.get('READTHEDOCS') == 'True':
     import polib
-    print("Generating .mo files"),
+    print("Generating .mo files", end=' ')
     for locale_dir in locale_dirs:
         for path, dummy, filenames in os.walk(locale_dir):
             for filename in filenames:
@@ -141,12 +127,12 @@ if os.environ.get('READTHEDOCS') == 'True':
     print("done")
 else:
     # On RedHat-based distributions, install the python-sphinx_rtd_theme package
-    # to get an end result that looks more like readthedoc.org.
+    # to get an end result tht looks more like readthedoc.org.
     try:
         import sphinx_rtd_theme
         html_theme = 'sphinx_rtd_theme'
         html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-    except Exception:
+    except:
         pass
 # End of HACK
 
@@ -181,23 +167,22 @@ pygments_style = 'default'
 #modindex_common_prefix = []
 
 nitpicky = True
-nitpick_ignore = [
-    ('c:identifier', 'int64_t'),
-    ('c:identifier', 'uint64_t'),
-    ('c:identifier', 'uint8_t'),
-    ('c:identifier', 'int32_t'),
-    ('c:identifier', 'size_t'),
-    ('c:identifier', 'ssize_t'),
-    ('c:identifier', 'sockaddr'),
-    ('c:identifier', 'time_t'),
-    ('cpp:identifier', 'T'),  # template arg
-    ('cpp:identifier', 'F'),  # template arg
-    ('cpp:identifier', 'Args'),  # variadic template arg
-    ('cpp:identifier', 'Rest'),  # variadic template arg
-]
+nitpick_ignore = [ ('c:type', 'int64_t')
+                 , ('c:type', 'bool')
+                 , ('c:type', 'sockaddr')
+                 , ('cpp:typeOrConcept', 'T') # template arg
+                 , ('cpp:typeOrConcept', 'F') # template arg
+                 , ('cpp:typeOrConcept', 'Args') # variadic template arg
+                 , ('cpp:typeOrConcept', 'Rest') # variadic template arg
+                 ]
 
 # Autolink issue references.
 # See Customizing the Parser in the docutils.parsers.rst module.
+
+from docutils import nodes
+from docutils.parsers.rst import states
+from docutils.utils import punctuation_chars
+from docutils.utils import unescape
 
 # Customize parser.inliner in the only way that Sphinx supports.
 # docutils.parsers.rst.Parser takes an instance of states.Inliner or a
@@ -210,7 +195,6 @@ BaseInliner = states.Inliner
 
 
 class Inliner(states.Inliner):
-
     def init_customizations(self, settings):
         self.__class__ = BaseInliner
         BaseInliner.init_customizations(self, settings)
@@ -219,17 +203,22 @@ class Inliner(states.Inliner):
         # Copied from states.Inliner.init_customizations().
         # In Docutils 0.13 these are locals.
         if not hasattr(self, 'start_string_prefix'):
-            self.start_string_prefix = (u'(^|(?<=\\s|[%s%s]))' % (punctuation_chars.openers, punctuation_chars.delimiters))
+            self.start_string_prefix = ('(^|(?<=\\s|[%s%s]))' %
+                                        (punctuation_chars.openers,
+                                         punctuation_chars.delimiters))
         if not hasattr(self, 'end_string_suffix'):
-            self.end_string_suffix = (
-                u'($|(?=\\s|[\x00%s%s%s]))' %
-                (punctuation_chars.closing_delimiters, punctuation_chars.delimiters, punctuation_chars.closers))
+            self.end_string_suffix = ('($|(?=\\s|[\x00%s%s%s]))' %
+                                      (punctuation_chars.closing_delimiters,
+                                       punctuation_chars.delimiters,
+                                       punctuation_chars.closers))
 
         issue = re.compile(
             r'''
       {start_string_prefix}
       TS-\d+
-      {end_string_suffix}'''.format(start_string_prefix=self.start_string_prefix, end_string_suffix=self.end_string_suffix),
+      {end_string_suffix}'''.format(
+                start_string_prefix=self.start_string_prefix,
+                end_string_suffix=self.end_string_suffix),
             re.VERBOSE | re.UNICODE)
 
         self.implicit_dispatch.append((issue, self.issue_reference))
@@ -282,6 +271,22 @@ html_favicon = 'static/images/favicon.ico'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['static']
 
+# Include a stylesheet that overrides default table styling, to provide
+# content wrapping.
+html_context = {
+    'css_files': [
+        '_static/override.css'
+    ]
+}
+if os.environ.get('READTHEDOCS', None) == 'True':
+    html_context = {
+        'css_files': [
+            'https://media.readthedocs.org/css/sphinx_rtd_theme.css',
+            'https://media.readthedocs.org/css/readthedocs-doc-embed.css',
+            '_static/override.css'
+        ]
+    }
+
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
 #html_last_updated_fmt = '%b %d, %Y'
@@ -330,24 +335,25 @@ htmlhelp_basename = 'ApacheTrafficServerdoc'
 
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
-    # 'papersize': 'letterpaper',
+    #'papersize': 'letterpaper',
 
     # The font size ('10pt', '11pt' or '12pt').
-    # 'pointsize': '10pt',
+    #'pointsize': '10pt',
 
     # Additional stuff for the LaTeX preamble.
-    # 'preamble': '',
+    #'preamble': '',
 }
 
-if 'latex_a4' in tags:
+if tags.has('latex_a4'):
     latex_elements['papersize'] = 'a4paper'
-elif 'latex_paper' in tags:
+elif tags.has('latex_paper'):
     latex_elements['papersiize'] = 'letterpaper'
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'ApacheTrafficServer.tex', u'Apache Traffic Server Documentation', u'dev@trafficserver.apache.org', 'manual'),
+    ('index', 'ApacheTrafficServer.tex', 'Apache Traffic Server Documentation',
+     'dev@trafficserver.apache.org', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -382,6 +388,9 @@ latex_documents = [
 # documents and includes the same brief description in both the HTML
 # and manual page outputs.
 
+from docutils.transforms import frontmatter
+from sphinx.writers import manpage
+
 # Override ManualPageWriter and ManualPageTranslator in the only way
 # that Sphinx supports
 
@@ -389,7 +398,6 @@ BaseWriter = manpage.ManualPageWriter
 
 
 class ManualPageWriter(BaseWriter):
-
     def translate(self):
         transform = frontmatter.DocTitle(self.document)
 
@@ -421,7 +429,6 @@ BaseTranslator = manpage.ManualPageTranslator
 
 
 class ManualPageTranslator(BaseTranslator):
-
     def __init__(self, builder, *args, **kwds):
         BaseTranslator.__init__(self, builder, *args, **kwds)
 
@@ -438,9 +445,9 @@ manpage.ManualPageTranslator = ManualPageTranslator
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (
-        'index', 'ApacheTrafficServer', u'Apache Traffic Server Documentation', u'dev@trafficserver.apache.org',
-        'ApacheTrafficServer', 'One line description of project.', 'Miscellaneous'),
+    ('index', 'ApacheTrafficServer', 'Apache Traffic Server Documentation',
+     'dev@trafficserver.apache.org', 'ApacheTrafficServer', 'One line description of project.',
+     'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.
@@ -455,10 +462,10 @@ texinfo_documents = [
 # -- Options for Epub output ---------------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = u'Apache Traffic Server'
-epub_author = u'dev@trafficserver.apache.org'
-epub_publisher = u'dev@trafficserver.apache.org'
-epub_copyright = u'2013, dev@trafficserver.apache.org'
+epub_title = 'Apache Traffic Server'
+epub_author = 'dev@trafficserver.apache.org'
+epub_publisher = 'dev@trafficserver.apache.org'
+epub_copyright = '2013, dev@trafficserver.apache.org'
 
 # The language of the text. It defaults to the language option
 # or en if the language is not set.
@@ -498,4 +505,4 @@ epub_copyright = u'2013, dev@trafficserver.apache.org'
 # Enabling marking bit fields as 'bitfield_N`.
 # Currently parameterized fields don't work. When they do, we should change to
 # 'bitfield(N)'.
-cpp_id_attributes = ['bitfield_1', 'bitfield_3', 'bitfield_24']
+cpp_id_attributes = [ 'bitfield_1', 'bitfield_3', 'bitfield_24' ]

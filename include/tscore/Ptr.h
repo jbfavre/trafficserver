@@ -24,7 +24,6 @@
 #pragma once
 
 #include "tscore/ink_atomic.h"
-
 #include <cstddef>
 
 ////////////////////////////////////////////////////////////////////
@@ -46,8 +45,8 @@ struct ForceVFPTToTop {
 class RefCountObj : public ForceVFPTToTop
 {
 public:
-  RefCountObj() {}
-  RefCountObj(const RefCountObj &s)
+  RefCountObj() : m_refcount(0) {}
+  RefCountObj(const RefCountObj &s) : m_refcount(0)
   {
     (void)s;
     return;
@@ -88,7 +87,7 @@ public:
   }
 
 private:
-  int m_refcount = 0;
+  int m_refcount;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -101,24 +100,14 @@ template <class T> class Ptr
 public:
   explicit Ptr(T *p = nullptr);
   Ptr(const Ptr<T> &);
-  Ptr(Ptr<T> &&);
   ~Ptr();
 
   void clear();
   Ptr<T> &operator=(const Ptr<T> &);
-  Ptr<T> &operator=(Ptr<T> &&);
   Ptr<T> &operator=(T *);
 
-  T *
-  operator->() const
-  {
-    return (m_ptr);
-  }
-  T &
-  operator*() const
-  {
-    return (*m_ptr);
-  }
+  T *operator->() const { return (m_ptr); }
+  T &operator*() const { return (*m_ptr); }
 
   // Making this explicit avoids unwanted conversions.  See https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Safe_bool .
   explicit operator bool() const { return m_ptr != nullptr; }
@@ -155,7 +144,7 @@ public:
   }
 
   // Return the raw pointer as a RefCount object. Typically
-  // this is for keeping a collection of ogenous objects.
+  // this is for keeping a collection of heterogenous objects.
   RefCountObj *
   object() const
   {
@@ -183,6 +172,8 @@ public:
 
 private:
   T *m_ptr;
+
+  friend class CoreUtils;
 };
 
 template <typename T>
@@ -209,11 +200,6 @@ template <class T> inline Ptr<T>::Ptr(const Ptr<T> &src) : m_ptr(src.m_ptr)
   if (m_ptr) {
     m_ptr->refcount_inc();
   }
-}
-
-template <class T> inline Ptr<T>::Ptr(Ptr<T> &&src) : m_ptr(src.m_ptr)
-{
-  src.m_ptr = nullptr;
 }
 
 template <class T> inline Ptr<T>::~Ptr()
@@ -262,18 +248,6 @@ inline Ptr<T> &
 Ptr<T>::operator=(const Ptr<T> &src)
 {
   return (operator=(src.m_ptr));
-}
-
-template <class T>
-inline Ptr<T> &
-Ptr<T>::operator=(Ptr<T> &&src)
-{
-  if (this != &src) {
-    this->~Ptr();
-    m_ptr     = src.m_ptr;
-    src.m_ptr = nullptr;
-  }
-  return *this;
 }
 
 // Bit of subtly here for the flipped version of equality checks

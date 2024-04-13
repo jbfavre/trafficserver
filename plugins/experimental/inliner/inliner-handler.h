@@ -57,14 +57,14 @@ namespace inliner
     Handler(const Handler &) = delete;
     Handler &operator=(const Handler &) = delete;
 
-    void parse();
+    void parse(void);
 
     size_t bypass(const size_t, const size_t) override;
     void handleImage(const Attributes &) override;
 
-    std::string generateId();
+    std::string generateId(void);
 
-    void abort();
+    void abort(void);
   };
 
 } // namespace inliner

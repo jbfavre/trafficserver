@@ -26,9 +26,7 @@ Get or set the local IP address for outbound connections.
 Synopsis
 --------
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. c:function:: sockaddr const* TSHttpTxnOutgoingAddrGet(TSHttpTxn txnp)
 .. c:function:: TSReturnCode TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, sockaddr const* addr)

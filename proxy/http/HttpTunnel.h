@@ -48,7 +48,6 @@
 #define HTTP_TUNNEL_EVENT_DONE (HTTP_TUNNEL_EVENTS_START + 1)
 #define HTTP_TUNNEL_EVENT_PRECOMPLETE (HTTP_TUNNEL_EVENTS_START + 2)
 #define HTTP_TUNNEL_EVENT_CONSUMER_DETACH (HTTP_TUNNEL_EVENTS_START + 3)
-#define HTTP_TUNNEL_EVENT_ACTIVITY_CHECK (HTTP_TUNNEL_EVENTS_START + 4)
 
 #define HTTP_TUNNEL_STATIC_PRODUCER (VConnection *)!0
 
@@ -95,27 +94,27 @@ struct ChunkedHandler {
 
   enum Action { ACTION_DOCHUNK = 0, ACTION_DECHUNK, ACTION_PASSTHRU, ACTION_UNSET };
 
-  Action action = ACTION_UNSET;
+  Action action;
 
-  IOBufferReader *chunked_reader = nullptr;
-  MIOBuffer *dechunked_buffer    = nullptr;
-  int64_t dechunked_size         = 0;
+  IOBufferReader *chunked_reader;
+  MIOBuffer *dechunked_buffer;
+  int64_t dechunked_size;
 
-  IOBufferReader *dechunked_reader = nullptr;
-  MIOBuffer *chunked_buffer        = nullptr;
-  int64_t chunked_size             = 0;
+  IOBufferReader *dechunked_reader;
+  MIOBuffer *chunked_buffer;
+  int64_t chunked_size;
 
-  bool truncation    = false;
-  int64_t skip_bytes = 0;
+  bool truncation;
+  int64_t skip_bytes;
 
-  ChunkedState state     = CHUNK_READ_CHUNK;
-  int64_t cur_chunk_size = 0;
-  int64_t bytes_left     = 0;
-  int last_server_event  = VC_EVENT_NONE;
+  ChunkedState state;
+  int64_t cur_chunk_size;
+  int64_t bytes_left;
+  int last_server_event;
 
   // Parsing Info
-  int running_sum = 0;
-  int num_digits  = 0;
+  int running_sum;
+  int num_digits;
 
   /// @name Output data.
   //@{
@@ -126,7 +125,7 @@ struct ChunkedHandler {
   /// It holds the header for a maximal sized chunk which will cover
   /// almost all output chunks.
   char max_chunk_header[16];
-  int max_chunk_header_len = 0;
+  int max_chunk_header_len;
   //@}
   ChunkedHandler();
 
@@ -153,22 +152,22 @@ struct HttpTunnelConsumer {
   HttpTunnelConsumer();
 
   LINK(HttpTunnelConsumer, link);
-  HttpTunnelProducer *producer      = nullptr;
-  HttpTunnelProducer *self_producer = nullptr;
+  HttpTunnelProducer *producer;
+  HttpTunnelProducer *self_producer;
 
-  HttpTunnelType_t vc_type       = HT_HTTP_CLIENT;
-  VConnection *vc                = nullptr;
-  IOBufferReader *buffer_reader  = nullptr;
-  HttpConsumerHandler vc_handler = nullptr;
-  VIO *write_vio                 = nullptr;
+  HttpTunnelType_t vc_type;
+  VConnection *vc;
+  IOBufferReader *buffer_reader;
+  HttpConsumerHandler vc_handler;
+  VIO *write_vio;
 
-  int64_t skip_bytes    = 0; // bytes to skip at beginning of stream
-  int64_t bytes_written = 0; // total bytes written to the vc
-  int handler_state     = 0; // state used the handlers
+  int64_t skip_bytes;    // bytes to skip at beginning of stream
+  int64_t bytes_written; // total bytes written to the vc
+  int handler_state;     // state used the handlers
 
-  bool alive         = false;
-  bool write_success = false;
-  const char *name   = nullptr;
+  bool alive;
+  bool write_success;
+  const char *name;
 
   /** Check if this consumer is downstream from @a vc.
       @return @c true if any producer in the tunnel eventually feeds
@@ -185,37 +184,37 @@ struct HttpTunnelProducer {
   HttpTunnelProducer();
 
   DLL<HttpTunnelConsumer> consumer_list;
-  HttpTunnelConsumer *self_consumer = nullptr;
-  VConnection *vc                   = nullptr;
-  HttpProducerHandler vc_handler    = nullptr;
-  VIO *read_vio                     = nullptr;
-  MIOBuffer *read_buffer            = nullptr;
-  IOBufferReader *buffer_start      = nullptr;
-  HttpTunnelType_t vc_type          = HT_HTTP_SERVER;
+  HttpTunnelConsumer *self_consumer;
+  VConnection *vc;
+  HttpProducerHandler vc_handler;
+  VIO *read_vio;
+  MIOBuffer *read_buffer;
+  IOBufferReader *buffer_start;
+  HttpTunnelType_t vc_type;
 
   ChunkedHandler chunked_handler;
-  TunnelChunkingAction_t chunking_action = TCA_PASSTHRU_DECHUNKED_CONTENT;
+  TunnelChunkingAction_t chunking_action;
 
-  bool do_chunking         = false;
-  bool do_dechunking       = false;
-  bool do_chunked_passthru = false;
+  bool do_chunking;
+  bool do_dechunking;
+  bool do_chunked_passthru;
 
-  int64_t init_bytes_done = 0; // bytes passed in buffer
-  int64_t nbytes          = 0; // total bytes (client's perspective)
-  int64_t ntodo           = 0; // what this vc needs to do
-  int64_t bytes_read      = 0; // total bytes read from the vc
-  int handler_state       = 0; // state used the handlers
-  int last_event          = 0; ///< Tracking for flow control restarts.
+  int64_t init_bytes_done; // bytes passed in buffer
+  int64_t nbytes;          // total bytes (client's perspective)
+  int64_t ntodo;           // what this vc needs to do
+  int64_t bytes_read;      // total bytes read from the vc
+  int handler_state;       // state used the handlers
+  int last_event;          ///< Tracking for flow control restarts.
 
-  int num_consumers = 0;
+  int num_consumers;
 
-  bool alive        = false;
-  bool read_success = false;
+  bool alive;
+  bool read_success;
   /// Flag and pointer for active flow control throttling.
   /// If this is set, it points at the source producer that is under flow control.
   /// If @c NULL then data flow is not being throttled.
-  HttpTunnelProducer *flow_control_source = nullptr;
-  const char *name                        = nullptr;
+  HttpTunnelProducer *flow_control_source;
+  const char *name;
 
   /** Get the largest number of bytes any consumer has not consumed.
       Use @a limit if you only need to check if the backlog is at least @a limit.
@@ -249,6 +248,7 @@ struct HttpTunnelProducer {
 class HttpTunnel : public Continuation
 {
   friend class HttpPagesHandler;
+  friend class CoreUtils;
 
   /** Data for implementing flow control across a tunnel.
 
@@ -261,9 +261,9 @@ class HttpTunnel : public Continuation
     // Default value for high and low water marks.
     static uint64_t const DEFAULT_WATER_MARK = 1 << 16;
 
-    uint64_t high_water;    ///< Buffered data limit - throttle if more than this.
-    uint64_t low_water;     ///< Unthrottle if less than this buffered.
-    bool enabled_p = false; ///< Flow control state (@c false means disabled).
+    uint64_t high_water; ///< Buffered data limit - throttle if more than this.
+    uint64_t low_water;  ///< Unthrottle if less than this buffered.
+    bool enabled_p;      ///< Flow control state (@c false means disabled).
 
     /// Default constructor.
     FlowControl();
@@ -274,17 +274,15 @@ public:
 
   void init(HttpSM *sm_arg, Ptr<ProxyMutex> &amutex);
   void reset();
-  void abort_tunnel();
   void kill_tunnel();
-
-  bool is_tunnel_active() const;
+  bool
+  is_tunnel_active() const
+  {
+    return active;
+  }
   bool is_tunnel_alive() const;
   bool has_cache_writer() const;
   bool has_consumer_besides_client() const;
-
-  // CAVEAT: This is different from the HttpTunnel::active flag
-  void mark_tls_tunnel_active();
-  void mark_tls_tunnel_inactive();
 
   HttpTunnelProducer *add_producer(VConnection *vc, int64_t nbytes, IOBufferReader *reader_start, HttpProducerHandler sm_handler,
                                    HttpTunnelType_t vc_type, const char *name);
@@ -336,8 +334,6 @@ private:
   void finish_all_internal(HttpTunnelProducer *p, bool chain);
   void update_stats_after_abort(HttpTunnelType_t t);
   void producer_run(HttpTunnelProducer *p);
-  void _schedule_tls_tunnel_activity_check_event();
-  bool _is_tls_tunnel_active() const;
 
   HttpTunnelProducer *get_producer(VIO *vio);
   HttpTunnelConsumer *get_consumer(VIO *vio);
@@ -353,11 +349,6 @@ private:
 
   bool active = false;
 
-  // Activity check for SNI Routing Tunnel
-  bool _tls_tunnel_active                 = false;
-  Event *_tls_tunnel_activity_check_event = nullptr;
-  ink_hrtime _tls_tunnel_last_update      = 0;
-
   /// State data about flow control.
   FlowControl flow_state;
 
@@ -365,15 +356,6 @@ private:
   int reentrancy_count = 0;
   bool call_sm         = false;
 };
-
-////
-// Inline Functions
-//
-inline bool
-HttpTunnel::is_tunnel_active() const
-{
-  return active;
-}
 
 // void HttpTunnel::abort_cache_write_finish_others
 //
@@ -502,7 +484,7 @@ HttpTunnel::get_consumer(VIO *vio)
 {
   if (vio) {
     for (int i = 0; i < MAX_CONSUMERS; i++) {
-      if (consumers[i].alive && consumers[i].write_vio == vio) {
+      if (consumers[i].alive && (consumers[i].write_vio == vio || consumers[i].vc == vio->vc_server)) {
         return consumers + i;
       }
     }
@@ -564,7 +546,7 @@ inline bool
 HttpTunnelConsumer::is_downstream_from(VConnection *vc)
 {
   HttpTunnelProducer *p = producer;
-
+  HttpTunnelConsumer *c;
   while (p) {
     if (p->vc == vc) {
       return true;
@@ -572,8 +554,7 @@ HttpTunnelConsumer::is_downstream_from(VConnection *vc)
     // The producer / consumer chain can contain a cycle in the case
     // of a blind tunnel so give up if we find ourself (the original
     // consumer).
-    HttpTunnelConsumer *c = p->self_consumer;
-
+    c = p->self_consumer;
     p = (c && c != this) ? c->producer : nullptr;
   }
   return false;
@@ -623,4 +604,4 @@ HttpTunnelProducer::unthrottle()
   }
 }
 
-inline HttpTunnel::FlowControl::FlowControl() : high_water(DEFAULT_WATER_MARK), low_water(DEFAULT_WATER_MARK) {}
+inline HttpTunnel::FlowControl::FlowControl() : high_water(DEFAULT_WATER_MARK), low_water(DEFAULT_WATER_MARK), enabled_p(false) {}

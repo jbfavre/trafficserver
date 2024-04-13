@@ -44,7 +44,7 @@ void
 SocksEntry::init(Ptr<ProxyMutex> &m, SocksNetVC *vc, unsigned char socks_support, unsigned char ver)
 {
   mutex  = m;
-  buf    = new_MIOBuffer(BUFFER_SIZE_INDEX_32K);
+  buf    = new_MIOBuffer();
   reader = buf->alloc_reader();
 
   socks_cmd = socks_support;
@@ -164,7 +164,7 @@ SocksEntry::free()
     if (lerrno || !netVConnection) {
       Debug("Socks", "retryevent: Sent errno %d to HTTP", lerrno);
       NET_INCREMENT_DYN_STAT(socks_connections_unsuccessful_stat);
-      action_.continuation->handleEvent(NET_EVENT_OPEN_FAILED, (void *)static_cast<intptr_t>(-lerrno));
+      action_.continuation->handleEvent(NET_EVENT_OPEN_FAILED, (void *)(intptr_t)(-lerrno));
     } else {
       netVConnection->do_io_read(this, 0, nullptr);
       netVConnection->do_io_write(this, 0, nullptr);
@@ -189,13 +189,13 @@ int
 SocksEntry::startEvent(int event, void *data)
 {
   if (event == NET_EVENT_OPEN) {
-    netVConnection = static_cast<SocksNetVC *>(data);
+    netVConnection = (SocksNetVC *)data;
 
     if (version == SOCKS5_VERSION) {
       auth_handler = &socks5BasicAuthHandler;
     }
 
-    SET_HANDLER(&SocksEntry::mainEvent);
+    SET_HANDLER((SocksEntryHandler)&SocksEntry::mainEvent);
     mainEvent(NET_EVENT_OPEN, data);
   } else {
     if (timeout) {
@@ -248,7 +248,7 @@ SocksEntry::mainEvent(int event, void *data)
   case NET_EVENT_OPEN:
     buf->reset();
     unsigned short ts;
-    p = reinterpret_cast<unsigned char *>(buf->start());
+    p = (unsigned char *)buf->start();
     ink_assert(netVConnection);
 
     if (auth_handler) {
@@ -340,8 +340,8 @@ SocksEntry::mainEvent(int event, void *data)
     ret = EVENT_CONT;
 
     if (version == SOCKS5_VERSION && auth_handler == nullptr) {
-      VIO *vio = static_cast<VIO *>(data);
-      p        = reinterpret_cast<unsigned char *>(buf->start());
+      VIO *vio = (VIO *)data;
+      p        = (unsigned char *)buf->start();
 
       if (vio->ndone >= 5) {
         int reply_len;
@@ -379,7 +379,7 @@ SocksEntry::mainEvent(int event, void *data)
       timeout = nullptr;
     }
     // Debug("Socks", "Successfully read the reply from the SOCKS server");
-    p = reinterpret_cast<unsigned char *>(buf->start());
+    p = (unsigned char *)buf->start();
 
     if (auth_handler) {
       SocksAuthHandler temp = auth_handler;
@@ -480,7 +480,7 @@ loadSocksConfiguration(socks_conf_struct *socks_conf_stuff)
 
   socks_conf_stuff->server_connect_timeout = REC_ConfigReadInteger("proxy.config.socks.server_connect_timeout");
   socks_conf_stuff->socks_timeout          = REC_ConfigReadInteger("proxy.config.socks.socks_timeout");
-  Debug("Socks", "server connect timeout: %d socks response timeout %d", socks_conf_stuff->server_connect_timeout,
+  Debug("Socks", "server connect timeout: %d socks respnonse timeout %d", socks_conf_stuff->server_connect_timeout,
         socks_conf_stuff->socks_timeout);
 
   socks_conf_stuff->per_server_connection_attempts = REC_ConfigReadInteger("proxy.config.socks.per_server_connection_attempts");
@@ -514,6 +514,7 @@ loadSocksConfiguration(socks_conf_struct *socks_conf_stuff)
   }
 #ifdef SOCKS_WITH_TS
   tmp = Load_IpMap_From_File(&socks_conf_stuff->ip_map, socks_config_fd, "no_socks");
+  //  tmp = socks_conf_stuff->ip_range.read_table_from_file(socks_config_fd, "no_socks");
 
   if (tmp) {
     Error("SOCKS Config: Error while reading ip_range: %s.", tmp);
@@ -573,7 +574,7 @@ loadSocksAuthInfo(int fd, socks_conf_struct *socks_stuff)
 
       socks_stuff->user_name_n_passwd_len = len1 + len2 + 2;
 
-      char *ptr = static_cast<char *>(ats_malloc(socks_stuff->user_name_n_passwd_len));
+      char *ptr = (char *)ats_malloc(socks_stuff->user_name_n_passwd_len);
       ptr[0]    = len1;
       memcpy(&ptr[1], user_name, len1);
       ptr[len1 + 1] = len2;
@@ -629,13 +630,13 @@ socks5BasicAuthHandler(int event, unsigned char *p, void (**h_ptr)(void))
           ret    = -1;
           *h_ptr = nullptr;
         } else {
-          *reinterpret_cast<SocksAuthHandler *>(h_ptr) = &socks5PasswdAuthHandler;
+          *(SocksAuthHandler *)h_ptr = &socks5PasswdAuthHandler;
         }
 
         break;
 
       case 0xff:
-        Debug("Socks", "None of the Socks authentications is acceptable "
+        Debug("Socks", "None of the Socks authentcations is acceptable "
                        "to the server");
         *h_ptr = nullptr;
         ret    = -1;
@@ -654,7 +655,7 @@ socks5BasicAuthHandler(int event, unsigned char *p, void (**h_ptr)(void))
     break;
 
   default:
-    // This should be impossible
+    // This should be inpossible
     ink_assert(!"bad case value");
     ret = -1;
     break;
@@ -688,10 +689,12 @@ socks5PasswdAuthHandler(int event, unsigned char *p, void (**h_ptr)(void))
     break;
 
   case SOCKS_AUTH_READ_COMPLETE:
+
+    // if (p[0] == 1) { // skip this. its not clear what this should be.
     // NEC thinks it is 5 RFC seems to indicate 1.
     switch (p[1]) {
     case 0:
-      Debug("Socks", "Username/Passwd succeeded");
+      Debug("Socks", "Username/Passwd succeded");
       *h_ptr = nullptr;
       break;
 
@@ -699,6 +702,12 @@ socks5PasswdAuthHandler(int event, unsigned char *p, void (**h_ptr)(void))
       Debug("Socks", "Username/Passwd authentication failed ret_code: %d", (int)p[1]);
       ret = -1;
     }
+    //}
+    // else {
+    //  Debug("Socks", "authPassEvent got wrong version %d from "
+    //        "Socks server\n", (int)p[0]);
+    //  ret = -1;
+    //}
 
     break;
 

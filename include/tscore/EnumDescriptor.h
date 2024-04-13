@@ -19,8 +19,6 @@
   limitations under the License.
 */
 
-#pragma once
-
 #include <string_view>
 #include <unordered_map>
 

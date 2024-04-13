@@ -31,9 +31,6 @@
 static int ts_lua_client_response_header_get(lua_State *L);
 static int ts_lua_client_response_header_set(lua_State *L);
 
-static int ts_lua_client_response_header_table_get(lua_State *L);
-static int ts_lua_client_response_header_table_set(lua_State *L);
-
 static int ts_lua_client_response_get_headers(lua_State *L);
 
 static int ts_lua_client_response_get_status(lua_State *L);
@@ -45,7 +42,6 @@ static int ts_lua_client_response_get_version(lua_State *L);
 static int ts_lua_client_response_set_version(lua_State *L);
 
 static void ts_lua_inject_client_response_header_api(lua_State *L);
-static void ts_lua_inject_client_response_header_table_api(lua_State *L);
 static void ts_lua_inject_client_response_headers_api(lua_State *L);
 static void ts_lua_inject_client_response_misc_api(lua_State *L);
 
@@ -55,7 +51,6 @@ ts_lua_inject_client_response_api(lua_State *L)
   lua_newtable(L);
 
   ts_lua_inject_client_response_header_api(L);
-  ts_lua_inject_client_response_header_table_api(L);
   ts_lua_inject_client_response_headers_api(L);
   ts_lua_inject_client_response_misc_api(L);
 
@@ -113,7 +108,7 @@ ts_lua_client_response_header_get(lua_State *L)
         next_field_loc = TSMimeHdrFieldNextDup(http_ctx->client_response_bufp, http_ctx->client_response_hdrp, field_loc);
         lua_pushlstring(L, val, val_len);
         count++;
-        // multiple headers with the same name must be semantically the same as one value which is comma separated
+        // multiple headers with the same name must be semantically the same as one value which is comma seperated
         if (next_field_loc != TS_NULL_MLOC) {
           lua_pushlstring(L, ",", 1);
           count++;
@@ -203,82 +198,6 @@ ts_lua_client_response_header_set(lua_State *L)
     TSHandleMLocRelease(http_ctx->client_response_bufp, http_ctx->client_response_hdrp, field_loc);
   }
 
-  return 0;
-}
-
-static void
-ts_lua_inject_client_response_header_table_api(lua_State *L)
-{
-  lua_newtable(L); /* .header */
-
-  lua_createtable(L, 0, 2); /* metatable for .header */
-
-  lua_pushcfunction(L, ts_lua_client_response_header_table_get);
-  lua_setfield(L, -2, "__index");
-  lua_pushcfunction(L, ts_lua_client_response_header_table_set);
-  lua_setfield(L, -2, "__newindex");
-
-  lua_setmetatable(L, -2);
-
-  lua_setfield(L, -2, "header_table");
-}
-
-static int
-ts_lua_client_response_header_table_get(lua_State *L)
-{
-  const char *key;
-  const char *val;
-  int val_len;
-  size_t key_len;
-  int count;
-
-  TSMLoc field_loc, next_field_loc;
-  ts_lua_http_ctx *http_ctx;
-
-  GET_HTTP_CONTEXT(http_ctx, L);
-
-  /*  we skip the first argument that is the table */
-  key = luaL_checklstring(L, 2, &key_len);
-
-  if (!http_ctx->client_response_hdrp) {
-    if (TSHttpTxnClientRespGet(http_ctx->txnp, &http_ctx->client_response_bufp, &http_ctx->client_response_hdrp) != TS_SUCCESS) {
-      lua_pushnil(L);
-      return 1;
-    }
-  }
-
-  if (key && key_len) {
-    field_loc = TSMimeHdrFieldFind(http_ctx->client_response_bufp, http_ctx->client_response_hdrp, key, key_len);
-
-    if (field_loc != TS_NULL_MLOC) {
-      lua_newtable(L);
-      count = 0;
-      while (field_loc != TS_NULL_MLOC) {
-        val = TSMimeHdrFieldValueStringGet(http_ctx->client_response_bufp, http_ctx->client_response_hdrp, field_loc, -1, &val_len);
-        next_field_loc = TSMimeHdrFieldNextDup(http_ctx->client_response_bufp, http_ctx->client_response_hdrp, field_loc);
-        count++;
-
-        lua_pushlstring(L, val, val_len);
-        lua_rawseti(L, -2, count);
-
-        TSHandleMLocRelease(http_ctx->client_response_bufp, http_ctx->client_response_hdrp, field_loc);
-        field_loc = next_field_loc;
-      }
-
-    } else {
-      lua_pushnil(L);
-    }
-
-  } else {
-    lua_pushnil(L);
-  }
-
-  return 1;
-}
-
-static int
-ts_lua_client_response_header_table_set(lua_State *L)
-{
   return 0;
 }
 
@@ -397,7 +316,6 @@ ts_lua_client_response_set_status(lua_State *L)
 
   TS_LUA_CHECK_CLIENT_RESPONSE_HDR(http_ctx);
 
-  // NOLINTNEXTLINE
   status = luaL_checkint(L, 1);
 
   reason     = TSHttpHdrReasonLookup(status);
@@ -439,7 +357,7 @@ ts_lua_client_response_set_version(lua_State *L)
 {
   const char *version;
   size_t len;
-  unsigned int major, minor;
+  int major, minor;
 
   ts_lua_http_ctx *http_ctx;
 

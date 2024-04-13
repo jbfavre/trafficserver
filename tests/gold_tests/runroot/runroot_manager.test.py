@@ -17,6 +17,8 @@
 #  limitations under the License.
 
 import os
+import sys
+import time
 
 Test.Summary = '''
 Test for using of runroot of traffic_manager.
@@ -24,13 +26,13 @@ Test for using of runroot of traffic_manager.
 Test.ContinueOnFail = False
 
 # create runroot for testing
-runroot_path = os.path.join(Test.RunDirectory, "runroot")
+path = os.path.join(Test.RunDirectory, "runroot")
 rr_file = os.path.join(Test.RunDirectory, "rr_tmp")
 
 tr = Test.AddTestRun("create runroot and deal with it")
-tr.Processes.Default.Command = "$ATS_BIN/traffic_layout init --path " + runroot_path + " --absolute; " + \
+tr.Processes.Default.Command = "$ATS_BIN/traffic_layout init --path " + path + " --absolute; " + \
     "mkdir " + rr_file + "; mv " + \
-    os.path.join(runroot_path, "runroot.yaml") + " " + \
+    os.path.join(path, "runroot.yaml") + " " + \
     os.path.join(rr_file, "runroot.yaml")
 f = tr.Disk.File(os.path.join(rr_file, "runroot.yaml"))
 f.Exists = True
@@ -43,12 +45,8 @@ def StopProcess(event, time):
 
 
 tr = Test.AddTestRun("manager runroot test")
-
-trafficserver_dir = os.path.join(runroot_path, 'var', 'trafficserver')
-tr.ChownForATSProcess(trafficserver_dir)
-
 p = tr.Processes.Default
 p.Command = "$ATS_BIN/traffic_manager --run-root=" + rr_file
 p.RunningEvent.Connect(Testers.Lambda(lambda ev: StopProcess(ev, 10)))
-p.Streams.All = Testers.ContainsExpression(
-    "traffic_server: using root directory '" + runroot_path + "'", "check if the right runroot is passed down")
+p.Streams.All = Testers.ContainsExpression("traffic_server: using root directory '" +
+                                           path + "'", "check if the right runroot is passed down")

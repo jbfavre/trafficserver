@@ -34,7 +34,7 @@
 const char PLUGIN_NAME[] = "background_fetch";
 
 ///////////////////////////////////////////////////////////////////////////
-// This holds one complete background fetch rule
+// This holds one complete background fetch rule, which is also ref-counted.
 //
 class BgFetchConfig
 {

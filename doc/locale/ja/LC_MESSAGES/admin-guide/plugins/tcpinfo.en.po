@@ -23,7 +23,7 @@ msgstr ""
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: ja_JP\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -230,6 +230,10 @@ msgstr ""
 
 #: ../../admin-guide/plugins/tcpinfo.en.rst:90
 msgid "snd_ssthresh"
+msgstr ""
+
+#: ../../admin-guide/plugins/tcpinfo.en.rst:48
+msgid "ssn_close"
 msgstr ""
 
 #: ../../admin-guide/plugins/tcpinfo.en.rst:69

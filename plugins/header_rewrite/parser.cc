@@ -96,7 +96,7 @@ Parser::parse_line(const std::string &original_line)
       }
 
       if ((line[i] == '=') || (line[i] == '+')) {
-        // These are always a separate token
+        // These are always a seperate token
         _tokens.push_back(std::string(1, line[i]));
         continue;
       }
@@ -256,7 +256,7 @@ Parser::cond_is_hook(TSHttpHookID &hook) const
   return false;
 }
 
-HRWSimpleTokenizer::HRWSimpleTokenizer(const std::string &original_line)
+SimpleTokenizer::SimpleTokenizer(const std::string &original_line)
 {
   std::string line        = original_line;
   ParserState state       = PARSER_DEFAULT;

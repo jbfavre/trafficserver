@@ -44,7 +44,7 @@ char *int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *
 
 //////////////////////////////////////////////////////////////////////////////
 //
-//      Factors to multiply units by to obtain corresponding ink_hrtime values.
+//      Factors to multiply units by to obtain coresponding ink_hrtime values.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +81,7 @@ char *int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *
 #define HRTIME_USECONDS(_x) ((_x)*HRTIME_USECOND)
 #define HRTIME_NSECONDS(_x) ((_x)*HRTIME_NSECOND)
 
-// gratuitous wrappers
+// gratuituous wrappers
 
 static inline ink_hrtime
 ink_hrtime_from_years(unsigned int years)
@@ -224,14 +224,12 @@ ink_hrtime_to_timeval(ink_hrtime t)
    which translates to (365 + 0.25)369*24*60*60 seconds   */
 #define NT_TIMEBASE_DIFFERENCE_100NSECS 116444736000000000i64
 
-extern int gSystemClock; // 0 == CLOCK_REALTIME, the default
-
 static inline ink_hrtime
-ink_get_hrtime()
+ink_get_hrtime_internal()
 {
 #if defined(freebsd) || HAVE_CLOCK_GETTIME
   timespec ts;
-  clock_gettime(static_cast<clockid_t>(gSystemClock), &ts);
+  clock_gettime(CLOCK_REALTIME, &ts);
   return ink_hrtime_from_timespec(&ts);
 #else
   timeval tv;
@@ -243,13 +241,13 @@ ink_get_hrtime()
 static inline struct timeval
 ink_gettimeofday()
 {
-  return ink_hrtime_to_timeval(ink_get_hrtime());
+  return ink_hrtime_to_timeval(ink_get_hrtime_internal());
 }
 
 static inline int
 ink_time()
 {
-  return (int)ink_hrtime_to_sec(ink_get_hrtime());
+  return (int)ink_hrtime_to_sec(ink_get_hrtime_internal());
 }
 
 static inline int

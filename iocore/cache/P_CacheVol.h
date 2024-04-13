@@ -51,8 +51,8 @@
 #define LOOKASIDE_SIZE 256
 #define EVACUATION_BUCKET_SIZE (2 * EVACUATION_SIZE) // 16MB
 #define RECOVERY_SIZE EVACUATION_SIZE                // 8MB
-#define AIO_NOT_IN_PROGRESS -1
-#define AIO_AGG_WRITE_IN_PROGRESS -2
+#define AIO_NOT_IN_PROGRESS 0
+#define AIO_AGG_WRITE_IN_PROGRESS -1
 #define AUTO_SIZE_RAM_CACHE -1                               // 1-1 with directory size
 #define DEFAULT_TARGET_FRAGMENT_SIZE (1048576 - sizeof(Doc)) // 1MB
 
@@ -76,7 +76,7 @@ struct CacheVol;
 
 struct VolHeaderFooter {
   unsigned int magic;
-  ts::VersionNumber version;
+  VersionNumber version;
   time_t create_time;
   off_t write_pos;
   off_t last_write_pos;
@@ -206,12 +206,6 @@ struct Vol : public Continuation {
   int dir_check(bool fix);
   int db_check(bool fix);
 
-  bool
-  evac_bucket_valid(off_t bucket)
-  {
-    return (bucket >= 0 && bucket < evacuate_size);
-  }
-
   int
   is_io_in_progress()
   {
@@ -275,28 +269,27 @@ struct Vol : public Continuation {
     SET_HANDLER(&Vol::aggWrite);
   }
 
-  ~Vol() override { ats_free(agg_buffer); }
+  ~Vol() override { ats_memalign_free(agg_buffer); }
 };
 
-struct AIO_failure_handler : public Continuation {
+struct AIO_Callback_handler : public Continuation {
   int handle_disk_failure(int event, void *data);
 
-  AIO_failure_handler() : Continuation(new_ProxyMutex()) { SET_HANDLER(&AIO_failure_handler::handle_disk_failure); }
+  AIO_Callback_handler() : Continuation(new_ProxyMutex()) { SET_HANDLER(&AIO_Callback_handler::handle_disk_failure); }
 };
 
 struct CacheVol {
-  int vol_number        = -1;
-  int scheme            = 0;
-  off_t size            = 0;
-  int num_vols          = 0;
-  bool ramcache_enabled = true;
-  Vol **vols            = nullptr;
-  DiskVol **disk_vols   = nullptr;
+  int vol_number;
+  int scheme;
+  off_t size;
+  int num_vols;
+  Vol **vols;
+  DiskVol **disk_vols;
   LINK(CacheVol, link);
   // per volume stats
-  RecRawStatBlock *vol_rsb = nullptr;
+  RecRawStatBlock *vol_rsb;
 
-  CacheVol() {}
+  CacheVol() : vol_number(-1), scheme(0), size(0), num_vols(0), vols(nullptr), disk_vols(nullptr), vol_rsb(nullptr) {}
 };
 
 // Note : hdr() needs to be 8 byte aligned.
@@ -462,13 +455,10 @@ int vol_init(Vol *d, char *s, off_t blocks, off_t skip, bool clear);
 TS_INLINE EvacuationBlock *
 evacuation_block_exists(Dir *dir, Vol *p)
 {
-  auto bucket = dir_evac_bucket(dir);
-  if (p->evac_bucket_valid(bucket)) {
-    EvacuationBlock *b = p->evacuate[bucket].head;
-    for (; b; b = b->link.next)
-      if (dir_offset(&b->dir) == dir_offset(dir))
-        return b;
-  }
+  EvacuationBlock *b = p->evacuate[dir_evac_bucket(dir)].head;
+  for (; b; b = b->link.next)
+    if (dir_offset(&b->dir) == dir_offset(dir))
+      return b;
   return nullptr;
 }
 

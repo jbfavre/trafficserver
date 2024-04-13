@@ -45,7 +45,7 @@ public:
   SpecialIncludeHandler *getHandler(Variables &esi_vars, Expression &esi_expr, HttpDataFetcher &http_fetcher,
                                     const std::string &id) const;
 
-  ~HandlerManager() override;
+  ~HandlerManager();
 
 private:
   typedef std::map<std::string, SpecialIncludeHandlerCreator> FunctionHandleMap;

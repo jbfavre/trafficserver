@@ -17,29 +17,25 @@ Implement an OrderedSetQueue
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import collections
-try:
-    collectionsAbc = collections.abc
-except AttributeError:
-    collectionsAbc = collections
 
+import collections
 try:
     import queue as Queue
 except ImportError:
     import Queue
+
 
 #
 # This is borrowed from the following (MIT licensed) recipe:
 # https://code.activestate.com/recipes/576694/
 #
 
-
-class OrderedSet(collectionsAbc.MutableSet):
+class OrderedSet(collections.MutableSet):
 
     def __init__(self, iterable=None):
         self.end = end = []
-        end += [None, end, end]  # sentinel node for doubly linked list
-        self.map = {}  # key --> [key, prev, next]
+        end += [None, end, end]         # sentinel node for doubly linked list
+        self.map = {}                   # key --> [key, prev, next]
         if iterable is not None:
             self |= iterable
 

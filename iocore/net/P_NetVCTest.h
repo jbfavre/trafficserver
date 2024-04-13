@@ -26,7 +26,7 @@
   P_NetVCTest.h
 
    Description:
-       Unit test for infrastructure for VConnections implementing the
+       Unit test for infastructure for VConnections implementing the
          NetVConnection interface
 
 
@@ -37,7 +37,6 @@
 #pragma once
 
 #include "tscore/ink_platform.h"
-#include "tscore/Regression.h"
 
 class VIO;
 class MIOBuffer;
@@ -73,11 +72,11 @@ public:
   NetTestDriver();
   ~NetTestDriver() override;
 
-  int errors = 0;
+  int errors;
 
 protected:
-  RegressionTest *r = nullptr;
-  int *pstatus      = nullptr;
+  RegressionTest *r;
+  int *pstatus;
 };
 
 class NetVCTest : public Continuation
@@ -85,7 +84,7 @@ class NetVCTest : public Continuation
 public:
   NetVCTest();
   ~NetVCTest() override;
-  NetVcTestType_t test_cont_type = NET_VC_TEST_ACTIVE;
+  NetVcTestType_t test_cont_type;
 
   int main_handler(int event, void *data);
   void read_handler(int event);
@@ -103,41 +102,41 @@ public:
   void finished();
   void record_error(const char *msg);
 
-  NetVConnection *test_vc = nullptr;
-  RegressionTest *regress = nullptr;
-  NetTestDriver *driver   = nullptr;
+  NetVConnection *test_vc;
+  RegressionTest *regress;
+  NetTestDriver *driver;
 
-  VIO *read_vio  = nullptr;
-  VIO *write_vio = nullptr;
+  VIO *read_vio;
+  VIO *write_vio;
 
-  MIOBuffer *read_buffer  = nullptr;
-  MIOBuffer *write_buffer = nullptr;
+  MIOBuffer *read_buffer;
+  MIOBuffer *write_buffer;
 
-  IOBufferReader *reader_for_rbuf = nullptr;
-  IOBufferReader *reader_for_wbuf = nullptr;
+  IOBufferReader *reader_for_rbuf;
+  IOBufferReader *reader_for_wbuf;
 
-  int write_bytes_to_add_per = 0;
-  int timeout                = 0;
+  int write_bytes_to_add_per;
+  int timeout;
 
-  int actual_bytes_read = 0;
-  int actual_bytes_sent = 0;
+  int actual_bytes_read;
+  int actual_bytes_sent;
 
-  bool write_done = false;
-  bool read_done  = false;
+  bool write_done;
+  bool read_done;
 
-  uint8_t read_seed  = 0;
-  uint8_t write_seed = 0;
+  uint8_t read_seed;
+  uint8_t write_seed;
 
-  int bytes_to_send = 0;
-  int bytes_to_read = 0;
+  int bytes_to_send;
+  int bytes_to_read;
 
-  int nbytes_read  = 0;
-  int nbytes_write = 0;
+  int nbytes_read;
+  int nbytes_write;
 
-  int expected_read_term  = 0;
-  int expected_write_term = 0;
+  int expected_read_term;
+  int expected_write_term;
 
-  const char *test_name   = nullptr;
-  const char *module_name = nullptr;
-  const char *debug_tag   = nullptr;
+  const char *test_name;
+  const char *module_name;
+  const char *debug_tag;
 };

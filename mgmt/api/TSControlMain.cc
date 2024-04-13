@@ -42,13 +42,13 @@
 #include "CoreAPIShared.h"
 #include "NetworkUtilsLocal.h"
 
-#include <unordered_map>
-
 #define TIMEOUT_SECS 1 // the num secs for select timeout
 
-static std::unordered_map<int, ClientT *> accepted_con; // a list of all accepted client connections
+static InkHashTable *accepted_con; // a list of all accepted client connections
 
 static TSMgmtError handle_control_message(int fd, void *msg, size_t msglen);
+
+static RecBool disable_modification = false;
 
 /*********************************************************************
  * create_client
@@ -61,9 +61,9 @@ static TSMgmtError handle_control_message(int fd, void *msg, size_t msglen);
 static ClientT *
 create_client()
 {
-  ClientT *ele = static_cast<ClientT *>(ats_malloc(sizeof(ClientT)));
+  ClientT *ele = (ClientT *)ats_malloc(sizeof(ClientT));
 
-  ele->adr = static_cast<struct sockaddr *>(ats_malloc(sizeof(struct sockaddr)));
+  ele->adr = (struct sockaddr *)ats_malloc(sizeof(struct sockaddr));
   return ele;
 }
 
@@ -93,13 +93,13 @@ delete_client(ClientT *client)
  * output:
  *********************************************************************/
 static void
-remove_client(ClientT *client, std::unordered_map<int, ClientT *> &table)
+remove_client(ClientT *client, InkHashTable *table)
 {
   // close client socket
-  close_socket(client->fd);
+  close_socket(client->fd); // close client socket
 
   // remove client binding from hash table
-  table.erase(client->fd);
+  ink_hash_table_delete(table, (char *)&client->fd);
 
   // free ClientT
   delete_client(client);
@@ -123,14 +123,23 @@ ts_ctrl_main(void *arg)
   int *socket_fd;
   int con_socket_fd; // main socket for listening to new connections
 
-  socket_fd     = static_cast<int *>(arg);
+  socket_fd     = (int *)arg;
   con_socket_fd = *socket_fd;
+
+  // initialize queue for accepted con
+  accepted_con = ink_hash_table_create(InkHashTableKeyType_Word);
+  if (!accepted_con) {
+    return nullptr;
+  }
 
   // now we can start listening, accepting connections and servicing requests
   int new_con_fd; // new socket fd when accept connection
 
-  fd_set selectFDs;      // for select call
-  ClientT *client_entry; // an entry of fd to alarms mapping
+  fd_set selectFDs;                    // for select call
+  InkHashTableEntry *con_entry;        // used to obtain client connection info
+  ClientT *client_entry;               // an entry of fd to alarms mapping
+  InkHashTableIteratorState con_state; // used to iterate through hash table
+  int fds_ready;                       // stores return value for select
   struct timeval timeout;
 
   // loops until TM dies; waits for and processes requests from clients
@@ -145,20 +154,26 @@ ts_ctrl_main(void *arg)
       FD_SET(con_socket_fd, &selectFDs);
       // Debug("ts_main", "[ts_ctrl_main] add fd %d to select set", con_socket_fd);
     }
+    // see if there are more fd to set
+    con_entry = ink_hash_table_iterator_first(accepted_con, &con_state);
 
-    for (auto &&it : accepted_con) {
-      client_entry = it.second;
+    // iterate through all entries in hash table
+    while (con_entry) {
+      client_entry = (ClientT *)ink_hash_table_entry_value(accepted_con, con_entry);
       if (client_entry->fd >= 0) { // add fd to select set
         FD_SET(client_entry->fd, &selectFDs);
         Debug("ts_main", "[ts_ctrl_main] add fd %d to select set", client_entry->fd);
       }
+      con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
     }
 
     // select call - timeout is set so we can check events at regular intervals
-    int fds_ready = mgmt_select(FD_SETSIZE, &selectFDs, (fd_set *)nullptr, (fd_set *)nullptr, &timeout);
+    fds_ready = mgmt_select(FD_SETSIZE, &selectFDs, (fd_set *)nullptr, (fd_set *)nullptr, &timeout);
 
     // check if have any connections or requests
     if (fds_ready > 0) {
+      RecGetRecordBool("proxy.config.disable_configuration_modification", &disable_modification);
+
       // first check for connections!
       if (con_socket_fd >= 0 && FD_ISSET(con_socket_fd, &selectFDs)) {
         fds_ready--;
@@ -172,7 +187,7 @@ ts_ctrl_main(void *arg)
           socklen_t addr_len = (sizeof(struct sockaddr));
           new_con_fd         = mgmt_accept(con_socket_fd, new_client_con->adr, &addr_len);
           new_client_con->fd = new_con_fd;
-          accepted_con.emplace(new_client_con->fd, new_client_con);
+          ink_hash_table_insert(accepted_con, (char *)&new_client_con->fd, new_client_con);
           Debug("ts_main", "[ts_ctrl_main] Add new client connection");
         }
       } // end if(new_con_fd >= 0 && FD_ISSET(new_con_fd, &selectFDs))
@@ -180,11 +195,10 @@ ts_ctrl_main(void *arg)
       // some other file descriptor; for each one, service request
       if (fds_ready > 0) { // RECEIVED A REQUEST from remote API client
         // see if there are more fd to set - iterate through all entries in hash table
-
-        for (auto it = accepted_con.begin(); it != accepted_con.end();) {
+        con_entry = ink_hash_table_iterator_first(accepted_con, &con_state);
+        while (con_entry) {
           Debug("ts_main", "[ts_ctrl_main] We have a remote client request!");
-          client_entry = it->second;
-          ++it; // prevent the breaking of remove_client
+          client_entry = (ClientT *)ink_hash_table_entry_value(accepted_con, con_entry);
           // got information; check
           if (client_entry->fd && FD_ISSET(client_entry->fd, &selectFDs)) {
             void *req = nullptr;
@@ -195,6 +209,8 @@ ts_ctrl_main(void *arg)
               // occurs when remote API client terminates connection
               Debug("ts_main", "[ts_ctrl_main] ERROR: preprocess_msg - remove client %d ", client_entry->fd);
               remove_client(client_entry, accepted_con);
+              // get next client connection (if any)
+              con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
               continue;
             }
 
@@ -203,14 +219,19 @@ ts_ctrl_main(void *arg)
 
             if (ret != TS_ERR_OKAY) {
               Debug("ts_main", "[ts_ctrl_main] ERROR: sending response for message (%d)", ret);
+
               // XXX this doesn't actually send a error response ...
+
               remove_client(client_entry, accepted_con);
+              con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
               continue;
             }
 
           } // end if(client_entry->fd && FD_ISSET(client_entry->fd, &selectFDs))
-        }   // end for (auto it = accepted_con.begin(); it != accepted_con.end();)
-      }     // end if (fds_ready > 0)
+
+          con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
+        } // end while (con_entry)
+      }   // end if (fds_ready > 0)
 
     } // end if (fds_ready > 0)
 
@@ -220,16 +241,19 @@ ts_ctrl_main(void *arg)
   Debug("ts_main", "[ts_ctrl_main] CLOSING AND SHUTTING DOWN OPERATIONS");
   close_socket(con_socket_fd);
 
-  for (auto &&it : accepted_con) {
-    client_entry = it.second;
+  // iterate through hash table; close client socket connections and remove entry
+  con_entry = ink_hash_table_iterator_first(accepted_con, &con_state);
+  while (con_entry) {
+    client_entry = (ClientT *)ink_hash_table_entry_value(accepted_con, con_entry);
     if (client_entry->fd >= 0) {
       close_socket(client_entry->fd); // close socket
     }
-    accepted_con.erase(client_entry->fd);
-    delete_client(client_entry); // free ClientT
+    ink_hash_table_delete(accepted_con, (char *)&client_entry->fd); // remove binding
+    delete_client(client_entry);                                    // free ClientT
+    con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
   }
   // all entries should be removed and freed already
-  accepted_con.clear();
+  ink_hash_table_destroy(accepted_con);
 
   ink_thread_exit(nullptr);
   return nullptr;
@@ -344,7 +368,7 @@ send_record_get_response(int fd, const RecRecord *rec)
 static void
 send_record_get(const RecRecord *rec, void *edata)
 {
-  int *fd = static_cast<int *>(edata);
+  int *fd = (int *)edata;
   *fd     = send_record_get_response(*fd, rec);
 }
 
@@ -375,7 +399,7 @@ handle_record_get(int fd, void *req, size_t reqlen)
 
   // If the lookup succeeded, the final error is in "fderr".
   if (ret == TS_ERR_OKAY) {
-    ret = static_cast<TSMgmtError>(fderr);
+    ret = (TSMgmtError)fderr;
   }
 
 done:
@@ -391,7 +415,7 @@ struct record_match_state {
 static void
 send_record_match(const RecRecord *rec, void *edata)
 {
-  record_match_state *match = static_cast<record_match_state *>(edata);
+  record_match_state *match = (record_match_state *)edata;
 
   if (match->err != TS_ERR_OKAY) {
     return;
@@ -518,7 +542,7 @@ handle_proxy_state_set(int fd, void *req, size_t reqlen)
     return send_mgmt_response(fd, OpType::PROXY_STATE_SET, &err);
   }
 
-  err = ProxyStateSet(static_cast<TSProxyStateT>(state), static_cast<TSCacheClearT>(clear));
+  err = ProxyStateSet((TSProxyStateT)state, (TSCacheClearT)clear);
   return send_mgmt_response(fd, OpType::PROXY_STATE_SET, &err);
 }
 
@@ -698,7 +722,7 @@ handle_event_get_mlt(int fd, void *req, size_t reqlen)
   // iterate through list and put into a delimited string list
   memset(buf, 0, MAX_BUF_SIZE);
   while (!queue_is_empty(event_list)) {
-    event_name = static_cast<char *>(dequeue(event_list));
+    event_name = (char *)dequeue(event_list);
     if (event_name) {
       snprintf(buf + buf_pos, (MAX_BUF_SIZE - buf_pos), "%s%c", event_name, REMOTE_DELIM);
       buf_pos += (strlen(event_name) + 1);
@@ -771,7 +795,7 @@ handle_stats_reset(int fd, void *req, size_t reqlen)
   }
 
   ats_free(name);
-  return send_mgmt_response(fd, optype, &err);
+  return send_mgmt_response(fd, (OpType)optype, &err);
 }
 
 /**************************************************************************
@@ -795,7 +819,7 @@ handle_host_status_up(int fd, void *req, size_t reqlen)
   }
 
   ats_free(name);
-  return send_mgmt_response(fd, optype, &err);
+  return send_mgmt_response(fd, (OpType)optype, &err);
 }
 
 /**************************************************************************
@@ -819,12 +843,12 @@ handle_host_status_down(int fd, void *req, size_t reqlen)
   }
 
   ats_free(name);
-  return send_mgmt_response(fd, optype, &err);
+  return send_mgmt_response(fd, (OpType)optype, &err);
 }
 /**************************************************************************
  * handle_api_ping
  *
- * purpose: handles the API_PING message that is sent by API clients to keep
+ * purpose: handles the API_PING messaghat is sent by API clients to keep
  *    the management socket alive
  * output: TS_ERR_xx. There is no response message.
  *************************************************************************/
@@ -853,7 +877,7 @@ handle_server_backtrace(int fd, void *req, size_t reqlen)
   err = send_mgmt_response(fd, OpType::SERVER_BACKTRACE, &err, &trace);
   ats_free(trace);
 
-  return static_cast<TSMgmtError>(err);
+  return (TSMgmtError)err;
 }
 
 static void
@@ -876,7 +900,7 @@ send_record_describe(const RecRecord *rec, void *edata)
 
   TSMgmtError err = TS_ERR_OKAY;
 
-  record_match_state *match = static_cast<record_match_state *>(edata);
+  record_match_state *match = (record_match_state *)edata;
 
   if (match->err != TS_ERR_OKAY) {
     return;
@@ -989,7 +1013,7 @@ done:
 /**************************************************************************
  * handle_lifecycle_message
  *
- * purpose: handle lifecycle message to plugins
+ * purpose: handle lifecyle message to plugins
  * output: TS_ERR_xx
  * note: None
  *************************************************************************/
@@ -1086,6 +1110,6 @@ handle_control_message(int fd, void *req, size_t reqlen)
   return TS_ERR_OKAY;
 
 fail:
-  mgmt_elog(0, "%s: missing handler for type %d control message\n", __func__, static_cast<int>(optype));
+  mgmt_elog(0, "%s: missing handler for type %d control message\n", __func__, (int)optype);
   return TS_ERR_PARAMS;
 }

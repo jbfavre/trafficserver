@@ -23,18 +23,33 @@
 
 #include "traffic_ctl.h"
 
-void
-CtrlEngine::storage_offline()
+static int
+storage_offline(unsigned argc, const char **argv)
 {
-  auto offline_data = arguments.get("offline");
-  for (const auto &it : offline_data) {
+  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments == 0) {
+    return CtrlCommandUsage("storage offline DEVICE [DEVICE ...]");
+  }
+
+  for (unsigned i = 0; i < n_file_arguments; ++i) {
     TSMgmtError error;
 
-    error = TSStorageDeviceCmdOffline(it.c_str());
+    error = TSStorageDeviceCmdOffline(file_arguments[i]);
     if (error != TS_ERR_OKAY) {
-      CtrlMgmtError(error, "failed to take %s offline", offline_data[0].c_str());
-      status_code = CTRL_EX_ERROR;
-      return;
+      CtrlMgmtError(error, "failed to take %s offline", file_arguments[0]);
+      return CTRL_EX_ERROR;
     }
   }
+
+  return CTRL_EX_OK;
+}
+
+int
+subcommand_storage(unsigned argc, const char **argv)
+{
+  const subcommand commands[] = {
+    {storage_offline, "offline", "Take one or more storage volumes offline"},
+    {CtrlUnimplementedCommand, "status", "Show the storage configuration"},
+  };
+
+  return CtrlGenericSubcommand("storage", commands, countof(commands), argc, argv);
 }

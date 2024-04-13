@@ -75,35 +75,49 @@ enum ExtraSubstitutions {
 // length calculations (we need all of them).
 //
 struct UrlComponents {
-  UrlComponents() = default;
+  UrlComponents()
+    : scheme(nullptr),
+      host(nullptr),
+      path(nullptr),
+      query(nullptr),
+      matrix(nullptr),
+      port(0),
+      scheme_len(0),
+      host_len(0),
+      path_len(0),
+      query_len(0),
+      matrix_len(0),
+      url_len(0)
+  {
+  }
 
   void
-  populate(TSMBuffer bufp, TSMLoc url)
+  populate(TSRemapRequestInfo *rri)
   {
-    scheme = TSUrlSchemeGet(bufp, url, &scheme_len);
-    host   = TSUrlHostGet(bufp, url, &host_len);
-    path   = TSUrlPathGet(bufp, url, &path_len);
-    query  = TSUrlHttpQueryGet(bufp, url, &query_len);
-    matrix = TSUrlHttpParamsGet(bufp, url, &matrix_len);
-    port   = TSUrlPortGet(bufp, url);
+    scheme = TSUrlSchemeGet(rri->requestBufp, rri->requestUrl, &scheme_len);
+    host   = TSUrlHostGet(rri->requestBufp, rri->requestUrl, &host_len);
+    path   = TSUrlPathGet(rri->requestBufp, rri->requestUrl, &path_len);
+    query  = TSUrlHttpQueryGet(rri->requestBufp, rri->requestUrl, &query_len);
+    matrix = TSUrlHttpParamsGet(rri->requestBufp, rri->requestUrl, &matrix_len);
+    port   = TSUrlPortGet(rri->requestBufp, rri->requestUrl);
 
     url_len = scheme_len + host_len + path_len + query_len + matrix_len + 32;
   }
 
-  const char *scheme = nullptr;
-  const char *host   = nullptr;
-  const char *path   = nullptr;
-  const char *query  = nullptr;
-  const char *matrix = nullptr;
-  int port           = 0;
+  const char *scheme;
+  const char *host;
+  const char *path;
+  const char *query;
+  const char *matrix;
+  int port;
 
-  int scheme_len = 0;
-  int host_len   = 0;
-  int path_len   = 0;
-  int query_len  = 0;
-  int matrix_len = 0;
+  int scheme_len;
+  int host_len;
+  int path_len;
+  int query_len;
+  int matrix_len;
 
-  int url_len = 0; // Full length, of all components
+  int url_len; // Full length, of all components
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -196,6 +210,17 @@ public:
   {
     return !_rex_string || !*_rex_string;
   }
+  inline const char *
+  substitution() const
+  {
+    return _subst;
+  }
+  inline int
+  substitutions_used() const
+  {
+    return _num_subs;
+  }
+
   inline TSHttpStatus
   status_option() const
   {
@@ -389,14 +414,10 @@ RemapRegex::compile(const char *&error, int &erroffset)
     return -1;
   }
 
-  _extra = pcre_study(_rex, PCRE_STUDY_EXTRA_NEEDED, &error);
-  if (error != nullptr) {
+  _extra = pcre_study(_rex, 0, &error);
+  if ((_extra == nullptr) && (error != nullptr)) {
     return -1;
   }
-
-  // POOMA - also dependent on actual stack size. Crashes with previous value of 2047,
-  _extra->match_limit_recursion = 1750;
-  _extra->flags |= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
 
   if (pcre_fullinfo(_rex, _extra, PCRE_INFO_CAPTURECOUNT, &ccount) != 0) {
     error = "call to pcre_fullinfo() failed";
@@ -622,21 +643,53 @@ RemapRegex::substitute(char dest[], const char *src, const int ovector[], const 
 
 // Hold one remap instance
 struct RemapInstance {
-  RemapInstance() : filename("unknown") {}
+  RemapInstance()
+    : first(nullptr),
+      last(nullptr),
+      profile(false),
+      method(false),
+      query_string(true),
+      matrix_params(false),
+      host(false),
+      hits(0),
+      misses(0),
+      filename("unknown")
+  {
+  }
 
-  RemapRegex *first  = nullptr;
-  RemapRegex *last   = nullptr;
-  bool pristine_url  = false;
-  bool profile       = false;
-  bool method        = false;
-  bool query_string  = true;
-  bool matrix_params = false;
-  bool host          = false;
-  int hits           = 0;
-  int misses         = 0;
-  int failures       = 0;
+  RemapRegex *first;
+  RemapRegex *last;
+  bool profile;
+  bool method;
+  bool query_string;
+  bool matrix_params;
+  bool host;
+  int hits;
+  int misses;
   std::string filename;
 };
+
+///////////////////////////////////////////////////////////////////////////////
+// Helpers for memory management (to make sure pcre uses the TS APIs).
+//
+inline void *
+ts_malloc(size_t s)
+{
+  return TSmalloc(s);
+}
+
+inline void
+ts_free(void *s)
+{
+  return TSfree(s);
+}
+
+void
+setup_memory_allocation()
+{
+  pcre_malloc = &ts_malloc;
+  pcre_free   = &ts_free;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the plugin.
@@ -655,6 +708,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
+  setup_memory_allocation();
   TSDebug(PLUGIN_NAME, "Plugin is successfully initialized");
   return TS_SUCCESS;
 }
@@ -704,10 +758,6 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
       ri->host = true;
     } else if (strncmp(argv[i], "no-host", 7) == 0) {
       ri->host = false;
-    } else if (strcmp(argv[i], "pristine") == 0) {
-      ri->pristine_url = true;
-    } else if (strcmp(argv[i], "no-pristine") == 0) {
-      ri->pristine_url = false;
     } else {
       TSError("[%s] invalid option '%s'", PLUGIN_NAME, argv[i]);
     }
@@ -850,7 +900,6 @@ TSRemapDeleteInstance(void *ih)
     fprintf(stderr, "[%s]: Profiling information for regex_remap file `%s':\n", now, (ri->filename).c_str());
     fprintf(stderr, "[%s]:    Total hits (matches): %d\n", now, ri->hits);
     fprintf(stderr, "[%s]:    Total missed (no regex matches): %d\n", now, ri->misses);
-    fprintf(stderr, "[%s]:    Total regex internal errors: %d\n", now, ri->failures);
 
     if (ri->hits > 0) { // Avoid divide by zeros...
       int ix = 1;
@@ -895,36 +944,12 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     TSDebug(PLUGIN_NAME, "Falling back to default URL on regex remap without rules");
     return TSREMAP_NO_REMAP;
   }
-  RemapInstance *ri = static_cast<RemapInstance *>(ih);
-
-  struct SrcUrl {
-    TSMBuffer bufp;
-    TSMLoc loc;
-    bool bad;
-  };
-
-  const SrcUrl src_url([=]() -> SrcUrl {
-    SrcUrl u;
-
-    if (!ri->pristine_url) {
-      u.bufp = rri->requestBufp;
-      u.loc  = rri->requestUrl;
-      u.bad  = false;
-
-    } else {
-      u.bad = TSHttpTxnPristineUrlGet(txnp, &u.bufp, &u.loc) != TS_SUCCESS;
-    }
-    return u;
-  }());
-
-  if (src_url.bad) {
-    return TSREMAP_NO_REMAP;
-  }
 
   // Populate the request url
   UrlComponents req_url;
-  req_url.populate(src_url.bufp, src_url.loc);
+  req_url.populate(rri);
 
+  RemapInstance *ri = (RemapInstance *)ih;
   int ovector[OVECCOUNT];
   int lengths[OVECCOUNT / 2 + 1];
   int dest_len;
@@ -933,7 +958,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   int match_len        = 0;
   char *match_buf;
 
-  match_buf = static_cast<char *>(alloca(req_url.url_len + 32));
+  match_buf = (char *)alloca(req_url.url_len + 32);
 
   if (ri->method) { // Prepend the URI path or URL with the HTTP method
     TSMBuffer mBuf;
@@ -982,8 +1007,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   // Apply the regular expressions, in order. First one wins.
   while (re) {
     // Since we check substitutions on parse time, we don't need to reset ovector
-    auto match_result = re->match(match_buf, match_len, ovector);
-    if (match_result >= 0) {
+    if (re->match(match_buf, match_len, ovector) != -1) {
       int new_len = re->get_lengths(ovector, lengths, rri, &req_url);
 
       // Set timeouts
@@ -1040,7 +1064,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
       if (new_len > 0) {
         char *dest;
 
-        dest     = static_cast<char *>(alloca(new_len + 8));
+        dest     = (char *)alloca(new_len + 8);
         dest_len = re->substitute(dest, match_buf, ovector, lengths, txnp, rri, &req_url, lowercase_substitutions);
 
         TSDebug(PLUGIN_NAME, "New URL is estimated to be %d bytes long, or less", new_len);
@@ -1074,10 +1098,6 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
         }
         break;
       }
-    } else if (match_result != -1) {
-      ink_atomic_increment(&(ri->failures), 1);
-      TSError(R"([%s] Bad regular expression result %d from "%s" in file "%s".)", PLUGIN_NAME, match_result, re->regex(),
-              ri->filename.c_str());
     }
 
     // Try the next regex

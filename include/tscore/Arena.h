@@ -37,19 +37,19 @@ struct ArenaBlock {
 class Arena
 {
 public:
-  Arena() {}
+  Arena() : m_blocks(nullptr) {}
   ~Arena() { reset(); }
-  void *alloc(size_t size, size_t alignment = sizeof(double));
+  inkcoreapi void *alloc(size_t size, size_t alignment = sizeof(double));
   void free(void *mem, size_t size);
   size_t str_length(const char *str);
   char *str_alloc(size_t len);
   void str_free(char *str);
   char *str_store(const char *str, size_t len);
 
-  void reset();
+  inkcoreapi void reset();
 
 private:
-  ArenaBlock *m_blocks = nullptr;
+  ArenaBlock *m_blocks;
 };
 
 /*-------------------------------------------------------------------------

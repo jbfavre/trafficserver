@@ -16,7 +16,7 @@ Session Log format (in JSON):
   "txns": [
         {"request": {"headers": "POST ……\r\n\r\n", "timestamp": "..", "body": ".."},
         "response": {"headers": "HTTP/1.1..\r\n\r\n", "timestamp": "..", "body": ".."},
-         "uuid": "1"},
+        "uuid": "1"},
         {"request": {"headers": "POST ..….\r\n\r\n", "timestamp": "..", "body": ".."},
         "response": {"headers": "HTTP/1.1..\r\nr\n", "timestamp": "..", "body": ".."},
         "uuid": "2"}

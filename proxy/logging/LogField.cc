@@ -29,7 +29,6 @@
  ***************************************************************************/
 #include "tscore/ink_platform.h"
 
-#include "MIME.h"
 #include "LogUtils.h"
 #include "LogField.h"
 #include "LogBuffer.h"
@@ -171,7 +170,7 @@ struct cmp_str {
 };
 } // namespace
 
-using milestone_map = std::map<ts::ConstBuffer, TSMilestonesType, cmp_str>;
+typedef std::map<ts::ConstBuffer, TSMilestonesType, cmp_str> milestone_map;
 static milestone_map m_milestone_map;
 
 struct milestone {
@@ -327,7 +326,7 @@ LogField::LogField(const char *field, Container container, SetFunc _setfunc)
     m_milestone2(TS_MILESTONE_LAST_ENTRY),
     m_time_field(false),
     m_alias_map(nullptr),
-    m_set_func(nullptr)
+    m_set_func(_setfunc)
 {
   ink_assert(m_name != nullptr);
   ink_assert(m_symbol != nullptr);
@@ -348,7 +347,7 @@ LogField::LogField(const char *field, Container container, SetFunc _setfunc)
   case ESSH:
   case ECSSH:
   case SCFG:
-    m_unmarshal_func = reinterpret_cast<UnmarshalFunc>(&(LogAccess::unmarshal_str));
+    m_unmarshal_func = (UnmarshalFunc) & (LogAccess::unmarshal_str);
     break;
 
   case ICFG:
@@ -463,39 +462,13 @@ LogField::marshal_len(LogAccess *lad)
   }
 }
 
-bool
-LogField::isContainerUpdateFieldSupported(Container container)
-{
-  switch (container) {
-  case CQH:
-  case PSH:
-  case PQH:
-  case SSH:
-  case CSSH:
-  case ECQH:
-  case EPSH:
-  case EPQH:
-  case ESSH:
-  case ECSSH:
-  case SCFG:
-    return true;
-  default:
-    return false;
-  }
-}
-
 void
 LogField::updateField(LogAccess *lad, char *buf, int len)
 {
   if (m_container == NO_CONTAINER) {
     return (lad->*m_set_func)(buf, len);
-  } else {
-    if (isContainerUpdateFieldSupported(m_container)) {
-      return set_http_header_field(lad, m_container, this->m_name, buf, len);
-    } else {
-      // no set function defined for the container
-    }
   }
+  // else...// future enhancement
 }
 
 /*-------------------------------------------------------------------------
@@ -592,19 +565,12 @@ LogField::marshal_agg(char *buf)
   string that represents the ASCII value of the field.
   -------------------------------------------------------------------------*/
 unsigned
-LogField::unmarshal(char **buf, char *dest, int len, LogEscapeType escape_type)
+LogField::unmarshal(char **buf, char *dest, int len)
 {
   if (!m_alias_map) {
-    if (m_unmarshal_func == reinterpret_cast<UnmarshalFunc>(LogAccess::unmarshal_str) ||
-        m_unmarshal_func == reinterpret_cast<UnmarshalFunc>(LogAccess::unmarshal_http_text)) {
-      UnmarshalFuncWithSlice func = reinterpret_cast<UnmarshalFuncWithSlice>(m_unmarshal_func);
-      if (escape_type == LOG_ESCAPE_JSON) {
-        if (m_unmarshal_func == reinterpret_cast<UnmarshalFunc>(LogAccess::unmarshal_str)) {
-          func = reinterpret_cast<UnmarshalFuncWithSlice>(LogAccess::unmarshal_str_json);
-        } else if (m_unmarshal_func == reinterpret_cast<UnmarshalFunc>(LogAccess::unmarshal_http_text)) {
-          func = reinterpret_cast<UnmarshalFuncWithSlice>(LogAccess::unmarshal_http_text_json);
-        }
-      }
+    if (m_unmarshal_func == (UnmarshalFunc)LogAccess::unmarshal_str ||
+        m_unmarshal_func == (UnmarshalFunc)LogAccess::unmarshal_http_text) {
+      UnmarshalFuncWithSlice func = (UnmarshalFuncWithSlice)m_unmarshal_func;
       return (*func)(buf, dest, len, &m_slice);
     }
     return (*m_unmarshal_func)(buf, dest, len);
@@ -692,7 +658,7 @@ LogField::valid_container_name(char *name)
 {
   for (unsigned i = 1; i < countof(container_names); i++) {
     if (strcmp(name, container_names[i]) == 0) {
-      return static_cast<LogField::Container>(i);
+      return (LogField::Container)i;
     }
   }
 
@@ -704,7 +670,7 @@ LogField::valid_aggregate_name(char *name)
 {
   for (unsigned i = 1; i < countof(aggregate_names); i++) {
     if (strcmp(name, aggregate_names[i]) == 0) {
-      return static_cast<LogField::Aggregate>(i);
+      return (LogField::Aggregate)i;
     }
   }
 
@@ -728,12 +694,6 @@ LogField::fieldlist_contains_aggregates(const char *fieldlist)
   return false;
 }
 
-void
-LogField::set_http_header_field(LogAccess *lad, LogField::Container container, char *field, char *buf, int len)
-{
-  return lad->set_http_header_field(container, field, buf, len);
-}
-
 /*-------------------------------------------------------------------------
   LogFieldList
 
@@ -741,7 +701,7 @@ LogField::set_http_header_field(LogAccess *lad, LogField::Container container, c
   heap with "new" and that each element is on at most ONE list.  To enforce
   this, items are copied by default, using the copy ctor.
   -------------------------------------------------------------------------*/
-LogFieldList::LogFieldList() = default;
+LogFieldList::LogFieldList() : m_marshal_len(0) {}
 
 LogFieldList::~LogFieldList()
 {
@@ -756,7 +716,6 @@ LogFieldList::clear()
     delete f; // safe given the semantics stated above
   }
   m_marshal_len = 0;
-  _badSymbols.clear();
 }
 
 void
@@ -791,10 +750,11 @@ LogFieldList::find_by_symbol(const char *symbol) const
 {
   LogField *field = nullptr;
 
-  if (auto it = Log::field_symbol_hash.find(symbol); it != Log::field_symbol_hash.end() && it->second) {
-    field = it->second;
-    Debug("log-field-hash", "Field %s found", field->symbol());
-    return field;
+  if (Log::field_symbol_hash) {
+    if (ink_hash_table_lookup(Log::field_symbol_hash, (char *)symbol, (InkHashTableValue *)&field) && field) {
+      Debug("log-field-hash", "Field %s found", field->symbol());
+      return field;
+    }
   }
   // trusty old method
 
@@ -862,13 +822,4 @@ LogFieldList::display(FILE *fd)
   for (LogField *f = first(); f; f = next(f)) {
     f->display(fd);
   }
-}
-
-void
-LogFieldList::addBadSymbol(std::string_view badSymbol)
-{
-  if (_badSymbols.size() > 0) {
-    _badSymbols += ", ";
-  }
-  _badSymbols += badSymbol;
 }

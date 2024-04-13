@@ -24,18 +24,11 @@
 
 #include "wccp/Wccp.h"
 #include "WccpUtil.h"
-#include "ts/apidefs.h"
-#include "tscore/Errata.h"
+#include "tscore/TsBuffer.h"
 // Needed for template use of byte ordering functions.
 #include <netinet/in.h>
 #include <memory.h>
 #include <map>
-#include <string_view>
-
-namespace YAML
-{
-class Node;
-};
 
 namespace wccp
 {
@@ -186,7 +179,7 @@ struct RouterId {
   );
 
   uint32_t m_addr;    ///< Identifying router IP address.
-  uint32_t m_recv_id; ///< Receive ID (sequence #).
+  uint32_t m_recv_id; ///< Recieve ID (sequence #).
 };
 
 /** Sect 5.7.1: Router Identity Element.
@@ -296,7 +289,7 @@ public:
   );
   /// Access const element.
   RouterAssignElt const &elt(int idx ///< Index of target element.
-  ) const;
+                             ) const;
   /// Get the number of elements.
   uint32_t getCount() const;
   //@}
@@ -492,7 +485,7 @@ public:
   ValueElt &operator[](int idx ///< Index of target element.
   );
   //@}
-  /// Calculate the size of an element with @a n values.
+  /// Calcuate the size of an element with @a n values.
   static size_t calcSize(uint32_t n ///< Number of values.
   );
   /// Get the size (length) of this element.
@@ -537,7 +530,7 @@ public:
   uint32_t getCount() const;
   /// Get a cache address.
   uint32_t getAddr(int idx ///< Index of target address.
-  ) const;
+                   ) const;
   /// Set a cache address.
   self &setAddr(int idx,      ///< Index of target address.
                 uint32_t addr ///< Address value to set.
@@ -547,7 +540,7 @@ public:
   );
   /// Access a const bucket.
   Bucket const &operator[](size_t idx ///< Bucket index (0..N_BUCKETS-1)
-  ) const;
+                           ) const;
   //@}
 
   /** Do a round robin assignment.
@@ -1036,7 +1029,7 @@ public:
   static void setDefaultOption(Option opt ///< Type of security.
   );
 
-  /// Set message local security key.
+  /// Set messsage local security key.
   self &setKey(const char *key ///< Shared key.
   );
 
@@ -1046,7 +1039,7 @@ public:
   );
 
   bool validate(MsgBuffer const &msg ///< Message data.
-  ) const;
+                ) const;
 
 protected:
   /// Local to this message shared key / password.
@@ -1073,7 +1066,7 @@ public:
   struct raw_t : public super::raw_t, public ServiceGroup {
   };
 
-  ServiceComp(); ///< Default constructor, no member initialization.
+  ServiceComp(); ///< Default constructor, no member intialization.
 
   /// @name Accessors
   //@{
@@ -1095,7 +1088,7 @@ public:
   self &setProtocol(uint8_t p); ///< Set protocol field to @a p.
 
   uint32_t getFlags() const;  ///< Get flags field.
-  self &setFlags(uint32_t f); ///< Set the flags in field to @a f.
+  self &setFlags(uint32_t f); ///< Set the flags flags in field to @a f.
   /// Set the flags in the flag field that are set in @a f.
   /// Other flags are unchanged.
   self &enableFlags(uint32_t f);
@@ -1105,7 +1098,7 @@ public:
 
   /// Get a port value.
   uint16_t getPort(int idx ///< Index of target port.
-  ) const;
+                   ) const;
   /// Set a port value.
   self &setPort(int idx,      ///< Index of port.
                 uint16_t port ///< Value for port.
@@ -1195,7 +1188,7 @@ public:
   uint32_t getFromCount() const;
   /// Get received from address.
   uint32_t getFromAddr(int idx ///< Index of address.
-  ) const;
+                       ) const;
   /// Set received from address.
   self &setFromAddr(int idx,      ///< Index of address.
                     uint32_t addr ///< Address value.
@@ -1335,14 +1328,14 @@ public:
   );
   /// Access cache element.
   CacheIdBox const &cacheId(int idx ///< Index of target element.
-  ) const;
+                            ) const;
   /// Get router count field.
   /// @note No @c setf method because this cannot be changed independently.
   /// @see fill
   uint32_t getRouterCount() const;
   /// Get router address.
   uint32_t getRouterAddr(int idx ///< Index of router.
-  ) const;
+                         ) const;
   /// Set router address.
   self &setRouterAddr(int idx,      ///< Index of router.
                       uint32_t addr ///< Address value.
@@ -1418,7 +1411,7 @@ public:
   uint32_t getCacheCount() const;
   /// Get a cache address.
   uint32_t getCacheAddr(int idx ///< Index of target address.
-  ) const;
+                        ) const;
   /// Set a cache address.
   self &setCacheAddr(int idx,      ///< Index of target address.
                      uint32_t addr ///< Address value to set.
@@ -1499,7 +1492,7 @@ public:
   uint32_t getCacheCount() const;
   /// Get a cache address.
   uint32_t getCacheAddr(int idx ///< Index of target address.
-  ) const;
+                        ) const;
   /// Set a cache address.
   self &setCacheAddr(int idx,      ///< Index of target address.
                      uint32_t addr ///< Address value to set.
@@ -1509,7 +1502,7 @@ public:
   );
   /// Access a bucket.
   Bucket const &bucket(int idx ///< Index of target bucket.
-  ) const;
+                       ) const;
   //@}
 
   /// Fill out the component from an @c Assignment.
@@ -1560,7 +1553,7 @@ public:
   CapabilityElt &elt(int idx ///< Index of target element.
   );
   CapabilityElt const &elt(int idx ///< Index of target element.
-  ) const;
+                           ) const;
   /// Get the element count.
   /// @note No corresponding @c setf_ because that cannot be changed once set.
   /// @see fill
@@ -1642,7 +1635,7 @@ public:
     RouterAssignListElt m_routers; ///< Routers.
   };
 
-  /// Force virtual destructor.
+  /// Force virtual desctructor.
   virtual ~AltAssignComp() {}
   /// @name Accessors
   //@{
@@ -1697,16 +1690,16 @@ public:
   uint32_t getCacheCount() const;
   //@}
 
-  /// Force virtual destructor.
+  /// Force virtual desctructor.
   virtual ~AltHashAssignComp() {}
   /// Fill out the component from an @c Assignment.
-  self &fill(MsgBuffer &buffer,               ///< Target storage.
-             detail::Assignment const &assign ///< Assignment data.
-             ) override;
+  virtual self &fill(MsgBuffer &buffer,               ///< Target storage.
+                     detail::Assignment const &assign ///< Assignment data.
+  );
 
   /// Validate an existing structure.
   /// @return Parse result.
-  int parse(MsgBuffer &buffer) override;
+  virtual int parse(MsgBuffer &buffer);
 
   /// Compute the total size of the component.
   static size_t calcSize(int n_routers, ///< Number of routers in view.
@@ -1730,16 +1723,16 @@ public:
   typedef AltMaskAssignComp self; ///< Self reference type.
   typedef AltAssignComp super;    ///< Parent type.
 
-  /// Force virtual destructor.
+  /// Force virtual desctructor.
   virtual ~AltMaskAssignComp() {}
   /// Fill out the component from an @c Assignment.
-  self &fill(MsgBuffer &buffer,               ///< Target storage.
-             detail::Assignment const &assign ///< Assignment data.
-             ) override;
+  virtual self &fill(MsgBuffer &buffer,               ///< Target storage.
+                     detail::Assignment const &assign ///< Assignment data.
+  );
 
   /// Validate an existing structure.
   /// @return Parse result.
-  int parse(MsgBuffer &buffer) override;
+  virtual int parse(MsgBuffer &buffer);
 
 protected:
   MaskAssignElt *m_mask_elt; ///< Address of the mask assign element.
@@ -1781,7 +1774,7 @@ public:
   //@}
 
   /// Write basic serialization data.
-  /// Elements must be filled in separately and after invoking this method.
+  /// Elements must be filled in seperately and after invoking this method.
   self &fill(MsgBuffer &buffer, ///< Component storage.
              cmd_t cmd,         ///< Command type.
              uint32_t data      ///< Command data.
@@ -1867,7 +1860,7 @@ public:
              uint32_t routerAddr, ///< Router identifying address.
              uint32_t toAddr,     ///< Destination address.
              uint32_t cacheAddr,  ///< Cache identifying address.
-             uint32_t recvId      ///< Receive ID.
+             uint32_t recvId      ///< Recieve ID.
   );
 
   /// Validate an existing structure.
@@ -1919,7 +1912,7 @@ namespace detail
 
     /** Check for active assignment.
 
-        An assignment is active if it is current. This means either it
+        An assignment is active if it is is current. This means either it
         was successfully generated on the cache side, or a valid assignment
         was received on the router side and has not expired.
 
@@ -2027,7 +2020,7 @@ public:
   size_t getCount() const;
 
   /// Validate security option.
-  /// @note This presumes a subclass has already successfully parsed.
+  /// @note This presumes a sublcass has already successfully parsed.
   bool validateSecurity() const;
 
   // Common starting components for all messages.
@@ -2079,7 +2072,7 @@ public:
   typedef ISeeYouMsg self; ///< Self reference type.
 
   /// Fill out message structure.
-  /// Router ID and view data must be filled in separately.
+  /// Router ID and view data must be filled in seperately.
   void fill(detail::router::GroupData const &group, ///< Service groupc context.
             SecurityOption sec_opt,                 ///< Security option.
             detail::Assignment &assign,             ///< Cache assignment data.
@@ -2212,14 +2205,14 @@ public:
   );
 
   /// Use MD5 security.
-  void useMD5Security(std::string_view const key ///< Shared key.
+  void useMD5Security(ts::ConstBuffer const &key ///< Shared key.
   );
 
   /// Perform all scheduled housekeeping functions.
   /// @return 0 for success, -errno on error.
   virtual int housekeeping() = 0;
 
-  /// Receive and process a message.
+  /// Recieve and process a message.
   /// @return 0 for success, -ERRNO on system error.
   virtual ts::Rv<int> handleMessage();
 
@@ -2268,7 +2261,7 @@ protected:
   /// @return Security option to use during message fill.
   SecurityOption setSecurity(BaseMsg &msg,          ///< Message.
                              GroupData const &group ///< Group data used to control fill.
-  ) const;
+                             ) const;
   /// Validate a security component.
   bool validateSecurity(BaseMsg &msg,          ///< Message data (including security component).
                         GroupData const &group ///< Group data for message.
@@ -2301,11 +2294,11 @@ namespace detail
       /// Time until next packet.
       /// @return Seconds until a packet should be sent.
       time_t waitTime(time_t now ///< Current time.
-      ) const;
+                      ) const;
       /// Time till next ping.
       /// @return Seconds until a HERE_I_AM should be sent.
       time_t pingTime(time_t now ///< Current time.
-      ) const;
+                      ) const;
 
       uint32_t m_addr;       ///< Router identifying IP address.
       uint32_t m_generation; ///< Router's view change number.
@@ -2380,7 +2373,7 @@ namespace detail
 
       GroupData(); ///< Default constructor.
 
-      void setProcName(const std::string_view name);
+      void setProcName(const ts::ConstBuffer &name);
       const char *getProcName();
 
       /// Find a router by IP @a addr.
@@ -2388,7 +2381,7 @@ namespace detail
       RouterBag::iterator findRouter(uint32_t addr ///< IP address of cache.
       );
 
-      /// Set an initial router for a service group.
+      /// Set an intial router for a service group.
       self &seedRouter(uint32_t addr ///< IP address for router.
       );
       /// Remove a seed router.
@@ -2406,7 +2399,7 @@ namespace detail
       /// Time until next event.
       /// @return The number of seconds until the next event of interest.
       time_t waitTime(time_t now ///< Current time.
-      ) const;
+                      ) const;
 
       /** Cull routers.
           Routers that have not replied recently are moved from the
@@ -2437,7 +2430,7 @@ namespace detail
       return m_proc_name;
     }
     inline void
-    GroupData::setProcName(const std::string_view name)
+    GroupData::setProcName(const ts::ConstBuffer &name)
     {
       m_proc_name = ats_strndup(name.data(), name.size());
     }
@@ -2473,7 +2466,7 @@ public:
                                         ServiceGroup::Result *result = 0 ///< [out] Result for service creation.
   );
 
-  /** Set an initial router for a service group.
+  /** Set an intial router for a service group.
       This is needed to bootstrap the protocol.
       If the router is already seeded, this call is silently ignored.
   */
@@ -2485,24 +2478,25 @@ public:
   ts::Errata loadServicesFromFile(const char *path ///< Path to file.
   );
 
-  int open(uint32_t addr) override;
+  /// Override.
+  int open(uint32_t addr);
 
   /// Time until next scheduled event.
   time_t waitTime() const;
 
   /// Check for configuration.
-  bool isConfigured() const override;
+  bool isConfigured() const;
 
   /// Perform all scheduled housekeeping functions.
   /// @return 0 for success, -errno on error.
-  int housekeeping() override;
+  virtual int housekeeping();
 
   /** Check cache assignment reported by a router against internal assign.
       @return @c true if they are the same, @c false otherwise.
   */
   virtual ts::Errata checkRouterAssignment(GroupData const &group,    ///< Group with assignment.
                                            RouterViewComp const &comp ///< Assignment reported by router.
-  ) const;
+                                           ) const;
 
 protected:
   /// Generate contents in HERE_I_AM @a msg for seed router.
@@ -2519,23 +2513,19 @@ protected:
                               GroupData &group        ///< Group with data for message.
   );
   /// Process HERE_I_AM message.
-  ts::Errata handleISeeYou(IpHeader const &header, ///< IP packet data.
-                           ts::Buffer const &data  ///< Buffer with message data.
-                           ) override;
+  virtual ts::Errata handleISeeYou(IpHeader const &header, ///< IP packet data.
+                                   ts::Buffer const &data  ///< Buffer with message data.
+  );
   /// Process REMOVAL_QUERY message.
-  ts::Errata handleRemovalQuery(IpHeader const &header, ///< IP packet data.
-                                ts::Buffer const &data  ///< Message data.
-                                ) override;
+  virtual ts::Errata handleRemovalQuery(IpHeader const &header, ///< IP packet data.
+                                        ts::Buffer const &data  ///< Message data.
+  );
 
   /// Map Service Group ID to Service Group Data.
   typedef std::map<uint8_t, GroupData> GroupMap;
   /// Active service groups.
   GroupMap m_groups;
-
-private:
-  ts::Errata loader(const YAML::Node &node);
 };
-
 // ------------------------------------------------------
 namespace detail
 {
@@ -2631,15 +2621,15 @@ public:
   typedef detail::router::RouterBag RouterBag;
 
   /// Process HERE_I_AM message.
-  ts::Errata handleHereIAm(IpHeader const &header, ///< IP packet data.
-                           ts::Buffer const &data  ///< Buffer with message data.
-                           ) override;
+  virtual ts::Errata handleHereIAm(IpHeader const &header, ///< IP packet data.
+                                   ts::Buffer const &data  ///< Buffer with message data.
+  );
   /// Perform all scheduled housekeeping functions.
-  int housekeeping() override;
+  int housekeeping();
   /// Send pending I_SEE_YOU messages.
   int xmitISeeYou();
   /// Check for configuration.
-  bool isConfigured() const override;
+  bool isConfigured() const;
 
 protected:
   /** Find or create a service group record.
@@ -2898,11 +2888,33 @@ CacheIdElt::setMask(bool state)
   return *this;
 }
 
+#if 0
+inline uint16_t CacheIdElt::getWeight() const { return ntohs(m_weight); }
+inline CacheIdElt&
+CacheIdElt::setWeight(uint16_t w) {
+  m_weight = htons(w);
+  return *this;
+}
+inline uint16_t CacheIdElt::getStatus() const { return ntohs(m_status); }
+inline CacheIdElt&
+CacheIdElt::setStatus(uint16_t s) {
+  m_status = htons(s);
+  return *this;
+}
+#endif
+
 inline CacheIdElt::Tail *
 CacheHashIdElt::getTailPtr()
 {
   return &m_tail;
 }
+
+#if 0
+inline bool
+CacheHashIdElt::getBucket(int idx) const {
+  return 0 != (m_buckets[idx>>3] & (1<<(idx & 7)));
+}
+#endif
 
 inline uint32_t
 CacheMaskIdElt::getCount() const
@@ -3164,6 +3176,41 @@ CacheIdComp::setUnassigned(bool state)
   this->cacheId().setUnassigned(state);
   return *this;
 }
+#if 0
+inline uint16_t
+CacheIdComp::getWeight() const {
+  return this->idElt().getWeight();
+}
+inline CacheIdComp&
+CacheIdComp::setWeight(uint16_t w) {
+  this->idElt().setWeight(w);
+  return *this;
+}
+inline uint16_t
+CacheIdComp::getStatus() const {
+  return this->idElt().getStatus();
+}
+inline CacheIdComp&
+CacheIdComp::setStatus(uint16_t s) {
+  this->idElt().setStatus(s);
+  return *this;
+}
+inline bool
+CacheIdComp::getBucket(int idx) const {
+  return this->idElt().getBucket(idx);
+}
+inline CacheIdComp&
+CacheIdComp::setBucket(int idx, bool state) {
+  this->idElt().setBucket(idx, state);
+  return *this;
+}
+inline CacheIdComp&
+CacheIdComp::setBuckets(bool state) {
+  this->idElt().setBuckets(state);
+  return *this;
+}
+inline size_t CacheIdComp::calcSize() { return sizeof(raw_t); }
+#endif
 
 inline bool
 detail::Assignment::isActive() const
@@ -3368,13 +3415,11 @@ HashAssignElt::getBucketBase()
   // coverity[ptr_arith]
   return reinterpret_cast<Bucket *>((&m_count + 1 + this->getCount()));
 }
-inline HashAssignElt::Bucket &
-HashAssignElt::operator[](size_t idx)
+inline HashAssignElt::Bucket &HashAssignElt::operator[](size_t idx)
 {
   return this->getBucketBase()[idx];
 }
-inline HashAssignElt::Bucket const &
-HashAssignElt::operator[](size_t idx) const
+inline HashAssignElt::Bucket const &HashAssignElt::operator[](size_t idx) const
 {
   return (*(const_cast<self *>(this)))[idx];
 }
@@ -3387,8 +3432,7 @@ MaskAssignElt::getCount() const
 {
   return ntohl(m_count);
 }
-inline MaskValueSetElt *
-MaskAssignElt::appender::operator->()
+inline MaskValueSetElt *MaskAssignElt::appender::operator->()
 {
   return m_set;
 }
@@ -3488,7 +3532,7 @@ AssignInfoComp::bucket(int idx) const
 }
 inline RouterViewComp::RouterViewComp() : m_cache_count(0)
 {
-  ink_zero(m_cache_ids);
+  memset(static_cast<void *>(m_cache_ids), 0, sizeof(m_cache_ids));
 }
 
 inline CapComp::CapComp() {}

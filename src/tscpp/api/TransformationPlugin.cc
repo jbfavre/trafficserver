@@ -28,33 +28,18 @@
 #include "utils_internal.h"
 #include "logging_internal.h"
 #include "tscpp/api/noncopyable.h"
-#include "tscpp/api/Continuation.h"
 
 #ifndef INT64_MAX
 #define INT64_MAX (9223372036854775807LL)
 #endif
 
-namespace atscppapi
-{
-namespace detail
-{
-  class ResumeAfterPauseCont : public Continuation
-  {
-  public:
-    ResumeAfterPauseCont() : Continuation() {}
-
-    ResumeAfterPauseCont(Continuation::Mutex m) : Continuation(m) {}
-
-  protected:
-    int _run(TSEvent event, void *edata) override;
-  };
-
-} // end namespace detail
+using namespace atscppapi;
+using atscppapi::TransformationPlugin;
 
 /**
  * @private
  */
-struct TransformationPluginState : noncopyable, public detail::ResumeAfterPauseCont {
+struct atscppapi::TransformationPluginState : noncopyable {
   TSVConn vconn_;
   Transaction &transaction_;
   TransformationPlugin &transformation_plugin_;
@@ -65,19 +50,19 @@ struct TransformationPluginState : noncopyable, public detail::ResumeAfterPauseC
   TSIOBufferReader output_buffer_reader_;
   int64_t bytes_written_;
   bool paused_;
+  TSCont resume_cont_;
 
   // We can only send a single WRITE_COMPLETE even though
   // we may receive an immediate event after we've sent a
   // write complete, so we'll keep track of whether or not we've
-  // sent the input end our write complete.
+  // sent the input end our write complte.
   bool input_complete_dispatched_;
 
   std::string request_xform_output_; // in case of request xform, data produced is buffered here
 
   TransformationPluginState(atscppapi::Transaction &transaction, TransformationPlugin &transformation_plugin,
                             TransformationPlugin::Type type, TSHttpTxn txn)
-    : detail::ResumeAfterPauseCont(TSMutexCreate()),
-      vconn_(nullptr),
+    : vconn_(nullptr),
       transaction_(transaction),
       transformation_plugin_(transformation_plugin),
       type_(type),
@@ -87,13 +72,14 @@ struct TransformationPluginState : noncopyable, public detail::ResumeAfterPauseC
       output_buffer_reader_(nullptr),
       bytes_written_(0),
       paused_(false),
+      resume_cont_(nullptr),
       input_complete_dispatched_(false)
   {
     output_buffer_        = TSIOBufferCreate();
     output_buffer_reader_ = TSIOBufferReaderAlloc(output_buffer_);
   };
 
-  ~TransformationPluginState() override
+  ~TransformationPluginState()
   {
     if (output_buffer_reader_) {
       TSIOBufferReaderFree(output_buffer_reader_);
@@ -104,17 +90,16 @@ struct TransformationPluginState : noncopyable, public detail::ResumeAfterPauseC
       TSIOBufferDestroy(output_buffer_);
       output_buffer_ = nullptr;
     }
+
+    // Cleanup pending cont
+    if (resume_cont_) {
+      TSContDataSet(resume_cont_, nullptr);
+    }
   }
 };
 
-} // end namespace atscppapi
-
-using namespace atscppapi;
-
 namespace
 {
-using ResumeAfterPauseCont = atscppapi::detail::ResumeAfterPauseCont;
-
 void
 cleanupTransformation(TSCont contp)
 {
@@ -264,7 +249,7 @@ handleTransformationPluginEvents(TSCont contp, TSEvent event, void *edata)
     return 0;
   }
 
-  // All other events including WRITE_READY will just attempt to transform more data.
+  // All other events includign WRITE_READY will just attempt to transform more data.
   return handleTransformationPluginRead(state->vconn_, state);
 }
 
@@ -288,49 +273,31 @@ TransformationPlugin::~TransformationPlugin()
   delete state_;
 }
 
-void
+TSCont
 TransformationPlugin::pause()
 {
-  if (state_->paused_) {
-    LOG_ERROR("Can not pause transformation, already paused  TransformationPlugin=%p (vconn)contp=%p tshttptxn=%p", this,
-              state_->vconn_, state_->txn_);
-  } else if (state_->input_complete_dispatched_) {
+  if (state_->input_complete_dispatched_) {
     LOG_ERROR("Can not pause transformation (transformation completed) TransformationPlugin=%p (vconn)contp=%p tshttptxn=%p", this,
               state_->vconn_, state_->txn_);
+    return nullptr;
   } else {
-    state_->paused_ = true;
-    if (!static_cast<bool>(static_cast<ResumeAfterPauseCont *>(state_))) {
-      *static_cast<ResumeAfterPauseCont *>(state_) = ResumeAfterPauseCont(TSContMutexGet(reinterpret_cast<TSCont>(state_->txn_)));
-    }
+    state_->paused_      = true;
+    state_->resume_cont_ = TSContCreate(&resumeCallback, TSContMutexGet(reinterpret_cast<TSCont>(state_->txn_)));
+    TSContDataSet(state_->resume_cont_, static_cast<void *>(state_));
+    return state_->resume_cont_;
   }
 }
 
-bool
-TransformationPlugin::isPaused() const
-{
-  return state_->paused_;
-}
-
-Continuation &
-TransformationPlugin::resumeCont()
-{
-  TSReleaseAssert(state_->paused_);
-
-  // The cast to a pointer to the intermediate base class ResumeAfterPauseCont is not strictly necessary.  It is
-  // possible that the transform plugin might want to defer work to other continuations in the future.  This would
-  // naturally result in TransactionPluginState having Continuation as an indirect base class multiple times, making
-  // disambiguation necessary when converting.
-  //
-  return *static_cast<ResumeAfterPauseCont *>(state_);
-}
-
 int
-ResumeAfterPauseCont::_run(TSEvent event, void *edata)
+TransformationPlugin::resumeCallback(TSCont cont, TSEvent event, void *edata)
 {
-  auto state     = static_cast<TransformationPluginState *>(this);
-  state->paused_ = false;
-  handleTransformationPluginRead(state->vconn_, state);
+  auto state = static_cast<TransformationPluginState *>(TSContDataGet(cont));
+  if (state) {
+    state->paused_ = false;
+    handleTransformationPluginRead(state->vconn_, state);
+  }
 
+  TSContDestroy(cont);
   return TS_SUCCESS;
 }
 
@@ -427,7 +394,7 @@ TransformationPlugin::setOutputComplete()
               state_->txn_);
 
     // We're done without ever outputting anything, to correctly
-    // clean up we'll initiate a write then immediately set it to 0 bytes done.
+    // clean up we'll initiate a write then immeidately set it to 0 bytes done.
     state_->output_vio_ = TSVConnWrite(TSTransformOutputVConnGet(state_->vconn_), state_->vconn_, state_->output_buffer_reader_, 0);
 
     if (state_->output_vio_) {

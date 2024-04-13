@@ -48,11 +48,7 @@ public:
   // bool to check if certain command/option is called
   operator bool() const noexcept { return _is_called; }
   // index accessing []
-  std::string const &
-  operator[](int x) const
-  {
-    return _values.at(x);
-  }
+  std::string const &operator[](int x) const { return _values.at(x); }
   // return the Environment variable
   std::string const &env() const noexcept;
   // iterator for arguments
@@ -179,8 +175,7 @@ public:
     bool parse(Arguments &ret, AP_StrVec &args);
     // The help & version messages
     void help_message(std::string_view err = "") const;
-    void version_message() const;
-    // Helper method for parse()
+    // Helpr method for parse()
     void append_option_data(Arguments &ret, AP_StrVec &args, int index);
     // The command name and help message
     std::string _name;
@@ -231,7 +226,7 @@ public:
                        std::string const &key = "");
   Command &add_command(std::string const &cmd_name, std::string const &cmd_description, std::string const &cmd_envvar,
                        unsigned cmd_arg_num, Function const &f = nullptr, std::string const &key = "");
-  // give a default command to this parser
+  // give a defaut command to this parser
   void set_default_command(std::string const &cmd);
   /** Main parsing function
       @return The Arguments object available for program using

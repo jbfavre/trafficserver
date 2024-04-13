@@ -28,40 +28,11 @@
 #include "records/I_RecCore.h"
 #include "tscore/I_Layout.h"
 #include "InkAPIInternal.h"
+#include "Main.h"
 #include "Plugin.h"
 #include "tscore/ink_cap.h"
-#include "tscore/Filenames.h"
 
 #define MAX_PLUGIN_ARGS 64
-
-static PluginDynamicReloadMode plugin_dynamic_reload_mode = PluginDynamicReloadMode::RELOAD_ON;
-
-bool
-isPluginDynamicReloadEnabled()
-{
-  return PluginDynamicReloadMode::RELOAD_ON == plugin_dynamic_reload_mode;
-}
-
-void
-parsePluginDynamicReloadConfig()
-{
-  int int_plugin_dynamic_reload_mode;
-
-  REC_ReadConfigInteger(int_plugin_dynamic_reload_mode, "proxy.config.plugin.dynamic_reload_mode");
-  plugin_dynamic_reload_mode = static_cast<PluginDynamicReloadMode>(int_plugin_dynamic_reload_mode);
-
-  if (plugin_dynamic_reload_mode < 0 || plugin_dynamic_reload_mode >= PluginDynamicReloadMode::RELOAD_COUNT) {
-    Warning("proxy.config.plugin.dynamic_reload_mode out of range. using default value.");
-    plugin_dynamic_reload_mode = PluginDynamicReloadMode::RELOAD_ON;
-  }
-  Note("Initialized plugin_dynamic_reload_mode: %d", plugin_dynamic_reload_mode);
-}
-
-void
-parsePluginConfig()
-{
-  parsePluginDynamicReloadConfig();
-}
 
 static const char *plugin_dir = ".";
 
@@ -81,7 +52,10 @@ using init_func_t = void (*)(int, char **);
 DLL<PluginRegInfo> plugin_reg_list;
 PluginRegInfo *plugin_reg_current = nullptr;
 
-PluginRegInfo::PluginRegInfo() = default;
+PluginRegInfo::PluginRegInfo()
+  : plugin_registered(false), plugin_path(nullptr), plugin_name(nullptr), vendor_name(nullptr), support_email(nullptr), dlh(nullptr)
+{
+}
 
 PluginRegInfo::~PluginRegInfo()
 {
@@ -99,31 +73,8 @@ PluginRegInfo::~PluginRegInfo()
   }
 }
 
-bool
-plugin_dso_load(const char *path, void *&handle, void *&init, std::string &error)
-{
-  handle = dlopen(path, RTLD_NOW);
-  init   = nullptr;
-  if (!handle) {
-    error.assign("unable to load '").append(path).append("': ").append(dlerror());
-    Error("%s", error.c_str());
-    return false;
-  }
-
-  init = dlsym(handle, "TSPluginInit");
-  if (!init) {
-    error.assign("unable to find TSPluginInit function in '").append(path).append("': ").append(dlerror());
-    Error("%s", error.c_str());
-    dlclose(handle);
-    handle = nullptr;
-    return false;
-  }
-
-  return true;
-}
-
 static bool
-single_plugin_init(int argc, char *argv[], bool validateOnly)
+plugin_load(int argc, char *argv[], bool validateOnly)
 {
   char path[PATH_NAME_MAX];
   init_func_t init;
@@ -150,17 +101,12 @@ single_plugin_init(int argc, char *argv[], bool validateOnly)
     REC_ReadConfigInteger(elevate_access, "proxy.config.plugin.load_elevated");
     ElevateAccess access(elevate_access ? ElevateAccess::FILE_PRIVILEGE : 0);
 
-    void *handle, *initptr = nullptr;
-    std::string error;
-    bool loaded = plugin_dso_load(path, handle, initptr, error);
-    init        = reinterpret_cast<init_func_t>(initptr);
-
-    if (!loaded) {
+    void *handle = dlopen(path, RTLD_NOW);
+    if (!handle) {
       if (validateOnly) {
         return false;
       }
-      Fatal("%s", error.c_str());
-      return false; // this line won't get called since Fatal brings down ATS
+      Fatal("unable to load '%s': %s", path, dlerror());
     }
 
     // Allocate a new registration structure for the
@@ -169,6 +115,16 @@ single_plugin_init(int argc, char *argv[], bool validateOnly)
     plugin_reg_current              = new PluginRegInfo;
     plugin_reg_current->plugin_path = ats_strdup(path);
     plugin_reg_current->dlh         = handle;
+
+    init = (init_func_t)dlsym(plugin_reg_current->dlh, "TSPluginInit");
+    if (!init) {
+      delete plugin_reg_current;
+      if (validateOnly) {
+        return false;
+      }
+      Fatal("unable to find TSPluginInit function in '%s': %s", path, dlerror());
+      return false; // this line won't get called since Fatal brings down ATS
+    }
 
 #if (!defined(kfreebsd) && defined(freebsd)) || defined(darwin)
     optreset = 1;
@@ -217,7 +173,7 @@ plugin_expand(char *arg)
     if (RecGetRecordString_Xmalloc(arg, &str_val) != REC_ERR_OKAY) {
       goto not_found;
     }
-    return static_cast<char *>(str_val);
+    return (char *)str_val;
     break;
   }
   case RECD_FLOAT: {
@@ -225,8 +181,8 @@ plugin_expand(char *arg)
     if (RecGetRecordFloat(arg, &float_val) != REC_ERR_OKAY) {
       goto not_found;
     }
-    str = static_cast<char *>(ats_malloc(128));
-    snprintf(str, 128, "%f", static_cast<float>(float_val));
+    str = (char *)ats_malloc(128);
+    snprintf(str, 128, "%f", (float)float_val);
     return str;
     break;
   }
@@ -235,8 +191,8 @@ plugin_expand(char *arg)
     if (RecGetRecordInt(arg, &int_val) != REC_ERR_OKAY) {
       goto not_found;
     }
-    str = static_cast<char *>(ats_malloc(128));
-    snprintf(str, 128, "%ld", static_cast<long int>(int_val));
+    str = (char *)ats_malloc(128);
+    snprintf(str, 128, "%ld", (long int)int_val);
     return str;
     break;
   }
@@ -245,8 +201,8 @@ plugin_expand(char *arg)
     if (RecGetRecordCounter(arg, &count_val) != REC_ERR_OKAY) {
       goto not_found;
     }
-    str = static_cast<char *>(ats_malloc(128));
-    snprintf(str, 128, "%ld", static_cast<long int>(count_val));
+    str = (char *)ats_malloc(128);
+    snprintf(str, 128, "%ld", (long int)count_val);
     return str;
     break;
   }
@@ -256,7 +212,7 @@ plugin_expand(char *arg)
   }
 
 not_found:
-  Warning("%s: unable to find parameter %s", ts::filename::PLUGIN, arg);
+  Warning("plugin.config: unable to find parameter %s", arg);
   return nullptr;
 }
 
@@ -279,11 +235,10 @@ plugin_init(bool validateOnly)
     INIT_ONCE  = false;
   }
 
-  Note("%s loading ...", ts::filename::PLUGIN);
-  path = RecConfigReadConfigPath(nullptr, ts::filename::PLUGIN);
+  path = RecConfigReadConfigPath(nullptr, "plugin.config");
   fd   = open(path, O_RDONLY);
   if (fd < 0) {
-    Warning("%s failed to load: %d, %s", ts::filename::PLUGIN, errno, strerror(errno));
+    Warning("unable to open plugin config file '%s': %d, %s", (const char *)path, errno, strerror(errno));
     return false;
   }
 
@@ -350,7 +305,7 @@ plugin_init(bool validateOnly)
     } else {
       argv[MAX_PLUGIN_ARGS - 1] = nullptr;
     }
-    retVal = single_plugin_init(argc, argv, validateOnly);
+    retVal = plugin_load(argc, argv, validateOnly);
 
     for (i = 0; i < argc; i++) {
       ats_free(vars[i]);
@@ -358,10 +313,5 @@ plugin_init(bool validateOnly)
   }
 
   close(fd);
-  if (retVal) {
-    Note("%s finished loading", ts::filename::PLUGIN);
-  } else {
-    Error("%s failed to load", ts::filename::PLUGIN);
-  }
   return retVal;
 }

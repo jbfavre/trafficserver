@@ -19,7 +19,7 @@
 import time
 
 Test.Summary = '''
-cache_range_requests X-CRR-IMS plugin test
+cache_range_requests X-Crr-Ims plugin test
 '''
 
 # Test description:
@@ -41,49 +41,65 @@ ts = Test.MakeATSProcess("ts", command="traffic_server")
 server = Test.MakeOriginServer("server")
 
 # default root
-req_chk = {
-    "headers": "GET / HTTP/1.1\r\n" + "Host: www.example.com\r\n" + "uuid: none\r\n" + "\r\n",
-    "timestamp": "1469733493.993",
-    "body": ""
-}
+req_chk = {"headers":
+           "GET / HTTP/1.1\r\n" +
+           "Host: www.example.com\r\n" +
+           "uuid: none\r\n" +
+           "\r\n",
+           "timestamp": "1469733493.993",
+           "body": ""
+           }
 
-res_chk = {"headers": "HTTP/1.1 200 OK\r\n" + "Connection: close\r\n" + "\r\n", "timestamp": "1469733493.993", "body": ""}
+res_chk = {"headers":
+           "HTTP/1.1 200 OK\r\n" +
+           "Connection: close\r\n" +
+           "\r\n",
+           "timestamp": "1469733493.993",
+           "body": ""
+           }
 
 server.addResponse("sessionlog.json", req_chk, res_chk)
 
 body = "lets go surfin now"
 bodylen = len(body)
 
-req_full = {
-    "headers": "GET /path HTTP/1.1\r\n" + "Host: www.example.com\r\n" + "Accept: */*\r\n" + "Range: bytes=0-\r\n" + "\r\n",
-    "timestamp": "1469733493.993",
-    "body": ""
-}
+req_full = {"headers":
+            "GET /path HTTP/1.1\r\n" +
+            "Host: www.example.com\r\n" +
+            "Accept: */*\r\n" +
+            "Range: bytes=0-\r\n" +
+            "\r\n",
+            "timestamp": "1469733493.993",
+            "body": ""
+            }
 
-res_full = {
-    "headers":
-        "HTTP/1.1 206 Partial Content\r\n" + "Accept-Ranges: bytes\r\n" + "Cache-Control: max-age=500\r\n" +
-        "Content-Range: bytes 0-{0}/{0}\r\n".format(bodylen) + "Connection: close\r\n" + 'Etag: "772102f4-56f4bc1e6d417"\r\n' +
-        "\r\n",
-    "timestamp": "1469733493.993",
-    "body": body
-}
+res_full = {"headers":
+            "HTTP/1.1 206 Partial Content\r\n" +
+            "Accept-Ranges: bytes\r\n" +
+            "Cache-Control: max-age=500\r\n" +
+            "Content-Range: bytes 0-{0}/{0}\r\n".format(bodylen) +
+            "Connection: close\r\n" +
+            'Etag: "772102f4-56f4bc1e6d417"\r\n' +
+            "\r\n",
+            "timestamp": "1469733493.993",
+            "body": body
+            }
 
 server.addResponse("sessionlog.json", req_full, res_full)
 
 # cache range requests plugin remap
-ts.Disk.remap_config.AddLines(
-    [
-        f'map http://ims http://127.0.0.1:{server.Variables.Port}' + ' @plugin=cache_range_requests.so @pparam=--consider-ims',
-        f'map http://imsheader http://127.0.0.1:{server.Variables.Port}' +
-        ' @plugin=cache_range_requests.so @pparam=--consider-ims' + ' @pparam=--ims-header=CrrIms',
-    ])
+ts.Disk.remap_config.AddLine(
+    'map http://www.example.com http://127.0.0.1:{}'.format(server.Variables.Port) +
+    ' @plugin=cache_range_requests.so @pparam=--consider-ims',
+)
 
 # cache debug
 ts.Disk.plugin_config.AddLine('xdebug.so')
 
 # minimal configuration
 ts.Disk.records_config.update({
+    'proxy.config.http.cache.http': 1,
+    'proxy.config.http.wait_for_cache': 1,
     'proxy.config.diags.debug.enabled': 1,
     'proxy.config.diags.debug.tags': 'cache_range_requests',
 })
@@ -95,39 +111,29 @@ tr = Test.AddTestRun("0- range cache load")
 ps = tr.Processes.Default
 ps.StartBefore(server, ready=When.PortOpen(server.Variables.Port))
 ps.StartBefore(Test.Processes.ts)
-ps.Command = curl_and_args + ' http://ims/path -r 0-'
+ps.Command = curl_and_args + ' http://www.example.com/path -r 0-'
 ps.ReturnCode = 0
 ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: miss", "expected cache miss for load")
 tr.StillRunningAfter = ts
 
-# test inner range
-# 1 Test - Fetch range into cache
-tr = Test.AddTestRun("0- cache hit check")
-ps = tr.Processes.Default
-ps.Command = curl_and_args + ' http://ims/path -r 0-'
-ps.ReturnCode = 0
-ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: hit", "expected cache hit")
-tr.StillRunningAfter = ts
 
 # set up the IMS date field (go in the future) RFC 2616
 futuretime = time.time() + 100  # seconds
 futurestr = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime(futuretime))
 
-# 2 Test - Ensure X-CRR-IMS header results in hit-stale
-tr = Test.AddTestRun("0- range X-CRR-IMS check")
+# test inner range
+# 1 Test - Fetch range into cache
+tr = Test.AddTestRun("0- cache hit check")
 ps = tr.Processes.Default
-ps.Command = curl_and_args + ' http://ims/path -r 0- -H "X-CRR-IMS: {}"'.format(futurestr)
+ps.Command = curl_and_args + ' http://www.example.com/path -r 0-'.format(futurestr)
 ps.ReturnCode = 0
-ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: hit-stale", "expected cache hit-stale")
+ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: hit", "expected cache hit")
 tr.StillRunningAfter = ts
 
-futuretime += 10  # seconds
-futurestr = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime(futuretime))
-
-# 3 Test - Ensure CrrIms header results in hit-stale
-tr = Test.AddTestRun("0- range CrrIms check, override header")
+# 2 Test - Ensure X-Crr-Ims header results in hit-stale
+tr = Test.AddTestRun("0- range X-Crr-Ims check")
 ps = tr.Processes.Default
-ps.Command = curl_and_args + ' http://imsheader/path -r 0- -H "CrrIms: {}"'.format(futurestr)
+ps.Command = curl_and_args + ' http://www.example.com/path -r 0- -H "X-Crr-Ims: {}"'.format(futurestr)
 ps.ReturnCode = 0
 ps.Streams.stdout.Content = Testers.ContainsExpression("X-Cache: hit-stale", "expected cache hit-stale")
 tr.StillRunningAfter = ts

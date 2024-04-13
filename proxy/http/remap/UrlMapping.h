@@ -19,7 +19,6 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
-
  */
 
 #pragma once
@@ -28,14 +27,11 @@
 
 #include "tscore/ink_config.h"
 #include "AclFiltering.h"
+#include "Main.h"
 #include "URL.h"
-#include "RemapHitCount.h"
 #include "RemapPluginInfo.h"
-#include "PluginFactory.h"
 #include "tscore/Regex.h"
 #include "tscore/List.h"
-
-class NextHopSelectionStrategy;
 
 /**
  * Used to store http referer strings (and/or regexp)
@@ -60,17 +56,19 @@ public:
 class redirect_tag_str
 {
 public:
-  redirect_tag_str() {}
+  redirect_tag_str() : next(nullptr), chunk_str(nullptr), type(0) {}
   ~redirect_tag_str()
   {
     type = 0;
-    ats_free(chunk_str);
-    chunk_str = nullptr;
+    if (chunk_str) {
+      ats_free(chunk_str);
+      chunk_str = nullptr;
+    }
   }
 
-  redirect_tag_str *next = nullptr;
-  char *chunk_str        = nullptr;
-  char type              = 0; /* s - string, r - referer, t - url_to, f - url_from, o - origin url */
+  redirect_tag_str *next;
+  char *chunk_str;
+  char type; /* s - string, r - referer, t - url_to, f - url_from, o - origin url */
   static redirect_tag_str *parse_format_redirect_url(char *url);
 };
 
@@ -82,21 +80,22 @@ class url_mapping
 public:
   ~url_mapping();
 
-  bool add_plugin_instance(RemapPluginInst *i);
-  RemapPluginInst *get_plugin_instance(std::size_t) const;
+  bool add_plugin(remap_plugin_info *i, void *ih);
+  remap_plugin_info *get_plugin(std::size_t) const;
+  void *get_instance(std::size_t) const;
 
   std::size_t
-  plugin_instance_count() const
+  plugin_count() const
   {
-    return _plugin_inst_list.size();
+    return _plugin_list.size();
   }
 
-  void Print() const;
-  std::string PrintRemapHitCount() const;
+  void delete_instance(unsigned int index);
+  void Print();
 
   int from_path_len = 0;
   URL fromURL;
-  URL toURL; // Default TO-URL (from remap.config)
+  URL toUrl; // Default TO-URL (from remap.config)
   bool homePageRedirect              = false;
   bool unique                        = false; // INKqa11970 - unique mapping
   bool default_redirect_url          = false;
@@ -111,9 +110,6 @@ public:
   bool ip_allow_check_enabled_p      = false;
   acl_filter_rule *filter            = nullptr; // acl filtering (list of rules)
   LINK(url_mapping, link);                      // For use with the main Queue linked list holding all the mapping
-  std::shared_ptr<NextHopSelectionStrategy> strategy = nullptr;
-  std::string remapKey;
-  std::atomic<uint64_t> _hitCount = 0; // counter can overflow
 
   int
   getRank() const
@@ -126,26 +122,9 @@ public:
     _rank = rank;
   };
 
-  void
-  setRemapKey()
-  {
-    remapKey = fromURL.string_get_ref();
-  }
-
-  const std::string &
-  getRemapKey()
-  {
-    return remapKey;
-  }
-
-  void
-  incrementCount()
-  {
-    _hitCount++;
-  }
-
 private:
-  std::vector<RemapPluginInst *> _plugin_inst_list;
+  std::vector<remap_plugin_info *> _plugin_list;
+  std::vector<void *> _instance_data;
   int _rank = 0;
 };
 
@@ -156,8 +135,8 @@ private:
 class UrlMappingContainer
 {
 public:
-  UrlMappingContainer() {}
-  explicit UrlMappingContainer(HdrHeap *heap) : _heap(heap) {}
+  UrlMappingContainer() : _mapping(nullptr), _toURLPtr(nullptr), _heap(nullptr) {}
+  explicit UrlMappingContainer(HdrHeap *heap) : _mapping(nullptr), _toURLPtr(nullptr), _heap(heap) {}
   ~UrlMappingContainer() { deleteToURL(); }
   URL *
   getToURL() const
@@ -181,7 +160,7 @@ public:
   {
     deleteToURL();
     _mapping  = m;
-    _toURLPtr = m ? &(m->toURL) : nullptr;
+    _toURLPtr = m ? &(m->toUrl) : nullptr;
   }
 
   void
@@ -222,8 +201,8 @@ public:
   UrlMappingContainer &operator=(const UrlMappingContainer &rhs) = delete;
 
 private:
-  url_mapping *_mapping = nullptr;
-  URL *_toURLPtr        = nullptr;
+  url_mapping *_mapping;
+  URL *_toURLPtr;
   URL _toURL;
-  HdrHeap *_heap = nullptr;
+  HdrHeap *_heap;
 };

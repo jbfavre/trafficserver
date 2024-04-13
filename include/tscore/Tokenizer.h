@@ -43,26 +43,26 @@
  *
  *  There are three memory options.
  *     SHARE_TOKS - this modifies the original string passed in
- *          through Initialize() and shares its space.   NULLs
+ *          through Intialize() and shares its space.   NULLs
  *          are inserted into string after each token.  Choosing
- *          this option means the user is responsible for not
+ *          this option means the user is reponsible for not
  *          deallocating the string storage before deallocating
  *          the tokenizer object
- *     COPY_TOKS - this option copies the original string and
+ *     COPY_TOKS - this option copies the orginial string and
  *          leaves the original unchanged.  The deallocation of the
  *          original string and the deallocation of the Tokenizer
  *          object are now independent.
  *     Note: If neither SHARE_TOKS or COPY_TOKS is selected, COPY_TOKS
  *          is the default
  *     ALLOW_EMPTY_TOKENS: If multiple delimiters appear next to each
- *          other, each delimiter creates a token some of which
+ *          other, each delimiter creates a token someof which
  *          will be zero length.  The default is to skip repeated
  *          delimiters
  *
  *  Tokenizer(const char* StrOfDelimit) - a string that contains
  *     the delimiters for tokenizing.  This string is copied.
  *
- *  Initialize(char* str, TokenizerOpts opt) - Submits a string
+ *  Intialize(char* str, TokenizerOpts opt) - Submits a string
  *     to be tokenized according to the memory options listed above
  *
  *  ReUse() - Allows the object to be reused for a new string
@@ -76,7 +76,7 @@
  *     is intended to be used on a small number of tokens
  *
  *  iterFirst(tok_iter_state* state) - Returns the first
- *     token and initializes state argument for subsequent
+ *     token and intializes state argument for subsequent
  *     calls to iterNext.  If no tokens exist, NULL is
  *     returned
  *
@@ -123,11 +123,11 @@ struct tok_iter_state {
 class Tokenizer
 {
 public:
-  Tokenizer(const char *StrOfDelimiters);
-  ~Tokenizer();
+  inkcoreapi Tokenizer(const char *StrOfDelimiters);
+  inkcoreapi ~Tokenizer();
 
   unsigned Initialize(char *str, unsigned options);
-  unsigned Initialize(const char *str); // Automatically sets option to copy
+  inkcoreapi unsigned Initialize(const char *str); // Automatically sets option to copy
   const char *operator[](unsigned index) const;
 
   void
@@ -143,10 +143,10 @@ public:
   };
 
   unsigned count() const;
-  void Print() const;
+  void Print(); // Debugging print out
 
-  const char *iterFirst(tok_iter_state *state);
-  const char *iterNext(tok_iter_state *state);
+  inkcoreapi const char *iterFirst(tok_iter_state *state);
+  inkcoreapi const char *iterNext(tok_iter_state *state);
 
   // noncopyable
   Tokenizer &operator=(const Tokenizer &) = delete;

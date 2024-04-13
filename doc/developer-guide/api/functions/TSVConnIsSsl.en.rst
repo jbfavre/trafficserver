@@ -24,9 +24,7 @@ TSVConnIsSsl
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int TSVConnIsSsl(TSVConn svc)
 

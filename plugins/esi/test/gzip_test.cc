@@ -36,9 +36,12 @@ using std::endl;
 using std::string;
 using namespace EsiLib;
 
+pthread_key_t threadKey;
+
 int
 main()
 {
+  pthread_key_create(&threadKey, nullptr);
   Utils::init(&Debug, &Error);
 
   {

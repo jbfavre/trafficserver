@@ -50,6 +50,6 @@ traffic_logcat_traffic_logcat_LDADD = \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la
 
 traffic_logcat_traffic_logcat_LDADD += \
-	@HWLOC_LIBS@ \
+	@LIBTCL@ @HWLOC_LIBS@ \
 	@YAMLCPP_LIBS@ \
 	@LIBPROFILER@ -lm

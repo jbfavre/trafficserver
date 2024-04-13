@@ -47,17 +47,16 @@ enum CondModifiers {
 class Condition : public Statement
 {
 public:
-  Condition() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Condition"); }
+  Condition() : _qualifier(""), _cond_op(MATCH_EQUAL), _matcher(nullptr), _mods(COND_NONE)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Condition");
+  }
 
-  ~Condition() override
+  virtual ~Condition()
   {
     TSDebug(PLUGIN_NAME_DBG, "Calling DTOR for Condition");
     delete _matcher;
   }
-
-  // noncopyable
-  Condition(const Condition &) = delete;
-  void operator=(const Condition &) = delete;
 
   // Inline this, it's critical for speed (and only used twice)
   bool
@@ -128,9 +127,11 @@ protected:
   virtual bool eval(const Resources &res) = 0;
 
   std::string _qualifier;
-  MatcherOps _cond_op = MATCH_EQUAL;
-  Matcher *_matcher   = nullptr;
+  MatcherOps _cond_op;
+  Matcher *_matcher;
 
 private:
-  CondModifiers _mods = COND_NONE;
+  DISALLOW_COPY_AND_ASSIGN(Condition);
+
+  CondModifiers _mods;
 };

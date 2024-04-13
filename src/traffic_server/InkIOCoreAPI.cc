@@ -54,7 +54,7 @@ sdk_sanity_check_mutex(TSMutex mutex)
     return TS_ERROR;
   }
 
-  ProxyMutex *mutexp = reinterpret_cast<ProxyMutex *>(mutex);
+  ProxyMutex *mutexp = (ProxyMutex *)mutex;
 
   if (mutexp->refcount() < 0) {
     return TS_ERROR;
@@ -122,7 +122,7 @@ static void *
 ink_thread_trampoline(void *data)
 {
   void *retval;
-  INKThreadInternal *ithread = static_cast<INKThreadInternal *>(data);
+  INKThreadInternal *ithread = (INKThreadInternal *)data;
 
   ithread->set_specific();
   retval = ithread->func(ithread->data);
@@ -158,7 +158,7 @@ TSThreadCreate(TSThreadFunc func, void *data)
     return (TSThread) nullptr;
   }
 
-  return reinterpret_cast<TSThread>(thread);
+  return (TSThread)thread;
 }
 
 // Wait for a thread to complete. When a thread calls TSThreadCreate,
@@ -171,7 +171,7 @@ void
 TSThreadWait(TSThread thread)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(thread) == TS_SUCCESS);
-  INKThreadInternal *ithread = reinterpret_cast<INKThreadInternal *>(thread);
+  INKThreadInternal *ithread = (INKThreadInternal *)thread;
 
   ink_mutex_acquire(&ithread->completion.lock);
 
@@ -205,7 +205,7 @@ TSThreadDestroy(TSThread thread)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(thread) == TS_SUCCESS);
 
-  INKThreadInternal *ithread = reinterpret_cast<INKThreadInternal *>(thread);
+  INKThreadInternal *ithread = (INKThreadInternal *)thread;
 
   // The thread must be destroyed by the same thread that created
   // it because that thread is holding the thread mutex.
@@ -227,19 +227,9 @@ TSThreadSelf(void)
   return ithread;
 }
 
-TSEventThread
-TSEventThreadSelf(void)
-{
-  return reinterpret_cast<TSEventThread>(this_event_thread());
-}
-
 ////////////////////////////////////////////////////////////////////
 //
-// Mutexes:  For TSMutexCreate and TSMutexDestroy, the refcount of the
-// ProxyMutex object is not incremented or decremented.  If the resulting
-// ProxyMutex is passed to a INKContInternal, it's mutex smart pointer
-// will take ownership of the ProxyMutex and delete it when the last
-// reference is removed.  TSMutexDestroy should not be called in that case.
+// Mutexes
 //
 ////////////////////////////////////////////////////////////////////
 TSMutex
@@ -257,12 +247,9 @@ void
 TSMutexDestroy(TSMutex m)
 {
   sdk_assert(sdk_sanity_check_mutex(m) == TS_SUCCESS);
-  ProxyMutex *mutexp = reinterpret_cast<ProxyMutex *>(m);
+  ink_release_assert(((ProxyMutex *)m)->refcount() == 0);
 
-  if (mutexp) {
-    ink_release_assert(mutexp->refcount() == 0);
-    mutexp->free();
-  }
+  ((ProxyMutex *)m)->free();
 }
 
 /* The following two APIs are for Into work, actually, APIs of Mutex
@@ -299,24 +286,21 @@ void
 TSMutexLock(TSMutex mutexp)
 {
   sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
-  ProxyMutex *proxy_mutex = reinterpret_cast<ProxyMutex *>(mutexp);
-  MUTEX_TAKE_LOCK(proxy_mutex, this_ethread());
+  MUTEX_TAKE_LOCK((ProxyMutex *)mutexp, this_ethread());
 }
 
 TSReturnCode
 TSMutexLockTry(TSMutex mutexp)
 {
   sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
-  ProxyMutex *proxy_mutex = reinterpret_cast<ProxyMutex *>(mutexp);
-  return (MUTEX_TAKE_TRY_LOCK(proxy_mutex, this_ethread()) ? TS_SUCCESS : TS_ERROR);
+  return (MUTEX_TAKE_TRY_LOCK((ProxyMutex *)mutexp, this_ethread()) ? TS_SUCCESS : TS_ERROR);
 }
 
 void
 TSMutexUnlock(TSMutex mutexp)
 {
   sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
-  ProxyMutex *proxy_mutex(reinterpret_cast<ProxyMutex *>(mutexp));
-  MUTEX_UNTAKE_LOCK(proxy_mutex, this_ethread());
+  MUTEX_UNTAKE_LOCK((ProxyMutex *)mutexp, this_ethread());
 }
 
 /* VIOs */
@@ -419,7 +403,7 @@ TSVIOMutexGet(TSVIO viop)
   sdk_assert(sdk_sanity_check_iocore_structure(viop) == TS_SUCCESS);
 
   VIO *vio = (VIO *)viop;
-  return reinterpret_cast<TSMutex>(vio->mutex.get());
+  return (TSMutex)(vio->mutex.get());
 }
 
 /* High Resolution Time */
@@ -427,7 +411,7 @@ TSVIOMutexGet(TSVIO viop)
 ink_hrtime
 INKBasedTimeGet()
 {
-  return ink_get_hrtime();
+  return Thread::get_hrtime();
 }
 
 /* UDP Connection Interface */
@@ -443,7 +427,7 @@ INKUDPBind(TSCont contp, unsigned int ip, int port)
   ats_ip4_set(&addr, ip, htons(port));
 
   return reinterpret_cast<TSAction>(
-    udpNet.UDPBind((Continuation *)contp, ats_ip_sa_cast(&addr), -1, INK_ETHERNET_MTU_SIZE, INK_ETHERNET_MTU_SIZE));
+    udpNet.UDPBind((Continuation *)contp, ats_ip_sa_cast(&addr), INK_ETHERNET_MTU_SIZE, INK_ETHERNET_MTU_SIZE));
 }
 
 TSAction
@@ -567,7 +551,7 @@ INKUDPPacketGet(INKUDPacketQueue queuep)
 TSIOBuffer
 TSIOBufferCreate()
 {
-  MIOBuffer *b = new_empty_MIOBuffer(BUFFER_SIZE_INDEX_32K);
+  MIOBuffer *b = new_empty_MIOBuffer();
 
   // TODO: Should remove this when memory allocations can't fail.
   sdk_assert(sdk_sanity_check_iocore_structure(b) == TS_SUCCESS);
@@ -636,12 +620,12 @@ TSIOBufferWrite(TSIOBuffer bufp, const void *buf, int64_t length)
   return b->write(buf, length);
 }
 
-int64_t
-TSIOBufferReaderCopy(TSIOBufferReader readerp, void *buf, int64_t length)
+// not in SDK3.0
+void
+TSIOBufferReaderCopy(TSIOBufferReader readerp, const void *buf, int64_t length)
 {
-  auto r{reinterpret_cast<IOBufferReader *>(readerp)};
-  char *limit = r->memcpy(buf, length, 0);
-  return limit - static_cast<char *>(buf);
+  IOBufferReader *r = (IOBufferReader *)readerp;
+  r->memcpy(buf, length);
 }
 
 void

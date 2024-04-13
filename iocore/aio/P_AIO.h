@@ -36,15 +36,16 @@
 // for debugging
 // #define AIO_STATS 1
 
-static constexpr ts::ModuleVersion AIO_MODULE_INTERNAL_VERSION{AIO_MODULE_PUBLIC_VERSION, ts::ModuleVersion::PRIVATE};
+#undef AIO_MODULE_VERSION
+#define AIO_MODULE_VERSION makeModuleVersion(AIO_MODULE_MAJOR_VERSION, AIO_MODULE_MINOR_VERSION, PRIVATE_MODULE_HEADER)
 
 TS_INLINE int
 AIOCallback::ok()
 {
-  return (aiocb.aio_nbytes == static_cast<size_t>(aio_result)) && (aio_result >= 0);
+  return (off_t)aiocb.aio_nbytes == (off_t)aio_result;
 }
 
-extern Continuation *aio_err_callback;
+extern Continuation *aio_err_callbck;
 
 #if AIO_MODE == AIO_MODE_NATIVE
 
@@ -53,7 +54,6 @@ struct AIOCallbackInternal : public AIOCallback {
   AIOCallbackInternal()
   {
     memset((void *)&(this->aiocb), 0, sizeof(this->aiocb));
-    this->aiocb.aio_fildes = -1;
     SET_HANDLER(&AIOCallbackInternal::io_complete);
   }
 };
@@ -86,20 +86,25 @@ struct AIOCallbackInternal : public AIOCallback {
 
   int io_complete(int event, void *data);
 
-  AIOCallbackInternal() { SET_HANDLER(&AIOCallbackInternal::io_complete); }
+  AIOCallbackInternal()
+  {
+    aiocb.aio_reqprio = AIO_DEFAULT_PRIORITY;
+    SET_HANDLER(&AIOCallbackInternal::io_complete);
+  }
 };
 
 struct AIO_Reqs {
-  Que(AIOCallback, link) aio_todo; /* queue for AIO operations */
-                                   /* Atomic list to temporarily hold the request if the
-                                      lock for a particular queue cannot be acquired */
+  Que(AIOCallback, link) aio_todo;      /* queue for holding non-http requests */
+  Que(AIOCallback, link) http_aio_todo; /* queue for http requests */
+                                        /* Atomic list to temporarily hold the request if the
+                                           lock for a particular queue cannot be acquired */
   ASLL(AIOCallbackInternal, alink) aio_temp_list;
   ink_mutex aio_mutex;
   ink_cond aio_cond;
-  int index           = 0;  /* position of this struct in the aio_reqs array */
-  int pending         = 0;  /* number of outstanding requests on the disk */
-  int queued          = 0;  /* total number of aio_todo requests */
-  int filedes         = -1; /* the file descriptor for the requests or status IO_NOT_IN_PROGRESS */
+  int index           = 0; /* position of this struct in the aio_reqs array */
+  int pending         = 0; /* number of outstanding requests on the disk */
+  int queued          = 0; /* total number of aio_todo and http_todo requests */
+  int filedes         = 0; /* the file descriptor for the requests */
   int requests_queued = 0;
 };
 
@@ -110,16 +115,13 @@ AIOCallbackInternal::io_complete(int event, void *data)
 {
   (void)event;
   (void)data;
-  if (aio_err_callback && !ok()) {
+  if (aio_err_callbck && !ok()) {
     AIOCallback *err_op          = new AIOCallbackInternal();
     err_op->aiocb.aio_fildes     = this->aiocb.aio_fildes;
     err_op->aiocb.aio_lio_opcode = this->aiocb.aio_lio_opcode;
-    err_op->mutex                = aio_err_callback->mutex;
-    err_op->action               = aio_err_callback;
-
-    // Take this lock in-line because we want to stop other I/O operations on this disk ASAP
-    SCOPED_MUTEX_LOCK(lock, aio_err_callback->mutex, this_ethread());
-    err_op->action.continuation->handleEvent(EVENT_NONE, err_op);
+    err_op->mutex                = aio_err_callbck->mutex;
+    err_op->action               = aio_err_callbck;
+    eventProcessor.schedule_imm(err_op);
   }
   if (!action.cancelled) {
     action.continuation->handleEvent(AIO_EVENT_DONE, this);

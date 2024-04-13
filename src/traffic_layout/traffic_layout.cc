@@ -40,14 +40,12 @@ main(int argc, const char **argv)
   engine.parser.add_global_usage("traffic_layout CMD [OPTIONS]");
 
   // global options
-  engine.parser.add_option("--help", "-h", "Print usage information")
-    .add_option("--run-root", "", "using TS_RUNROOT as sandbox", "TS_RUNROOT", 1)
-    .add_option("--version", "-V", "Print version string");
+  engine.parser.add_option("--help", "-h", "Print usage information");
+  engine.parser.add_option("--run-root", "", "using TS_RUNROOT as sandbox", "", 1);
 
   // info command
   engine.parser.add_command("info", "Show the layout as default", [&]() { engine.info(); })
     .add_option("--features", "", "Show the compiled features")
-    .add_option("--versions", "", "Show various library and other versioning information")
     .add_option("--json", "-j", "Produce output in JSON format (when supported)")
     .set_default();
   // init command
@@ -69,11 +67,10 @@ main(int argc, const char **argv)
 
   engine.arguments = engine.parser.parse(argv);
 
-  auto runroot_arg = engine.arguments.get("run-root");
-  argparser_runroot_handler(runroot_arg.value(), argv[0], engine.arguments.get("json"));
+  runroot_handler(argv, engine.arguments.get("json"));
   Layout::create();
 
   engine.arguments.invoke();
 
-  return engine.status_code;
+  return 0;
 }

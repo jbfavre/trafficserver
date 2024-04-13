@@ -123,13 +123,14 @@ public:
     OVERWRITE_INPUT_STRING = 8
   };
 
-  SimpleTokenizer(char delimiter = ' ', unsigned mode = 0, char escape = '\\') : _delimiter(delimiter), _mode(mode), _escape(escape)
+  SimpleTokenizer(char delimiter = ' ', unsigned mode = 0, char escape = '\\')
+    : _data(nullptr), _delimiter(delimiter), _mode(mode), _escape(escape), _start(0), _length(0)
   {
   }
 
-  // NOTE: The input string 's' is overwritten for mode OVERWRITE_INPUT_STRING.
+  // NOTE: The input strring 's' is overwritten for mode OVERWRITE_INPUT_STRING.
   SimpleTokenizer(const char *s, char delimiter = ' ', unsigned mode = 0, char escape = '\\')
-    : _delimiter(delimiter), _mode(mode), _escape(escape)
+    : _data(nullptr), _delimiter(delimiter), _mode(mode), _escape(escape)
   {
     setString(s);
   }
@@ -187,15 +188,15 @@ public:
   }
 
 private:
-  char *_data = nullptr; // a pointer to the input data itself,
+  char *_data; // a pointer to the input data itself,
   // or to a copy of it
   char _delimiter; // the token delimiter
   unsigned _mode;  // flags that determine the
   // mode of operation
-  char _escape;      // the escape character
-  size_t _start = 0; // pointer to the start of the next
+  char _escape;  // the escape character
+  size_t _start; // pointer to the start of the next
   // token
-  size_t _length = 0; // the length of _data
+  size_t _length; // the length of _data
 
   void
   _clearData()

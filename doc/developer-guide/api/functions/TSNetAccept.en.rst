@@ -24,9 +24,7 @@ TSNetAccept
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: TSAction TSNetAccept(TSCont contp, int port, int domain, int accept_threads)
 

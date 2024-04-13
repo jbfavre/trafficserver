@@ -23,16 +23,11 @@
 
 #pragma once
 
-#include <string_view>
-#include <string>
-
 #include "tscore/ink_platform.h"
 #include "tscore/List.h"
 #include "tscore/TsBuffer.h"
 #include "LogFieldAliasMap.h"
 #include "Milestones.h"
-
-enum LogEscapeType { LOG_ESCAPE_NONE, LOG_ESCAPE_JSON };
 
 class LogAccess;
 
@@ -52,7 +47,7 @@ struct LogSlice {
   // Initialize LogSlice by slice notation,
   // the str looks like: "xxx[0:30]".
   //
-  explicit LogSlice(char *str);
+  LogSlice(char *str);
 
   //
   // Convert slice notation to target string's offset,
@@ -81,7 +76,7 @@ public:
   typedef int (LogAccess::*MarshalFunc)(char *buf);
   typedef int (*UnmarshalFunc)(char **buf, char *dest, int len);
   typedef int (*UnmarshalFuncWithSlice)(char **buf, char *dest, int len, LogSlice *slice);
-  typedef int (*UnmarshalFuncWithMap)(char **buf, char *dest, int len, const Ptr<LogFieldAliasMap> &map);
+  typedef int (*UnmarshalFuncWithMap)(char **buf, char *dest, int len, Ptr<LogFieldAliasMap> map);
   typedef void (LogAccess::*SetFunc)(char *buf, int len);
 
   enum Type {
@@ -135,7 +130,7 @@ public:
   unsigned marshal_len(LogAccess *lad);
   unsigned marshal(LogAccess *lad, char *buf);
   unsigned marshal_agg(char *buf);
-  unsigned unmarshal(char **buf, char *dest, int len, LogEscapeType escape_type = LOG_ESCAPE_NONE);
+  unsigned unmarshal(char **buf, char *dest, int len);
   void display(FILE *fd = stdout);
   bool operator==(LogField &rhs);
   void updateField(LogAccess *lad, char *val, int len);
@@ -176,15 +171,13 @@ public:
     return m_time_field;
   }
 
-  void set_http_header_field(LogAccess *lad, LogField::Container container, char *field, char *buf, int len);
   void set_aggregate_op(Aggregate agg_op);
   void update_aggregate(int64_t val);
 
-  static void init_milestone_container();
+  static void init_milestone_container(void);
   static Container valid_container_name(char *name);
   static Aggregate valid_aggregate_name(char *name);
   static bool fieldlist_contains_aggregates(const char *fieldlist);
-  static bool isContainerUpdateFieldSupported(Container container);
 
 private:
   char *m_name;
@@ -214,6 +207,8 @@ public:
   LogField &operator=(const LogField &rhs) = delete;
 
 private:
+  // luis, check where this is used and what it does
+  //    void init (char *name, char *symbol, Type type);
   LogField();
 };
 
@@ -250,27 +245,14 @@ public:
   unsigned count();
   void display(FILE *fd = stdout);
 
-  // Add a bad symbol seen in the log format to the list of bad symbols.
-  //
-  void addBadSymbol(std::string_view badSymbol);
-
-  // Return blank-separated list of added bad symbols.
-  //
-  std::string_view
-  badSymbols() const
-  {
-    return _badSymbols;
-  }
-
   // noncopyable
   // -- member functions that are not allowed --
   LogFieldList(const LogFieldList &rhs) = delete;
   LogFieldList &operator=(const LogFieldList &rhs) = delete;
 
 private:
-  unsigned m_marshal_len = 0;
+  unsigned m_marshal_len;
   Queue<LogField> m_field_list;
-  std::string _badSymbols;
 };
 
 /** Base IP address data.

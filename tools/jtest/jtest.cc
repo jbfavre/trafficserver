@@ -92,7 +92,7 @@
 #define MAX_BUFSIZE (65536 + 4096)
 
 //
-// Constants
+// Contants
 //
 #define MAXFDS 65536
 #define HEADER_DONE -1
@@ -294,9 +294,9 @@ static const ArgumentDescription argument_descriptions[] = {
   {"alternates", 'N', "Number of Alternates", "I", &alternates, "JTEST_ALTERNATES", nullptr},
   {"client_rate", 'e', "Clients Per Sec", "I", &client_rate, "JTEST_CLIENT_RATE", nullptr},
   {"abort_retry_speed", 'o', "Abort/Retry Speed", "I", &abort_retry_speed, "JTEST_ABORT_RETRY_SPEED", nullptr},
-  {"abort_retry_bytes", ' ', "Abort/Retry Threshold (bytes)", "I", &abort_retry_bytes, "JTEST_ABORT_RETRY_THRESHHOLD_BYTES",
+  {"abort_retry_bytes", ' ', "Abort/Retry Threshhold (bytes)", "I", &abort_retry_bytes, "JTEST_ABORT_RETRY_THRESHHOLD_BYTES",
    nullptr},
-  {"abort_retry_secs", ' ', "Abort/Retry Threshold (secs)", "I", &abort_retry_secs, "JTEST_ABORT_RETRY_THRESHHOLD_SECS", nullptr},
+  {"abort_retry_secs", ' ', "Abort/Retry Threshhold (secs)", "I", &abort_retry_secs, "JTEST_ABORT_RETRY_THRESHHOLD_SECS", nullptr},
   {"reload_rate", 'W', "Reload Rate", "D", &reload_rate, "JTEST_RELOAD_RATE", nullptr},
   {"compd_port", 'O', "Compd port", "I", &compd_port, "JTEST_COMPD_PORT", nullptr},
   {"compd_suite", '1', "Compd Suite", "F", &compd_suite, "JTEST_COMPD_SUITE", nullptr},
@@ -446,7 +446,7 @@ FD::close()
 
 #define MAX_FILE_ARGUMENTS 100
 
-struct InkWebURLComponents {
+typedef struct {
   char sche[MAX_URL_LEN + 1];
   char host[MAX_URL_LEN + 1];
   char port[MAX_URL_LEN + 1];
@@ -466,7 +466,7 @@ struct InkWebURLComponents {
   int rel_url;
   int leading_slash;
   int is_path_name;
-};
+} InkWebURLComponents;
 
 static int ink_web_remove_dots(char *src, char *dest, int *leadingslash, int max_dest_len);
 
@@ -569,11 +569,11 @@ max_limit_fd()
 }
 
 static int
-read_ready(int fd_in)
+read_ready(int fd)
 {
   struct pollfd p;
   p.events = POLLIN;
-  p.fd     = fd_in;
+  p.fd     = fd;
   int r    = poll(&p, 1, 0);
   if (r <= 0) {
     return r;
@@ -606,7 +606,7 @@ static void
 poll_set(int sock, poll_cb read_cb, poll_cb write_cb = nullptr)
 {
   if (verbose) {
-    printf("adding poll %d %s %s\n", sock, read_cb ? "READ" : "-", write_cb ? "WRITE" : "-");
+    printf("adding poll %d\n", sock);
   }
   fd[sock].fd       = sock;
   fd[sock].read_cb  = read_cb;
@@ -646,8 +646,8 @@ fast(int sock, int speed, int d)
 static ink_hrtime
 elapsed_from_start(int sock)
 {
-  ink_hrtime timenow = ink_get_hrtime();
-  return ink_hrtime_diff_msec(timenow, fd[sock].start);
+  ink_hrtime now = ink_get_hrtime_internal();
+  return ink_hrtime_diff_msec(now, fd[sock].start);
 }
 
 static int
@@ -1052,7 +1052,7 @@ process_header(int sock, char *buffer, int offset)
       fd[sock].range_bytes = length - fd[sock].range_start + 1;
     } else {
       if (verbose)
-        printf("invalid 206");
+        printf("unvalid 206");
     }
     ims = nullptr;
     if (verbose) {
@@ -1769,7 +1769,7 @@ open_server(unsigned short int port, accept_fn_t accept_fn)
   }
 
   if (verbose) {
-    printf("opening server on %d port %d\n", sock, port);
+    printf("opening server on %d port %d\n", sock, name.sin_port);
   }
 
   poll_init_set(sock, accept_fn);
@@ -1788,7 +1788,7 @@ poll_loop()
   }
   pollfd pfd[POLL_GROUP_SIZE];
   int ip = 0;
-  now    = ink_get_hrtime();
+  now    = ink_get_hrtime_internal();
   for (int i = 0; i <= last_fd; i++) {
     if (fd[i].fd > 0 && (!fd[i].ready || now >= fd[i].ready)) {
       pfd[ip].fd      = i;
@@ -1958,7 +1958,7 @@ defer_url(char *url)
   if (n_defered_urls < MAX_DEFERED_URLS - 1) {
     defered_urls[n_defered_urls++] = strdup(url);
   } else {
-    fprintf(stderr, "too many deferred urls, dropping '%s'\n", url);
+    fprintf(stderr, "too many defered urls, dropping '%s'\n", url);
   }
 }
 
@@ -2409,7 +2409,7 @@ read_response(int sock)
     new_tbytes += err;
     fd[sock].req_pos += err;
     fd[sock].bytes += err;
-    fd[sock].active = ink_get_hrtime();
+    fd[sock].active = ink_get_hrtime_internal();
     int total_read  = fd[sock].req_pos;
     char *p         = fd[sock].req_header;
     char *cl        = nullptr;
@@ -2522,7 +2522,7 @@ read_response(int sock)
       }
       if (check_content && !cl) {
         if (verbose || verbose_errors) {
-          printf("missing Content-Length '%s'\n", fd[sock].base_url);
+          printf("missiing Content-Length '%s'\n", fd[sock].base_url);
         }
         return read_response_error(sock);
       }
@@ -2609,7 +2609,7 @@ read_response(int sock)
     if (fd[sock].length != INT_MAX) {
       fd[sock].length -= err;
     }
-    fd[sock].active = ink_get_hrtime();
+    fd[sock].active = ink_get_hrtime_internal();
     if (verbose) {
       printf("read %d got %d togo %d %d %d\n", sock, err, fd[sock].length, fd[sock].keepalive, fd[sock].drop_after_CL);
     }
@@ -2625,7 +2625,7 @@ Ldone:
   if (!fd[sock].client_abort && !(server_abort_rate > 0) && fd[sock].length && fd[sock].length != INT_MAX) {
     if (verbose || verbose_errors) {
       printf("bad length %d wanted %d after %d ms: '%s'\n", fd[sock].response_length - fd[sock].length, fd[sock].response_length,
-             (int)((ink_get_hrtime() - fd[sock].active) / HRTIME_MSECOND), fd[sock].base_url);
+             (int)((ink_get_hrtime_internal() - fd[sock].active) / HRTIME_MSECOND), fd[sock].base_url);
     }
     return read_response_error(sock);
   }
@@ -2683,7 +2683,7 @@ write_request(int sock)
     new_tbytes += err;
     total_client_request_bytes += err;
     fd[sock].req_pos += err;
-    fd[sock].active = ink_get_hrtime();
+    fd[sock].active = ink_get_hrtime_internal();
 
     if (fd[sock].req_pos >= fd[sock].length) {
       if (verbose) {
@@ -2726,7 +2726,7 @@ write_request(int sock)
     new_tbytes += err;
     total_client_request_bytes += err;
     fd[sock].req_pos += err;
-    fd[sock].active = ink_get_hrtime();
+    fd[sock].active = ink_get_hrtime_internal();
 
     if (fd[sock].req_pos >= fd[sock].post_size) {
       if (verbose) {
@@ -3232,7 +3232,7 @@ void
 interval_report()
 {
   static int here = 0;
-  now             = ink_get_hrtime();
+  now             = ink_get_hrtime_internal();
   if (!(here++ % 20)) {
     printf(" con  new     ops   1B  lat      bytes/per     svrs  new  ops      total   time  err\n");
   }
@@ -3673,7 +3673,7 @@ main(int argc __attribute__((unused)), const char *argv[])
     printf("maximum of %d connections\n", max_fds);
   }
   signal(SIGPIPE, SIG_IGN);
-  start_time = now = ink_get_hrtime();
+  start_time = now = ink_get_hrtime_internal();
 
   urls_mode = n_file_arguments || *urls_file;
   nclients  = client_rate ? 0 : nclients;
@@ -4279,7 +4279,7 @@ ink_web_canonicalize_url(const char *base_url, const char *emb_url, char *dest_u
     } else {
       use_base_host = 1;
 
-      /* step 4 - if emb_path preceded by slash, skip to 7 */
+      /* step 4 - if emb_path preceeded by slash, skip to 7 */
 
       if (emb.leading_slash != 1) {
         /* step 5 */
@@ -4664,7 +4664,7 @@ ink_web_remove_dots(char *src, char *dest, int *leadingslash, int max_dest_len)
 
   int ink_web_unescapify_string(...)
 
-  Takes a string that has special characters turned to %AB format
+  Takes a string that has has special characters turned to %AB format
   and converts them back to single special characters. See
   ink_web_escapify_string() above.
 

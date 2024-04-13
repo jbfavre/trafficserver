@@ -16,15 +16,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 Test.Summary = '''
 Test a basic remap of a http connection
 '''
-
+# need Curl
+Test.SkipUnless(
+    Condition.HasProgram("curl", "Curl need to be installed on system for this test to work")
+)
 Test.ContinueOnFail = True
 # Define default ATS
 ts = Test.MakeATSProcess("ts")
 server = Test.MakeOriginServer("server")
-server2 = Test.MakeOriginServer("server2", lookup_key="{%Host}{PATH}")
+server2 = Test.MakeOriginServer("server2",lookup_key="{%Host}{PATH}")
 dns = Test.MakeDNServer("dns")
 
 Test.testName = ""
@@ -38,28 +42,34 @@ response_header2 = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", "
 
 # add response to the server dictionary
 server.addResponse("sessionfile.log", request_header, response_header)
-server2.addResponse("sessionfile.log", request_header2, response_header2)
-ts.Disk.records_config.update(
-    {
-        'proxy.config.diags.debug.enabled': 1,
-        'proxy.config.diags.debug.tags': 'http.*|dns|conf_remap',
-        'proxy.config.http.referer_filter': 1,
-        'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(dns.Variables.Port),
-        'proxy.config.dns.resolv_conf': 'NULL'
-    })
-
-ts.Disk.remap_config.AddLine('map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port))
-ts.Disk.remap_config.AddLine(
-    'map_with_recv_port http://www.example2.com:{0} http://127.0.0.1:{1}'.format(ts.Variables.port, server.Variables.Port))
-ts.Disk.remap_config.AddLine('map http://www.example.com:8080 http://127.0.0.1:{0}'.format(server.Variables.Port))
-ts.Disk.remap_config.AddLine('redirect http://test3.com http://httpbin.org'.format(server.Variables.Port))
-ts.Disk.remap_config.AddLine(
-    'map_with_referer http://test4.com http://127.0.0.1:{0} http://httpbin.org (.*[.])?persia[.]com'.format(server.Variables.Port))
-ts.Disk.remap_config.AddLine('map http://testDNS.com http://audrey.hepburn.com:{0}'.format(server.Variables.Port))
+server2.addResponse("sessionfile.log",request_header2, response_header2)
+ts.Disk.records_config.update({
+    'proxy.config.diags.debug.enabled': 1,
+    'proxy.config.diags.debug.tags': 'http.*|dns|conf_remap',
+    'proxy.config.http.referer_filter': 1,
+    'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(dns.Variables.Port),
+    'proxy.config.dns.resolv_conf': 'NULL'
+})
 
 ts.Disk.remap_config.AddLine(
-    'map http://www.testexample.com http://127.0.0.1:{0} @plugin=conf_remap.so @pparam=proxy.config.url_remap.pristine_host_hdr=1'
-    .format(server2.Variables.Port))
+    'map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port)
+)
+ts.Disk.remap_config.AddLine(
+    'map http://www.example.com:8080 http://127.0.0.1:{0}'.format(server.Variables.Port)
+)
+ts.Disk.remap_config.AddLine(
+    'redirect http://test3.com http://httpbin.org'.format(server.Variables.Port)
+)
+ts.Disk.remap_config.AddLine(
+    'map_with_referer http://test4.com http://127.0.0.1:{0} http://httpbin.org (.*[.])?persia[.]com'.format(server.Variables.Port)
+)
+ts.Disk.remap_config.AddLine(
+    'map http://testDNS.com http://audrey.hepburn.com:{0}'.format(server.Variables.Port)
+)
+
+ts.Disk.remap_config.AddLine(
+    'map http://www.testexample.com http://127.0.0.1:{0} @plugin=conf_remap.so @pparam=proxy.config.url_remap.pristine_host_hdr=1'.format(server2.Variables.Port)
+)
 
 dns.addRecords(records={"audrey.hepburn.com.": ["127.0.0.1"]})
 dns.addRecords(records={"whatever.com.": ["127.0.0.1"]})
@@ -68,6 +78,7 @@ dns.addRecords(records={"whatever.com.": ["127.0.0.1"]})
 tr = Test.AddTestRun()
 tr.Processes.Default.Command = 'curl "http://127.0.0.1:{0}/" --verbose'.format(ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
+# time delay as proxy.config.http.wait_for_cache could be broken
 tr.Processes.Default.StartBefore(server)
 tr.Processes.Default.StartBefore(dns)
 tr.Processes.Default.StartBefore(Test.Processes.ts)
@@ -80,13 +91,6 @@ tr.Processes.Default.Command = 'curl --proxy 127.0.0.1:{0} "http://www.example.c
     ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stderr = "gold/remap-200.gold"
-
-# www.example2.com host (match on receive port)
-tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'curl --proxy 127.0.0.1:{0} "http://www.example2.com"  -H "Proxy-Connection: keep-alive" --verbose'.format(
-    ts.Variables.port)
-tr.Processes.Default.ReturnCode = 0
-tr.Processes.Default.Streams.stderr = "gold/remap2-200.gold"
 
 # www.example.com:80 host
 tr = Test.AddTestRun()
@@ -138,14 +142,14 @@ tr.Processes.Default.Streams.stderr = "gold/remap-referer-hit.gold"
 
 # DNS test
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'curl  --proxy 127.0.0.1:{0} "http://testDNS.com" --verbose'.format(ts.Variables.port)
+tr.Processes.Default.Command = 'curl  --proxy 127.0.0.1:{0} "http://testDNS.com" --verbose'.format(
+    ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.Streams.stderr = "gold/remap-DNS-200.gold"
 
 # microserver lookup test
 tr = Test.AddTestRun()
-tr.Processes.Default.Command = 'curl --proxy 127.0.0.1:{0} "http://www.testexample.com/test" -H "Host: www.testexample.com" --verbose'.format(
-    ts.Variables.port)
+tr.Processes.Default.Command = 'curl --proxy 127.0.0.1:{0} "http://www.testexample.com/test" -H "Host: www.testexample.com" --verbose'.format(ts.Variables.port)
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.StartBefore(server2)
 tr.Processes.Default.Streams.stderr = "gold/lookupTest.gold"

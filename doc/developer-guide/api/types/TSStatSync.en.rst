@@ -22,9 +22,7 @@ TSStatSync
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. c:type:: TSStatSync
 
@@ -35,11 +33,11 @@ Enumeration Members
 
 .. c:member:: TSStatSync TS_STAT_SYNC_SUM
 
-   This stat sync type should be used for gauge metrics (i.e can increase or decrease with time). It may be manipulated using TSStatIntIncrement, TSStatIntDecrement, TSStatIntSet. E.g for counting number of available origin-servers or number of active threads.
+   Values should add be summed.
 
 .. c:member:: TSStatSync TS_STAT_SYNC_COUNT
 
-   This stat sync type should be used for counter metrics (i.e it should only increase with time). It should only be manipulated using TSStatIntIncrement. E.g for tracking call counts or uptime.
+   Values should be added together.
 
 .. c:member:: TSStatSync TS_STAT_SYNC_AVG
 

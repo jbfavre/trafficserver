@@ -21,7 +21,9 @@
   limitations under the License.
  */
 
-#pragma once
+#ifndef _ESI_SPECIAL_INCLUDE_HANDLER
+
+#define _ESI_SPECIAL_INCLUDE_HANDLER
 
 #include "HttpDataFetcher.h"
 #include "Variables.h"
@@ -67,3 +69,5 @@ protected:
   HttpDataFetcher &_http_fetcher;
 };
 }; // namespace EsiLib
+
+#endif

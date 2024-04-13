@@ -31,14 +31,14 @@ Http2SessionAccept::Http2SessionAccept(const HttpSessionAccept::Options &_o) : S
   SET_HANDLER(&Http2SessionAccept::mainEvent);
 }
 
-Http2SessionAccept::~Http2SessionAccept() = default;
+Http2SessionAccept::~Http2SessionAccept() {}
 
 bool
 Http2SessionAccept::accept(NetVConnection *netvc, MIOBuffer *iobuf, IOBufferReader *reader)
 {
-  sockaddr const *client_ip = netvc->get_remote_addr();
-  IpAllow::ACL session_acl  = IpAllow::match(client_ip, IpAllow::SRC_ADDR);
-  if (!session_acl.isValid()) {
+  sockaddr const *client_ip           = netvc->get_remote_addr();
+  const AclRecord *session_acl_record = testIpAllowPolicy(client_ip);
+  if (!session_acl_record) {
     ip_port_text_buffer ipb;
     Warning("HTTP/2 client '%s' prohibited by ip-allow policy", ats_ip_ntop(client_ip, ipb, sizeof(ipb)));
     return false;
@@ -54,12 +54,11 @@ Http2SessionAccept::accept(NetVConnection *netvc, MIOBuffer *iobuf, IOBufferRead
   }
 
   Http2ClientSession *new_session = THREAD_ALLOC_INIT(http2ClientSessionAllocator, this_ethread());
-  new_session->acl                = std::move(session_acl);
-  new_session->accept_options     = &options;
-
-  // Pin session to current ET_NET thread
-  new_session->setThreadAffinity(this_ethread());
-  new_session->new_connection(netvc, iobuf, reader);
+  new_session->host_res_style     = ats_host_res_from(client_ip->sa_family, options.host_res_preference);
+  new_session->outbound_ip4       = options.outbound_ip4;
+  new_session->outbound_ip6       = options.outbound_ip6;
+  new_session->outbound_port      = options.outbound_port;
+  new_session->new_connection(netvc, iobuf, reader, false /* backdoor */);
 
   return true;
 }
@@ -67,11 +66,12 @@ Http2SessionAccept::accept(NetVConnection *netvc, MIOBuffer *iobuf, IOBufferRead
 int
 Http2SessionAccept::mainEvent(int event, void *data)
 {
+  NetVConnection *netvc;
   ink_release_assert(event == NET_EVENT_ACCEPT || event == EVENT_ERROR);
   ink_release_assert((event == NET_EVENT_ACCEPT) ? (data != nullptr) : (1));
 
   if (event == NET_EVENT_ACCEPT) {
-    NetVConnection *netvc = static_cast<NetVConnection *>(data);
+    netvc = static_cast<NetVConnection *>(data);
     if (!this->accept(netvc, nullptr, nullptr)) {
       netvc->do_io_close();
     }
@@ -84,6 +84,6 @@ Http2SessionAccept::mainEvent(int event, void *data)
     HTTP_SUM_DYN_STAT(http_ua_msecs_counts_errors_pre_accept_hangups_stat, 0);
   }
 
-  ink_abort("HTTP/2 accept received fatal error: errno = %d", -(static_cast<int>((intptr_t)data)));
+  ink_abort("HTTP/2 accept received fatal error: errno = %d", -((int)(intptr_t)data));
   return EVENT_CONT;
 }

@@ -20,29 +20,21 @@ Header Frequency Plugin
   specific language governing permissions and limitations
   under the License.
 
-The Header Frequency plugin keeps track of the number of times headers have been
-seen in transactions. Two separate counteres are kept for the origin and the
-client. This information is accessible via the ``log`` plugin message.  By
-default the data is sent to traffic.out but it can alternatively be appended to
-an arbitrary file. The following logs the stats to ``traffic.out``::
+The Header Frequency plugin keeps track of the number of times headers
+have been seen in transactions. Two separate counteres are kept for
+the origin and the client. This information is accessible via ::
 
     traffic_ctl plugin msg header_freq log
-
-The following appends the stats to ``/tmp/log.txt``. Note that this file must be
-writeable by the traffic_server process's user::
-
-    traffic_ctl plugin msg header_freq log:/tmp/log.txt
-
 
 Installation
 ------------
 
-Since Header Frequency plugin is an expiremental plugin, traffic_server must be configured
-to build experimental plugins in order to use it::
+This plugin is only built if the configure option ::
 
     --enable-experimental-plugins
 
+is given at build time.
 
-Once built, add the following line to :file:`plugin.config` and restart traffic_server to use it::
+Add the following line to :file:`plugin.config`::
 
     header_freq.so

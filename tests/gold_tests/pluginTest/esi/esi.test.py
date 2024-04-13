@@ -23,7 +23,9 @@ Test.Summary = '''
 Test the ESI plugin.
 '''
 
-Test.SkipUnless(Condition.PluginExists('esi.so'),)
+Test.SkipUnless(
+    Condition.PluginExists('esi.so'),
+)
 
 
 class EsiTest():
@@ -31,12 +33,16 @@ class EsiTest():
     A class that encapsulates the configuration and execution of a set of EPI
     test cases.
     """
+
     """ static: The same server Process is used across all tests. """
     _server = None
+
     """ static: A counter to keep the ATS process names unique across tests. """
     _ts_counter = 0
+
     """ static: A counter to keep any output file names unique across tests. """
     _output_counter = 0
+
     """ The ATS process for this set of test cases. """
     _ts = None
 
@@ -63,9 +69,10 @@ class EsiTest():
         # See:
         #   doc/admin-guide/plugins/esi.en.rst
         request_header = {
-            "headers": ("GET /esi.php HTTP/1.1\r\n"
-                        "Host: www.example.com\r\n"
-                        "Content-Length: 0\r\n\r\n"),
+            "headers": (
+                "GET /esi.php HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Content-Length: 0\r\n\r\n"),
             "timestamp": "1469733493.993",
             "body": ""
         }
@@ -77,23 +84,23 @@ Hello, <esi:include src="http://www.example.com/date.php"/>
 </html>
 '''
         response_header = {
-            "headers":
-                (
-                    "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/html\r\n"
-                    "X-Esi: 1\r\n"
-                    "Connection: close\r\n"
-                    "Content-Length: {}\r\n"
-                    "Cache-Control: max-age=300\r\n"
-                    "\r\n".format(len(esi_body))),
+            "headers": (
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/html\r\n"
+                "X-Esi: 1\r\n"
+                "Connection: close\r\n"
+                "Content-Length: {}\r\n"
+                "Cache-Control: max-age=300\r\n"
+                "\r\n".format(len(esi_body))),
             "timestamp": "1469733493.993",
             "body": esi_body
         }
         server.addResponse("sessionfile.log", request_header, response_header)
         request_header = {
-            "headers": ("GET /date.php HTTP/1.1\r\n"
-                        "Host: www.example.com\r\n"
-                        "Content-Length: 0\r\n\r\n"),
+            "headers": (
+                "GET /date.php HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Content-Length: 0\r\n\r\n"),
             "timestamp": "1469733493.993",
             "body": ""
         }
@@ -103,35 +110,34 @@ echo date('l jS \of F Y h:i:s A');
 ?>
 '''
         response_header = {
-            "headers":
-                (
-                    "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/html\r\n"
-                    "Connection: close\r\n"
-                    "Content-Length: {}\r\n"
-                    "Cache-Control: max-age=300\r\n"
-                    "\r\n".format(len(date_body))),
+            "headers": (
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/html\r\n"
+                "Connection: close\r\n"
+                "Content-Length: {}\r\n"
+                "Cache-Control: max-age=300\r\n"
+                "\r\n".format(len(date_body))),
             "timestamp": "1469733493.993",
             "body": date_body
         }
         server.addResponse("sessionfile.log", request_header, response_header)
         # Verify correct functionality with an empty body.
         request_header = {
-            "headers": ("GET /expect_empty_body HTTP/1.1\r\n"
-                        "Host: www.example.com\r\n"
-                        "Content-Length: 0\r\n\r\n"),
+            "headers": (
+                "GET /expect_empty_body HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Content-Length: 0\r\n\r\n"),
             "timestamp": "1469733493.993",
             "body": ""
         }
         response_header = {
-            "headers":
-                (
-                    "HTTP/1.1 200 OK\r\n"
-                    "X-ESI: On\r\n"
-                    "Content-Length: 0\r\n"
-                    "Connection: close\r\n"
-                    "Content-Type: text/html; charset=UTF-8\r\n"
-                    "\r\n"),
+            "headers": (
+                "HTTP/1.1 200 OK\r\n"
+                "X-ESI: On\r\n"
+                "Content-Length: 0\r\n"
+                "Connection: close\r\n"
+                "Content-Type: text/html; charset=UTF-8\r\n"
+                "\r\n"),
             "timestamp": "1469733493.993",
             "body": ""
         }
@@ -159,7 +165,9 @@ echo date('l jS \of F Y h:i:s A');
             'proxy.config.diags.debug.enabled': 1,
             'proxy.config.diags.debug.tags': 'http|plugin_esi',
         })
-        ts.Disk.remap_config.AddLine('map http://www.example.com/ http://127.0.0.1:{0}'.format(EsiTest._server.Variables.Port))
+        ts.Disk.remap_config.AddLine(
+            'map http://www.example.com/ http://127.0.0.1:{0}'.format(EsiTest._server.Variables.Port)
+        )
         ts.Disk.plugin_config.AddLine(plugin_config)
 
         # Create a run to start the ATS process.
@@ -198,7 +206,9 @@ echo date('l jS \of F Y h:i:s A');
         # Test 3: Verify the ESI plugin can gzip a response when the client accepts it.
         tr = Test.AddTestRun("Verify the ESI plugin can gzip a response")
         EsiTest._output_counter += 1
-        unzipped_body_file = os.path.join(tr.RunDirectory, "non_empty_curl_output_{}".format(EsiTest._output_counter))
+        unzipped_body_file = os.path.join(
+                tr.RunDirectory,
+                "non_empty_curl_output_{}".format(EsiTest._output_counter))
         gzipped_body_file = unzipped_body_file + ".gz"
         tr.Processes.Default.Command = \
             ('curl http://127.0.0.1:{0}/esi.php -H"Host: www.example.com" '
@@ -213,7 +223,7 @@ echo date('l jS \of F Y h:i:s A');
         zipped_body_disk_file.Exists = True
 
         # Now, unzip the file and make sure its size is the expected body.
-        tr = Test.AddTestRun("Verify the file unzips to the expected body.")
+        tr = Test.AddTestRun("Verify the file uzips to the expected body.")
         tr.Processes.Default.Command = "gunzip {}".format(gzipped_body_file)
         tr.Processes.Default.Ready = When.FileExists(unzipped_body_file)
         tr.Processes.Default.ReturnCode = 0
@@ -223,7 +233,9 @@ echo date('l jS \of F Y h:i:s A');
         # Test 4: Verify correct handling of a gzipped empty response body.
         tr = Test.AddTestRun("Verify we can handle an empty response.")
         EsiTest._output_counter += 1
-        empty_body_file = os.path.join(tr.RunDirectory, "empty_curl_output_{}".format(EsiTest._output_counter))
+        empty_body_file = os.path.join(
+                tr.RunDirectory,
+                "empty_curl_output_{}".format(EsiTest._output_counter))
         gzipped_empty_body = empty_body_file + ".gz"
         tr.Processes.Default.Command = \
             ('curl http://127.0.0.1:{0}/expect_empty_body -H"Host: www.example.com" '
@@ -240,7 +252,7 @@ echo date('l jS \of F Y h:i:s A');
         gz_disk_file.Size = Testers.GreaterThan(0)
 
         # Now, unzip the file and make sure its size is the original 0 size body.
-        tr = Test.AddTestRun("Verify the file unzips to a zero sized file.")
+        tr = Test.AddTestRun("Verify the file uzips to a zero sized file.")
         tr.Processes.Default.Command = "gunzip {}".format(gzipped_empty_body)
         tr.Processes.Default.Ready = When.FileExists(empty_body_file)
         tr.Processes.Default.ReturnCode = 0
@@ -289,14 +301,8 @@ first_byte_flush_test.run_cases_expecting_gzip()
 
 # For these test cases, the behavior should remain the same with
 # --packed-node-support set.
-#
-# Packed node support is incomplete and the following test does not work. Our
-# documentation advises users not to use the --packed-node-support feature.
-# This test is left here, commented out, so that it is conveniently available
-# for and potential future development on this feature if desired.
-#
-# packed_node_support_test = EsiTest(plugin_config='esi.so --packed-node-support')
-# packed_node_support_test.run_cases_expecting_gzip()
+packed_node_support_test = EsiTest(plugin_config='esi.so --packed-node-support')
+packed_node_support_test.run_cases_expecting_gzip()
 
 # Run a set of cases verifying that the plugin does not zip content if
 # --disable-gzip-output is set.

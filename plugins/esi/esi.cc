@@ -30,6 +30,7 @@
 #include <string>
 #include <list>
 #include <arpa/inet.h>
+#include <pthread.h>
 #include <getopt.h>
 
 #include "ts/ts.h"
@@ -46,6 +47,7 @@
 #include "serverIntercept.h"
 #include "Stats.h"
 #include "HttpDataFetcherImpl.h"
+#include "FailureInfo.h"
 using std::string;
 using std::list;
 using namespace EsiLib;
@@ -59,7 +61,7 @@ struct OptionInfo {
 };
 
 static HandlerManager *gHandlerManager = nullptr;
-static Utils::HeaderValueList gAllowlistCookies;
+static Utils::HeaderValueList gWhitelistCookies;
 
 #define DEBUG_TAG "plugin_esi"
 #define PROCESSOR_DEBUG_TAG "plugin_esi_processor"
@@ -169,13 +171,13 @@ class TSStatSystem : public StatSystem
 {
 public:
   void
-  create(int handle) override
+  create(int handle)
   {
     g_stat_indices[handle] = TSStatCreate(Stats::STAT_NAMES[handle], TS_RECORDDATATYPE_INT, TS_STAT_PERSISTENT, TS_STAT_SYNC_COUNT);
   }
-
+  //  void increment(int handle, TSMgmtInt step = 1) {
   void
-  increment(int handle, int step = 1) override
+  increment(int handle, int step = 1)
   {
     TSStatIntIncrement(g_stat_indices[handle], step);
   }
@@ -254,7 +256,7 @@ ContData::init()
       data_fetcher = new HttpDataFetcherImpl(contp, client_addr, createDebugTag(FETCHER_DEBUG_TAG, contp, fetcher_tag));
     }
     if (!esi_vars) {
-      esi_vars = new Variables(createDebugTag(VARS_DEBUG_TAG, contp, vars_tag), &TSDebug, &TSError, gAllowlistCookies);
+      esi_vars = new Variables(createDebugTag(VARS_DEBUG_TAG, contp, vars_tag), &TSDebug, &TSError, gWhitelistCookies);
     }
 
     esi_proc = new EsiProcessor(
@@ -288,7 +290,7 @@ ContData::getClientState()
 
   if (!esi_vars) {
     string vars_tag;
-    esi_vars = new Variables(createDebugTag(VARS_DEBUG_TAG, contp, vars_tag), &TSDebug, &TSError, gAllowlistCookies);
+    esi_vars = new Variables(createDebugTag(VARS_DEBUG_TAG, contp, vars_tag), &TSDebug, &TSError, gWhitelistCookies);
   }
   if (!data_fetcher) {
     string fetcher_tag;
@@ -510,6 +512,7 @@ ContData::~ContData()
 static int
 removeCacheHandler(TSCont contp, TSEvent /* event ATS_UNUSED */, void * /* edata ATS_UNUSED */)
 {
+  // TSDebug(DEBUG_TAG, "[%s] event: %d", __FUNCTION__, (int)event);
   TSContDestroy(contp);
   // just ignore cache remove message
   return 0;
@@ -609,7 +612,7 @@ cacheNodeList(ContData *cont_data)
   string body("");
   cont_data->esi_proc->packNodeList(body, false);
   char buf[64];
-  snprintf(buf, 64, "%s: %d\r\n\r\n", TS_MIME_FIELD_CONTENT_LENGTH, static_cast<int>(body.size()));
+  snprintf(buf, 64, "%s: %d\r\n\r\n", TS_MIME_FIELD_CONTENT_LENGTH, (int)body.size());
 
   post_request.append(buf);
   post_request.append(body);
@@ -710,8 +713,7 @@ transformData(TSCont contp)
   if (process_input_complete) {
     TSDebug(cont_data->debug_tag, "[%s] Completed reading input", __FUNCTION__);
     if (cont_data->input_type == DATA_TYPE_PACKED_ESI) {
-      TSDebug(DEBUG_TAG, "[%s] Going to use packed node list of size %d", __FUNCTION__,
-              static_cast<int>(cont_data->packed_node_list.size()));
+      TSDebug(DEBUG_TAG, "[%s] Going to use packed node list of size %d", __FUNCTION__, (int)cont_data->packed_node_list.size());
       if (cont_data->esi_proc->usePackedNodeList(cont_data->packed_node_list) == EsiProcessor::UNPACK_FAILURE) {
         removeCacheKey(cont_data->txnp);
 
@@ -775,7 +777,7 @@ transformData(TSCont contp)
             out_data     = "";
           } else {
             TSDebug(cont_data->debug_tag, "[%s] Compressed document from size %d to %d bytes via gzip", __FUNCTION__, out_data_len,
-                    static_cast<int>(cdata.size()));
+                    (int)cdata.size());
             out_data_len = cdata.size();
             out_data     = cdata.data();
           }
@@ -822,7 +824,7 @@ transformData(TSCont contp)
 
     if (retval == EsiProcessor::SUCCESS) {
       TSDebug(cont_data->debug_tag, "[%s] ESI processor output document of size %d starting with [%.10s]", __FUNCTION__,
-              static_cast<int>(out_data.size()), (out_data.size() ? out_data.data() : "(null)"));
+              (int)out_data.size(), (out_data.size() ? out_data.data() : "(null)"));
     } else {
       TSError("[esi][%s] ESI processor failed to process document; will return empty document", __FUNCTION__);
       out_data.assign("");
@@ -840,7 +842,7 @@ transformData(TSCont contp)
           TSError("[esi][%s] Error while gzipping content", __FUNCTION__);
         } else {
           TSDebug(cont_data->debug_tag, "[%s] Compressed document from size %d to %d bytes via EsiGzip", __FUNCTION__,
-                  static_cast<int>(out_data.size()), static_cast<int>(cdata.size()));
+                  (int)out_data.size(), (int)cdata.size());
         }
         if (TSIOBufferWrite(TSVIOBufferGet(cont_data->output_vio), cdata.data(), cdata.size()) == TS_ERROR) {
           TSError("[esi][%s] Error while writing bytes to downstream VC", __FUNCTION__);
@@ -997,8 +999,8 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
     }
   }
 
-  TSDebug(cont_data->debug_tag, "[%s] transformHandler, event: %d, curr_state: %d", __FUNCTION__, static_cast<int>(event),
-          static_cast<int>(cont_data->curr_state));
+  TSDebug(cont_data->debug_tag, "[%s] transformHandler, event: %d, curr_state: %d", __FUNCTION__, (int)event,
+          (int)cont_data->curr_state);
 
   shutdown = (cont_data->xform_closed && (cont_data->curr_state == ContData::PROCESSING_COMPLETE));
   if (shutdown) {
@@ -1007,7 +1009,7 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
       // lock on our continuation which will fail if we destroy
       // ourselves right now
       TSDebug(cont_debug_tag, "[%s] Deferring shutdown as data event was just processed", __FUNCTION__);
-      TSContScheduleOnPool(contp, 10, TS_THREAD_POOL_TASK);
+      TSContSchedule(contp, 10, TS_THREAD_POOL_TASK);
     } else {
       goto lShutdown;
     }
@@ -1292,20 +1294,6 @@ isTxnTransformable(TSHttpTxn txnp, bool is_cache_txn, bool *intercept_header, bo
     return false;
   }
 
-  // if origin returns status 304, check cached response instead
-  int response_status;
-  if (is_cache_txn == false) {
-    response_status = TSHttpHdrStatusGet(bufp, hdr_loc);
-    if (response_status == TS_HTTP_STATUS_NOT_MODIFIED) {
-      TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-      header_obtained = TSHttpTxnCachedRespGet(txnp, &bufp, &hdr_loc);
-      if (header_obtained != TS_SUCCESS) {
-        TSError("[esi][%s] Couldn't get txn cache response header", __FUNCTION__);
-        return false;
-      }
-    }
-  }
-
   do {
     *intercept_header = checkHeaderValue(bufp, hdr_loc, SERVER_INTERCEPT_HEADER, SERVER_INTERCEPT_HEADER_LEN);
     if (*intercept_header) {
@@ -1349,6 +1337,13 @@ isCacheObjTransformable(TSHttpTxn txnp, bool *intercept_header, bool *head_only)
     return false;
   }
   if (obj_status == TS_CACHE_LOOKUP_HIT_FRESH) {
+    /*
+    time_t respTime;
+    if (TSHttpTxnCachedRespTimeGet(txnp, &respTime) == TS_SUCCESS) {
+      TSError("[%s] RespTime; %d", __FUNCTION__, (int)respTime);
+    }
+    */
+
     TSDebug(DEBUG_TAG, "[%s] doc found in cache, will add transformation", __FUNCTION__);
     return isTxnTransformable(txnp, true, intercept_header, head_only);
   }
@@ -1494,14 +1489,15 @@ lFail:
   return false;
 }
 
+pthread_key_t threadKey = 0;
 static int
 globalHookHandler(TSCont contp, TSEvent event, void *edata)
 {
-  TSHttpTxn txnp                 = static_cast<TSHttpTxn>(edata);
+  TSHttpTxn txnp                 = (TSHttpTxn)edata;
   bool intercept_header          = false;
   bool head_only                 = false;
   bool intercept_req             = isInterceptRequest(txnp);
-  struct OptionInfo *pOptionInfo = static_cast<struct OptionInfo *>(TSContDataGet(contp));
+  struct OptionInfo *pOptionInfo = (struct OptionInfo *)TSContDataGet(contp);
 
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
@@ -1538,7 +1534,7 @@ globalHookHandler(TSCont contp, TSEvent event, void *edata)
         TSDebug(DEBUG_TAG, "[%s] handling cache lookup complete event", __FUNCTION__);
         if (isCacheObjTransformable(txnp, &intercept_header, &head_only)) {
           // we make the assumption above that a transformable cache
-          // object would already have a transformation. We should revisit
+          // object would already have a tranformation. We should revisit
           // that assumption in case we change the statement below
           addTransform(txnp, false, intercept_header, head_only, pOptionInfo);
           Stats::increment(Stats::N_CACHE_DOCS);
@@ -1567,7 +1563,7 @@ loadHandlerConf(const char *file_name, Utils::KeyValueMap &handler_conf)
       conf_lines.push_back(string(buf));
     }
     TSfclose(conf_file);
-    Utils::parseKeyValueConfig(conf_lines, handler_conf, gAllowlistCookies);
+    Utils::parseKeyValueConfig(conf_lines, handler_conf, gWhitelistCookies);
     TSDebug(DEBUG_TAG, "[%s] Loaded handler conf file [%s]", __FUNCTION__, file_name);
   } else {
     TSError("[esi][%s] Failed to open handler config file [%s]", __FUNCTION__, file_name);
@@ -1603,7 +1599,7 @@ esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptionInfo)
     };
 
     int longindex = 0;
-    while ((c = getopt_long(argc, const_cast<char *const *>(argv), "npzbf:", longopts, &longindex)) != -1) {
+    while ((c = getopt_long(argc, (char *const *)argv, "npzbf:", longopts, &longindex)) != -1) {
       switch (c) {
       case 'n':
         pOptionInfo->packed_node_support = true;
@@ -1629,14 +1625,28 @@ esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptionInfo)
     }
   }
 
-  TSDebug(DEBUG_TAG,
-          "[%s] Plugin started, "
-          "packed-node-support: %d, private-response: %d, "
-          "disable-gzip-output: %d, first-byte-flush: %d ",
-          __FUNCTION__, pOptionInfo->packed_node_support, pOptionInfo->private_response, pOptionInfo->disable_gzip_output,
-          pOptionInfo->first_byte_flush);
+  int result = 0;
+  bool bKeySet;
+  if (threadKey == 0) {
+    bKeySet = true;
+    if ((result = pthread_key_create(&threadKey, nullptr)) != 0) {
+      TSError("[esi][%s] Could not create key", __FUNCTION__);
+      TSDebug(DEBUG_TAG, "[%s] Could not create key", __FUNCTION__);
+    }
+  } else {
+    bKeySet = false;
+  }
 
-  return 0;
+  if (result == 0) {
+    TSDebug(DEBUG_TAG,
+            "[%s] Plugin started%s, "
+            "packed-node-support: %d, private-response: %d, "
+            "disable-gzip-output: %d, first-byte-flush: %d ",
+            __FUNCTION__, bKeySet ? " and key is set" : "", pOptionInfo->packed_node_support, pOptionInfo->private_response,
+            pOptionInfo->disable_gzip_output, pOptionInfo->first_byte_flush);
+  }
+
+  return result;
 }
 
 void
@@ -1652,9 +1662,9 @@ TSPluginInit(int argc, const char *argv[])
     return;
   }
 
-  struct OptionInfo *pOptionInfo = static_cast<struct OptionInfo *>(TSmalloc(sizeof(struct OptionInfo)));
+  struct OptionInfo *pOptionInfo = (struct OptionInfo *)TSmalloc(sizeof(struct OptionInfo));
   if (pOptionInfo == nullptr) {
-    TSError("[esi][%s] malloc %d bytes fail", __FUNCTION__, static_cast<int>(sizeof(struct OptionInfo)));
+    TSError("[esi][%s] malloc %d bytes fail", __FUNCTION__, (int)sizeof(struct OptionInfo));
     return;
   }
   if (esiPluginInit(argc, argv, pOptionInfo) != 0) {
@@ -1718,10 +1728,10 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
   }
   new_argv[index] = nullptr;
 
-  struct OptionInfo *pOptionInfo = static_cast<struct OptionInfo *>(TSmalloc(sizeof(struct OptionInfo)));
+  struct OptionInfo *pOptionInfo = (struct OptionInfo *)TSmalloc(sizeof(struct OptionInfo));
   if (pOptionInfo == nullptr) {
-    snprintf(errbuf, errbuf_size, "malloc %d bytes fail", static_cast<int>(sizeof(struct OptionInfo)));
-    TSError("[esi][%s] malloc %d bytes fail", __FUNCTION__, static_cast<int>(sizeof(struct OptionInfo)));
+    snprintf(errbuf, errbuf_size, "malloc %d bytes fail", (int)sizeof(struct OptionInfo));
+    TSError("[esi][%s] malloc %d bytes fail", __FUNCTION__, (int)sizeof(struct OptionInfo));
     return TS_ERROR;
   }
   if (esiPluginInit(index, new_argv, pOptionInfo) != 0) {

@@ -18,11 +18,12 @@
 #
 import re
 import sys
+import string
 
 try:
     src_dir = sys.argv[1]
 except IndexError:
-    print(f"Usage: {sys.argv[0]} [trafficserver_source_dir]")
+    print("Usage: %s [trafficserver_source_dir]" % sys.argv[0])
     print("Compares values in RecordsConfig.cc with the default records.config file")
     sys.exit(1)
 
@@ -31,10 +32,14 @@ ignore_keys = {
     "proxy.config.ssl.server.cert.path": 1,
     "proxy.config.admin.user_id": 1,
     "proxy.config.ssl.client.cert.path": 1,
+    "proxy.config.alarm_email": 1,
     "proxy.config.log.logfile_dir": 1,
     "proxy.config.ssl.CA.cert.path": 1,
+    "proxy.config.ssl.server.private_key.path": 1,
     "proxy.config.ssl.client.CA.cert.path": 1,
     "proxy.config.ssl.server.private_key.path": 1,
+    "proxy.config.ssl.client.CA.cert.path": 1,
+    "proxy.config.config_dir": 1,
     "proxy.config.proxy_name": 1,
     "proxy.config.ssl.client.private_key.path": 1,
     "proxy.config.net.defer_accept": 1  # Specified in RecordsConfig.cc funny
@@ -45,7 +50,7 @@ rc_in = {}  # records.config.in values
 rc_doc = {}  # documented values
 
 # Process RecordsConfig.cc
-with open(f"{src_dir}/mgmt/RecordsConfig.cc") as fh:
+with open("%s/mgmt/RecordsConfig.cc" % src_dir) as fh:
     cc_re = re.compile(r'\{RECT_(?:CONFIG|LOCAL), "([^"]+)", RECD_([A-Z]+), (.+?), ')
     for line in fh:
         m = cc_re.search(line)
@@ -56,16 +61,16 @@ with open(f"{src_dir}/mgmt/RecordsConfig.cc") as fh:
             rc_cc[m.group(1)] = (m.group(2), value)
 
 # Process records.config.default.in
-with open(f"{src_dir}/configs/records.config.default.in") as fh:
+with open("%s/configs/records.config.default.in" % src_dir) as fh:
     in_re = re.compile(r'(?:CONFIG|LOCAL) (\S+)\s+(\S+)\s+(\S+)')
     for line in fh:
         m = in_re.match(line)
         if m:
             rc_in[m.group(1)] = (m.group(2), m.group(3))
 
-# Process records.config documentation.
+# Process records.comfig documentation.
 # eg. .. ts:cv:: CONFIG proxy.config.proxy_binary STRING traffic_server
-with open(f"{src_dir}/doc/admin-guide/files/records.config.en.rst") as fh:
+with open("%s/doc/admin-guide/files/records.config.en.rst" % src_dir) as fh:
     doc_re = re.compile(r'ts:cv:: CONFIG (\S+)\s+(\S+)\s+(\S+)')
     for line in fh:
         m = doc_re.search(line)
@@ -102,10 +107,11 @@ if len(defaults) > 0:
     for d in sorted(defaults):
         print("\t%s %s -> %s" % (d, "%s %s" % rc_cc[d], "%s %s" % rc_doc[d]))
 
+
 # Search for stale documentation ...
 stale = [k for k in rc_doc if k not in rc_cc]
 if (len(stale) > 0):
     print()
     print("Stale documentation:")
     for s in sorted(stale):
-        print(f"\t{s}")
+        print("\t%s" % (s))

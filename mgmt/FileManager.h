@@ -1,6 +1,6 @@
 /** @file
 
-  Interface for class to manage configuration updates
+  A brief file description
 
   @section license License
 
@@ -23,15 +23,22 @@
 
 #pragma once
 
-#include "tscore/ink_mutex.h"
+/****************************************************************************
+ *
+ *  FileManager.h - Interface for class to manage configuration updates
+ *
+ *
+ ****************************************************************************/
+
+#include <cstdio>
+
+#include "tscore/ink_hash_table.h"
 #include "tscore/List.h"
+#include "Rollback.h"
 
-#include <unordered_map>
+class Rollback;
 
-class ExpandingArray;
-class ConfigManager;
-
-typedef void (*FileCallbackFunc)(char *, char *);
+typedef void (*FileCallbackFunc)(char *, bool);
 
 struct callbackListable {
 public:
@@ -43,17 +50,18 @@ enum lockAction_t {
   ACQUIRE_LOCK,
   RELEASE_LOCK,
 };
+class ExpandingArray;
 
 //  class FileManager
 //
 //  public functions:
 //
-//  addFile(char*, char *, bool, configFileInfo*) - adds a new config file to be
-//       managed.  A ConfigManager object is created for the file.
+//  addFile(char*, configFileInfo*) - adds a new config file to be
+//       managed.  A rollback object is created for the file.
 //       if the file_info ptr is not NULL, a WebFileEdit object
 //       is also created
 //
-//  getRollbckObj(char* , ConfigManagerPtr**) - sets *rbPtr to ConfigManager
+//  getRollbckObj(char* , RollbackPtr**) - sets *rbPtr to Rollback
 //       object bound to fileName.  Returns true if there is
 //       a binding and false otherwise
 //
@@ -62,11 +70,11 @@ enum lockAction_t {
 //       a binding and false otherwise
 //
 //  registerCallback(FileCallbackFunc) - registers a callback function
-//       which will get called every time a managed file changes.  The
+//       which will get called everytime a managed file changes.  The
 //       callback function should NOT use the calling thread to
-//       access any ConfigManager objects or block for a long time
+//       access any Rollback objects or block for a long time
 //
-//  fileChanged(const char* fileName, const char *configName) - called by ConfigManager objects
+//  fileChanged(const char* fileName) - called by Rollback objects
 //       when their contents change.  Triggers callbacks to FileCallbackFuncs
 //
 //  isConfigStale() - returns whether the in-memory files might be stale
@@ -80,22 +88,20 @@ class FileManager
 public:
   FileManager();
   ~FileManager();
-  void addFile(const char *fileName, const char *configName, bool root_access_needed, bool isRequired,
-               ConfigManager *parentConfig = nullptr);
-  bool getConfigObj(const char *fileName, ConfigManager **rbPtr);
+  void addFile(const char *fileName, bool root_access_needed, Rollback *parentRollback = nullptr, unsigned flags = 0);
+  bool getRollbackObj(const char *fileName, Rollback **rbPtr);
   void registerCallback(FileCallbackFunc func);
-  void fileChanged(const char *fileName, const char *configName);
+  void fileChanged(const char *fileName, bool incVersion);
   void rereadConfig();
   bool isConfigStale();
-  void configFileChild(const char *parent, const char *child);
+  void configFileChild(const char *parent, const char *child, unsigned int options);
 
 private:
   ink_mutex accessLock; // Protects bindings hashtable
   ink_mutex cbListLock; // Protects the CallBack List
   DLL<callbackListable> cblist;
-  std::unordered_map<std::string_view, ConfigManager *> bindings;
-  void addFileHelper(const char *fileName, const char *configName, bool root_access_needed, bool isRequired,
-                     ConfigManager *parentConfig);
+  InkHashTable *bindings;
+  void addFileHelper(const char *fileName, bool root_access_needed, Rollback *parentRollback, unsigned flags = 0);
 };
 
 void initializeRegistry(); // implemented in AddConfigFilesHere.cc

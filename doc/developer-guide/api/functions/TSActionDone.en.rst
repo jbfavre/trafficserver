@@ -24,15 +24,10 @@ TSActionDone
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/ts.h>
+`#include <ts/ts.h>`
 
 .. function:: int TSActionDone(TSAction actionp)
 
 
 Description
 ===========
-
-This is used to check if the action is done. Returns 1 if the action is done,
-returns 0 otherwise.

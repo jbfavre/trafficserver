@@ -24,9 +24,7 @@ TSIpStringToAddr
 Synopsis
 ========
 
-.. code-block:: cpp
-
-    #include <ts/experimental.h>
+`#include <ts/experimental.h>`
 
 .. function:: TSReturnCode TSIpStringToAddr(const char * str, int str_len, sockaddr* addr)
 

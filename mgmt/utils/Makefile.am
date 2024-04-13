@@ -22,6 +22,7 @@ AM_CPPFLAGS += \
 	-I$(abs_top_srcdir)/mgmt \
 	-I$(abs_top_srcdir)/mgmt/api \
 	-I$(abs_top_srcdir)/mgmt/api/include \
+	-I$(abs_top_srcdir)/include/tsconfig \
 	-I$(abs_top_srcdir)/proxy \
 	-I$(abs_top_srcdir)/include \
 	-I$(abs_top_srcdir)/lib \
@@ -29,10 +30,10 @@ AM_CPPFLAGS += \
 	@OPENSSL_INCLUDES@
 
 # header files used by other libraries
-EXTRA_DIST = MgmtSocket.h
+EXTRA_DIST = MgmtHashTable.h MgmtSocket.h
 
 noinst_LTLIBRARIES = libutils_lm.la libutils_p.la
-check_PROGRAMS = test_mgmt_utils
+check_PROGRAMS = test_marshall
 
 TESTS = $(check_PROGRAMS)
 
@@ -54,19 +55,15 @@ libutils_p_la_SOURCES = \
 	$(libutils_COMMON) \
 	MgmtProcessCleanup.cc
 
-test_mgmt_utils_CPPFLAGS = $(AM_CPPFLAGS) -I$(abs_top_srcdir)/tests/include
-
-test_mgmt_utils_LDFLAGS = \
+test_marshall_LDFLAGS = \
 	@AM_LDFLAGS@ \
 	@OPENSSL_LDFLAGS@
 
-test_mgmt_utils_SOURCES = \
-	unit_tests/unit_test_main.cc \
-	unit_tests/test_marshall.cc
-
-test_mgmt_utils_LDADD = \
+test_marshall_SOURCES = test_marshall.cc
+test_marshall_LDADD = \
 	libutils_p.la \
-	$(top_builddir)/src/tscore/libtscore.la
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
 
 include $(top_srcdir)/build/tidy.mk
 
