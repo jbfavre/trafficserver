@@ -5,7 +5,7 @@ Maintainer: Jean Baptiste Favre <debian@jbfavre.org>
 Uploaders: Aron Xu <aron@debian.org>
 Build-Depends: debhelper-compat (= 13), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libcap-dev [linux-any], graphviz,
-  bison [linux-any], flex [linux-any], pkg-config,
+  bison [linux-any], flex [linux-any], pkgconf,
   libluajit2-5.1-dev [!x32] | lua [x32], libmaxminddb-dev,
   python3-sphinx, plantuml, python3-sphinxcontrib.plantuml,
   libboost-dev, libhwloc-dev, default-libmysqlclient-dev,python3-distro,
