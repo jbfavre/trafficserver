@@ -54,8 +54,6 @@
 #define REGRESSION_TEST_QUICK 1
 #define REGRESSION_TEST_NIGHTLY 2
 #define REGRESSION_TEST_EXTENDED 3
-// use only for testing TS error handling!
-#define REGRESSION_TEST_FATAL 4
 
 // regression options
 #define REGRESSION_OPT_EXCLUSIVE (1 << 0)
@@ -102,4 +100,6 @@ struct RegressionTest {
 
 int rprintf(RegressionTest *t, const char *format, ...);
 int rperf(RegressionTest *t, const char *tag, double val);
-char *regression_status_string(int status);
+const char *regression_status_string(int status);
+
+void tell_diags_regression_testing_is_on();

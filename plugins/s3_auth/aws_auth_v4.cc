@@ -99,7 +99,7 @@ uriEncode(const String &in, bool isObjectName)
       result << "%20";
     } else {
       /* Letters in the hexadecimal value must be upper-case, for example "%1A". */
-      result << "%" << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << (int)i;
+      result << "%" << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(i);
     }
   }
 
@@ -172,32 +172,40 @@ canonicalEncode(const String &in, bool isObjectName)
 }
 
 /**
- * @brief trim the white-space character from the beginning and the end of the string ("in-place", just moving pointers around)
+ * @brief Trim white spaces from beginning and end. Squeeze consecutive spaces from middle.
+ *
+ * @see AWS spec: https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
  *
  * @param in ptr to an input string
  * @param inLen input character count
- * @param newLen trimmed string character count.
  * @return pointer to the trimmed string.
  */
-const char *
-trimWhiteSpaces(const char *in, size_t inLen, size_t &newLen)
+String
+trimWhiteSpacesAndSqueezeInnerSpaces(const char *in, size_t inLen)
 {
   if (nullptr == in || inLen == 0) {
-    return in;
+    return "";
   }
 
-  const char *first = in;
-  while (size_t(first - in) < inLen && isspace(*first)) {
-    first++;
-  }
+  String in_str = trimWhiteSpaces(String(in, inLen));
+  String out_str;
+  out_str.reserve(in_str.size());
+  size_t n    = 0;
+  char prev_c = '\0';
 
-  const char *last = in + inLen - 1;
-  while (last > in && isspace(*last)) {
-    last--;
+  for (auto &c : in_str) {
+    if (!isspace(c)) {
+      out_str += c;
+      ++n;
+    } else if (isspace(c) && !isspace(prev_c)) {
+      out_str += ' ';
+      ++n;
+    }
+    prev_c = c;
   }
+  out_str.resize(n);
 
-  newLen = last - first + 1;
-  return first;
+  return out_str;
 }
 
 /**
@@ -264,9 +272,9 @@ getPayloadSha256(bool signPayload)
   }
 
   unsigned char payloadHash[SHA256_DIGEST_LENGTH];
-  SHA256((const unsigned char *)"", 0, payloadHash); /* empty content */
+  SHA256(reinterpret_cast<const unsigned char *>(""), 0, payloadHash); /* empty content */
 
-  return base16Encode((char *)payloadHash, SHA256_DIGEST_LENGTH);
+  return base16Encode(reinterpret_cast<char *>(payloadHash), SHA256_DIGEST_LENGTH);
 }
 
 /**
@@ -390,14 +398,13 @@ getCanonicalRequestSha256Hash(TsInterface &api, bool signPayload, const StringSe
       }
     }
 
-    size_t trimValueLen   = 0;
-    const char *trimValue = trimWhiteSpaces(value, valueLen, trimValueLen);
+    std::string trimValue = trimWhiteSpacesAndSqueezeInnerSpaces(value, valueLen);
 
     signedHeadersSet.insert(lowercaseName);
     if (headersMap.find(lowercaseName) == headersMap.end()) {
-      headersMap[lowercaseName] = String(trimValue, trimValueLen);
+      headersMap[lowercaseName] = trimValue;
     } else {
-      headersMap[lowercaseName].append(",").append(String(trimValue, trimValueLen));
+      headersMap[lowercaseName].append(",").append(trimValue);
     }
   }
 
@@ -429,7 +436,7 @@ getCanonicalRequestSha256Hash(TsInterface &api, bool signPayload, const StringSe
 #ifdef AWS_AUTH_V4_DETAILED_DEBUG_OUTPUT
   std::cout << "</CanonicalRequest>" << std::endl;
 #endif
-  return base16Encode((char *)canonicalRequestSha256Hash, SHA256_DIGEST_LENGTH);
+  return base16Encode(reinterpret_cast<char *>(canonicalRequestSha256Hash), SHA256_DIGEST_LENGTH);
 }
 
 /**
@@ -676,10 +683,10 @@ getSignature(const char *awsSecret, size_t awsSecretLen, const char *awsRegion, 
       HMAC(EVP_sha256(), dateKey, dateKeyLen, (unsigned char *)awsRegion, awsRegionLen, dateRegionKey, &dateRegionKeyLen) &&
       HMAC(EVP_sha256(), dateRegionKey, dateRegionKeyLen, (unsigned char *)awsService, awsServiceLen, dateRegionServiceKey,
            &dateRegionServiceKeyLen) &&
-      HMAC(EVP_sha256(), dateRegionServiceKey, dateRegionServiceKeyLen, (unsigned char *)"aws4_request", 12, signingKey,
-           &signingKeyLen) &&
-      HMAC(EVP_sha256(), signingKey, signingKeyLen, (unsigned char *)stringToSign, stringToSignLen, (unsigned char *)signature,
-           &len)) {
+      HMAC(EVP_sha256(), dateRegionServiceKey, dateRegionServiceKeyLen, reinterpret_cast<const unsigned char *>("aws4_request"), 12,
+           signingKey, &signingKeyLen) &&
+      HMAC(EVP_sha256(), signingKey, signingKeyLen, (unsigned char *)stringToSign, stringToSignLen,
+           reinterpret_cast<unsigned char *>(signature), &len)) {
     return len;
   }
 

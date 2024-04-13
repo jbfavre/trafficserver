@@ -23,7 +23,7 @@ dnl TS_CHECK_LUAJIT: look for luajit libraries and headers
 dnl
 AC_DEFUN([TS_CHECK_LUAJIT], [
 has_luajit=0
-AC_ARG_WITH(luajit, [AC_HELP_STRING([--with-luajit=DIR], [use a specific luajit library])],
+AC_ARG_WITH(luajit, [AS_HELP_STRING([--with-luajit=DIR],[use a specific luajit library])],
 [
   if test "x$withval" != "xyes" && test "x$withval" != "x"; then
     luajit_base_dir="$withval"
@@ -168,9 +168,12 @@ fi
 TS_ARG_ENABLE_VAR([has],[luajit])
 AM_CONDITIONAL([HAS_LUAJIT], [test 0 -ne $has_luajit])
 
-# On Darwin, LuaJIT requires magic link options for a program loading or running with LuaJIT,
-# otherwise it will crash in luaL_openlibs() at startup.  See http://luajit.org/install.html for more details
+dnl On Darwin, LuaJIT requires magic link options for a program loading or running with LuaJIT,
+dnl otherwise it will crash in luaL_openlibs() at startup.  See http://luajit.org/install.html for more details
+if test "$has_luajit" -ne 0; then
 AC_SUBST([LUAJIT_DARWIN_LDFLAGS], ["-Wl,-pagezero_size,10000 -Wl,-image_base,100000000"])
+fi
 AM_CONDITIONAL([IS_DARWIN], [test x$(uname) = xDarwin])
+AM_CONDITIONAL([IS_DARWIN_ARM64], [test x$(uname -m) = xarm64])
 
 ])

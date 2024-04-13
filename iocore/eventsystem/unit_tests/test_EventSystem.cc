@@ -26,6 +26,7 @@
 
 #include "I_EventSystem.h"
 #include "tscore/I_Layout.h"
+#include "tscore/TSSystemState.h"
 
 #include "diags.i"
 
@@ -45,7 +46,7 @@ TEST_CASE("EventSystem", "[iocore]")
       ink_atomic_increment((int *)&count, 1);
 
       EThread *e = this_ethread();
-      printf("thread=%d (%p) count = %d\n", e->id, e, count);
+      std::printf("thread=%d (%p) count = %d\n", e->id, e, count);
 
       return 0;
     }
@@ -58,12 +59,12 @@ TEST_CASE("EventSystem", "[iocore]")
     kill_function(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     {
       EThread *e = this_ethread();
-      printf("thread=%d (%p) count is %d\n", e->id, e, count);
+      std::printf("thread=%d (%p) count is %d\n", e->id, e, count);
 
       REQUIRE(count > 0);
       REQUIRE(count <= TEST_TIME_SECOND * TEST_THREADS);
 
-      exit(0);
+      TSSystemState::shut_down_event_system();
 
       return 0;
     }
@@ -74,7 +75,7 @@ TEST_CASE("EventSystem", "[iocore]")
   eventProcessor.schedule_in(killer, HRTIME_SECONDS(10));
   eventProcessor.schedule_every(alrm, HRTIME_SECONDS(1));
 
-  while (!shutdown_event_system) {
+  while (!TSSystemState::is_event_system_shut_down()) {
     sleep(1);
   }
 }
@@ -89,7 +90,7 @@ struct EventProcessorListener : Catch::TestEventListenerBase {
     init_diags("", nullptr);
     RecProcessInit(RECM_STAND_ALONE);
 
-    ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
+    ink_event_system_init(EVENT_SYSTEM_MODULE_PUBLIC_VERSION);
     eventProcessor.start(TEST_THREADS, 1048576); // Hardcoded stacksize at 1MB
 
     EThread *main_thread = new EThread;
@@ -98,3 +99,20 @@ struct EventProcessorListener : Catch::TestEventListenerBase {
 };
 
 CATCH_REGISTER_LISTENER(EventProcessorListener);
+
+TEST_CASE("EventSystemSocketManager", "[iocore][sock_mgr]")
+{
+  if (SocketManager::fastopen_supported()) {
+    if (MSG_FASTOPEN == 0) {
+      std::printf("TCP Fast Open is supported, MSG_FASTOPEN must not be 0\n");
+      CHECK(false);
+    }
+  }
+
+  if (::access("/proc/sys/net/ipv4/tcp_fastopen", F_OK) == 0) {
+    if (MSG_FASTOPEN == 0) {
+      std::printf("TCP Fast Open is supported, MSG_FASTOPEN must not be 0\n");
+      CHECK(false);
+    }
+  }
+}

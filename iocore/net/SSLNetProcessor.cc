@@ -26,7 +26,11 @@
 #include "records/I_RecHttp.h"
 #include "P_SSLUtils.h"
 #include "P_OCSPStapling.h"
-#include "P_SSLSNI.h"
+#include "SSLStats.h"
+#include "P_SSLNetProcessor.h"
+#include "P_SSLNetAccept.h"
+#include "P_SSLNetVConnection.h"
+#include "P_SSLClientCoordinator.h"
 
 //
 // Global Data
@@ -34,15 +38,15 @@
 
 SSLNetProcessor ssl_NetProcessor;
 NetProcessor &sslNetProcessor = ssl_NetProcessor;
-SNIActionPerformer sni_action_performer;
 
 #if TS_USE_TLS_OCSP
 struct OCSPContinuation : public Continuation {
   int
   mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   {
+    Note("OCSP refresh started");
     ocsp_update();
-
+    Note("OCSP refresh finished");
     return EVENT_CONT;
   }
 
@@ -60,9 +64,8 @@ SSLNetProcessor::start(int, size_t stacksize)
 {
   // This initialization order matters ...
   SSLInitializeLibrary();
-  SSLConfig::startup();
+  SSLClientCoordinator::startup();
   SSLPostConfigInitialize();
-  SNIConfig::startup();
 
   if (!SSLCertificateConfig::startup()) {
     return -1;
@@ -77,13 +80,11 @@ SSLNetProcessor::start(int, size_t stacksize)
 
 #if TS_USE_TLS_OCSP
   if (SSLConfigParams::ssl_ocsp_enabled) {
-    // Call the update initially to get things populated
-    Note("Initial OCSP refresh started");
-    ocsp_update();
-    Note("Initial OCSP refresh finished");
-
-    EventType ET_OCSP = eventProcessor.spawn_event_threads("ET_OCSP", 1, stacksize);
-    eventProcessor.schedule_every(new OCSPContinuation(), HRTIME_SECONDS(SSLConfigParams::ssl_ocsp_update_period), ET_OCSP);
+    EventType ET_OCSP  = eventProcessor.spawn_event_threads("ET_OCSP", 1, stacksize);
+    Continuation *cont = new OCSPContinuation();
+    // schedule the update initially to get things populated
+    eventProcessor.schedule_imm(cont, ET_OCSP);
+    eventProcessor.schedule_every(cont, HRTIME_SECONDS(SSLConfigParams::ssl_ocsp_update_period), ET_OCSP);
   }
 #endif /* TS_USE_TLS_OCSP */
 

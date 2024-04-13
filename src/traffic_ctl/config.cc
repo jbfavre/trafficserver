@@ -25,6 +25,11 @@
 #include <ctime>
 #include "records/I_RecDefs.h"
 #include "records/P_RecUtils.h"
+#include "ts/apidefs.h"
+#include "HTTP.h"
+#include "HttpConnectionCount.h"
+#include "shared/overridable_txn_vars.h"
+#include <tscore/BufferWriter.h>
 
 struct RecordDescriptionPolicy {
   using entry_type = TSConfigRecordDescription *;
@@ -63,7 +68,7 @@ rec_typeof(int rec_type)
     return "FLOAT";
   case TS_REC_STRING:
     return "STRING";
-  case TS_REC_UNDEFINED: /* fallthru */
+  case TS_REC_UNDEFINED: /* fallthrough */
   default:
     return "UNDEFINED";
   }
@@ -98,7 +103,7 @@ rec_accessof(int rec_access)
     return "no access";
   case RECA_READ_ONLY:
     return "read only";
-  case RECA_NULL: /* fallthru */
+  case RECA_NULL: /* fallthrough */
   default:
     return "default";
   }
@@ -115,7 +120,7 @@ rec_updateof(int rec_updatetype)
     return "static, restart traffic_server";
   case RECU_RESTART_TM:
     return "static, restart traffic_manager";
-  case RECU_NULL: /* fallthru */
+  case RECU_NULL: /* fallthrough */
   default:
     return "none";
   }
@@ -132,7 +137,7 @@ rec_checkof(int rec_checktype)
     return "integer with a specified range";
   case RECC_IP:
     return "IP address";
-  case RECC_NULL: /* fallthru */
+  case RECC_NULL: /* fallthrough */
   default:
     return "none";
   }
@@ -168,6 +173,30 @@ rec_labelof(int rec_class)
   }
 }
 
+static const char *
+rec_datatypeof(TSRecordDataType dt)
+{
+  switch (dt) {
+  case TS_RECORDDATATYPE_INT:
+    return "int";
+  case TS_RECORDDATATYPE_NULL:
+    return "null";
+  case TS_RECORDDATATYPE_FLOAT:
+    return "float";
+  case TS_RECORDDATATYPE_STRING:
+    return "string";
+  case TS_RECORDDATATYPE_COUNTER:
+    return "counter";
+  case TS_RECORDDATATYPE_STAT_CONST:
+    return "constant stat";
+  case TS_RECORDDATATYPE_STAT_FX:
+    return "stat fx";
+  case TS_RECORDDATATYPE_MAX:
+    return "*";
+  }
+  return "?";
+}
+
 static std::string
 timestr(time_t tm)
 {
@@ -181,179 +210,150 @@ format_record(const CtrlMgmtRecord &record, bool recfmt)
   CtrlMgmtRecordValue value(record);
 
   if (recfmt) {
-    printf("%s %s %s %s\n", rec_labelof(record.rclass()), record.name(), rec_typeof(record.type()), value.c_str());
+    std::cout << rec_labelof(record.rclass()) << ' ' << record.name() << ' ' << rec_typeof(record.type()) << ' ' << value.c_str()
+              << std::endl;
   } else {
-    printf("%s: %s\n", record.name(), value.c_str());
+    std::cout << record.name() << ": " << value.c_str() << std::endl;
   }
 }
 
-static int
-config_get(unsigned argc, const char **argv)
+void
+CtrlEngine::config_get()
 {
-  int recfmt                       = 0;
-  const ArgumentDescription opts[] = {
-    {"records", '-', "Emit output in records.config format", "F", &recfmt, nullptr, nullptr},
-  };
-
-  if (!CtrlProcessArguments(argc, argv, opts, countof(opts)) || n_file_arguments < 1) {
-    return CtrlCommandUsage("config get [OPTIONS] RECORD [RECORD ...]", opts, countof(opts));
-  }
-
-  for (unsigned i = 0; i < n_file_arguments; ++i) {
+  for (const auto &it : arguments.get("get")) {
     CtrlMgmtRecord record;
     TSMgmtError error;
 
-    error = record.fetch(file_arguments[i]);
+    error = record.fetch(it.c_str());
     if (error != TS_ERR_OKAY) {
-      CtrlMgmtError(error, "failed to fetch %s", file_arguments[i]);
-      return CTRL_EX_ERROR;
+      CtrlMgmtError(error, "failed to fetch %s", it.c_str());
+      status_code = CTRL_EX_ERROR;
+      return;
     }
 
     if (REC_TYPE_IS_CONFIG(record.rclass())) {
-      format_record(record, recfmt);
+      format_record(record, arguments.get("records"));
     }
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_describe(unsigned argc, const char **argv)
+void
+CtrlEngine::config_describe()
 {
-  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments < 1) {
-    return CtrlCommandUsage("config describe RECORD [RECORD ...]");
-  }
-
-  for (unsigned i = 0; i < n_file_arguments; ++i) {
+  for (const auto &it : arguments.get("describe")) {
     TSConfigRecordDescription desc;
     TSMgmtError error;
 
     ink_zero(desc);
-    error = TSConfigRecordDescribe(file_arguments[i], 0 /* flags */, &desc);
+    error = TSConfigRecordDescribe(it.c_str(), 0 /* flags */, &desc);
     if (error != TS_ERR_OKAY) {
-      CtrlMgmtError(error, "failed to describe %s", file_arguments[i]);
-      return CTRL_EX_ERROR;
+      CtrlMgmtError(error, "failed to describe %s", it.c_str());
+      status_code = CTRL_EX_ERROR;
+      return;
     }
 
-    printf("%-16s: %s\n", "Name", desc.rec_name);
-    printf("%-16s: %s\n", "Current Value", CtrlMgmtRecordValue(desc.rec_type, desc.rec_value).c_str());
-    printf("%-16s: %s\n", "Default Value", CtrlMgmtRecordValue(desc.rec_type, desc.rec_default).c_str());
-    printf("%-16s: %s\n", "Record Type", rec_classof(desc.rec_class));
-    printf("%-16s: %s\n", "Data Type", rec_typeof(desc.rec_type));
-    printf("%-16s: %s\n", "Access Control ", rec_accessof(desc.rec_access));
-    printf("%-16s: %s\n", "Update Type", rec_updateof(desc.rec_updatetype));
-    printf("%-16s: 0x%" PRIx64 "\n", "Update Status", desc.rec_update);
-    printf("%-16s: %s\n", "Source", rec_sourceof(desc.rec_source));
+    auto ov_iter       = ts::Overridable_Txn_Vars.find(it);
+    bool overridable_p = (ov_iter != ts::Overridable_Txn_Vars.end());
+
+    std::string text;
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Name", desc.rec_name);
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Current Value ", CtrlMgmtRecordValue(desc.rec_type, desc.rec_value).c_str());
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Default Value ", CtrlMgmtRecordValue(desc.rec_type, desc.rec_default).c_str());
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Record Type ", rec_classof(desc.rec_class));
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Data Type ", rec_typeof(desc.rec_type));
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Access Control ", rec_accessof(desc.rec_access));
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Update Type ", rec_updateof(desc.rec_updatetype));
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Update Status ", desc.rec_update);
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Source ", rec_sourceof(desc.rec_source));
+    std::cout << ts::bwprint(text, "{:16s}: {} {}\n", "Overridable", overridable_p ? "yes" : "no",
+                             overridable_p ? rec_datatypeof(std::get<1>(ov_iter->second)) : "");
 
     if (strlen(desc.rec_checkexpr)) {
-      printf("%-16s: %s, '%s'\n", "Syntax Check", rec_checkof(desc.rec_checktype), desc.rec_checkexpr);
+      std::cout << ts::bwprint(text, "{:16s}: {}\n", "Syntax Check ", rec_checkof(desc.rec_checktype), desc.rec_checkexpr);
     } else {
-      printf("%-16s: %s\n", "Syntax Check", rec_checkof(desc.rec_checktype));
+      std::cout << ts::bwprint(text, "{:16s}: {}\n", "Syntax Check ", rec_checkof(desc.rec_checktype));
     }
 
-    printf("%-16s: %" PRId64 "\n", "Version", desc.rec_version);
-    printf("%-16s: %" PRId64 "\n", "Order", desc.rec_order);
-    printf("%-16s: %" PRId64 "\n", "Raw Stat Block", desc.rec_rsb);
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Version ", desc.rec_version);
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Order ", desc.rec_order);
+    std::cout << ts::bwprint(text, "{:16s}: {}\n", "Raw Stat Block ", desc.rec_rsb);
 
     TSConfigRecordDescriptionFree(&desc);
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_set(unsigned argc, const char **argv)
+void
+CtrlEngine::config_set()
 {
   TSMgmtError error;
   TSActionNeedT action;
-
-  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments != 2) {
-    return CtrlCommandUsage("config set RECORD VALUE");
-  }
-
-  error = TSRecordSet(file_arguments[0], file_arguments[1], &action);
+  auto set_data        = arguments.get("set");
+  const char *rec_name = set_data[0].c_str();
+  const char *rec_val  = set_data[1].c_str();
+  error                = TSRecordSet(rec_name, rec_val, &action);
   if (error != TS_ERR_OKAY) {
-    CtrlMgmtError(error, "failed to set %s", file_arguments[0]);
-    return CTRL_EX_ERROR;
+    CtrlMgmtError(error, "failed to set %s", rec_name);
+    status_code = CTRL_EX_ERROR;
+    return;
   }
 
   switch (action) {
   case TS_ACTION_SHUTDOWN:
-    printf("set %s, full shutdown required\n", file_arguments[0]);
+    std::cout << "set " << rec_name << ", full shutdown required" << std::endl;
     break;
   case TS_ACTION_RESTART:
-    printf("set %s, restart required\n", file_arguments[0]);
+    std::cout << "set " << rec_name << ", restart required" << std::endl;
     break;
   case TS_ACTION_RECONFIGURE:
-    printf("set %s, please wait 10 seconds for traffic server to sync configuration, restart is not required\n", file_arguments[0]);
+    std::cout << "set " << rec_name << ", please wait 10 seconds for traffic server to sync configuration, restart is not required"
+              << std::endl;
     break;
   case TS_ACTION_DYNAMIC:
   default:
-    printf("set %s\n", file_arguments[0]);
+    printf("set %s\n", rec_name);
     break;
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_match(unsigned argc, const char **argv)
+void
+CtrlEngine::config_match()
 {
-  int recfmt                       = 0;
-  const ArgumentDescription opts[] = {
-    {"records", '-', "Emit output in records.config format", "F", &recfmt, nullptr, nullptr},
-  };
-
-  if (!CtrlProcessArguments(argc, argv, opts, countof(opts)) || n_file_arguments < 1) {
-    return CtrlCommandUsage("config match [OPTIONS] REGEX [REGEX ...]", opts, countof(opts));
-  }
-
-  for (unsigned i = 0; i < n_file_arguments; ++i) {
+  for (const auto &it : arguments.get("match")) {
     CtrlMgmtRecordList reclist;
     TSMgmtError error;
 
     // XXX filter the results to only match configuration records.
 
-    error = reclist.match(file_arguments[i]);
+    error = reclist.match(it.c_str());
     if (error != TS_ERR_OKAY) {
-      CtrlMgmtError(error, "failed to fetch %s", file_arguments[i]);
-      return CTRL_EX_ERROR;
+      CtrlMgmtError(error, "failed to fetch %s", it.c_str());
+      status_code = CTRL_EX_ERROR;
+      return;
     }
 
     while (!reclist.empty()) {
       CtrlMgmtRecord record(reclist.next());
       if (REC_TYPE_IS_CONFIG(record.rclass())) {
-        format_record(record, recfmt);
+        format_record(record, arguments.get("records"));
       }
     }
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_reload(unsigned argc, const char **argv)
+void
+CtrlEngine::config_reload()
 {
-  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments != 0) {
-    return CtrlCommandUsage("config reload");
-  }
-
   TSMgmtError error = TSReconfigure();
   if (error != TS_ERR_OKAY) {
     CtrlMgmtError(error, "configuration reload request failed");
-    return CTRL_EX_ERROR;
+    status_code = CTRL_EX_ERROR;
+    return;
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_status(unsigned argc, const char **argv)
+void
+CtrlEngine::config_status()
 {
-  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments != 0) {
-    return CtrlCommandUsage("config status");
-  }
-
   CtrlMgmtRecord version;
   CtrlMgmtRecord configtime;
   CtrlMgmtRecord starttime;
@@ -368,77 +368,57 @@ config_status(unsigned argc, const char **argv)
   CTRL_MGMT_CHECK(proxy.fetch("proxy.node.config.restart_required.proxy"));
   CTRL_MGMT_CHECK(manager.fetch("proxy.node.config.restart_required.manager"));
 
-  printf("%s\n", CtrlMgmtRecordValue(version).c_str());
-  printf("Started at %s", timestr((time_t)starttime.as_int()).c_str());
-  printf("Last reconfiguration at %s", timestr((time_t)configtime.as_int()).c_str());
-  printf("%s\n", reconfig.as_int() ? "Reconfiguration required" : "Configuration is current");
+  std::cout << CtrlMgmtRecordValue(version).c_str() << std::endl;
+  std::cout << "Started at " << timestr(static_cast<time_t>(starttime.as_int())).c_str();
+  std::cout << "Last reconfiguration at " << timestr(static_cast<time_t>(configtime.as_int())).c_str();
+  std::cout << (reconfig.as_int() ? "Reconfiguration required" : "Configuration is current") << std::endl;
 
   if (proxy.as_int()) {
-    printf("traffic_server requires restarting\n");
+    std::cout << "traffic_server requires restarting" << std::endl;
   }
   if (manager.as_int()) {
-    printf("traffic_manager requires restarting\n");
+    std::cout << "traffic_manager requires restarting\n" << std::endl;
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_defaults(unsigned argc, const char **argv)
+void
+CtrlEngine::config_defaults()
 {
-  int recfmt                       = 0;
-  const ArgumentDescription opts[] = {
-    {"records", '-', "Emit output in records.config format", "F", &recfmt, nullptr, nullptr},
-  };
-
-  if (!CtrlProcessArguments(argc, argv, opts, countof(opts)) || n_file_arguments != 0) {
-    return CtrlCommandUsage("config diff [OPTIONS]");
-  }
-
   TSMgmtError error;
   CtrlMgmtRecordDescriptionList descriptions;
 
   error = descriptions.match(".*");
   if (error != TS_ERR_OKAY) {
     CtrlMgmtError(error, "failed to fetch record metadata");
-    return CTRL_EX_ERROR;
+    status_code = CTRL_EX_ERROR;
+    return;
   }
 
   while (!descriptions.empty()) {
     TSConfigRecordDescription *desc = descriptions.next();
     CtrlMgmtRecordValue deflt(desc->rec_type, desc->rec_default);
 
-    if (recfmt) {
-      printf("%s %s %s %s\n", rec_labelof(desc->rec_class), desc->rec_name, rec_typeof(desc->rec_type), deflt.c_str());
+    if (arguments.get("records")) {
+      std::cout << rec_labelof(desc->rec_class) << ' ' << desc->rec_name << ' ' << rec_typeof(desc->rec_type) << ' '
+                << deflt.c_str() << std::endl;
     } else {
-      printf("%s: %s\n", desc->rec_name, deflt.c_str());
+      std::cout << desc->rec_name << ": " << deflt.c_str() << std::endl;
     }
-
     TSConfigRecordDescriptionDestroy(desc);
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-config_diff(unsigned argc, const char **argv)
+void
+CtrlEngine::config_diff()
 {
-  int recfmt                       = 0;
-  const ArgumentDescription opts[] = {
-    {"records", '-', "Emit output in records.config format", "F", &recfmt, nullptr, nullptr},
-  };
-
-  if (!CtrlProcessArguments(argc, argv, opts, countof(opts)) || n_file_arguments != 0) {
-    return CtrlCommandUsage("config diff [OPTIONS]");
-  }
-
   TSMgmtError error;
   CtrlMgmtRecordDescriptionList descriptions;
 
   error = descriptions.match(".*");
   if (error != TS_ERR_OKAY) {
     CtrlMgmtError(error, "failed to fetch record metadata");
-    return CTRL_EX_ERROR;
+    status_code = CTRL_EX_ERROR;
+    return;
   }
 
   while (!descriptions.empty()) {
@@ -468,35 +448,16 @@ config_diff(unsigned argc, const char **argv)
       CtrlMgmtRecordValue current(desc->rec_type, desc->rec_value);
       CtrlMgmtRecordValue deflt(desc->rec_type, desc->rec_default);
 
-      if (recfmt) {
-        printf("%s %s %s %s # default: %s\n", rec_labelof(desc->rec_class), desc->rec_name, rec_typeof(desc->rec_type),
-               current.c_str(), deflt.c_str());
+      if (arguments.get("records")) {
+        std::cout << rec_labelof(desc->rec_class) << ' ' << desc->rec_name << ' ' << rec_typeof(desc->rec_type) << ' '
+                  << current.c_str() << " # default: " << deflt.c_str() << std::endl;
       } else {
-        printf("%s has changed\n", desc->rec_name);
-        printf("\t%-16s: %s\n", "Current Value", current.c_str());
-        printf("\t%-16s: %s\n", "Default Value", deflt.c_str());
+        std::cout << desc->rec_name << " has changed" << std::endl;
+        std::cout << "\tCurrent Value: " << current.c_str() << std::endl;
+        std::cout << "\tDefault Value: " << deflt.c_str() << std::endl;
       }
     }
 
     TSConfigRecordDescriptionDestroy(desc);
   }
-
-  return CTRL_EX_OK;
-}
-
-int
-subcommand_config(unsigned argc, const char **argv)
-{
-  const subcommand commands[] = {
-    {config_defaults, "defaults", "Show default information configuration values"},
-    {config_describe, "describe", "Show detailed information about configuration values"},
-    {config_diff, "diff", "Show non-default configuration values"},
-    {config_get, "get", "Get one or more configuration values"},
-    {config_match, "match", "Get configuration matching a regular expression"},
-    {config_reload, "reload", "Request a configuration reload"},
-    {config_set, "set", "Set a configuration value"},
-    {config_status, "status", "Check the configuration status"},
-  };
-
-  return CtrlGenericSubcommand("config", commands, countof(commands), argc, argv);
 }

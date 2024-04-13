@@ -310,38 +310,6 @@ url_nuke_proxy_stuff(URLImpl *d_url)
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-/**
-  This routine is like url_copy_onto, but clears the
-  scheme/host/user/pass/port components, resulting in a server-style URL.
-
-*/
-void
-url_copy_onto_as_server_url(URLImpl *s_url, HdrHeap *s_heap, URLImpl *d_url, HdrHeap *d_heap, bool inherit_strs)
-{
-  url_nuke_proxy_stuff(d_url);
-
-  d_url->m_ptr_path     = s_url->m_ptr_path;
-  d_url->m_ptr_params   = s_url->m_ptr_params;
-  d_url->m_ptr_query    = s_url->m_ptr_query;
-  d_url->m_ptr_fragment = s_url->m_ptr_fragment;
-  url_clear_string_ref(d_url);
-
-  d_url->m_len_path     = s_url->m_len_path;
-  d_url->m_len_params   = s_url->m_len_params;
-  d_url->m_len_query    = s_url->m_len_query;
-  d_url->m_len_fragment = s_url->m_len_fragment;
-
-  d_url->m_url_type  = s_url->m_url_type;
-  d_url->m_type_code = s_url->m_type_code;
-
-  if (inherit_strs && (s_heap != d_heap)) {
-    d_heap->inherit_string_heaps(s_heap);
-  }
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
 /***********************************************************************
  *                                                                     *
  *                        M A R S H A L I N G                          *
@@ -376,6 +344,21 @@ URLImpl::unmarshal(intptr_t offset)
   HDR_UNMARSHAL_STR(m_ptr_query, offset);
   HDR_UNMARSHAL_STR(m_ptr_fragment, offset);
   //    HDR_UNMARSHAL_STR(m_ptr_printed_string, offset);
+}
+
+void
+URLImpl::rehome_strings(HdrHeap *new_heap)
+{
+  m_ptr_scheme         = new_heap->localize({m_ptr_scheme, m_len_scheme}).data();
+  m_ptr_user           = new_heap->localize({m_ptr_user, m_len_user}).data();
+  m_ptr_password       = new_heap->localize({m_ptr_password, m_len_password}).data();
+  m_ptr_host           = new_heap->localize({m_ptr_host, m_len_host}).data();
+  m_ptr_port           = new_heap->localize({m_ptr_port, m_len_port}).data();
+  m_ptr_path           = new_heap->localize({m_ptr_path, m_len_path}).data();
+  m_ptr_params         = new_heap->localize({m_ptr_params, m_len_params}).data();
+  m_ptr_query          = new_heap->localize({m_ptr_query, m_len_query}).data();
+  m_ptr_fragment       = new_heap->localize({m_ptr_fragment, m_len_fragment}).data();
+  m_ptr_printed_string = new_heap->localize({m_ptr_printed_string, m_len_printed_string}).data();
 }
 
 void
@@ -433,17 +416,17 @@ URLImpl::check_strings(HeapCheck *heaps, int num_heaps)
  ***********************************************************************/
 
 const char *
-url_scheme_set(HdrHeap *heap, URLImpl *url, const char *scheme_str, int scheme_wks_idx, int length, bool copy_string)
+URLImpl::set_scheme(HdrHeap *heap, const char *scheme_str, int scheme_wks_idx, int length, bool copy_string)
 {
   const char *scheme_wks;
-  url_called_set(url);
+  url_called_set(this);
   if (length == 0) {
     scheme_str = nullptr;
   }
 
-  mime_str_u16_set(heap, scheme_str, length, &(url->m_ptr_scheme), &(url->m_len_scheme), copy_string);
+  mime_str_u16_set(heap, scheme_str, length, &(this->m_ptr_scheme), &(this->m_len_scheme), copy_string);
 
-  url->m_scheme_wks_idx = scheme_wks_idx;
+  this->m_scheme_wks_idx = scheme_wks_idx;
   if (scheme_wks_idx >= 0) {
     scheme_wks = hdrtoken_index_to_wks(scheme_wks_idx);
   } else {
@@ -451,11 +434,11 @@ url_scheme_set(HdrHeap *heap, URLImpl *url, const char *scheme_str, int scheme_w
   }
 
   if (scheme_wks == URL_SCHEME_HTTP || scheme_wks == URL_SCHEME_WS) {
-    url->m_url_type = URL_TYPE_HTTP;
+    this->m_url_type = URL_TYPE_HTTP;
   } else if (scheme_wks == URL_SCHEME_HTTPS || scheme_wks == URL_SCHEME_WSS) {
-    url->m_url_type = URL_TYPE_HTTPS;
+    this->m_url_type = URL_TYPE_HTTPS;
   } else {
-    url->m_url_type = URL_TYPE_HTTP;
+    this->m_url_type = URL_TYPE_HTTP;
   }
 
   return scheme_wks; // tokenized string or NULL if not well known
@@ -465,59 +448,59 @@ url_scheme_set(HdrHeap *heap, URLImpl *url, const char *scheme_str, int scheme_w
   -------------------------------------------------------------------------*/
 
 void
-url_user_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_user(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
+  url_called_set(this);
   if (length == 0) {
     value = nullptr;
   }
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_user), &(url->m_len_user), copy_string);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_user), &(this->m_len_user), copy_string);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_password_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_password(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
+  url_called_set(this);
   if (length == 0) {
     value = nullptr;
   }
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_password), &(url->m_len_password), copy_string);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_password), &(this->m_len_password), copy_string);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_host_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_host(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
+  url_called_set(this);
   if (length == 0) {
     value = nullptr;
   }
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_host), &(url->m_len_host), copy_string);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_host), &(this->m_len_host), copy_string);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_port_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_port(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
+  url_called_set(this);
   if (length == 0) {
     value = nullptr;
   }
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_port), &(url->m_len_port), copy_string);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_port), &(this->m_len_port), copy_string);
 
-  url->m_port = 0;
+  this->m_port = 0;
   for (int i = 0; i < length; i++) {
     if (!ParseRules::is_digit(value[i])) {
       break;
     }
-    url->m_port = url->m_port * 10 + (value[i] - '0');
+    this->m_port = this->m_port * 10 + (value[i] - '0');
   }
 }
 
@@ -525,32 +508,32 @@ url_port_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool co
   -------------------------------------------------------------------------*/
 
 void
-url_port_set(HdrHeap *heap, URLImpl *url, unsigned int port)
+URLImpl::set_port(HdrHeap *heap, unsigned int port)
 {
-  url_called_set(url);
+  url_called_set(this);
   if (port > 0) {
     char value[6];
     int length;
 
     length = ink_fast_itoa(port, value, sizeof(value));
-    mime_str_u16_set(heap, value, length, &(url->m_ptr_port), &(url->m_len_port), true);
+    mime_str_u16_set(heap, value, length, &(this->m_ptr_port), &(this->m_len_port), true);
   } else {
-    mime_str_u16_set(heap, nullptr, 0, &(url->m_ptr_port), &(url->m_len_port), true);
+    mime_str_u16_set(heap, nullptr, 0, &(this->m_ptr_port), &(this->m_len_port), true);
   }
-  url->m_port = port;
+  this->m_port = port;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_path_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_path(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
+  url_called_set(this);
   if (length == 0) {
     value = nullptr;
   }
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_path), &(url->m_len_path), copy_string);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_path), &(this->m_len_path), copy_string);
 }
 
 /*-------------------------------------------------------------------------
@@ -560,40 +543,50 @@ url_path_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool co
 // url_{params|query|fragment}_set()
 
 void
-url_params_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_params(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_params), &(url->m_len_params), copy_string);
+  url_called_set(this);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_params), &(this->m_len_params), copy_string);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_query_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_query(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_query), &(url->m_len_query), copy_string);
+  url_called_set(this);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_query), &(this->m_len_query), copy_string);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_fragment_set(HdrHeap *heap, URLImpl *url, const char *value, int length, bool copy_string)
+URLImpl::set_fragment(HdrHeap *heap, const char *value, int length, bool copy_string)
 {
-  url_called_set(url);
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_fragment), &(url->m_len_fragment), copy_string);
+  url_called_set(this);
+  mime_str_u16_set(heap, value, length, &(this->m_ptr_fragment), &(this->m_len_fragment), copy_string);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 void
-url_type_set(URLImpl *url, unsigned int typecode)
+URLImpl::set_type(int type)
 {
-  url_called_set(url);
-  url->m_type_code = typecode;
+  url_called_set(this);
+  this->m_url_type = type;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+void
+URLImpl::set_type_code(unsigned int typecode)
+{
+  url_called_set(this);
+  this->m_type_code = typecode;
 }
 
 /*-------------------------------------------------------------------------
@@ -626,34 +619,35 @@ url_clear_string_ref(URLImpl *url)
 }
 
 char *
-url_string_get_ref(HdrHeap *heap, URLImpl *url, int *length)
+url_string_get_ref(HdrHeap *heap, URLImpl *url, int *length, unsigned normalization_flags)
 {
   if (!url) {
     return nullptr;
   }
 
-  if (url->m_ptr_printed_string && url->m_clean) {
+  if (url->m_ptr_printed_string && url->m_clean && (normalization_flags == url->m_normalization_flags)) {
     if (length) {
       *length = url->m_len_printed_string;
     }
-    return (char *)url->m_ptr_printed_string;
+    return const_cast<char *>(url->m_ptr_printed_string);
   } else { // either not clean or never printed
-    int len = url_length_get(url);
+    int len = url_length_get(url, normalization_flags);
     char *buf;
     int index  = 0;
     int offset = 0;
 
     /* stuff alloc'd here gets gc'd on HdrHeap::destroy() */
     buf = heap->allocate_str(len + 1);
-    url_print(url, buf, len, &index, &offset);
+    url_print(url, buf, len, &index, &offset, normalization_flags);
     buf[len] = '\0';
 
     if (length) {
       *length = len;
     }
-    url->m_clean              = true; // reset since we have url_print()'ed again
-    url->m_len_printed_string = len;
-    url->m_ptr_printed_string = buf;
+    url->m_clean               = true; // reset since we have url_print()'ed again
+    url->m_len_printed_string  = len;
+    url->m_ptr_printed_string  = buf;
+    url->m_normalization_flags = normalization_flags;
     return buf;
   }
 }
@@ -667,7 +661,7 @@ url_string_get(URLImpl *url, Arena *arena, int *length, HdrHeap *heap)
   int index  = 0;
   int offset = 0;
 
-  buf = arena ? arena->str_alloc(len) : (char *)ats_malloc(len + 1);
+  buf = arena ? arena->str_alloc(len) : static_cast<char *>(ats_malloc(len + 1));
 
   url_print(url, buf, len, &index, &offset);
   buf[len] = '\0';
@@ -718,106 +712,112 @@ url_string_get_buf(URLImpl *url, char *dstbuf, int dstbuf_size, int *length)
   -------------------------------------------------------------------------*/
 
 const char *
-url_scheme_get(URLImpl *url, int *length)
+URLImpl::get_scheme(int *length)
 {
-  const char *str;
-
-  if (url->m_scheme_wks_idx >= 0) {
-    str     = hdrtoken_index_to_wks(url->m_scheme_wks_idx);
-    *length = hdrtoken_index_to_length(url->m_scheme_wks_idx);
+  if (this->m_scheme_wks_idx >= 0) {
+    *length = hdrtoken_index_to_length(this->m_scheme_wks_idx);
+    return hdrtoken_index_to_wks(this->m_scheme_wks_idx);
   } else {
-    str     = url->m_ptr_scheme;
-    *length = url->m_len_scheme;
+    *length = this->m_len_scheme;
+    return this->m_ptr_scheme;
   }
-  return str;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_user_get(URLImpl *url, int *length)
+URLImpl::get_user(int *length)
 {
-  *length = url->m_len_user;
-  return url->m_ptr_user;
+  *length = this->m_len_user;
+  return this->m_ptr_user;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_password_get(URLImpl *url, int *length)
+URLImpl::get_password(int *length)
 {
-  *length = url->m_len_password;
-  return url->m_ptr_password;
+  *length = this->m_len_password;
+  return this->m_ptr_password;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_host_get(URLImpl *url, int *length)
+URLImpl::get_host(int *length)
 {
-  *length = url->m_len_host;
-  return url->m_ptr_host;
+  *length = this->m_len_host;
+  return this->m_ptr_host;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 int
-url_port_get(URLImpl *url)
+URLImpl::get_port()
 {
-  return url->m_port;
+  return this->m_port;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_path_get(URLImpl *url, int *length)
+URLImpl::get_path(int *length)
 {
-  *length = url->m_len_path;
-  return url->m_ptr_path;
+  *length = this->m_len_path;
+  return this->m_ptr_path;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_params_get(URLImpl *url, int *length)
+URLImpl::get_params(int *length)
 {
-  *length = url->m_len_params;
-  return url->m_ptr_params;
+  *length = this->m_len_params;
+  return this->m_ptr_params;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_query_get(URLImpl *url, int *length)
+URLImpl::get_query(int *length)
 {
-  *length = url->m_len_query;
-  return url->m_ptr_query;
+  *length = this->m_len_query;
+  return this->m_ptr_query;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 const char *
-url_fragment_get(URLImpl *url, int *length)
+URLImpl::get_fragment(int *length)
 {
-  *length = url->m_len_fragment;
-  return url->m_ptr_fragment;
+  *length = this->m_len_fragment;
+  return this->m_ptr_fragment;
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 int
-url_type_get(URLImpl *url)
+URLImpl::get_type()
 {
-  return url->m_type_code;
+  return this->m_url_type;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+URLImpl::get_type_code()
+{
+  return this->m_type_code;
 }
 
 /*-------------------------------------------------------------------------
@@ -833,15 +833,19 @@ url_type_get(URLImpl *url)
   -------------------------------------------------------------------------*/
 
 int
-url_length_get(URLImpl *url)
+url_length_get(URLImpl *url, unsigned normalization_flags)
 {
   int length = 0;
 
   if (url->m_ptr_scheme) {
-    if ((url->m_scheme_wks_idx >= 0) && (hdrtoken_index_to_wks(url->m_scheme_wks_idx) == URL_SCHEME_FILE)) {
-      length += url->m_len_scheme + 1; // +1 for ":"
-    } else {
-      length += url->m_len_scheme + 3; // +3 for "://"
+    length += url->m_len_scheme + 3; // +3 for "://"
+
+  } else if (normalization_flags & URLNormalize::IMPLIED_SCHEME) {
+    if (URL_TYPE_HTTP == url->m_url_type) {
+      length += URL_LEN_HTTP + 3;
+
+    } else if (URL_TYPE_HTTPS == url->m_url_type) {
+      length += URL_LEN_HTTPS + 3;
     }
   }
 
@@ -860,9 +864,13 @@ url_length_get(URLImpl *url)
   }
 
   if (url->m_ptr_path) {
-    length += url->m_len_path + 1; // +1 for /
-  } else {
-    length += 1; // +1 for /
+    length += url->m_len_path;
+  }
+
+  if (!url->m_path_is_empty) {
+    // m_ptr_path does not contain the initial "/" and thus m_len_path does not
+    // count it. We account for it here.
+    length += 1; // +1 for "/"
   }
 
   if (url->m_ptr_params && url->m_len_params > 0) {
@@ -899,7 +907,7 @@ url_to_string(URLImpl *url, Arena *arena, int *length)
   if (arena) {
     str = arena->str_alloc(len);
   } else {
-    str = (char *)ats_malloc(len + 1);
+    str = static_cast<char *>(ats_malloc(len + 1));
   }
 
   idx = 0;
@@ -979,12 +987,12 @@ unescape_str(char *&buf, char *buf_e, const char *&str, const char *str_e, int &
 {
   int copy_len;
   char *first_pct;
-  int buf_len = (int)(buf_e - buf);
-  int str_len = (int)(str_e - str);
-  int min_len = (int)(str_len < buf_len ? str_len : buf_len);
+  int buf_len = static_cast<int>(buf_e - buf);
+  int str_len = static_cast<int>(str_e - str);
+  int min_len = (str_len < buf_len ? str_len : buf_len);
 
-  first_pct = ink_memcpy_until_char(buf, (char *)str, min_len, '%');
-  copy_len  = (int)(first_pct - str);
+  first_pct = ink_memcpy_until_char(buf, const_cast<char *>(str), min_len, '%');
+  copy_len  = static_cast<int>(first_pct - str);
   str += copy_len;
   buf += copy_len;
   if (copy_len == min_len) {
@@ -1110,7 +1118,7 @@ url_unescapify(Arena *arena, const char *str, int length)
   int s;
 
   if (length == -1) {
-    length = (int)strlen(str);
+    length = static_cast<int>(strlen(str));
   }
 
   buffer = arena->str_alloc(length);
@@ -1174,7 +1182,7 @@ url_parse_scheme(HdrHeap *heap, URLImpl *url, const char **start, const char *en
             return PARSE_RESULT_ERROR;
           }
         }
-        url_scheme_set(heap, url, scheme_start, scheme_wks_idx, scheme_end - scheme_start, copy_strings_p);
+        url->set_scheme(heap, scheme_start, scheme_wks_idx, scheme_end - scheme_start, copy_strings_p);
       }
     }
     *start = scheme_end;
@@ -1183,11 +1191,16 @@ url_parse_scheme(HdrHeap *heap, URLImpl *url, const char **start, const char *en
   return PARSE_RESULT_ERROR; // no non-whitespace found
 }
 
+// This implementation namespace is necessary because this function is tested by a Catch unit test
+// in another source file.
+//
+namespace UrlImpl
+{
 /**
  *  This method will return TRUE if the uri is strictly compliant with
  *  RFC 3986 and it will return FALSE if not.
  */
-static bool
+bool
 url_is_strictly_compliant(const char *start, const char *end)
 {
   for (const char *i = start; i < end; ++i) {
@@ -1204,7 +1217,7 @@ url_is_strictly_compliant(const char *start, const char *end)
  *  RFC 3986 and it will return FALSE if not. Specifically denying white
  *  space an unprintable characters
  */
-static bool
+bool
 url_is_mostly_compliant(const char *start, const char *end)
 {
   for (const char *i = start; i < end; ++i) {
@@ -1220,8 +1233,12 @@ url_is_mostly_compliant(const char *start, const char *end)
   return true;
 }
 
+} // namespace UrlImpl
+using namespace UrlImpl;
+
 ParseResult
-url_parse(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings_p, int strict_uri_parsing)
+url_parse(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings_p, int strict_uri_parsing,
+          bool verify_host_characters)
 {
   if (strict_uri_parsing == 1 && !url_is_strictly_compliant(*start, end)) {
     return PARSE_RESULT_ERROR;
@@ -1231,18 +1248,21 @@ url_parse(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool
   }
 
   ParseResult zret = url_parse_scheme(heap, url, start, end, copy_strings_p);
-  return PARSE_RESULT_CONT == zret ? url_parse_http(heap, url, start, end, copy_strings_p) : zret;
+  return PARSE_RESULT_CONT == zret ? url_parse_http(heap, url, start, end, copy_strings_p, verify_host_characters) : zret;
 }
 
 ParseResult
-url_parse_no_path_component_breakdown(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings_p)
+url_parse_regex(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings_p)
 {
   ParseResult zret = url_parse_scheme(heap, url, start, end, copy_strings_p);
-  return PARSE_RESULT_CONT == zret ? url_parse_http_no_path_component_breakdown(heap, url, start, end, copy_strings_p) : zret;
+  return PARSE_RESULT_CONT == zret ? url_parse_http_regex(heap, url, start, end, copy_strings_p) : zret;
 }
 
 /**
   Parse internet URL.
+
+  After this function completes, start will point to the first character after the
+  host or @a end if there are not characters after it.
 
   @verbatim
   [://][user[:password]@]host[:port]
@@ -1258,7 +1278,8 @@ url_parse_no_path_component_breakdown(HdrHeap *heap, URLImpl *url, const char **
 */
 
 ParseResult
-url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *end, bool copy_strings_p)
+url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *end, bool copy_strings_p,
+                   bool verify_host_characters)
 {
   const char *cur = *start;
   const char *base;              // Base for host/port field.
@@ -1335,8 +1356,14 @@ url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *
       bracket = cur; // location and flag.
       ++cur;
       break;
-    case '/':    // we're done with this phase.
-      end = cur; // cause loop exit
+    // RFC 3986, section 3.2:
+    // The authority component is ...  terminated by the next slash ("/"),
+    // question mark ("?"), or number sign ("#") character, or by the end of
+    // the URI.
+    case '/':
+    case '?':
+    case '#':
+      end = cur; // We're done parsing authority, cause loop exit.
       break;
     default:
       ++cur;
@@ -1347,9 +1374,9 @@ url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *
   // character past the parse area.
 
   if (user) {
-    url_user_set(heap, url, user._ptr, user._size, copy_strings_p);
+    url->set_user(heap, user._ptr, user._size, copy_strings_p);
     if (passw) {
-      url_password_set(heap, url, passw._ptr, passw._size, copy_strings_p);
+      url->set_password(heap, passw._ptr, passw._size, copy_strings_p);
     }
   }
 
@@ -1363,8 +1390,8 @@ url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *
     }
   }
   if (host._size) {
-    if (validate_host_name(std::string_view(host._ptr, host._size))) {
-      url_host_set(heap, url, host._ptr, host._size, copy_strings_p);
+    if (!verify_host_characters || validate_host_name(std::string_view(host._ptr, host._size))) {
+      url->set_host(heap, host._ptr, host._size, copy_strings_p);
     } else {
       return PARSE_RESULT_ERROR;
     }
@@ -1376,10 +1403,7 @@ url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *
     if (!port._size) {
       return PARSE_RESULT_ERROR; // colon w/o port value.
     }
-    url_port_set(heap, url, port._ptr, port._size, copy_strings_p);
-  }
-  if ('/' == *cur) {
-    ++cur; // must do this after filling in host/port.
+    url->set_port(heap, port._ptr, port._size, copy_strings_p);
   }
   *start = cur;
   return PARSE_RESULT_DONE;
@@ -1391,7 +1415,7 @@ url_parse_internet(HdrHeap *heap, URLImpl *url, const char **start, char const *
 // empties params/query/fragment component
 
 ParseResult
-url_parse_http(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings)
+url_parse_http(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings, bool verify_host_characters)
 {
   ParseResult err;
   const char *cur;
@@ -1405,18 +1429,22 @@ url_parse_http(HdrHeap *heap, URLImpl *url, const char **start, const char *end,
   const char *fragment_end   = nullptr;
   char mask;
 
-  err = url_parse_internet(heap, url, start, end, copy_strings);
+  err = url_parse_internet(heap, url, start, end, copy_strings, verify_host_characters);
   if (err < 0) {
     return err;
   }
 
-  cur = *start;
+  cur                     = *start;
+  bool nothing_after_host = false;
   if (*start == end) {
+    nothing_after_host = true;
     goto done;
   }
 
-  path_start = cur;
-  mask       = ';' & '?' & '#';
+  if (*cur == '/') {
+    path_start = cur;
+  }
+  mask = ';' & '?' & '#';
 parse_path2:
   if ((*cur & mask) == mask) {
     if (*cur == ';') {
@@ -1470,32 +1498,67 @@ parse_fragment1:
 
 done:
   if (path_start) {
+    // There was an explicit path set with '/'.
     if (!path_end) {
       path_end = cur;
     }
-    // Remove all preceding slashes
-    while (path_start < path_end && *path_start == '/') {
-      ++path_start;
+    if (path_start == path_end) {
+      url->m_path_is_empty = true;
+    } else {
+      url->m_path_is_empty = false;
+      // Per RFC 3986 section 3, the query string does not contain the initial
+      // '?' nor does the fragment contain the initial '#'. The path however
+      // does contain the initial '/' and a path can be empty, containing no
+      // characters at all, not even the initial '/'. Our path_get interface,
+      // however, has long not behaved accordingly, returning only the
+      // characters after the first '/'. This does not allow users to tell
+      // whether the path was absolutely empty. Further, callers have to
+      // account for the missing first '/' character themselves, either in URL
+      // length calculations or when piecing together their own URL. There are
+      // various examples of this in core and in the plugins shipped with Traffic
+      // Server.
+      //
+      // Correcting this behavior by having path_get return the entire path,
+      // (inclusive of any first '/') and an empty string if there were no
+      // characters specified in the path would break existing functionality,
+      // including various plugins that expect this behavior. Rather than
+      // correcting this behavior, therefore, we maintain the current
+      // functionality but add state to determine whether the path was
+      // absolutely empty so we can reconstruct such URLs.
+      //
+      // Remove all preceding slashes
+      while (path_start < path_end && *path_start == '/') {
+        ++path_start;
+      }
     }
-    url_path_set(heap, url, path_start, path_end - path_start, copy_strings);
+
+    url->set_path(heap, path_start, path_end - path_start, copy_strings);
+  } else if (!nothing_after_host) {
+    // There was no path set via '/': it is absolutely empty. However, if there
+    // is no path, query, or fragment after the host, we by convention add a
+    // slash after the authority.  Users of URL expect this behavior. Thus the
+    // nothing_after_host check.
+    url->m_path_is_empty = true;
   }
   if (params_start) {
     if (!params_end) {
       params_end = cur;
     }
-    url_params_set(heap, url, params_start, params_end - params_start, copy_strings);
+    url->set_params(heap, params_start, params_end - params_start, copy_strings);
   }
   if (query_start) {
+    // There was a query string marked by '?'.
     if (!query_end) {
       query_end = cur;
     }
-    url_query_set(heap, url, query_start, query_end - query_start, copy_strings);
+    url->set_query(heap, query_start, query_end - query_start, copy_strings);
   }
   if (fragment_start) {
+    // There was a fragment string marked by '#'.
     if (!fragment_end) {
       fragment_end = cur;
     }
-    url_fragment_set(heap, url, fragment_start, fragment_end - fragment_start, copy_strings);
+    url->set_fragment(heap, fragment_start, fragment_end - fragment_start, copy_strings);
   }
 
   *start = cur;
@@ -1503,7 +1566,7 @@ done:
 }
 
 ParseResult
-url_parse_http_no_path_component_breakdown(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings)
+url_parse_http_regex(HdrHeap *heap, URLImpl *url, const char **start, const char *end, bool copy_strings)
 {
   const char *cur = *start;
   const char *host_end;
@@ -1520,7 +1583,10 @@ url_parse_http_no_path_component_breakdown(HdrHeap *heap, URLImpl *url, const ch
   cur              = static_cast<const char *>(memchr(cur, '/', end - cur));
   if (cur) {
     host_end = cur;
-    ++cur;
+    // Remove all preceding slashes
+    while (cur < end && *cur == '/') {
+      cur++;
+    }
   } else {
     host_end = cur = end;
   }
@@ -1548,20 +1614,16 @@ url_parse_http_no_path_component_breakdown(HdrHeap *heap, URLImpl *url, const ch
       port_len = host_end - port - 1; // must compute this first.
       host_end = port;                // then point at colon.
       ++port;                         // drop colon from port.
-      url_port_set(heap, url, port, port_len, copy_strings);
+      url->set_port(heap, port, port_len, copy_strings);
     }
 
     // Now we can set the host.
-    url_host_set(heap, url, base, host_end - base, copy_strings);
+    url->set_host(heap, base, host_end - base, copy_strings);
   }
 
   // path is anything that's left.
   if (cur < end) {
-    // Remove all preceding slashes
-    while (cur < end && *cur == '/') {
-      cur++;
-    }
-    url_path_set(heap, url, cur, end - cur, copy_strings);
+    url->set_path(heap, cur, end - cur, copy_strings);
     cur = end;
   }
   *start = cur;
@@ -1578,20 +1640,31 @@ url_parse_http_no_path_component_breakdown(HdrHeap *heap, URLImpl *url, const ch
  ***********************************************************************/
 
 int
-url_print(URLImpl *url, char *buf_start, int buf_length, int *buf_index_inout, int *buf_chars_to_skip_inout)
+url_print(URLImpl *url, char *buf_start, int buf_length, int *buf_index_inout, int *buf_chars_to_skip_inout,
+          unsigned normalization_flags)
 {
 #define TRY(x) \
   if (!x)      \
   return 0
 
+  bool scheme_added = false;
   if (url->m_ptr_scheme) {
-    TRY(mime_mem_print(url->m_ptr_scheme, url->m_len_scheme, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-    // [amc] Why is "file:" special cased to be wrong?
-    //    if ((url->m_scheme_wks_idx >= 0) && (hdrtoken_index_to_wks(url->m_scheme_wks_idx) == URL_SCHEME_FILE)) {
-    //      TRY(mime_mem_print(":", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-    //    } else {
+    TRY(((normalization_flags & URLNormalize::LC_SCHEME_HOST) ? mime_mem_print_lc : mime_mem_print)(
+      url->m_ptr_scheme, url->m_len_scheme, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
+    scheme_added = true;
+
+  } else if (normalization_flags & URLNormalize::IMPLIED_SCHEME) {
+    if (URL_TYPE_HTTP == url->m_url_type) {
+      TRY(mime_mem_print(URL_SCHEME_HTTP, URL_LEN_HTTP, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
+      scheme_added = true;
+
+    } else if (URL_TYPE_HTTPS == url->m_url_type) {
+      TRY(mime_mem_print(URL_SCHEME_HTTPS, URL_LEN_HTTPS, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
+      scheme_added = true;
+    }
+  }
+  if (scheme_added) {
     TRY(mime_mem_print("://", 3, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-    //    }
   }
 
   if (url->m_ptr_user) {
@@ -1612,7 +1685,8 @@ url_print(URLImpl *url, char *buf_start, int buf_length, int *buf_index_inout, i
     if (bracket_p) {
       TRY(mime_mem_print("[", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
     }
-    TRY(mime_mem_print(url->m_ptr_host, url->m_len_host, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
+    TRY(((normalization_flags & URLNormalize::LC_SCHEME_HOST) ? mime_mem_print_lc : mime_mem_print)(
+      url->m_ptr_host, url->m_len_host, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
     if (bracket_p) {
       TRY(mime_mem_print("]", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
     }
@@ -1622,8 +1696,9 @@ url_print(URLImpl *url, char *buf_start, int buf_length, int *buf_index_inout, i
     }
   }
 
-  TRY(mime_mem_print("/", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-
+  if (!url->m_path_is_empty) {
+    TRY(mime_mem_print("/", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
+  }
   if (url->m_ptr_path) {
     TRY(mime_mem_print(url->m_ptr_path, url->m_len_path, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
   }
@@ -1722,9 +1797,9 @@ url_CryptoHash_get_fast(const URLImpl *url, CryptoContext &ctx, CryptoHash *hash
   // no query
 
   ink_assert(sizeof(url->m_port) == 2);
-  uint16_t port = (uint16_t)url_canonicalize_port(url->m_url_type, url->m_port);
-  *p++          = ((char *)&port)[0];
-  *p++          = ((char *)&port)[1];
+  uint16_t port = static_cast<uint16_t>(url_canonicalize_port(url->m_url_type, url->m_port));
+  *p++          = (reinterpret_cast<char *>(&port))[0];
+  *p++          = (reinterpret_cast<char *>(&port))[1];
 
   ctx.update(buffer, p - buffer);
   if (generation != -1) {
@@ -1869,78 +1944,3 @@ url_host_CryptoHash_get(URLImpl *url, CryptoHash *hash)
   ctx.update(&port, sizeof(port));
   ctx.finalize(*hash);
 }
-
-/*-------------------------------------------------------------------------
- * Regression tests
-  -------------------------------------------------------------------------*/
-#if TS_HAS_TESTS
-#include "tscore/TestBox.h"
-
-const static struct {
-  const char *const text;
-  bool valid;
-} http_validate_hdr_field_test_case[] = {{"yahoo", true},
-                                         {"yahoo.com", true},
-                                         {"yahoo.wow.com", true},
-                                         {"yahoo.wow.much.amaze.com", true},
-                                         {"209.131.52.50", true},
-                                         {"192.168.0.1", true},
-                                         {"localhost", true},
-                                         {"3ffe:1900:4545:3:200:f8ff:fe21:67cf", true},
-                                         {"fe80:0:0:0:200:f8ff:fe21:67cf", true},
-                                         {"fe80::200:f8ff:fe21:67cf", true},
-                                         {"<svg onload=alert(1)>", false}, // Sample host header XSS attack
-                                         {"jlads;f8-9349*(D&F*D(234jD*(FSD*(VKLJ#(*$@()#$)))))", false},
-                                         {"\"\t\n", false},
-                                         {"!@#$%^ &*(*&^%$#@#$%^&*(*&^%$#))", false},
-                                         {":):(:O!!!!!!", false}};
-
-REGRESSION_TEST(VALIDATE_HDR_FIELD)(RegressionTest *t, int /* level ATS_UNUSED */, int *pstatus)
-{
-  TestBox box(t, pstatus);
-  box = REGRESSION_TEST_PASSED;
-
-  for (auto i : http_validate_hdr_field_test_case) {
-    const char *const txt = i.text;
-    box.check(validate_host_name({txt}) == i.valid, "Validation of FQDN (host) header: \"%s\", expected %s, but not", txt,
-              (i.valid ? "true" : "false"));
-  }
-}
-
-REGRESSION_TEST(ParseRules_strict_URI)(RegressionTest *t, int /* level ATS_UNUSED */, int *pstatus)
-{
-  const struct {
-    const char *const uri;
-    bool valid;
-  } http_strict_uri_parsing_test_case[] = {{"/home", true},
-                                           {"/path/data?key=value#id", true},
-                                           {"/ABCDEFGHIJKLMNOPQRSTUVWXYZ", true},
-                                           {"/abcdefghijklmnopqrstuvwxyz", true},
-                                           {"/0123456789", true},
-                                           {":/?#[]@", true},
-                                           {"!$&'()*+,;=", true},
-                                           {"-._~", true},
-                                           {"%", true},
-                                           {"\n", false},
-                                           {"\"", false},
-                                           {"<", false},
-                                           {">", false},
-                                           {"\\", false},
-                                           {"^", false},
-                                           {"`", false},
-                                           {"{", false},
-                                           {"|", false},
-                                           {"}", false},
-                                           {"é", false}};
-
-  TestBox box(t, pstatus);
-  box = REGRESSION_TEST_PASSED;
-
-  for (auto i : http_strict_uri_parsing_test_case) {
-    const char *const uri = i.uri;
-    box.check(url_is_strictly_compliant(uri, uri + strlen(uri)) == i.valid, "Strictly parse URI: \"%s\", expected %s, but not", uri,
-              (i.valid ? "true" : "false"));
-  }
-}
-
-#endif // TS_HAS_TESTS

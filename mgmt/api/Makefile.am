@@ -67,7 +67,7 @@ libmgmtapilocal_la_LIBADD = \
 	libmgmtapi.la \
 	$(top_builddir)/src/tscore/libtscore.la
 
-libtsmgmt_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
+libtsmgmt_la_LDFLAGS = @AM_LDFLAGS@ -no-undefined -version-info @TS_LIBTOOL_VERSION@
 libtsmgmt_la_LIBADD = @LIBOBJS@ \
 	libmgmtapi.la \
 	$(top_builddir)/src/tscore/libtscore.la \
@@ -83,7 +83,7 @@ traffic_api_cli_remote_LDADD = \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
-	@LIBTCL@ @OPENSSL_LIBS@
+	@OPENSSL_LIBS@
 
 clang-tidy-local: $(DIST_SOURCES)
 	$(CXX_Clang_Tidy)

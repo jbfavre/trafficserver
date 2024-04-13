@@ -25,9 +25,9 @@ Block Errors Plugin
 
 Description
 ===========
-The `block_errors` plugin blocks connections for clients that have too many HTTP/2 errors on the server.
+The `block_errors` plugin blocks connections or downgrades the protocol from HTTP/2 to HTTP/1.1 for clients that have too many HTTP/2 errors on the server.
 
-The plugin tracks users based on their IP address and blocks them for a configurable amount of time.
+The plugin tracks users based on their IP address and blocks them for a configurable amount of time.  `block_errors` can be configured to either block or downgrade the protocol, only use HTTP/1.1, for any new connections.
 The existing connection that experience errors and is over the error limit will be closed.  The plugin also supports on the fly configuration changes using the `traffic_ctl` command.
 
 
@@ -40,10 +40,11 @@ To enable the `block_errors` plugin, insert the following line in :file:`plugin.
 
 Additional configuration options are available and can be set in :file:`plugin.config`:
 
-    block_errors.so <error limit> <timeout> <enable>
+    block_errors.so <error limit> <timeout> <shutdown> <enable>
 
 - ``error limit``: The number of errors allowed before blocking the client. Default: 1000 (per minute)
 - ``timeout``: The time in minutes to block the client. Default: 4 (minutes)
+- ``shutdown``: Shutdown (1) or downgrade (0) the protocol for new connections. Default: 0 (downgrade to HTTP/1.1)
 - ``enable``: Enable (1) or disable (0) the plugin. Default: 1 (enabled)
 
 Example Configuration
@@ -57,7 +58,8 @@ The plugin can be configured at run time using the `traffic_ctl` command.  The f
 
 - ``block_errors.error_limit``: Set the error limit.  Takes a single argument, the number of errors allowed before blocking the client.
 - ``block_errors.timeout``: Set the block timeout.  Takes a single argument, the number of minutes to block the client.
-- ``block_errors.enable``: Enable or disable the plugin.  Takes a single argument, 0 to disable, 1 to enable.
+- ``block_errors.shutdown``: Set the shutdown mode.  Takes a single argument, 0 to downgrade to HTTP/1.1, 1 to close the connection.
+- ``block_errors.enabled``: Enable or disable the plugin.  Takes a single argument, 0 to disable, 1 to enable.
 
 Example Run Time Configuration
 ==============================
@@ -66,4 +68,6 @@ Example Run Time Configuration
 
     traffic_ctl plugin msg block_errors.timeout 10
 
-    traffic_ctl plugin msg block_errors.enable 1
+    traffic_ctl plugin msg block_errors.shutdown 1
+
+    traffic_ctl plugin msg block_errors.enabled 1

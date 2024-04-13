@@ -22,26 +22,26 @@
  */
 
 #pragma once
+
 #include <netinet/in.h>
 #include <iostream>
+#include <list>
+
 #include "tscore/I_Version.h"
 #include "tscore/Scalar.h"
 #include "tscore/Regex.h"
-#include <tsconfig/Errata.h>
+#include "tscore/Errata.h"
 #include "tscpp/util/TextView.h"
 #include "tscore/ink_file.h"
-#include <list>
 #include "tscore/CryptoHash.h"
+#include "tscore/ts_file.h"
 
-#include "Command.h"
-#include "File.h"
-
-namespace tag
+namespace ts::tag
 {
 struct bytes {
   static constexpr char const *const label = " bytes";
 };
-} // namespace tag
+} // namespace ts::tag
 
 using ts::round_down;
 using ts::round_up;
@@ -76,19 +76,19 @@ constexpr static int MAX_VOLUME_IDX          = 255;
 constexpr static int ENTRIES_PER_BUCKET      = 4;
 constexpr static int MAX_BUCKETS_PER_SEGMENT = (1 << 16) / ENTRIES_PER_BUCKET;
 
-typedef Scalar<1, off_t, tag::bytes> Bytes;
-typedef Scalar<1024, off_t, tag::bytes> Kilobytes;
-typedef Scalar<1024 * Kilobytes::SCALE, off_t, tag::bytes> Megabytes;
-typedef Scalar<1024 * Megabytes::SCALE, off_t, tag::bytes> Gigabytes;
-typedef Scalar<1024 * Gigabytes::SCALE, off_t, tag::bytes> Terabytes;
+typedef Scalar<1, off_t, ts::tag::bytes> Bytes;
+typedef Scalar<1024, off_t, ts::tag::bytes> Kilobytes;
+typedef Scalar<1024 * Kilobytes::SCALE, off_t, ts::tag::bytes> Megabytes;
+typedef Scalar<1024 * Megabytes::SCALE, off_t, ts::tag::bytes> Gigabytes;
+typedef Scalar<1024 * Gigabytes::SCALE, off_t, ts::tag::bytes> Terabytes;
 
 // Units of allocation for stripes.
-typedef Scalar<128 * Megabytes::SCALE, int64_t, tag::bytes> CacheStripeBlocks;
+typedef Scalar<128 * Megabytes::SCALE, int64_t, ts::tag::bytes> CacheStripeBlocks;
 // Size measurement of cache storage.
 // Also size of meta data storage units.
-typedef Scalar<8 * Kilobytes::SCALE, int64_t, tag::bytes> CacheStoreBlocks;
+typedef Scalar<8 * Kilobytes::SCALE, int64_t, ts::tag::bytes> CacheStoreBlocks;
 // Size unit for content stored in cache.
-typedef Scalar<512, int64_t, tag::bytes> CacheDataBlocks;
+typedef Scalar<512, int64_t, ts::tag::bytes> CacheDataBlocks;
 
 /** A cache span is a representation of raw storage.
     It corresponds to a raw disk, disk partition, file, or directory.
@@ -277,11 +277,12 @@ class DFA;
 // this class matches url of the format : scheme://hostname:port/path;params?query
 
 struct url_matcher {
-  url_matcher(ts::FilePath const &path) // file contains a list of regex
+  url_matcher(ts::file::path const &path) // file contains a list of regex
   {
-    ts::BulkFile cfile(path);
-    if (cfile.load() == 0) {
-      ts::TextView fileContent = cfile.content();
+    std::error_code ec;
+    std::string load_content = ts::file::load(path, ec);
+    ts::TextView fileContent(load_content);
+    if (ec.value() == 0) {
       const char **patterns;
       std::vector<std::string> str_vec;
       int count = 0;
@@ -293,7 +294,7 @@ struct url_matcher {
       }
       patterns = (const char **)ats_malloc(count * sizeof(char *));
       int i    = 0;
-      for (auto str : str_vec) {
+      for (const auto &str : str_vec) {
         patterns[i++] = ats_strdup(str.data());
 
         std::cout << "regex input\n" << patterns[i - 1] << std::endl;
@@ -301,11 +302,11 @@ struct url_matcher {
       for (i = 0; i < count; i++) {
         std::cout << "regex " << patterns[i] << std::endl;
       }
-      if (regex.compile(patterns, count) != 0) {
+      if (regex.compile(patterns, count) != count) {
         std::cout << "Check your regular expression" << std::endl;
       }
 
-      if (port.compile(R"([0-9]+$)") != 0) {
+      if (!port.compile(R"([0-9]+$)")) {
         std::cout << "Check your regular expression" << std::endl;
         return;
       }
@@ -314,11 +315,11 @@ struct url_matcher {
 
   url_matcher()
   {
-    if (regex.compile(R"(^(https?\:\/\/)") != 0) {
+    if (!regex.compile(R"(^(https?\:\/\/)")) {
       std::cout << "Check your regular expression" << std::endl;
       return;
     }
-    if (port.compile(R"([0-9]+$)") != 0) {
+    if (!port.compile(R"([0-9]+$)")) {
       std::cout << "Check your regular expression" << std::endl;
       return;
     }
@@ -329,19 +330,12 @@ struct url_matcher {
   uint8_t
   match(const char *hostname) const
   {
-    if (regex.match(hostname) != -1) {
-      return 1;
-    }
-
-    return 0;
+    return regex.match(hostname) ? 1 : 0;
   }
   uint8_t
   portmatch(const char *hostname, int length) const
   {
-    if (port.match(hostname, length) != -1) {
-      return 1;
-    }
-    return 0;
+    return port.match({hostname, size_t(length)}) ? 1 : 0;
   }
 
 private:
@@ -356,7 +350,6 @@ using ts::CacheStripeBlocks;
 using ts::StripeMeta;
 using ts::CacheStripeDescriptor;
 using ts::Errata;
-using ts::FilePath;
 using ts::CacheDirEntry;
 using ts::MemSpan;
 using ts::Doc;
@@ -402,12 +395,12 @@ namespace ct
 
 #define dir_in_seg(_s, _i) ((CacheDirEntry *)(((char *)(_s)) + (SIZEOF_DIR * (_i))))
 
-TS_INLINE CacheDirEntry *
+inline CacheDirEntry *
 dir_from_offset(int64_t i, CacheDirEntry *seg)
 {
 #if DIR_DEPTH < 5
   if (!i)
-    return 0;
+    return nullptr;
   return dir_in_seg(seg, i);
 #else
   i = i + ((i - 1) / (DIR_DEPTH - 1));
@@ -415,26 +408,26 @@ dir_from_offset(int64_t i, CacheDirEntry *seg)
 #endif
 }
 
-TS_INLINE CacheDirEntry *
+inline CacheDirEntry *
 dir_bucket(int64_t b, CacheDirEntry *seg)
 {
   return dir_in_seg(seg, b * DIR_DEPTH);
 }
 
-TS_INLINE CacheDirEntry *
+inline CacheDirEntry *
 next_dir(CacheDirEntry *d, CacheDirEntry *seg)
 {
   int i = dir_next(d);
   return dir_from_offset(i, seg);
 }
 
-TS_INLINE CacheDirEntry *
+inline CacheDirEntry *
 dir_bucket_row(CacheDirEntry *b, int64_t i)
 {
   return dir_in_seg(b, i);
 }
 
-TS_INLINE int64_t
+inline int64_t
 dir_to_offset(const CacheDirEntry *d, const CacheDirEntry *seg)
 {
 #if DIR_DEPTH < 5
@@ -448,7 +441,7 @@ dir_to_offset(const CacheDirEntry *d, const CacheDirEntry *seg)
 
 struct Stripe;
 struct Span {
-  Span(FilePath const &path) : _path(path) {}
+  Span(ts::file::path const &path) : _path(path) {}
   Errata load();
   Errata loadDevice();
   bool isEmpty() const;
@@ -460,10 +453,10 @@ struct Span {
   /// This is broken and needs to be cleaned up.
   void clearPermanently();
 
-  ts::Rv<Stripe *> allocStripe(int vol_idx, CacheStripeBlocks len);
+  ts::Rv<Stripe *> allocStripe(int vol_idx, const CacheStripeBlocks &len);
   Errata updateHeader(); ///< Update serialized header and write to disk.
 
-  FilePath _path;           ///< File system location of span.
+  ts::file::path _path;     ///< File system location of span.
   ats_scoped_fd _fd;        ///< Open file descriptor for span.
   int _vol_idx = 0;         ///< Forced volume.
   CacheStoreBlocks _base;   ///< Offset to first usable byte.
@@ -476,7 +469,7 @@ struct Span {
   /// Local copy of serialized header data stored on in the span.
   std::unique_ptr<ts::SpanHeader> _header;
   /// Live information about stripes.
-  /// Seeded from @a _header and potentially agumented with direct probing.
+  /// Seeded from @a _header and potentially augmented with direct probing.
   std::list<Stripe *> _stripes;
 };
 /* --------------------------------------------------------------------------------------- */
@@ -491,17 +484,17 @@ struct Stripe {
     Bytes _skip;  ///< # of bytes not valid at the start of the first block.
     Bytes _clip;  ///< # of bytes not valid at the end of the last block.
 
-    typedef std::vector<MemSpan> Chain;
+    typedef std::vector<MemSpan<void>> Chain;
     Chain _chain; ///< Chain of blocks.
 
     ~Chunk();
 
-    void append(MemSpan m);
+    void append(MemSpan<void> m);
     void clear();
   };
 
   /// Construct from span header data.
-  Stripe(Span *span, Bytes start, CacheStoreBlocks len);
+  Stripe(Span *span, const Bytes &start, const CacheStoreBlocks &len);
 
   /// Is stripe unallocated?
   bool isFree() const;
@@ -514,7 +507,7 @@ struct Stripe {
 
       @return @c true if @a mem has valid data, @c false otherwise.
   */
-  bool probeMeta(MemSpan &mem, StripeMeta const *meta = nullptr);
+  bool probeMeta(MemSpan<void> &mem, StripeMeta const *meta = nullptr);
 
   /// Check a buffer for being valid stripe metadata.
   /// @return @c true if valid, @c false otherwise.
@@ -557,12 +550,12 @@ struct Stripe {
                                       // This is because the freelist is not being copied to _metap[2][2] correctly.
   // need to do something about it .. hmmm :-?
   int dir_freelist_length(int s);
-  TS_INLINE CacheDirEntry *
+  inline CacheDirEntry *
   vol_dir_segment(int s)
   {
     return (CacheDirEntry *)(((char *)this->dir) + (s * this->_buckets) * DIR_DEPTH * SIZEOF_DIR);
   }
-  TS_INLINE CacheDirEntry *
+  inline CacheDirEntry *
   dir_segment(int s)
   {
     return vol_dir_segment(s);
@@ -570,7 +563,7 @@ struct Stripe {
 
   Bytes stripe_offset(CacheDirEntry *e); // offset w.r.t the stripe content
   size_t vol_dirlen();
-  TS_INLINE int
+  inline int
   vol_headerlen()
   {
     return ROUND_TO_STORE_BLOCK(sizeof(StripeMeta) + sizeof(uint16_t) * (this->_segments - 1));

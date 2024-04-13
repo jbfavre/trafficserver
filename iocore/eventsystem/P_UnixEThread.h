@@ -32,31 +32,33 @@
 
 #include "I_EThread.h"
 #include "I_EventProcessor.h"
+#include <execinfo.h>
 
 const ink_hrtime DELAY_FOR_RETRY = HRTIME_MSECONDS(10);
 
 TS_INLINE Event *
 EThread::schedule_imm(Continuation *cont, int callback_event, void *cookie)
 {
-  Event *e          = ::eventAllocator.alloc();
+  Event *e = ::eventAllocator.alloc();
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
   return schedule(e->init(cont, 0, 0));
 }
 
 TS_INLINE Event *
-EThread::schedule_imm_signal(Continuation *cont, int callback_event, void *cookie)
-{
-  Event *e          = ::eventAllocator.alloc();
-  e->callback_event = callback_event;
-  e->cookie         = cookie;
-  return schedule(e->init(cont, 0, 0), true);
-}
-
-TS_INLINE Event *
 EThread::schedule_at(Continuation *cont, ink_hrtime t, int callback_event, void *cookie)
 {
-  Event *e          = ::eventAllocator.alloc();
+  Event *e = ::eventAllocator.alloc();
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
   return schedule(e->init(cont, t, 0));
@@ -65,44 +67,73 @@ EThread::schedule_at(Continuation *cont, ink_hrtime t, int callback_event, void 
 TS_INLINE Event *
 EThread::schedule_in(Continuation *cont, ink_hrtime t, int callback_event, void *cookie)
 {
-  Event *e          = ::eventAllocator.alloc();
+  Event *e = ::eventAllocator.alloc();
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
-  return schedule(e->init(cont, get_hrtime() + t, 0));
+  return schedule(e->init(cont, ink_get_hrtime() + t, 0));
 }
 
 TS_INLINE Event *
 EThread::schedule_every(Continuation *cont, ink_hrtime t, int callback_event, void *cookie)
 {
-  Event *e          = ::eventAllocator.alloc();
+  Event *e = ::eventAllocator.alloc();
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
   if (t < 0) {
     return schedule(e->init(cont, t, t));
   } else {
-    return schedule(e->init(cont, get_hrtime() + t, t));
+    return schedule(e->init(cont, ink_get_hrtime() + t, t));
   }
 }
 
 TS_INLINE Event *
-EThread::schedule(Event *e, bool fast_signal)
+EThread::schedule(Event *e)
 {
   e->ethread = this;
-  ink_assert(tt == REGULAR);
+  if (tt != REGULAR) {
+    ink_assert(tt == DEDICATED);
+    return eventProcessor.schedule(e, ET_CALL);
+  }
   if (e->continuation->mutex) {
     e->mutex = e->continuation->mutex;
   } else {
     e->mutex = e->continuation->mutex = e->ethread->mutex;
   }
   ink_assert(e->mutex.get());
-  EventQueueExternal.enqueue(e, fast_signal);
+
+  // Make sure client IP debugging works consistently
+  // The continuation that gets scheduled later is not always the
+  // client VC, it can be HttpCacheSM etc. so save the flags
+  e->continuation->control_flags.set_flags(get_cont_flags().get_flags());
+
+  if (e->ethread == this_ethread()) {
+    EventQueueExternal.enqueue_local(e);
+  } else {
+    EventQueueExternal.enqueue(e);
+  }
+
   return e;
 }
 
 TS_INLINE Event *
 EThread::schedule_imm_local(Continuation *cont, int callback_event, void *cookie)
 {
-  Event *e          = EVENT_ALLOC(eventAllocator, this);
+  Event *e = EVENT_ALLOC(eventAllocator, this);
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
   return schedule_local(e->init(cont, 0, 0));
@@ -111,7 +142,12 @@ EThread::schedule_imm_local(Continuation *cont, int callback_event, void *cookie
 TS_INLINE Event *
 EThread::schedule_at_local(Continuation *cont, ink_hrtime t, int callback_event, void *cookie)
 {
-  Event *e          = EVENT_ALLOC(eventAllocator, this);
+  Event *e = EVENT_ALLOC(eventAllocator, this);
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
   return schedule_local(e->init(cont, t, 0));
@@ -120,22 +156,32 @@ EThread::schedule_at_local(Continuation *cont, ink_hrtime t, int callback_event,
 TS_INLINE Event *
 EThread::schedule_in_local(Continuation *cont, ink_hrtime t, int callback_event, void *cookie)
 {
-  Event *e          = EVENT_ALLOC(eventAllocator, this);
+  Event *e = EVENT_ALLOC(eventAllocator, this);
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
-  return schedule_local(e->init(cont, get_hrtime() + t, 0));
+  return schedule_local(e->init(cont, ink_get_hrtime() + t, 0));
 }
 
 TS_INLINE Event *
 EThread::schedule_every_local(Continuation *cont, ink_hrtime t, int callback_event, void *cookie)
 {
-  Event *e          = EVENT_ALLOC(eventAllocator, this);
+  Event *e = EVENT_ALLOC(eventAllocator, this);
+
+#ifdef ENABLE_EVENT_TRACKER
+  e->set_location();
+#endif
+
   e->callback_event = callback_event;
   e->cookie         = cookie;
   if (t < 0) {
     return schedule_local(e->init(cont, t, t));
   } else {
-    return schedule_local(e->init(cont, get_hrtime() + t, t));
+    return schedule_local(e->init(cont, ink_get_hrtime() + t, t));
   }
 }
 
@@ -153,6 +199,15 @@ EThread::schedule_local(Event *e)
     ink_assert(e->ethread == this);
   }
   e->globally_allocated = false;
+
+  // Make sure client IP debugging works consistently
+  // The continuation that gets scheduled later is not always the
+  // client VC, it can be HttpCacheSM etc. so save the flags
+  e->continuation->control_flags.set_flags(get_cont_flags().get_flags());
+
+  // If you need to schedule an event from a different thread, use Ethread::schedule_imm/at/in/every functions
+  ink_release_assert(this == this_ethread());
+
   EventQueueExternal.enqueue_local(e);
   return e;
 }
@@ -176,7 +231,18 @@ EThread::schedule_spawn(Continuation *c, int ev, void *cookie)
 TS_INLINE EThread *
 this_ethread()
 {
-  return (EThread *)this_thread();
+  return EThread::this_ethread_ptr;
+}
+
+TS_INLINE EThread *
+this_event_thread()
+{
+  EThread *ethread = this_ethread();
+  if (ethread != nullptr && ethread->tt == REGULAR) {
+    return ethread;
+  } else {
+    return nullptr;
+  }
 }
 
 TS_INLINE void

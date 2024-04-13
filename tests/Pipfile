@@ -26,18 +26,29 @@ pyflakes = "*"
 [packages]
 
 # Keep init.cli.ext updated with this required autest version.
-autest = "==1.10.0"
+autest = "==1.10.4"
 
 traffic-replay = "*" # this should install TRLib, MicroServer, MicroDNS, Traffic-Replay
-hyper = "*"
+
+h2 = "*"
+hyperframe = "*"
+hpack = "*"
+
 dnslib = "*"
 # These are likely to be available via yum/dnf or apt-get
 requests = "*"
 gunicorn = "*"
-httpbin = "*"
+psutil = "*"
+
+charset-normalizer = "*"
+
+# Keep init.cli.ext updated with this required microserver version.
 microserver = ">=1.0.6"
+
 jsonschema = "*"
 python-jose = "*"
+
+flask = "==2.1.3"
 
 [requires]
 python_version = "3"

@@ -24,6 +24,8 @@ function do_global_vconn_start()
 
     fd = ts.vconn.get_fd()
     ts.debug('vconn: '..fd)
+
+    ts.vconn.disable_h2()
 end
 
 function do_global_txn_close()

@@ -22,119 +22,99 @@
  */
 
 #include "traffic_ctl.h"
-#include "records/P_RecUtils.h"
 #include "HostStatus.h"
+#include "records/P_RecUtils.h"
 
-static int
-status_get(unsigned argc, const char **argv)
+void
+CtrlEngine::status_get()
 {
-  if (!CtrlProcessArguments(argc, argv, nullptr, 0) || n_file_arguments < 1) {
-    return CtrlCommandUsage("host status HOST  [HOST  ...]", nullptr, 0);
-  }
-
-  for (unsigned i = 0; i < n_file_arguments; ++i) {
+  for (const auto &it : arguments.get("status")) {
     CtrlMgmtRecord record;
     TSMgmtError error;
-    std::string _stat = stat_prefix + file_arguments[i];
-    error             = record.fetch(_stat.c_str());
+    std::string str = stat_prefix + it;
+
+    error = record.fetch(str.c_str());
     if (error != TS_ERR_OKAY) {
-      fprintf(stderr, "failed to fetch %s, no record found\n", file_arguments[i]);
-      return CTRL_EX_ERROR;
+      CtrlMgmtError(error, "failed to fetch %s", it.c_str());
+      status_code = CTRL_EX_ERROR;
+      return;
     }
+
     if (REC_TYPE_IS_STAT(record.rclass())) {
-      printf("%s %s\n", record.name(), CtrlMgmtRecordValue(record).c_str());
+      std::cout << record.name() << ' ' << CtrlMgmtRecordValue(record).c_str() << std::endl;
     }
   }
-
-  return CTRL_EX_OK;
 }
 
-static int
-status_down(unsigned argc, const char **argv)
+void
+CtrlEngine::status_down()
 {
-  int down_time     = 0;
-  char *reason      = nullptr;
-  const char *usage = "host down HOST [OPTIONS]";
-
-  const ArgumentDescription opts[] = {
-    {"time", 'I', "number of seconds that a host is marked down", "I", &down_time, nullptr, nullptr},
-    // memory is allocated for 'reason', if this option is used
-    {"reason", '-', "reason for marking the host down, one of 'manual|active|local'", "S*", &reason, nullptr, nullptr},
-  };
-
-  if (!CtrlProcessArguments(argc, argv, opts, countof(opts)) || n_file_arguments < 1) {
-    return CtrlCommandUsage(usage, opts, countof(opts));
-  }
+  const char *usage      = "traffic_ctl host down --reason 'active | local | manual' --time seconds host ....";
+  unsigned int down_time = 0;
+  std::string reason     = arguments.get("reason").value();
+  std::string down       = arguments.get("time").value();
 
   // if reason is not set, set it to manual (default)
-  if (reason == nullptr) {
-    reason = ats_strdup(Reason::MANUAL_REASON);
+  if (reason.empty()) {
+    reason = Reason::MANUAL;
+  }
+  if (!down.empty()) {
+    down_time = atoi(down.c_str());
   }
 
-  if (!Reason::validReason(reason)) {
-    fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason);
-    return CtrlCommandUsage(usage, opts, countof(opts));
+  if (!Reason::validReason(reason.c_str())) {
+    fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason.c_str());
+    fprintf(stderr, "Usage: %s\n\n", usage);
+    status_code = CTRL_EX_ERROR;
+    return;
   }
 
   TSMgmtError error = TS_ERR_OKAY;
-  for (unsigned i = 0; i < n_file_arguments; ++i) {
-    error = TSHostStatusSetDown(file_arguments[i], down_time, reason);
+  for (const auto &it : arguments.get("down")) {
+    if (strncmp(it.c_str(), "--", 2) == 0) {
+      fprintf(stderr, "\nInvalid option: %s\n", it.c_str());
+      fprintf(stderr, "Usage: %s\n\n", usage);
+      status_code = CTRL_EX_ERROR;
+      return;
+    }
+    error = TSHostStatusSetDown(it.c_str(), down_time, reason.c_str());
     if (error != TS_ERR_OKAY) {
-      CtrlMgmtError(error, "failed to set %s", file_arguments[i]);
-      return CTRL_EX_ERROR;
+      CtrlMgmtError(error, "failed to set %s", it.c_str());
+      status_code = CTRL_EX_ERROR;
+      return;
     }
   }
-  ats_free(reason);
-
-  return CTRL_EX_OK;
 }
-static int
-status_up(unsigned argc, const char **argv)
+void
+CtrlEngine::status_up()
 {
-  char *reason      = nullptr;
-  const char *usage = "host up HOST [OPTIONS]";
-
-  const ArgumentDescription opts[] = {
-    // memory is allocated for 'reason', if this option is used
-    {"reason", '-', "reason for marking the host up, one of 'manual|active|local'", "S*", &reason, nullptr, nullptr},
-  };
-
-  if (!CtrlProcessArguments(argc, argv, opts, countof(opts)) || n_file_arguments < 1) {
-    return CtrlCommandUsage(usage, nullptr, 0);
-  }
+  const char *usage  = "traffic_ctl host up --reason 'active | local | manual' host ....";
+  std::string reason = arguments.get("reason").value();
 
   // if reason is not set, set it to manual (default)
-  if (reason == nullptr) {
-    reason = ats_strdup(Reason::MANUAL_REASON);
+  if (reason.empty()) {
+    reason = Reason::MANUAL;
   }
 
-  if (!Reason::validReason(reason)) {
-    fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason);
-    return CtrlCommandUsage(usage, opts, countof(opts));
+  if (!Reason::validReason(reason.c_str())) {
+    fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason.c_str());
+    fprintf(stderr, "Usage: %s\n\n", usage);
+    status_code = CTRL_EX_ERROR;
+    return;
   }
 
   TSMgmtError error;
-  for (unsigned i = 0; i < n_file_arguments; ++i) {
-    error = TSHostStatusSetUp(file_arguments[i], 0, reason);
+  for (const auto &it : arguments.get("up")) {
+    error = TSHostStatusSetUp(it.c_str(), 0, reason.c_str());
+    if (strncmp("--", it.c_str(), 2) == 0) {
+      fprintf(stderr, "\nInvalid option: %s\n", it.c_str());
+      fprintf(stderr, "Usage: %s\n\n", usage);
+      status_code = CTRL_EX_ERROR;
+    }
     if (error != TS_ERR_OKAY) {
-      CtrlMgmtError(error, "failed to set %s", file_arguments[i]);
-      return CTRL_EX_ERROR;
+      CtrlMgmtError(error, "failed to set %s", it.c_str());
+      status_code = CTRL_EX_ERROR;
+      return;
     }
   }
-  ats_free(reason);
-
-  return CTRL_EX_OK;
-}
-
-int
-subcommand_host(unsigned argc, const char **argv)
-{
-  const subcommand commands[] = {
-    {status_get, "status", "Get one or more host statuses"},
-    {status_down, "down", "Set down one or more host(s) "},
-    {status_up, "up", "Set up one or more host(s) "},
-
-  };
-
-  return CtrlGenericSubcommand("host", commands, countof(commands), argc, argv);
 }

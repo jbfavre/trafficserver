@@ -34,7 +34,7 @@ EsiGunzip::EsiGunzip(const char *debug_tag, ComponentBase::Debug debug_func, Com
 {
   _init    = false;
   _success = true;
-  // zlib _zstrm varibles are initialzied when they are required in stream_decode
+  // zlib _zstrm variables are initialized when they are required in stream_decode
   // coverity[uninit_member]
   // coverity[uninit_ctor]
 }
@@ -78,7 +78,6 @@ EsiGunzip::stream_decode(const char *data, int data_len, std::string &udata)
     _zstrm.avail_in = data_len;
     char raw_buf[BUF_SIZE];
     int inflate_result;
-    int32_t unzipped_data_size = 0;
     int32_t curr_buf_size;
 
     do {
@@ -99,7 +98,6 @@ EsiGunzip::stream_decode(const char *data, int data_len, std::string &udata)
         _errorLog("[%s] buf below zero", __FUNCTION__);
         break;
       }
-      unzipped_data_size += curr_buf_size;
 
       // push empty object onto list and add data to in-list object to
       // avoid data copy for temporary

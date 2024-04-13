@@ -25,6 +25,7 @@
 #include "Stage.h"
 
 #include <netinet/in.h>
+#include <unordered_map>
 
 struct Config;
 
@@ -70,6 +71,8 @@ struct Data {
 
   TSHttpStatus m_statustype{TS_HTTP_STATUS_NONE}; // 200 or 206
 
+  const char *m_method_type{nullptr}; // type of header request
+
   Range m_req_range; // converted to half open interval
 
   int64_t m_blocknum{-1};     // block number to work on, -1 bad/stop
@@ -82,11 +85,17 @@ struct Data {
   int64_t m_bytestosend{0}; // header + content bytes to send
   int64_t m_bytessent{0};   // number of bytes written to the client
 
+  // default buffer size and water mark
+  TSIOBufferSizeIndex m_buffer_index{TS_IOBUFFER_SIZE_INDEX_32K};
+  TSIOBufferWaterMark m_buffer_water_mark{TS_IOBUFFER_WATER_MARK_PLUGIN_VC_DEFAULT};
+
   bool m_server_block_header_parsed{false};
   bool m_server_first_header_parsed{false};
 
   Stage m_upstream;
   Stage m_dnstream;
+
+  bool m_prefetchable{false};
 
   HdrMgr m_req_hdrmgr;  // manager for server request
   HdrMgr m_resp_hdrmgr; // manager for client response
@@ -99,6 +108,13 @@ struct Data {
     m_hostname[0]     = '\0';
     m_etag[0]         = '\0';
     m_lastmodified[0] = '\0';
+  }
+
+  // Check if response only expects header
+  bool
+  onlyHeader() const
+  {
+    return (m_method_type == TS_HTTP_METHOD_HEAD || m_method_type == TS_HTTP_METHOD_PURGE);
   }
 
   ~Data()

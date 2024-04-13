@@ -16,14 +16,21 @@
   limitations under the License.
 */
 
-#include "tscore/ink_platform.h"
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include "ts_lua_util.h"
 
 static int ts_lua_get_process_id(lua_State *L);
 static int ts_lua_get_now_time(lua_State *L);
 static int ts_lua_debug(lua_State *L);
+static int ts_lua_is_debug_tag_set(lua_State *L);
 static int ts_lua_error(lua_State *L);
+static int ts_lua_emergency(lua_State *L);
+static int ts_lua_fatal(lua_State *L);
+static int ts_lua_status(lua_State *L);
+static int ts_lua_note(lua_State *L);
+static int ts_lua_warning(lua_State *L);
+static int ts_lua_alert(lua_State *L);
 static int ts_lua_sleep(lua_State *L);
 static int ts_lua_host_lookup(lua_State *L);
 static int ts_lua_schedule(lua_State *L);
@@ -60,9 +67,37 @@ ts_lua_inject_misc_api(lua_State *L)
   lua_pushcfunction(L, ts_lua_debug);
   lua_setfield(L, -2, "debug");
 
+  /* ts.is_debug_tag_set(...) */
+  lua_pushcfunction(L, ts_lua_is_debug_tag_set);
+  lua_setfield(L, -2, "is_debug_tag_set");
+
   /* ts.error(...) */
   lua_pushcfunction(L, ts_lua_error);
   lua_setfield(L, -2, "error");
+
+  /* ts.emergency(...) */
+  lua_pushcfunction(L, ts_lua_emergency);
+  lua_setfield(L, -2, "emergency");
+
+  /* ts.fatal(...) */
+  lua_pushcfunction(L, ts_lua_fatal);
+  lua_setfield(L, -2, "fatal");
+
+  /* ts.status(...) */
+  lua_pushcfunction(L, ts_lua_status);
+  lua_setfield(L, -2, "status");
+
+  /* ts.note(...) */
+  lua_pushcfunction(L, ts_lua_note);
+  lua_setfield(L, -2, "note");
+
+  /* ts.warning(...) */
+  lua_pushcfunction(L, ts_lua_warning);
+  lua_setfield(L, -2, "warning");
+
+  /* ts.alert(...) */
+  lua_pushcfunction(L, ts_lua_alert);
+  lua_setfield(L, -2, "alert");
 
   /* ts.sleep(...) */
   lua_pushcfunction(L, ts_lua_sleep);
@@ -153,6 +188,29 @@ ts_lua_debug(lua_State *L)
 }
 
 static int
+ts_lua_is_debug_tag_set(lua_State *L)
+{
+  const char *flag;
+  size_t flag_len = 0;
+  int stat        = 0;
+
+  if (lua_gettop(L) == 1) {
+    flag = luaL_checklstring(L, 1, &flag_len);
+    stat = TSIsDebugTagSet(flag);
+  } else {
+    stat = TSIsDebugTagSet(TS_LUA_DEBUG_TAG);
+  }
+
+  if (0 == stat) {
+    lua_pushboolean(L, 0);
+  } else {
+    lua_pushboolean(L, 1);
+  }
+
+  return 1;
+}
+
+static int
 ts_lua_error(lua_State *L)
 {
   const char *msg;
@@ -160,6 +218,72 @@ ts_lua_error(lua_State *L)
 
   msg = luaL_checklstring(L, 1, &len);
   TSError("%.*s", (int)len, msg);
+  return 0;
+}
+
+static int
+ts_lua_emergency(lua_State *L)
+{
+  const char *msg;
+  size_t len = 0;
+
+  msg = luaL_checklstring(L, 1, &len);
+  TSEmergency("%.*s", (int)len, msg);
+  return 0;
+}
+
+static int
+ts_lua_fatal(lua_State *L)
+{
+  const char *msg;
+  size_t len = 0;
+
+  msg = luaL_checklstring(L, 1, &len);
+  TSFatal("%.*s", (int)len, msg);
+  return 0;
+}
+
+static int
+ts_lua_status(lua_State *L)
+{
+  const char *msg;
+  size_t len = 0;
+
+  msg = luaL_checklstring(L, 1, &len);
+  TSStatus("%.*s", (int)len, msg);
+  return 0;
+}
+
+static int
+ts_lua_note(lua_State *L)
+{
+  const char *msg;
+  size_t len = 0;
+
+  msg = luaL_checklstring(L, 1, &len);
+  TSNote("%.*s", (int)len, msg);
+  return 0;
+}
+
+static int
+ts_lua_warning(lua_State *L)
+{
+  const char *msg;
+  size_t len = 0;
+
+  msg = luaL_checklstring(L, 1, &len);
+  TSWarning("%.*s", (int)len, msg);
+  return 0;
+}
+
+static int
+ts_lua_alert(lua_State *L)
+{
+  const char *msg;
+  size_t len = 0;
+
+  msg = luaL_checklstring(L, 1, &len);
+  TSAlert("%.*s", (int)len, msg);
   return 0;
 }
 
@@ -199,7 +323,7 @@ ts_lua_schedule(lua_State *L)
   n = lua_gettop(L);
 
   if (n < 3) {
-    TSError("[ts_lua] ts.schedule need at least three parameters");
+    TSError("[ts_lua][%s] ts.schedule need at least three parameters", __FUNCTION__);
     return 0;
   }
 
@@ -213,7 +337,7 @@ ts_lua_schedule(lua_State *L)
   nci->contp = contp;
   nci->mutex = ci->mutex;
 
-  TSContSchedule(contp, sec * 1000, entry);
+  TSContScheduleOnPool(contp, sec * 1000, entry);
 
   return 0;
 }
@@ -258,7 +382,7 @@ ts_lua_schedule_handler(TSCont contp, TSEvent ev, void *edata)
   }
 
   if (ret != 0) {
-    TSError("[ts_lua] lua_resume failed: %s", lua_tostring(L, -1));
+    TSError("[ts_lua][%s] lua_resume failed: %s", __FUNCTION__, lua_tostring(L, -1));
   }
 
   lua_pop(L, lua_gettop(L));
@@ -291,7 +415,7 @@ ts_lua_sleep(lua_State *L)
   }
 
   contp  = TSContCreate(ts_lua_sleep_handler, ci->mutex);
-  action = TSContSchedule(contp, sec * 1000, TS_THREAD_POOL_DEFAULT);
+  action = TSContScheduleOnPool(contp, sec * 1000, TS_THREAD_POOL_NET);
 
   ai = ts_lua_async_create_item(contp, ts_lua_sleep_cleanup, (void *)action, ci);
   TSContDataSet(contp, ai);
@@ -348,19 +472,23 @@ ts_lua_host_lookup(lua_State *L)
   }
 
   if (lua_gettop(L) != 1) {
-    TSError("[ts_lua] ts.host_lookup need at least one parameter");
+    TSError("[ts_lua][%s] ts.host_lookup need at least one parameter", __FUNCTION__);
     return 0;
   }
 
   host = luaL_checklstring(L, 1, &host_len);
 
-  contp  = TSContCreate(ts_lua_host_lookup_handler, ci->mutex);
-  action = TSHostLookup(contp, host, host_len);
+  contp = TSContCreate(ts_lua_host_lookup_handler, ci->mutex);
+  ai    = ts_lua_async_create_item(contp, ts_lua_host_lookup_cleanup, NULL, ci);
 
-  ai = ts_lua_async_create_item(contp, ts_lua_host_lookup_cleanup, (void *)action, ci);
   TSContDataSet(contp, ai);
+  action = TSHostLookup(contp, host, host_len);
+  if (!TSActionDone(action)) {
+    ai->data = (void *)action;
+    return lua_yield(L, 0);
+  }
 
-  return lua_yield(L, 0);
+  return 1;
 }
 
 static int
@@ -368,27 +496,35 @@ ts_lua_host_lookup_handler(TSCont contp, TSEvent event, void *edata)
 {
   ts_lua_async_item *ai;
   ts_lua_cont_info *ci;
-  struct sockaddr const *addr;
   char cip[128];
   lua_State *L;
   ts_lua_coroutine *crt;
+  unsigned int resume;
 
   ai  = TSContDataGet(contp);
   ci  = ai->cinfo;
   crt = &ci->routine;
   L   = crt->lua;
 
+  // find out if need to resume luaVM before async item cleanup
+  if (ai->data != NULL) {
+    resume = 1;
+  } else {
+    resume = 0;
+  }
+
+  // async item cleanup
   ai->data = NULL;
   ts_lua_host_lookup_cleanup(ai);
 
   if (event != TS_EVENT_HOST_LOOKUP) {
-    TSError("[ts_lua] ts.host_lookup receives unknown event");
+    TSError("[ts_lua][%s] ts.host_lookup receives unknown event", __FUNCTION__);
     lua_pushnil(L);
   } else if (!edata) {
     lua_pushnil(L);
   } else {
-    TSHostLookupResult result = (TSHostLookupResult)edata;
-    addr                      = TSHostLookupResultAddrGet(result);
+    TSHostLookupResult result   = (TSHostLookupResult)edata;
+    struct sockaddr const *addr = TSHostLookupResultAddrGet(result);
     if (addr->sa_family == AF_INET) {
       inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)addr)->sin_addr, cip, sizeof(cip));
     } else {
@@ -397,7 +533,9 @@ ts_lua_host_lookup_handler(TSCont contp, TSEvent event, void *edata)
     lua_pushstring(L, cip);
   }
 
-  TSContCall(ci->contp, TS_LUA_EVENT_COROUTINE_CONT, (void *)1);
+  if (resume == 1) {
+    TSContCall(ci->contp, TS_LUA_EVENT_COROUTINE_CONT, (void *)1);
+  }
 
   return 0;
 }

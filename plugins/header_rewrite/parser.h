@@ -35,6 +35,10 @@ class Parser
 public:
   Parser(){};
 
+  // noncopyable
+  Parser(const Parser &) = delete;
+  void operator=(const Parser &) = delete;
+
   bool
   empty() const
   {
@@ -65,10 +69,17 @@ public:
     return _val;
   }
 
-  bool
-  mod_exist(const std::string m) const
+  // Return a copy of the string, this implies RVO as well
+  std::string
+  copy_value() const
   {
-    return (std::find(_mods.begin(), _mods.end(), m) != _mods.end());
+    return _val;
+  }
+
+  bool
+  mod_exist(const std::string &m) const
+  {
+    return std::find(_mods.begin(), _mods.end(), m) != _mods.end();
   }
 
   bool cond_is_hook(TSHttpHookID &hook) const;
@@ -95,14 +106,14 @@ protected:
   std::vector<std::string> _tokens;
 };
 
-class SimpleTokenizer
+class HRWSimpleTokenizer
 {
 public:
-  explicit SimpleTokenizer(const std::string &line);
+  explicit HRWSimpleTokenizer(const std::string &line);
 
   // noncopyable
-  SimpleTokenizer(const SimpleTokenizer &) = delete;
-  void operator=(const SimpleTokenizer &) = delete;
+  HRWSimpleTokenizer(const HRWSimpleTokenizer &) = delete;
+  void operator=(const HRWSimpleTokenizer &) = delete;
 
   const std::vector<std::string> &
   get_tokens() const
