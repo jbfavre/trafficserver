@@ -27,5 +27,13 @@ PIDFile=/run/trafficserver/manager.lock
 ExecStart=/usr/bin/traffic_manager $TM_DAEMON_ARGS
 ExecReload=/usr/bin/traffic_ctl config reload
 
+# From upstream
+SuccessExitStatus=15
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=5s
+LimitNOFILE=1000000
+KillMode=process
+
 [Install]
 WantedBy=multi-user.target
