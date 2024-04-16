@@ -29,4 +29,10 @@ foreach my $line (@config_lines)
         print F $line;
 }
 print F "CONFIG proxy.config.admin.user_id STRING trafficserver\n";
+print F "\n";
+print F "##############################################################################\n";
+print F "# Plugin configuration. Docs:\n";
+print F "#    https://docs.trafficserver.apache.org/admin-guide/files/records.config.en.html#plug-in-configuration\n";
+print F "##############################################################################\n";
+print F "CONFIG proxy.config.plugin.dynamic_reload_mode INT 0";
 close(F);

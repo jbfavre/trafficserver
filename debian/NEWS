@@ -1,3 +1,12 @@
+trafficserver (9.2.4+ds-2) unstable; urgency=medium
+
+  Due to the RUN directory being mounted with the noexec option,
+  remap plugins (from remap.config file) can not be properly loaded.
+  Therefore, we are now disabling the dynamic reload feature.
+  Details can be found in bug #1020989.
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 16 Apr 2024 08:53:13 +0200
+
 trafficserver (6.0.0-3) unstable; urgency=medium
 
   Due to uncertainty around wccp feature, and failing build,
