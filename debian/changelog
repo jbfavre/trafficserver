@@ -1,3 +1,11 @@
+trafficserver (9.2.4+ds-2) unstable; urgency=medium
+
+  * Disable plugin dynamic reload by default (Closes: #1020989)
+  * Improve d/trafficserver.service security
+  * Update d/copyright to fix lintian warning
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 16 Apr 2024 14:26:54 +0200
+
 trafficserver (9.2.4+ds-1) unstable; urgency=medium
 
   * New upstream version 9.2.4+ds
