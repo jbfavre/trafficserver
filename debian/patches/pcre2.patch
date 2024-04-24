@@ -1,0 +1,2658 @@
+Description: Port to PCRE2.
+Bug-Debian: https://bugs.debian.org/bug=999938
+Bug: https://github.com/apache/trafficserver/issues/8780
+Author: Yavor Doganov <yavor@gnu.org>
+Forwarded: no
+Last-Update: 2023-12-29
+---
+
+--- a/build/pcre.m4
++++ b/build/pcre.m4
+@@ -45,12 +45,12 @@ AC_ARG_WITH(pcre, [AS_HELP_STRING([--wit
+   fi
+ ],
+ [
+-  AC_CHECK_PROG(PCRE_CONFIG, pcre-config, pcre-config)
++  AC_CHECK_PROG(PCRE_CONFIG, pcre2-config, pcre2-config)
+   if test "x$PCRE_CONFIG" != "x"; then
+     enable_pcre=yes
+     pcre_base_dir="`$PCRE_CONFIG --prefix`"
+     pcre_include="`$PCRE_CONFIG --cflags | sed -es/-I//`"
+-    pcre_ldflags="`$PCRE_CONFIG --libs | sed -es/-lpcre// -es/-L//`"
++    pcre_ldflags="`$PCRE_CONFIG --libs8 | sed -es/-lpcre2-8// -es/-L//`"
+   fi
+ ])
+ 
+@@ -58,7 +58,7 @@ if test "x$pcre_base_dir" = "x"; then
+   AC_MSG_CHECKING([for pcre location])
+   AC_CACHE_VAL(ats_cv_pcre_dir,[
+   for dir in /usr/local /usr ; do
+-    if test -d $dir && ( test -f $dir/include/pcre.h || test -f $dir/include/pcre/pcre.h ); then
++    if test -d $dir && ( test -f $dir/include/pcre2.h ); then
+       ats_cv_pcre_dir=$dir
+       break
+     fi
+@@ -76,7 +76,7 @@ if test "x$pcre_base_dir" = "x"; then
+   fi
+ else
+   AC_MSG_CHECKING(for pcre headers in $pcre_include)
+-  if test -d $pcre_include && test -d $pcre_ldflags && ( test -f $pcre_include/pcre.h || test -f $pcre_include/pcre/pcre.h ); then
++  if test -d $pcre_include && test -d $pcre_ldflags && ( test -f $pcre_include/pcre2.h ); then
+     AC_MSG_RESULT([ok])
+   else
+     AC_MSG_RESULT([not found])
+@@ -93,14 +93,15 @@ if test "$enable_pcre" != "no"; then
+     TS_ADDTO(LDFLAGS, [-L${pcre_ldflags}])
+     TS_ADDTO_RPATH(${pcre_ldflags})
+   fi
+-  AC_CHECK_LIB([pcre], [pcre_exec], [pcre_have_libs=1])
++  AC_CHECK_LIB([pcre2-8], [pcre2_match_8], [pcre_have_libs=1])
+   if test "$pcre_have_libs" != "0"; then
+-    AC_CHECK_HEADERS(pcre.h, [pcre_have_headers=1])
+-    AC_CHECK_HEADERS(pcre/pcre.h, [pcre_have_headers=1])
++    AC_CHECK_HEADERS([pcre2.h], [pcre_have_headers=1], [], [[
++#define PCRE2_CODE_UNIT_WIDTH 8
++]])
+   fi
+   if test "$pcre_have_headers" != "0"; then
+     AC_DEFINE(HAVE_LIBPCRE,1,[Compiling with pcre support])
+-    AC_SUBST(LIBPCRE, [-lpcre])
++    AC_SUBST(LIBPCRE, [-lpcre2-8])
+   else
+     enable_pcre=no
+     CPPFLAGS=$saved_cppflags
+--- a/include/tscore/Regex.h
++++ b/include/tscore/Regex.h
+@@ -30,11 +30,8 @@
+ 
+ #include "tscore/ink_config.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ /// Match flags for regular expression evaluation.
+ enum REFlags {
+@@ -94,8 +91,7 @@ public:
+   int get_capture_count();
+ 
+ private:
+-  pcre *regex             = nullptr;
+-  pcre_extra *regex_extra = nullptr;
++  pcre2_code *regex       = nullptr;
+ };
+ 
+ /** Deterministic Finite state Automata container.
+--- a/include/tscore/ink_memory.h
++++ b/include/tscore/ink_memory.h
+@@ -22,6 +22,7 @@
+  */
+ #pragma once
+ 
++#ifdef __cplusplus
+ #include <cctype>
+ #include <cstring>
+ #include <strings.h>
+@@ -29,6 +30,7 @@
+ #include <limits>
+ #include <string>
+ #include <string_view>
++#endif
+ 
+ #include "tscore/ink_config.h"
+ 
+@@ -56,6 +58,9 @@
+ #include <malloc.h>
+ #endif // ! TS_HAS_JEMALLOC
+ 
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
++
+ #ifndef MADV_NORMAL
+ #define MADV_NORMAL 0
+ #endif
+@@ -80,18 +85,9 @@
+ extern "C" {
+ #endif /* __cplusplus */
+ 
+-struct IOVec : public iovec {
+-  IOVec()
+-  {
+-    iov_base = nullptr;
+-    iov_len  = 0;
+-  }
+-  IOVec(void *base, size_t len)
+-  {
+-    iov_base = base;
+-    iov_len  = len;
+-  }
+-};
++extern pcre2_general_context *gen_ctxt;
++extern pcre2_compile_context *comp_ctxt;
++extern pcre2_match_context *match_ctxt;
+ 
+ void *ats_malloc(size_t size);
+ void *ats_calloc(size_t nelem, size_t elsize);
+@@ -100,6 +96,10 @@ void *ats_memalign(size_t alignment, siz
+ void ats_free(void *ptr);
+ void *ats_free_null(void *ptr);
+ 
++void pcre_init(void);
++void *pcre_malloc(PCRE2_SIZE size, void *data);
++void pcre_free(void *ptr, void *data);
++
+ int ats_msync(caddr_t addr, size_t len, caddr_t end, int flags);
+ int ats_madvise(caddr_t addr, size_t len, int flags);
+ int ats_mlock(caddr_t addr, size_t len);
+@@ -142,6 +142,19 @@ char *_xstrdup(const char *str, int leng
+ 
+ #include <memory>
+ 
++struct IOVec : public iovec {
++  IOVec()
++  {
++    iov_base = nullptr;
++    iov_len  = 0;
++  }
++  IOVec(void *base, size_t len)
++  {
++    iov_base = base;
++    iov_len  = len;
++  }
++};
++
+ // this is to help with migration to a std::string issue with older code that
+ // expects char* being copied. As more code moves to std::string, this can be
+ // removed to avoid these extra copies.
+--- a/src/tscore/Regex.cc
++++ b/src/tscore/Regex.cc
+@@ -28,67 +28,55 @@
+ #include "tscore/ink_memory.h"
+ #include "tscore/Regex.h"
+ 
+-#ifdef PCRE_CONFIG_JIT
+-static pcre_jit_stack *
++static pcre2_jit_stack *
+ get_jit_stack(void *data ATS_UNUSED)
+ {
+   thread_local struct JitStack {
+     JitStack()
+     {
+-      jit_stack = pcre_jit_stack_alloc(ats_pagesize(), 1024 * 1024); // 1 page min and 1MB max
++      jit_stack = pcre2_jit_stack_create(ats_pagesize(), 1024 * 1024, gen_ctxt); // 1 page min and 1MB max
+     }
+-    ~JitStack() { pcre_jit_stack_free(jit_stack); }
++    ~JitStack() { pcre2_jit_stack_free(jit_stack); }
+ 
+-    pcre_jit_stack *jit_stack = nullptr;
++    pcre2_jit_stack *jit_stack = nullptr;
+   } stack;
+ 
+   return stack.jit_stack;
+ }
+-#endif
+ 
+-Regex::Regex(Regex &&that) noexcept : regex(that.regex), regex_extra(that.regex_extra)
++Regex::Regex(Regex &&that) noexcept : regex(that.regex)
+ {
+   that.regex       = nullptr;
+-  that.regex_extra = nullptr;
+ }
+ 
+ bool
+ Regex::compile(const char *pattern, const unsigned flags)
+ {
+-  const char *error;
+-  int erroffset;
+-  int options    = 0;
+-  int study_opts = 0;
++  int error;
++  PCRE2_SIZE erroffset;
++  uint32_t options = 0;
+ 
+   if (regex) {
+     return false;
+   }
+ 
+   if (flags & RE_CASE_INSENSITIVE) {
+-    options |= PCRE_CASELESS;
++    options |= PCRE2_CASELESS;
+   }
+ 
+   if (flags & RE_ANCHORED) {
+-    options |= PCRE_ANCHORED;
++    options |= PCRE2_ANCHORED;
+   }
+ 
+-  regex = pcre_compile(pattern, options, &error, &erroffset, nullptr);
+-  if (error) {
++  pcre_init();
++  regex = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, options, &error, &erroffset, comp_ctxt);
++  if (0 != erroffset) {
+     regex = nullptr;
+     return false;
+   }
+ 
+-#ifdef PCRE_CONFIG_JIT
+-  study_opts |= PCRE_STUDY_JIT_COMPILE;
+-#endif
+-
+-  regex_extra = pcre_study(regex, study_opts, &error);
+-
+-#ifdef PCRE_CONFIG_JIT
+-  if (regex_extra) {
+-    pcre_assign_jit_stack(regex_extra, &get_jit_stack, nullptr);
+-  }
+-#endif
++  pcre2_jit_compile(regex, PCRE2_JIT_COMPLETE);
++  pcre2_jit_stack_assign(match_ctxt, &get_jit_stack, nullptr);
+ 
+   return true;
+ }
+@@ -97,7 +85,7 @@ int
+ Regex::get_capture_count()
+ {
+   int captures = -1;
+-  if (pcre_fullinfo(regex, regex_extra, PCRE_INFO_CAPTURECOUNT, &captures) != 0) {
++  if (pcre2_pattern_info(regex, PCRE2_INFO_CAPTURECOUNT, &captures) != 0) {
+     return -1;
+   }
+ 
+@@ -114,23 +102,19 @@ Regex::exec(std::string_view const &str)
+ bool
+ Regex::exec(std::string_view const &str, int *ovector, int ovecsize) const
+ {
++  pcre2_match_data *md;
+   int rv;
+ 
+-  rv = pcre_exec(regex, regex_extra, str.data(), int(str.size()), 0, 0, ovector, ovecsize);
++  md = pcre2_match_data_create_from_pattern(regex, gen_ctxt);
++  rv = pcre2_match(regex, (PCRE2_SPTR)str.data(), str.size(), 0, 0, md, match_ctxt);
++  pcre2_match_data_free(md);
+   return rv > 0;
+ }
+ 
+ Regex::~Regex()
+ {
+-  if (regex_extra) {
+-#ifdef PCRE_CONFIG_JIT
+-    pcre_free_study(regex_extra);
+-#else
+-    pcre_free(regex_extra);
+-#endif
+-  }
+   if (regex) {
+-    pcre_free(regex);
++    pcre2_code_free(regex);
+   }
+ }
+ 
+--- a/src/tscore/ink_memory.cc
++++ b/src/tscore/ink_memory.cc
+@@ -46,6 +46,33 @@
+ #include <cstdlib>
+ #include <cstring>
+ 
++pcre2_general_context *gen_ctxt = nullptr;
++pcre2_compile_context *comp_ctxt = nullptr;
++pcre2_match_context *match_ctxt = nullptr;
++
++void
++pcre_init(void)
++{
++  if (!gen_ctxt)
++    gen_ctxt = pcre2_general_context_create(pcre_malloc, pcre_free, nullptr);
++  if (!comp_ctxt)
++    comp_ctxt = pcre2_compile_context_create(gen_ctxt);
++  if (!match_ctxt)
++    match_ctxt = pcre2_match_context_create(gen_ctxt);
++}
++
++void *
++pcre_malloc(PCRE2_SIZE size, void *data)
++{
++  return ats_malloc(size);
++}
++
++void
++pcre_free(void *ptr, void *data)
++{
++  ats_free(ptr);
++}
++
+ void *
+ ats_malloc(size_t size)
+ {
+--- a/proxy/ControlMatcher.cc
++++ b/proxy/ControlMatcher.cc
+@@ -375,7 +375,7 @@ RegexMatcher<Data, MatchResult>::RegexMa
+ template <class Data, class MatchResult> RegexMatcher<Data, MatchResult>::~RegexMatcher()
+ {
+   for (int i = 0; i < num_el; i++) {
+-    pcre_free(re_array[i]);
++    pcre2_code_free(re_array[i]);
+     ats_free(re_str[i]);
+   }
+   delete[] re_str;
+@@ -408,8 +408,8 @@ RegexMatcher<Data, MatchResult>::Allocat
+   // Should not have been allocated before
+   ink_assert(array_len == -1);
+ 
+-  re_array = static_cast<pcre **>(ats_malloc(sizeof(pcre *) * num_entries));
+-  memset(re_array, 0, sizeof(pcre *) * num_entries);
++  re_array = static_cast<pcre2_code **>(ats_malloc(sizeof(pcre2_code *) * num_entries));
++  memset(re_array, 0, sizeof(pcre2_code *) * num_entries);
+ 
+   data_array = new Data[num_entries];
+ 
+@@ -429,8 +429,9 @@ RegexMatcher<Data, MatchResult>::NewEntr
+ {
+   Data *cur_d;
+   char *pattern;
+-  const char *errptr;
+-  int erroffset;
++  PCRE2_UCHAR errptr[120];
++  PCRE2_SIZE erroffset;
++  int err;
+   Result error = Result::ok();
+ 
+   // Make sure space has been allocated
+@@ -446,9 +447,10 @@ RegexMatcher<Data, MatchResult>::NewEntr
+   ink_assert(pattern != nullptr);
+ 
+   // Create the compiled regular expression
+-  re_array[num_el] = pcre_compile(pattern, 0, &errptr, &erroffset, nullptr);
++  re_array[num_el] = pcre2_compile((PCRE2_SPTR)pattern, strlen(pattern), 0, &err, &erroffset, comp_ctxt);
+   if (!re_array[num_el]) {
+-    return Result::failure("%s regular expression error at line %d position %d : %s", matcher_name, line_info->line_num, erroffset,
++    pcre2_get_error_message(err, errptr, sizeof(errptr));
++    return Result::failure("%s regular expression error at line %d position %zu : %s", matcher_name, line_info->line_num, erroffset,
+                            errptr);
+   }
+   re_str[num_el] = ats_strdup(pattern);
+@@ -465,7 +467,7 @@ RegexMatcher<Data, MatchResult>::NewEntr
+     // There was a problem so undo the effects this function
+     ats_free(re_str[num_el]);
+     re_str[num_el] = nullptr;
+-    pcre_free(re_array[num_el]);
++    pcre2_code_free(re_array[num_el]);
+     re_array[num_el] = nullptr;
+   } else {
+     num_el++;
+@@ -484,6 +486,7 @@ template <class Data, class MatchResult>
+ void
+ RegexMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result) const
+ {
++  pcre2_match_data *md;
+   char *url_str;
+   int r;
+ 
+@@ -506,7 +509,9 @@ RegexMatcher<Data, MatchResult>::Match(R
+   // HttpRequestData::get_string(); therefore, no need to call again here.
+ 
+   for (int i = 0; i < num_el; i++) {
+-    r = pcre_exec(re_array[i], nullptr, url_str, strlen(url_str), 0, 0, nullptr, 0);
++    md = pcre2_match_data_create_from_pattern(re_array[i], gen_ctxt);
++    r = pcre2_match(re_array[i], (PCRE2_SPTR)url_str, strlen(url_str), 0, 0, md, match_ctxt);
++    pcre2_match_data_free(md);
+     if (r > -1) {
+       Debug("matcher", "%s Matched %s with regex at line %d", matcher_name, url_str, data_array[i].line_num);
+       data_array[i].UpdateMatch(result, rdata);
+@@ -537,6 +542,7 @@ template <class Data, class MatchResult>
+ void
+ HostRegexMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result) const
+ {
++  pcre2_match_data *md;
+   const char *url_str;
+   int r;
+ 
+@@ -554,7 +560,9 @@ HostRegexMatcher<Data, MatchResult>::Mat
+     url_str = "";
+   }
+   for (int i = 0; i < this->num_el; i++) {
+-    r = pcre_exec(this->re_array[i], nullptr, url_str, strlen(url_str), 0, 0, nullptr, 0);
++    md = pcre2_match_data_create_from_pattern(this->re_array[i], gen_ctxt);
++    r = pcre2_match(this->re_array[i], (PCRE2_SPTR)url_str, strlen(url_str), 0, 0, md, match_ctxt);
++    pcre2_match_data_free(md);
+     if (r != -1) {
+       Debug("matcher", "%s Matched %s with regex at line %d", const_cast<char *>(this->matcher_name), url_str,
+             this->data_array[i].line_num);
+--- a/proxy/ControlMatcher.h
++++ b/proxy/ControlMatcher.h
+@@ -223,7 +223,7 @@ public:
+   using super::array_len;
+ 
+ protected:
+-  pcre **re_array = nullptr; // array of compiled regexs
++  pcre2_code **re_array = nullptr; // array of compiled regexs
+   char **re_str   = nullptr; // array of uncompiled regex strings
+ };
+ 
+--- a/iocore/net/P_SSLSNI.h
++++ b/iocore/net/P_SSLSNI.h
+@@ -53,7 +53,7 @@ struct PcreFreer {
+   void
+   operator()(void *p)
+   {
+-    pcre_free(p);
++    pcre2_code_free((pcre2_code *)p);
+   }
+ };
+ 
+@@ -66,7 +66,7 @@ struct NamedElement {
+   void set_glob_name(std::string name);
+   void set_regex_name(const std::string &regex_name);
+ 
+-  std::unique_ptr<pcre, PcreFreer> match;
++  std::unique_ptr<pcre2_code, PcreFreer> match;
+ };
+ 
+ struct ActionElement : public NamedElement {
+--- a/iocore/net/SSLSNIConfig.cc
++++ b/iocore/net/SSLSNIConfig.cc
+@@ -42,9 +42,10 @@
+ 
+ #include <sstream>
+ #include <utility>
+-#include <pcre.h>
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+-static constexpr int OVECSIZE{30};
++static constexpr uint32_t OVECSIZE = 30;
+ 
+ ////
+ // NamedElement
+@@ -82,10 +83,10 @@ NamedElement::set_glob_name(std::string
+ void
+ NamedElement::set_regex_name(const std::string &regex_name)
+ {
+-  const char *err_ptr;
+-  int err_offset = 0;
++  int err;
++  PCRE2_SIZE err_offset;
+   if (!regex_name.empty()) {
+-    match.reset(pcre_compile(regex_name.c_str(), PCRE_ANCHORED | PCRE_CASELESS, &err_ptr, &err_offset, nullptr));
++    match.reset(pcre2_compile((PCRE2_SPTR)regex_name.c_str(), PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_CASELESS, &err, &err_offset, comp_ctxt));
+   }
+ }
+ 
+@@ -95,14 +96,17 @@ NamedElement::set_regex_name(const std::
+ const NextHopProperty *
+ SNIConfigParams::get_property_config(const std::string &servername) const
+ {
++  pcre2_match_data *md;
+   const NextHopProperty *nps = nullptr;
++  md = pcre2_match_data_create(OVECSIZE, gen_ctxt);
+   for (auto &&item : next_hop_list) {
+-    if (pcre_exec(item.match.get(), nullptr, servername.c_str(), servername.length(), 0, 0, nullptr, 0) >= 0) {
++    if (pcre2_match(item.match.get(), (PCRE2_SPTR)servername.c_str(), servername.length(), 0, 0, md, match_ctxt) >= 0) {
+       // Found a match
+       nps = &item.prop;
+       break;
+     }
+   }
++  pcre2_match_data_free(md);
+   return nps;
+ }
+ 
+@@ -187,18 +191,23 @@ SNIConfigParams::load_sni_config()
+ std::pair<const ActionVector *, ActionItem::Context>
+ SNIConfigParams::get(std::string_view servername) const
+ {
+-  int ovector[OVECSIZE];
++  pcre2_match_data *md;
++  PCRE2_SIZE *ovector = nullptr;
+ 
++  md = pcre2_match_data_create(OVECSIZE, gen_ctxt);
+   for (const auto &retval : sni_action_list) {
+-    int length = servername.length();
++    size_t length = servername.length();
+     if (retval.match == nullptr && length == 0) {
++      pcre2_match_data_free(md);
+       return {&retval.actions, {}};
+-    } else if (auto offset = pcre_exec(retval.match.get(), nullptr, servername.data(), length, 0, 0, ovector, OVECSIZE);
++    } else if (auto offset = pcre2_match(retval.match.get(), (PCRE2_SPTR)servername.data(), length, 0, 0, md, match_ctxt);
+                offset >= 0) {
+       if (offset == 1) {
+         // first pair identify the portion of the subject string matched by the entire pattern
++        ovector = pcre2_get_ovector_pointer(md);
+         if (ovector[0] == 0 && ovector[1] == length) {
+           // full match
++          pcre2_match_data_free(md);
+           return {&retval.actions, {}};
+         } else {
+           continue;
+@@ -218,9 +227,11 @@ SNIConfigParams::get(std::string_view se
+ 
+         groups.emplace_back(servername.data() + start, length);
+       }
++      pcre2_match_data_free(md);
+       return {&retval.actions, {std::move(groups)}};
+     }
+   }
++  pcre2_match_data_free(md);
+   return {nullptr, {}};
+ }
+ 
+--- a/proxy/http/remap/UrlMapping.cc
++++ b/proxy/http/remap/UrlMapping.cc
+@@ -153,8 +153,9 @@ redirect_tag_str::parse_format_redirect_
+ referer_info::referer_info(char *_ref, bool *error_flag, char *errmsgbuf, int errmsgbuf_size)
+   : next(nullptr), referer(nullptr), referer_size(0), any(false), negative(false), regx_valid(false)
+ {
+-  const char *error;
+-  int erroffset;
++  int err;
++  const char error[120] = {};
++  PCRE2_SIZE erroffset;
+ 
+   if (error_flag) {
+     *error_flag = false;
+@@ -171,9 +172,10 @@ referer_info::referer_info(char *_ref, b
+       if (!strcmp(referer, "*")) {
+         any = true;
+       } else {
+-        regx = pcre_compile(referer, PCRE_CASELESS, &error, &erroffset, nullptr);
++        regx = pcre2_compile((PCRE2_SPTR)referer, PCRE2_ZERO_TERMINATED, PCRE2_CASELESS, &err, &erroffset, comp_ctxt);
+         if (!regx) {
+           if (errmsgbuf && (errmsgbuf_size - 1) > 0) {
++            pcre2_get_error_message(err, (PCRE2_UCHAR *)error, sizeof(error));
+             ink_strlcpy(errmsgbuf, error, errmsgbuf_size);
+           }
+           if (error_flag) {
+@@ -197,7 +199,7 @@ referer_info::~referer_info()
+   referer_size = 0;
+ 
+   if (regx_valid) {
+-    pcre_free(regx);
++    pcre2_code_free(regx);
+     regx       = nullptr;
+     regx_valid = false;
+   }
+--- a/proxy/http/remap/UrlMapping.h
++++ b/proxy/http/remap/UrlMapping.h
+@@ -51,7 +51,7 @@ public:
+   bool any;      /* any flag '*' */
+   bool negative; /* negative referer '~' */
+   bool regx_valid;
+-  pcre *regx;
++  pcre2_code *regx;
+ };
+ 
+ /**
+--- a/iocore/cache/CachePages.cc
++++ b/iocore/cache/CachePages.cc
+@@ -613,16 +613,19 @@ ShowCache::handleCacheScanCallback(int e
+     int res = CACHE_SCAN_RESULT_CONTINUE;
+ 
+     for (unsigned s = 0; show_cache_urlstrs[s][0] != '\0'; s++) {
+-      const char *error;
+-      int erroffset;
+-      pcre *preq = pcre_compile(show_cache_urlstrs[s], 0, &error, &erroffset, nullptr);
++      pcre2_match_data *md;
++      int error;
++      PCRE2_SIZE erroffset;
++      pcre2_code *preq = pcre2_compile((PCRE2_SPTR)show_cache_urlstrs[s], PCRE2_ZERO_TERMINATED, 0, &error, &erroffset, comp_ctxt);
+ 
+       Debug("cache_inspector", "matching url '%s' '%s' with regex '%s'", m, xx, show_cache_urlstrs[s]);
+ 
+       if (preq) {
+-        int r = pcre_exec(preq, nullptr, xx, ib, 0, 0, nullptr, 0);
++        md = pcre2_match_data_create_from_pattern(preq, gen_ctxt);
++        int r = pcre2_match(preq, (PCRE2_SPTR)xx, ib, 0, 0, md, match_ctxt);
+ 
+-        pcre_free(preq);
++        pcre2_code_free(preq);
++        pcre2_match_data_free(md);
+         if (r != -1) {
+           linecount++;
+           if ((linecount % 5) == 0) {
+--- a/proxy/http/remap/RemapProcessor.cc
++++ b/proxy/http/remap/RemapProcessor.cc
+@@ -155,6 +155,7 @@ RemapProcessor::finish_remap(HttpTransac
+ 
+   // Check referer filtering rules
+   if ((s->filter_mask & URL_REMAP_FILTER_REFERER) != 0 && (ri = map->referer_list) != nullptr) {
++    pcre2_match_data *md    = nullptr;
+     const char *referer_hdr = nullptr;
+     int referer_len         = 0;
+     bool enabled_flag       = map->optional_referer ? true : false;
+@@ -167,16 +168,19 @@ RemapProcessor::finish_remap(HttpTransac
+       memcpy(tmp_referer_buf, referer_hdr, referer_len);
+       tmp_referer_buf[referer_len] = 0;
+       for (enabled_flag = false; ri; ri = ri->next) {
++        pcre2_match_data_free(md);
++        md = pcre2_match_data_create_from_pattern(ri->regx, gen_ctxt);
+         if (ri->any) {
+           enabled_flag = true;
+           if (!map->negative_referer) {
+             break;
+           }
+-        } else if (ri->regx_valid && (pcre_exec(ri->regx, nullptr, tmp_referer_buf, referer_len, 0, 0, nullptr, 0) != -1)) {
++        } else if (ri->regx_valid && (pcre2_match(ri->regx, (PCRE2_SPTR)tmp_referer_buf, referer_len, 0, 0, md, match_ctxt) != -1)) {
+           enabled_flag = ri->negative ? false : true;
+           break;
+         }
+       }
++      pcre2_match_data_free(md);
+     }
+ 
+     if (!enabled_flag) {
+--- a/mgmt/WebMgmtUtils.cc
++++ b/mgmt/WebMgmtUtils.cc
+@@ -1020,17 +1020,20 @@ recordValidityCheck(const char *varName,
+ bool
+ recordRegexCheck(const char *pattern, const char *value)
+ {
+-  pcre *regex;
+-  const char *error;
+-  int erroffset;
++  pcre2_code *regex;
++  pcre2_match_data *md;
++  int error;
++  PCRE2_SIZE erroffset;
+ 
+-  regex = pcre_compile(pattern, 0, &error, &erroffset, nullptr);
++  regex = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0, &error, &erroffset, comp_ctxt);
+   if (!regex) {
+     return false;
+   } else {
+-    int r = pcre_exec(regex, nullptr, value, strlen(value), 0, 0, nullptr, 0);
++    md = pcre2_match_data_create_from_pattern(regex, gen_ctxt);
++    int r = pcre2_match(regex, (PCRE2_SPTR)value, strlen(value), 0, 0, md, match_ctxt);
+ 
+-    pcre_free(regex);
++    pcre2_match_data_free(md);
++    pcre2_code_free(regex);
+     return (r != -1) ? true : false;
+   }
+ 
+--- a/src/traffic_server/traffic_server.cc
++++ b/src/traffic_server/traffic_server.cc
+@@ -1750,8 +1750,7 @@ main(int /* argc ATS_UNUSED */, const ch
+   mcheck_pedantic(NULL);
+ #endif
+ 
+-  pcre_malloc = ats_malloc;
+-  pcre_free   = ats_free;
++  pcre_init();
+ 
+   // Define the version info
+   appVersionInfo.setup(PACKAGE_NAME, "traffic_server", PACKAGE_VERSION, __DATE__, __TIME__, BUILD_MACHINE, BUILD_PERSON, "");
+--- a/src/traffic_via/traffic_via.cc
++++ b/src/traffic_via/traffic_via.cc
+@@ -23,6 +23,7 @@
+ 
+ #include "tscore/ink_platform.h"
+ #include "tscore/ink_args.h"
++#include "tscore/ink_memory.h"
+ #include "tscore/I_Version.h"
+ #include "mgmtapi.h"
+ #include <cstdio>
+@@ -32,11 +33,8 @@
+ #include "tscore/Regex.h"
+ 
+ /// XXX Use DFA or Regex wrappers?
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #define SUBSTRING_VECTOR_COUNT 30 // Should be multiple of 3
+ 
+@@ -257,11 +255,12 @@ decodeViaHeader(std::string_view text)
+ static TSMgmtError
+ filterViaHeader()
+ {
+-  const pcre *compiledReg;
+-  const pcre_extra *extraReg = nullptr;
+-  int subStringVector[SUBSTRING_VECTOR_COUNT];
+-  const char *err;
+-  int errOffset;
++  const pcre2_code *compiledReg;
++  pcre2_match_data *md;
++  PCRE2_SIZE *subStringVector;
++  PCRE2_UCHAR errbuf[120];
++  int err;
++  PCRE2_SIZE errOffset;
+   int pcreExecCode;
+   int i;
+   const char *viaPattern =
+@@ -269,17 +268,19 @@ filterViaHeader()
+   std::string line;
+ 
+   // Compile PCRE via header pattern
+-  compiledReg = pcre_compile(viaPattern, 0, &err, &errOffset, nullptr);
++  compiledReg = pcre2_compile((PCRE2_SPTR)viaPattern, PCRE2_ZERO_TERMINATED, 0, &err, &errOffset, comp_ctxt);
+ 
+   if (compiledReg == nullptr) {
+-    printf("PCRE regex compilation failed with error %s at offset %d\n", err, errOffset);
++    pcre2_get_error_message(err, errbuf, sizeof(errbuf));
++    printf("PCRE regex compilation failed with error %s at offset %zu\n", errbuf, errOffset);
+     return TS_ERR_FAIL;
+   }
+ 
++  md = pcre2_match_data_create(SUBSTRING_VECTOR_COUNT, gen_ctxt);
+   // Read all lines from stdin
+   while (std::getline(std::cin, line)) {
+     // Match for via header pattern
+-    pcreExecCode = pcre_exec(compiledReg, extraReg, line.data(), line.size(), 0, 0, subStringVector, SUBSTRING_VECTOR_COUNT);
++    pcreExecCode = pcre2_match(compiledReg, (PCRE2_SPTR)line.data(), line.size(), 0, 0, md, match_ctxt);
+ 
+     // Match failed, don't worry. Continue to next line.
+     if (pcreExecCode < 0) {
+@@ -293,12 +294,14 @@ filterViaHeader()
+     }
+ 
+     // Loop based on number of matches found
++    subStringVector = pcre2_get_ovector_pointer(md);
+     for (i = 1; i < pcreExecCode; i++) {
+       std::string_view match{line.data() + subStringVector[2 * i], size_t(subStringVector[2 * i + 1] - subStringVector[2 * i])};
+       // Decode matched substring
+       decodeViaHeader(match);
+     }
+   }
++  pcre2_match_data_free(md);
+   return TS_ERR_OKAY;
+ }
+ 
+@@ -316,6 +319,7 @@ main(int /* argc ATS_UNUSED */, const ch
+     HELP_ARGUMENT_DESCRIPTION(),
+   };
+ 
++  pcre_init();
+   process_args(&appVersionInfo, argument_descriptions, countof(argument_descriptions), argv);
+ 
+   for (unsigned i = 0; i < n_file_arguments; ++i) {
+--- a/src/traffic_layout/info.cc
++++ b/src/traffic_layout/info.cc
+@@ -189,7 +189,7 @@ produce_versions(bool json)
+ 
+   print_var("openssl", LBW().print("{:#x}", OPENSSL_VERSION_NUMBER).view(), json);
+   print_var("openssl_str", LBW().print(OPENSSL_VERSION_TEXT).view(), json);
+-  print_var("pcre", LBW().print("{}.{}", PCRE_MAJOR, PCRE_MINOR).view(), json);
++  print_var("pcre", LBW().print("{}.{}", PCRE2_MAJOR, PCRE2_MINOR).view(), json);
+   // These are optional, for now at least.
+ #if TS_USE_HWLOC
+   print_var("hwloc", LBW().print("{:#x}", HWLOC_API_VERSION).view(), json);
+--- a/plugins/header_rewrite/regex_helper.cc
++++ b/plugins/header_rewrite/regex_helper.cc
+@@ -20,21 +20,17 @@
+ bool
+ regexHelper::setRegexMatch(const std::string &s)
+ {
+-  const char *errorComp  = nullptr;
+-  const char *errorStudy = nullptr;
+-  int erroffset;
++  int errorComp;
++  PCRE2_SIZE erroffset;
+ 
+   regexString = s;
+-  regex       = pcre_compile(regexString.c_str(), 0, &errorComp, &erroffset, nullptr);
++  regex       = pcre2_compile((PCRE2_SPTR)regexString.c_str(), PCRE2_ZERO_TERMINATED, 0, &errorComp, &erroffset, comp_ctxt);
+ 
+   if (regex == nullptr) {
+     return false;
+   }
+-  regexExtra = pcre_study(regex, 0, &errorStudy);
+-  if ((regexExtra == nullptr) && (errorStudy != nullptr)) {
+-    return false;
+-  }
+-  if (pcre_fullinfo(regex, regexExtra, PCRE_INFO_CAPTURECOUNT, &regexCcount) != 0) {
++
++  if (pcre2_pattern_info(regex, PCRE2_INFO_CAPTURECOUNT, &regexCcount) != 0) {
+     return false;
+   }
+   return true;
+@@ -43,12 +39,17 @@ regexHelper::setRegexMatch(const std::st
+ int
+ regexHelper::regexMatch(const char *str, int len, int ovector[]) const
+ {
+-  return pcre_exec(regex,      // the compiled pattern
+-                   regexExtra, // Extra data from study (maybe)
+-                   str,        // the subject std::string
++  pcre2_match_data *md;
++  int rc;
++
++  md = pcre2_match_data_create(OVECCOUNT, gen_ctxt);
++  rc = pcre2_match(regex,      // the compiled pattern
++                   (PCRE2_SPTR)str, // the subject std::string
+                    len,        // the length of the subject
+                    0,          // start at offset 0 in the subject
+                    0,          // default options
+-                   ovector,    // output vector for substring information
+-                   OVECCOUNT); // number of elements in the output vector
++                   md,         // match data
++                   match_ctxt); // match context
++  pcre2_match_data_free(md);
++  return rc;
+ };
+--- a/plugins/header_rewrite/regex_helper.h
++++ b/plugins/header_rewrite/regex_helper.h
+@@ -18,12 +18,10 @@
+ #pragma once
+ 
+ #include "tscore/ink_defs.h"
++#include "tscore/ink_memory.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include <string>
+ 
+@@ -34,8 +32,7 @@ class regexHelper
+ public:
+   ~regexHelper()
+   {
+-    pcre_free(regex);
+-    pcre_free(regexExtra);
++    pcre2_code_free(regex);
+   }
+ 
+   bool setRegexMatch(const std::string &s);
+@@ -43,7 +40,6 @@ public:
+ 
+ private:
+   std::string regexString;
+-  pcre *regex            = nullptr;
+-  pcre_extra *regexExtra = nullptr;
++  pcre2_code *regex      = nullptr;
+   int regexCcount        = 0;
+ };
+--- a/plugins/cachekey/pattern.cc
++++ b/plugins/cachekey/pattern.cc
+@@ -140,14 +140,9 @@ void
+ Pattern::pcreFree()
+ {
+   if (_re) {
+-    pcre_free(_re);
++    pcre2_code_free(_re);
+     _re = nullptr;
+   }
+-
+-  if (_extra) {
+-    pcre_free(_extra);
+-    _extra = nullptr;
+-  }
+ }
+ 
+ /**
+@@ -205,6 +200,7 @@ Pattern::process(const String &subject,
+ bool
+ Pattern::match(const String &subject)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+   CacheKeyDebug("matching '%s' to '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -212,9 +208,11 @@ Pattern::match(const String &subject)
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, _extra, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, nullptr, 0);
++  md = pcre2_match_data_create_from_pattern(_re, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
++  pcre2_match_data_free(md);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       CacheKeyError("matching error %d", matchCount);
+     }
+     return false;
+@@ -231,8 +229,9 @@ Pattern::match(const String &subject)
+ bool
+ Pattern::capture(const String &subject, StringVector &result)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+-  int ovector[OVECOUNT];
++  PCRE2_SIZE *ovector;
+ 
+   CacheKeyDebug("capturing '%s' from '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -241,23 +240,27 @@ Pattern::capture(const String &subject,
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, nullptr, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, ovector, OVECOUNT);
++  md = pcre2_match_data_create(OVECOUNT, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       CacheKeyError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
+ 
++  ovector = pcre2_get_ovector_pointer(md);
+   for (int i = 0; i < matchCount; i++) {
+-    int start  = ovector[2 * i];
+-    int length = ovector[2 * i + 1] - ovector[2 * i];
++    int start  = (int)ovector[2 * i];
++    int length = (int)(ovector[2 * i + 1] - ovector[2 * i]);
+ 
+     String dst(subject, start, length);
+ 
+-    CacheKeyDebug("capturing '%s' %d[%d,%d]", dst.c_str(), i, ovector[2 * i], ovector[2 * i + 1]);
++    CacheKeyDebug("capturing '%s' %d[%zu,%zu]", dst.c_str(), i, ovector[2 * i], ovector[2 * i + 1]);
+     result.push_back(dst);
+   }
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -271,8 +274,9 @@ Pattern::capture(const String &subject,
+ bool
+ Pattern::replace(const String &subject, String &result)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+-  int ovector[OVECOUNT];
++  PCRE2_SIZE *ovector;
+ 
+   CacheKeyDebug("replacing:'%s' in pattern:'%s', subject:'%s'", _replacement.c_str(), _pattern.c_str(), subject.c_str());
+ 
+@@ -281,11 +285,13 @@ Pattern::replace(const String &subject,
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, nullptr, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, ovector, OVECOUNT);
++  md = pcre2_match_data_create(OVECOUNT, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       CacheKeyError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
+ 
+@@ -293,15 +299,17 @@ Pattern::replace(const String &subject,
+   for (int i = 0; i < _tokenCount; i++) {
+     if (_tokens[i] >= matchCount) {
+       CacheKeyError("invalid reference in replacement string: $%d", _tokens[i]);
++      pcre2_match_data_free(md);
+       return false;
+     }
+   }
+ 
++  ovector = pcre2_get_ovector_pointer(md);
+   int previous = 0;
+   for (int i = 0; i < _tokenCount; i++) {
+     int replIndex = _tokens[i];
+-    int start     = ovector[2 * replIndex];
+-    int length    = ovector[2 * replIndex + 1] - ovector[2 * replIndex];
++    int start     = (int)ovector[2 * replIndex];
++    int length    = (int)(ovector[2 * replIndex + 1] - ovector[2 * replIndex]);
+ 
+     /* Handle the case when no match / a group capture result in an empty string */
+     if (start < 0) {
+@@ -323,6 +331,7 @@ Pattern::replace(const String &subject,
+   result.append(_replacement, previous, _replacement.length() - previous);
+ 
+   CacheKeyDebug("replacing '%s' resulted in '%s'", _replacement.c_str(), result.c_str());
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -334,31 +343,24 @@ Pattern::replace(const String &subject,
+ bool
+ Pattern::compile()
+ {
+-  const char *errPtr; /* PCRE error */
+-  int errOffset;      /* PCRE error offset */
++  int errCode;             /* PCRE error code */
++  PCRE2_UCHAR errPtr[120]; /* PCRE error */
++  PCRE2_SIZE errOffset;    /* PCRE error offset */
+ 
+   CacheKeyDebug("compiling pattern:'%s', replace: %s, replacement:'%s'", _pattern.c_str(), _replace ? "true" : "false",
+                 _replacement.c_str());
+ 
+-  _re = pcre_compile(_pattern.c_str(), /* the pattern */
+-                     0,                /* options */
+-                     &errPtr,          /* for error message */
+-                     &errOffset,       /* for error offset */
+-                     nullptr);         /* use default character tables */
++  _re = pcre2_compile((PCRE2_SPTR)_pattern.c_str(), /* the pattern */
++                      PCRE2_ZERO_TERMINATED,
++                      0,                /* options */
++                      &errCode,         /* for error code */
++                      &errOffset,       /* for error offset */
++                      comp_ctxt);       /* compile context */
+ 
+   if (nullptr == _re) {
+-    CacheKeyError("compile of regex '%s' at char %d: %s", _pattern.c_str(), errOffset, errPtr);
+-
+-    return false;
+-  }
+-
+-  _extra = pcre_study(_re, 0, &errPtr);
++    pcre2_get_error_message(errCode, errPtr, sizeof(errPtr));
++    CacheKeyError("compile of regex '%s' at char %zu: %s", _pattern.c_str(), errOffset, errPtr);
+ 
+-  if ((nullptr == _extra) && (nullptr != errPtr) && (0 != *errPtr)) {
+-    CacheKeyError("failed to study regex '%s': %s", _pattern.c_str(), errPtr);
+-
+-    pcre_free(_re);
+-    _re = nullptr;
+     return false;
+   }
+ 
+--- a/plugins/cachekey/pattern.h
++++ b/plugins/cachekey/pattern.h
+@@ -24,12 +24,10 @@
+ #pragma once
+ 
+ #include "tscore/ink_defs.h"
++#include "tscore/ink_memory.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include "common.h"
+ 
+@@ -57,8 +55,7 @@ private:
+   bool compile();
+   void pcreFree();
+ 
+-  pcre *_re          = nullptr; /**< @brief PCRE compiled info structure, computed during initialization */
+-  pcre_extra *_extra = nullptr; /**< @brief PCRE study data block, computed during initialization */
++  pcre2_code *_re    = nullptr; /**< @brief PCRE compiled info structure, computed during initialization */
+ 
+   String _pattern;     /**< @brief PCRE pattern string, containing PCRE patterns and capturing groups. */
+   String _replacement; /**< @brief PCRE replacement string, containing $0..$9 to be replaced with content of the capturing groups */
+--- a/plugins/prefetch/pattern.cc
++++ b/plugins/prefetch/pattern.cc
+@@ -139,14 +139,9 @@ void
+ Pattern::pcreFree()
+ {
+   if (_re) {
+-    pcre_free(_re);
++    pcre2_code_free(_re);
+     _re = nullptr;
+   }
+-
+-  if (_extra) {
+-    pcre_free(_extra);
+-    _extra = nullptr;
+-  }
+ }
+ 
+ /**
+@@ -204,6 +199,7 @@ Pattern::process(const String &subject,
+ bool
+ Pattern::match(const String &subject)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+   PrefetchDebug("matching '%s' to '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -211,13 +207,16 @@ Pattern::match(const String &subject)
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, _extra, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, nullptr, 0);
++  md = pcre2_match_data_create_from_pattern(_re, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       PrefetchError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -230,8 +229,9 @@ Pattern::match(const String &subject)
+ bool
+ Pattern::capture(const String &subject, StringVector &result)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+-  int ovector[OVECOUNT];
++  PCRE2_SIZE *ovector;
+ 
+   PrefetchDebug("matching '%s' to '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -239,23 +239,27 @@ Pattern::capture(const String &subject,
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, nullptr, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, ovector, OVECOUNT);
++  md = pcre2_match_data_create(OVECOUNT, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       PrefetchError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
+ 
++  ovector = pcre2_get_ovector_pointer(md);
+   for (int i = 0; i < matchCount; i++) {
+-    int start  = ovector[2 * i];
+-    int length = ovector[2 * i + 1] - ovector[2 * i];
++    int start  = (int)ovector[2 * i];
++    int length = (int)(ovector[2 * i + 1] - ovector[2 * i]);
+ 
+     String dst(subject, start, length);
+ 
+-    PrefetchDebug("capturing '%s' %d[%d,%d]", dst.c_str(), i, ovector[2 * i], ovector[2 * i + 1]);
++    PrefetchDebug("capturing '%s' %d[%zu,%zu]", dst.c_str(), i, ovector[2 * i], ovector[2 * i + 1]);
+     result.push_back(dst);
+   }
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -269,8 +273,9 @@ Pattern::capture(const String &subject,
+ bool
+ Pattern::replace(const String &subject, String &result)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+-  int ovector[OVECOUNT];
++  PCRE2_SIZE *ovector;
+ 
+   PrefetchDebug("matching '%s' to '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -278,11 +283,13 @@ Pattern::replace(const String &subject,
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, nullptr, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, ovector, OVECOUNT);
++  md = pcre2_match_data_create(OVECOUNT, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       PrefetchError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
+ 
+@@ -294,11 +301,12 @@ Pattern::replace(const String &subject,
+     }
+   }
+ 
++  ovector = pcre2_get_ovector_pointer(md);
+   int previous = 0;
+   for (int i = 0; i < _tokenCount; i++) {
+     int replIndex = _tokens[i];
+-    int start     = ovector[2 * replIndex];
+-    int length    = ovector[2 * replIndex + 1] - ovector[2 * replIndex];
++    int start     = (int)ovector[2 * replIndex];
++    int length    = (int)(ovector[2 * replIndex + 1] - ovector[2 * replIndex]);
+ 
+     String src(_replacement, _tokenOffset[i], 2);
+     String dst(subject, start, length);
+@@ -314,6 +322,7 @@ Pattern::replace(const String &subject,
+   result.append(_replacement, previous, _replacement.length() - previous);
+ 
+   PrefetchDebug("replacing '%s' resulted in '%s'", _replacement.c_str(), result.c_str());
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -325,30 +334,23 @@ Pattern::replace(const String &subject,
+ bool
+ Pattern::compile()
+ {
+-  const char *errPtr; /* PCRE error */
+-  int errOffset;      /* PCRE error offset */
++  int errCode;             /* PCRE error code */
++  PCRE2_UCHAR errPtr[120]; /* PCRE error */
++  PCRE2_SIZE errOffset;    /* PCRE error offset */
+ 
+   PrefetchDebug("compiling pattern:'%s', replacement:'%s'", _pattern.c_str(), _replacement.c_str());
+ 
+-  _re = pcre_compile(_pattern.c_str(), /* the pattern */
+-                     0,                /* options */
+-                     &errPtr,          /* for error message */
+-                     &errOffset,       /* for error offset */
+-                     nullptr);         /* use default character tables */
++  _re = pcre2_compile((PCRE2_SPTR)_pattern.c_str(), /* the pattern */
++                      PCRE2_ZERO_TERMINATED,
++                      0,                /* options */
++                      &errCode,         /* for error code */
++                      &errOffset,       /* for error offset */
++                      comp_ctxt);       /* compile context */
+ 
+   if (nullptr == _re) {
+-    PrefetchError("compile of regex '%s' at char %d: %s", _pattern.c_str(), errOffset, errPtr);
+-
+-    return false;
+-  }
+-
+-  _extra = pcre_study(_re, 0, &errPtr);
++    pcre2_get_error_message(errCode, errPtr, sizeof(errPtr));
++    PrefetchError("compile of regex '%s' at char %zu: %s", _pattern.c_str(), errOffset, errPtr);
+ 
+-  if ((nullptr == _extra) && (nullptr != errPtr) && (0 != *errPtr)) {
+-    PrefetchError("failed to study regex '%s': %s", _pattern.c_str(), errPtr);
+-
+-    pcre_free(_re);
+-    _re = nullptr;
+     return false;
+   }
+ 
+--- a/plugins/prefetch/pattern.h
++++ b/plugins/prefetch/pattern.h
+@@ -23,11 +23,10 @@
+ 
+ #pragma once
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#include "tscore/ink_memory.h"
++
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include "common.h"
+ 
+@@ -56,8 +55,7 @@ private:
+   bool failed(const String &subject) const;
+   void pcreFree();
+ 
+-  pcre *_re          = nullptr; /**< @brief PCRE compiled info structure, computed during initialization */
+-  pcre_extra *_extra = nullptr; /**< @brief PCRE study data block, computed during initialization */
++  pcre2_code *_re    = nullptr; /**< @brief PCRE compiled info structure, computed during initialization */
+ 
+   String _pattern;     /**< @brief PCRE pattern string, containing PCRE patterns and capturing groups. */
+   String _replacement; /**< @brief PCRE replacement string, containing $0..$9 to be replaced with content of the capturing groups */
+--- a/plugins/regex_remap/regex_remap.cc
++++ b/plugins/regex_remap/regex_remap.cc
+@@ -44,11 +44,8 @@
+ #include "tscore/ink_time.h"
+ #include "tscore/ink_inet.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ static const char *PLUGIN_NAME = "regex_remap";
+ 
+@@ -114,16 +111,17 @@ class RemapRegex
+ public:
+   ~RemapRegex()
+   {
++    uint32_t depth;
++
+     TSDebug(PLUGIN_NAME, "Calling destructor");
+     TSfree(_rex_string);
+     TSfree(_subst);
+ 
+     if (_rex) {
+-      pcre_free(_rex);
+-    }
+-    if (_extra) {
+-      pcre_free(_extra);
++      pcre2_code_free(_rex);
+     }
++    pcre2_config(PCRE2_CONFIG_DEPTHLIMIT, &depth);
++    pcre2_set_depth_limit(match_ctxt, depth);
+   }
+ 
+   bool initialize(const std::string &reg, const std::string &sub, const std::string &opt);
+@@ -140,25 +138,31 @@ public:
+     fprintf(stderr, "[%s]:    Regex %d ( %s ): %.2f%%\n", now, ix, _rex_string, 100.0 * _hits / max);
+   }
+ 
+-  int compile(const char *&error, int &erroffset);
++  int compile(char *&error, PCRE2_SIZE &erroffset);
+ 
+   // Perform the regular expression matching against a string.
+   int
+-  match(const char *str, int len, int ovector[])
++  match(const char *str, int len, PCRE2_SIZE ovector[] ATS_UNUSED)
+   {
+-    return pcre_exec(_rex,       // the compiled pattern
+-                     _extra,     // Extra data from study (maybe)
+-                     str,        // the subject string
++    pcre2_match_data *md;
++    int rc;
++
++    md = pcre2_match_data_create(OVECCOUNT, gen_ctxt);
++    rc = pcre2_match(_rex,            // the compiled pattern
++                     (PCRE2_SPTR)str, // the subject string
+                      len,        // the length of the subject
+                      0,          // start at offset 0 in the subject
+                      0,          // default options
+-                     ovector,    // output vector for substring information
+-                     OVECCOUNT); // number of elements in the output vector
++                     md,         // match data
++                     match_ctxt); // match context
++    ovector = pcre2_get_ovector_pointer(md);
++    pcre2_match_data_free(md);
++    return rc;
+   }
+ 
+   // Substitutions
+-  int get_lengths(const int ovector[], int lengths[], TSRemapRequestInfo *rri, UrlComponents *req_url);
+-  int substitute(char dest[], const char *src, const int ovector[], const int lengths[], TSHttpTxn txnp, TSRemapRequestInfo *rri,
++  int get_lengths(const PCRE2_SIZE ovector[], int lengths[], TSRemapRequestInfo *rri, UrlComponents *req_url);
++  int substitute(char dest[], const char *src, const PCRE2_SIZE ovector[], const int lengths[], TSHttpTxn txnp, TSRemapRequestInfo *rri,
+                  UrlComponents *req_url, bool lowercase_substitutions);
+ 
+   // setter / getters for members the linked list.
+@@ -248,13 +252,12 @@ private:
+   int _subst_len    = 0;
+   int _num_subs     = -1;
+   int _hits         = 0;
+-  int _options      = 0;
++  uint32_t _options = 0;
+   int _order        = -1;
+ 
+   bool _lowercase_substitutions = false;
+ 
+-  pcre *_rex           = nullptr;
+-  pcre_extra *_extra   = nullptr;
++  pcre2_code *_rex     = nullptr;
+   RemapRegex *_next    = nullptr;
+   TSHttpStatus _status = static_cast<TSHttpStatus>(0);
+ 
+@@ -306,7 +309,7 @@ RemapRegex::initialize(const std::string
+ 
+     // These take an option 0|1 value, without value it implies 1
+     if (opt.compare(start, 8, "caseless") == 0) {
+-      _options |= PCRE_CASELESS;
++      _options |= PCRE2_CASELESS;
+     } else if (opt.compare(start, 23, "lowercase_substitutions") == 0) {
+       _lowercase_substitutions = true;
+     } else if (opt_val.size() <= 0) {
+@@ -370,36 +373,33 @@ RemapRegex::initialize(const std::string
+ 
+ // Compile and study the regular expression.
+ int
+-RemapRegex::compile(const char *&error, int &erroffset)
++RemapRegex::compile(char *&error, PCRE2_SIZE &erroffset)
+ {
++  PCRE2_UCHAR buf[120];
+   char *str;
+   int ccount;
++  int errcode;
++  uint32_t match_limit_recursion;
+ 
+-  // Initialize these in case they are not set.
+-  error     = "unknown error";
+-  erroffset = -1;
+-
+-  _rex = pcre_compile(_rex_string, // the pattern
+-                      _options,    // options
+-                      &error,      // for error message
+-                      &erroffset,  // for error offset
+-                      nullptr);    // use default character tables
++  _rex = pcre2_compile((PCRE2_SPTR)_rex_string, // the pattern
++                       PCRE2_ZERO_TERMINATED,
++                       _options,    // options
++                       &errcode,    // for error message
++                       &erroffset,  // for error offset
++                       comp_ctxt);  // use default character tables
++  pcre2_get_error_message(errcode, buf, sizeof(buf));
++  error = strdup((const char *)buf);
+ 
+   if (nullptr == _rex) {
+     return -1;
+   }
+ 
+-  _extra = pcre_study(_rex, PCRE_STUDY_EXTRA_NEEDED, &error);
+-  if (error != nullptr) {
+-    return -1;
+-  }
+-
+   // POOMA - also dependent on actual stack size. Crashes with previous value of 2047,
+-  _extra->match_limit_recursion = 1750;
+-  _extra->flags |= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
++  match_limit_recursion = 1750;
++  pcre2_set_depth_limit(match_ctxt, match_limit_recursion);
+ 
+-  if (pcre_fullinfo(_rex, _extra, PCRE_INFO_CAPTURECOUNT, &ccount) != 0) {
+-    error = "call to pcre_fullinfo() failed";
++  if (pcre2_pattern_info(_rex, PCRE2_INFO_CAPTURECOUNT, &ccount) != 0) {
++    error = strdup("call to pcre2_pattern_info() failed");
+     return -1;
+   }
+ 
+@@ -452,7 +452,7 @@ RemapRegex::compile(const char *&error,
+ 
+       if (ix > -1) {
+         if ((ix < 10) && (ix > ccount)) {
+-          error = "using unavailable captured substring ($n) in substitution";
++          error = strdup("using unavailable captured substring ($n) in substitution");
+           return -1;
+         }
+ 
+@@ -474,7 +474,7 @@ RemapRegex::compile(const char *&error,
+ // We also calculate a total length for the new string, which is the max length the
+ // substituted string can have (use it to allocate a buffer before calling substitute() ).
+ int
+-RemapRegex::get_lengths(const int ovector[], int lengths[], TSRemapRequestInfo *rri, UrlComponents *req_url)
++RemapRegex::get_lengths(const PCRE2_SIZE ovector[], int lengths[], TSRemapRequestInfo *rri, UrlComponents *req_url)
+ {
+   int len = _subst_len + 1; // Bigger then necessary
+ 
+@@ -482,7 +482,7 @@ RemapRegex::get_lengths(const int ovecto
+     int ix = _sub_ix[i];
+ 
+     if (ix < 10) {
+-      lengths[ix] = ovector[2 * ix + 1] - ovector[2 * ix]; // -1 - -1 == 0
++      lengths[ix] = (int)(ovector[2 * ix + 1] - ovector[2 * ix]); // -1 - -1 == 0
+       len += lengths[ix];
+     } else {
+       int tmp_len;
+@@ -531,7 +531,7 @@ RemapRegex::get_lengths(const int ovecto
+ // regex that was matches, while $1 - $9 are the corresponding groups. Return the final
+ // length of the string as written to dest (not including the trailing '0').
+ int
+-RemapRegex::substitute(char dest[], const char *src, const int ovector[], const int lengths[], TSHttpTxn txnp,
++RemapRegex::substitute(char dest[], const char *src, const PCRE2_SIZE ovector[], const int lengths[], TSHttpTxn txnp,
+                        TSRemapRequestInfo *rri, UrlComponents *req_url, bool lowercase_substitutions)
+ {
+   if (_num_subs > 0) {
+@@ -792,8 +792,8 @@ TSRemapNewInstance(int argc, char *argv[
+       continue;
+     }
+ 
+-    const char *error;
+-    int erroffset;
++    char *error;
++    PCRE2_SIZE erroffset;
+     if (cur->compile(error, erroffset) < 0) {
+       std::ostringstream oss;
+       oss << '[' << PLUGIN_NAME << "] PCRE failed in " << (ri->filename).c_str() << " (line " << lineno << ')';
+@@ -818,6 +818,7 @@ TSRemapNewInstance(int argc, char *argv[
+       }
+       ri->last = tmp;
+     }
++    free(error);
+   }
+ 
+   // Make sure we got something...
+@@ -925,7 +926,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp,
+   UrlComponents req_url;
+   req_url.populate(src_url.bufp, src_url.loc);
+ 
+-  int ovector[OVECCOUNT];
++  PCRE2_SIZE *ovector = nullptr;
+   int lengths[OVECCOUNT / 2 + 1];
+   int dest_len;
+   TSRemapStatus retval = TSREMAP_DID_REMAP;
+--- a/plugins/regex_revalidate/regex_revalidate.c
++++ b/plugins/regex_revalidate/regex_revalidate.c
+@@ -20,6 +20,7 @@
+  */
+ 
+ #include <ts/ts.h>
++#include <tscore/ink_memory.h>
+ 
+ #include <stdlib.h>
+ #include <stdio.h>
+@@ -32,11 +33,8 @@
+ #include <sys/stat.h>
+ #include <unistd.h>
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #define CONFIG_TMOUT 60000
+ #define FREE_TMOUT 300000
+@@ -113,8 +111,7 @@ strForResult(TSCacheLookupResult const r
+ 
+ typedef struct invalidate_t {
+   const char *regex_text;
+-  pcre *regex;
+-  pcre_extra *regex_extra;
++  pcre2_code *regex;
+   time_t epoch;
+   time_t expiry;
+   TSCacheLookupResult new_result;
+@@ -134,7 +131,6 @@ init_invalidate_t(invalidate_t *i)
+ {
+   i->regex_text  = NULL;
+   i->regex       = NULL;
+-  i->regex_extra = NULL;
+   i->epoch       = 0;
+   i->expiry      = 0;
+   i->new_result  = TS_CACHE_LOOKUP_HIT_STALE;
+@@ -145,18 +141,11 @@ init_invalidate_t(invalidate_t *i)
+ static void
+ free_invalidate_t(invalidate_t *i)
+ {
+-  if (i->regex_extra) {
+-#ifndef PCRE_STUDY_JIT_COMPILE
+-    pcre_free(i->regex_extra);
+-#else
+-    pcre_free_study(i->regex_extra);
+-#endif
+-  }
+   if (i->regex) {
+-    pcre_free(i->regex);
++    pcre2_code_free(i->regex);
+   }
+   if (i->regex_text) {
+-    pcre_free_substring(i->regex_text);
++    pcre2_substring_free((PCRE2_UCHAR *)i->regex_text);
+   }
+   TSfree(i);
+ }
+@@ -204,13 +193,10 @@ static invalidate_t *
+ copy_invalidate_t(invalidate_t *i)
+ {
+   invalidate_t *iptr;
+-  const char *errptr;
+-  int erroffset;
+ 
+   iptr              = (invalidate_t *)TSmalloc(sizeof(invalidate_t));
+   iptr->regex_text  = TSstrdup(i->regex_text);
+-  iptr->regex       = pcre_compile(iptr->regex_text, 0, &errptr, &erroffset, NULL); // There is no pcre_copy :-(
+-  iptr->regex_extra = pcre_study(iptr->regex, 0, &errptr); // Assuming no errors since this worked before :-/
++  iptr->regex       = pcre2_code_copy(i->regex);
+   iptr->epoch       = i->epoch;
+   iptr->expiry      = i->expiry;
+   iptr->new_result  = i->new_result;
+@@ -280,9 +266,10 @@ load_state(plugin_state_t *pstate, inval
+   struct stat s;
+   char line[LINE_MAX];
+   time_t now;
+-  pcre *config_re = NULL;
+-  const char *errptr;
+-  int erroffset, ovector[OVECTOR_SIZE], rc;
++  pcre2_code *config_re = NULL;
++  pcre2_match_data *md;
++  int err, rc;
++  PCRE2_SIZE erroffset, *ovector;
+   int ln = 0;
+ 
+   if (!*ilist) {
+@@ -301,19 +288,21 @@ load_state(plugin_state_t *pstate, inval
+ 
+   now = time(NULL);
+ 
+-  config_re = pcre_compile("^([^#].+?)\\s+(\\d+)\\s+(\\d+)\\s+(\\w+)\\s*$", 0, &errptr, &erroffset, NULL);
++  config_re = pcre2_compile((PCRE2_SPTR)"^([^#].+?)\\s+(\\d+)\\s+(\\d+)\\s+(\\w+)\\s*$", PCRE2_ZERO_TERMINATED, 0, &err, &erroffset, comp_ctxt);
+   TSAssert(NULL != config_re);
+ 
++  md = pcre2_match_data_create(OVECTOR_SIZE, gen_ctxt);
+   while (fgets(line, LINE_MAX, fs) != NULL) {
+     TSDebug(PLUGIN_NAME, "state: processing: %d %s", ln, line);
+     ++ln;
+-    rc = pcre_exec(config_re, NULL, line, strlen(line), 0, 0, ovector, OVECTOR_SIZE);
++    rc = pcre2_match(config_re, (PCRE2_SPTR)line, strlen(line), 0, 0, md, match_ctxt);
++    ovector = pcre2_get_ovector_pointer(md);
+ 
+     if (5 == rc) {
+       invalidate_t *const inv = (invalidate_t *)TSmalloc(sizeof(invalidate_t));
+       init_invalidate_t(inv);
+ 
+-      pcre_get_substring(line, ovector, rc, 1, &(inv->regex_text));
++      pcre2_substring_get_bynumber(md, 1, (PCRE2_UCHAR **)&(inv->regex_text), &erroffset);
+       inv->epoch  = atoi(line + ovector[4]);
+       inv->expiry = atoi(line + ovector[6]);
+ 
+@@ -323,7 +312,7 @@ load_state(plugin_state_t *pstate, inval
+         continue;
+       }
+ 
+-      int const len          = ovector[9] - ovector[8];
++      int const len          = (int)(ovector[9] - ovector[8]);
+       char const *const type = line + ovector[8];
+ 
+       if (0 == strncasecmp(type, RESULT_STALE, len)) {
+@@ -358,7 +347,8 @@ load_state(plugin_state_t *pstate, inval
+     }
+   }
+ 
+-  pcre_free(config_re);
++  pcre2_match_data_free(md);
++  pcre2_code_free(config_re);
+   fclose(fs);
+   return true;
+ }
+@@ -372,9 +362,10 @@ load_config(plugin_state_t *pstate, inva
+   char *path;
+   char line[LINE_MAX];
+   time_t now;
+-  pcre *config_re;
+-  const char *errptr;
+-  int erroffset, ovector[OVECTOR_SIZE], rc;
++  pcre2_code *config_re;
++  pcre2_match_data *md = NULL;
++  int err, rc;
++  PCRE2_SIZE erroffset, *ovector;
+   int ln = 0;
+   invalidate_t *iptr, *i;
+ 
+@@ -395,25 +386,27 @@ load_config(plugin_state_t *pstate, inva
+       TSDebug(PLUGIN_NAME, "Could not open %s for reading", path);
+       return false;
+     }
+-    config_re = pcre_compile("^([^#].+?)\\s+(\\d+)(\\s+(\\w+))?\\s*$", 0, &errptr, &erroffset, NULL);
++    config_re = pcre2_compile((PCRE2_SPTR)"^([^#].+?)\\s+(\\d+)(\\s+(\\w+))?\\s*$", PCRE2_ZERO_TERMINATED, 0, &err, &erroffset, comp_ctxt);
+     TSAssert(NULL != config_re);
+ 
++    md = pcre2_match_data_create(OVECTOR_SIZE, gen_ctxt);
+     while (fgets(line, LINE_MAX, fs) != NULL) {
+       TSDebug(PLUGIN_NAME, "Processing: %d %s", ln, line);
+       ++ln;
+-      rc = pcre_exec(config_re, NULL, line, strlen(line), 0, 0, ovector, OVECTOR_SIZE);
++      rc = pcre2_match(config_re, (PCRE2_SPTR)line, strlen(line), 0, 0, md, match_ctxt);
++      ovector = pcre2_get_ovector_pointer(md);
+ 
+       if (3 <= rc) {
+         i = (invalidate_t *)TSmalloc(sizeof(invalidate_t));
+         init_invalidate_t(i);
+-        pcre_get_substring(line, ovector, rc, 1, &i->regex_text);
++        pcre2_substring_get_bynumber(md, 1, (PCRE2_UCHAR **)&i->regex_text, &erroffset);
+ 
+-        i->regex  = pcre_compile(i->regex_text, 0, &errptr, &erroffset, NULL);
++        i->regex  = pcre2_compile((PCRE2_SPTR)i->regex_text, PCRE2_ZERO_TERMINATED, 0, &err, &erroffset, comp_ctxt);
+         i->epoch  = now;
+         i->expiry = atoi(line + ovector[4]);
+ 
+         if (5 == rc) {
+-          int const len          = ovector[9] - ovector[8];
++          int const len          = (int)(ovector[9] - ovector[8]);
+           char const *const type = line + ovector[8];
+           if (0 == strncasecmp(type, RESULT_MISS, len)) {
+             TSDebug(PLUGIN_NAME, "Regex line set to result type %s: '%s'", RESULT_MISS, i->regex_text);
+@@ -432,7 +425,6 @@ load_config(plugin_state_t *pstate, inva
+           free_invalidate_t(i);
+           i = NULL;
+         } else {
+-          i->regex_extra = pcre_study(i->regex, 0, &errptr);
+           if (!*ilist) {
+             *ilist = i;
+             TSDebug(PLUGIN_NAME, "Created new list and Loaded %s %d %d %s", i->regex_text, (int)i->epoch, (int)i->expiry,
+@@ -470,13 +462,15 @@ load_config(plugin_state_t *pstate, inva
+         TSDebug(PLUGIN_NAME, "Skipping line %d", ln);
+       }
+     }
+-    pcre_free(config_re);
++    pcre2_match_data_free(md);
++    pcre2_code_free(config_re);
+     fclose(fs);
+     pstate->last_load = s.st_mtime;
+     return true;
+   } else {
+     TSDebug(PLUGIN_NAME, "File mod time is not newer: %d >= %d", (int)pstate->last_load, (int)s.st_mtime);
+   }
++  pcre2_match_data_free(md);
+   return false;
+ }
+ 
+@@ -607,6 +601,7 @@ main_handler(TSCont cont, TSEvent event,
+   int status;
+   invalidate_t *iptr;
+   plugin_state_t *pstate;
++  pcre2_match_data *md = NULL;
+ 
+   time_t date = 0, now = 0;
+   char *url   = NULL;
+@@ -618,6 +613,7 @@ main_handler(TSCont cont, TSEvent event,
+       if (status == TS_CACHE_LOOKUP_HIT_FRESH) {
+         pstate = (plugin_state_t *)TSContDataGet(cont);
+         iptr   = pstate->invalidate_list;
++        md = pcre2_match_data_create_from_pattern(iptr->regex, gen_ctxt);
+         while (iptr) {
+           if (!date) {
+             date = get_date_from_cached_hdr(txn);
+@@ -627,7 +623,7 @@ main_handler(TSCont cont, TSEvent event,
+             if (!url) {
+               url = TSHttpTxnEffectiveUrlStringGet(txn, &url_len);
+             }
+-            if (pcre_exec(iptr->regex, iptr->regex_extra, url, url_len, 0, 0, NULL, 0) >= 0) {
++            if (pcre2_match(iptr->regex, (PCRE2_SPTR)url, url_len, 0, 0, md, match_ctxt) >= 0) {
+               TSHttpTxnCacheLookupStatusSet(txn, iptr->new_result);
+               increment_stat(iptr->new_result);
+               TSDebug(PLUGIN_NAME, "Forced revalidate - %.*s %s", url_len, url, strForResult(iptr->new_result));
+@@ -649,6 +645,7 @@ main_handler(TSCont cont, TSEvent event,
+   }
+ 
+   TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
++  pcre2_match_data_free(md);
+   return 0;
+ }
+ 
+--- a/plugins/experimental/access_control/pattern.cc
++++ b/plugins/experimental/access_control/pattern.cc
+@@ -149,14 +149,9 @@ void
+ Pattern::pcreFree()
+ {
+   if (_re) {
+-    pcre_free(_re);
++    pcre2_code_free(_re);
+     _re = nullptr;
+   }
+-
+-  if (_extra) {
+-    pcre_free(_extra);
+-    _extra = nullptr;
+-  }
+ }
+ 
+ /**
+@@ -214,6 +209,7 @@ Pattern::process(const String &subject,
+ bool
+ Pattern::match(const String &subject)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+   AccessControlDebug("matching '%s' to '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -221,9 +217,11 @@ Pattern::match(const String &subject)
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, _extra, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, nullptr, 0);
++  md = pcre2_match_data_create_from_pattern(_re, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
++  pcre2_match_data_free(md);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       AccessControlError("matching error %d", matchCount);
+     }
+     return false;
+@@ -240,8 +238,9 @@ Pattern::match(const String &subject)
+ bool
+ Pattern::capture(const String &subject, StringVector &result)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+-  int ovector[OVECOUNT];
++  PCRE2_SIZE *ovector;
+ 
+   AccessControlDebug("capturing '%s' from '%s'", _pattern.c_str(), subject.c_str());
+ 
+@@ -250,23 +249,27 @@ Pattern::capture(const String &subject,
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, nullptr, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, ovector, OVECOUNT);
++  md = pcre2_match_data_create(OVECOUNT, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       AccessControlError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
+ 
++  ovector = pcre2_get_ovector_pointer(md);
+   for (int i = 0; i < matchCount; i++) {
+-    int start  = ovector[2 * i];
+-    int length = ovector[2 * i + 1] - ovector[2 * i];
++    int start  = (int)ovector[2 * i];
++    int length = (int)(ovector[2 * i + 1] - ovector[2 * i]);
+ 
+     String dst(subject, start, length);
+ 
+-    AccessControlDebug("capturing '%s' %d[%d,%d]", dst.c_str(), i, ovector[2 * i], ovector[2 * i + 1]);
++    AccessControlDebug("capturing '%s' %d[%zu,%zu]", dst.c_str(), i, ovector[2 * i], ovector[2 * i + 1]);
+     result.push_back(dst);
+   }
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -280,8 +283,9 @@ Pattern::capture(const String &subject,
+ bool
+ Pattern::replace(const String &subject, String &result)
+ {
++  pcre2_match_data *md;
+   int matchCount;
+-  int ovector[OVECOUNT];
++  PCRE2_SIZE *ovector;
+ 
+   AccessControlDebug("replacing:'%s' in pattern:'%s', subject:'%s'", _replacement.c_str(), _pattern.c_str(), subject.c_str());
+ 
+@@ -290,11 +294,13 @@ Pattern::replace(const String &subject,
+     return false;
+   }
+ 
+-  matchCount = pcre_exec(_re, nullptr, subject.c_str(), subject.length(), 0, PCRE_NOTEMPTY, ovector, OVECOUNT);
++  md = pcre2_match_data_create_from_pattern(_re, gen_ctxt);
++  matchCount = pcre2_match(_re, (PCRE2_SPTR)subject.c_str(), subject.length(), 0, PCRE2_NOTEMPTY, md, match_ctxt);
+   if (matchCount < 0) {
+-    if (matchCount != PCRE_ERROR_NOMATCH) {
++    if (matchCount != PCRE2_ERROR_NOMATCH) {
+       AccessControlError("matching error %d", matchCount);
+     }
++    pcre2_match_data_free(md);
+     return false;
+   }
+ 
+@@ -302,15 +308,17 @@ Pattern::replace(const String &subject,
+   for (int i = 0; i < _tokenCount; i++) {
+     if (_tokens[i] >= matchCount) {
+       AccessControlError("invalid reference in replacement string: $%d", _tokens[i]);
++      pcre2_match_data_free(md);
+       return false;
+     }
+   }
+ 
++  ovector = pcre2_get_ovector_pointer(md);
+   int previous = 0;
+   for (int i = 0; i < _tokenCount; i++) {
+     int replIndex = _tokens[i];
+-    int start     = ovector[2 * replIndex];
+-    int length    = ovector[2 * replIndex + 1] - ovector[2 * replIndex];
++    int start     = (int)ovector[2 * replIndex];
++    int length    = (int)(ovector[2 * replIndex + 1] - ovector[2 * replIndex]);
+ 
+     String src(_replacement, _tokenOffset[i], 2);
+     String dst(subject, start, length);
+@@ -326,6 +334,7 @@ Pattern::replace(const String &subject,
+   result.append(_replacement, previous, _replacement.length() - previous);
+ 
+   AccessControlDebug("replacing '%s' resulted in '%s'", _replacement.c_str(), result.c_str());
++  pcre2_match_data_free(md);
+ 
+   return true;
+ }
+@@ -337,31 +346,24 @@ Pattern::replace(const String &subject,
+ bool
+ Pattern::compile()
+ {
+-  const char *errPtr; /* PCRE error */
+-  int errOffset;      /* PCRE error offset */
++  int errCode;             /* PCRE error code */
++  PCRE2_UCHAR errPtr[120]; /* PCRE error */
++  PCRE2_SIZE errOffset;    /* PCRE error offset */
+ 
+   AccessControlDebug("compiling pattern:'%s', replace: %s, replacement:'%s'", _pattern.c_str(), _replace ? "true" : "false",
+                      _replacement.c_str());
+ 
+-  _re = pcre_compile(_pattern.c_str(), /* the pattern */
+-                     0,                /* options */
+-                     &errPtr,          /* for error message */
+-                     &errOffset,       /* for error offset */
+-                     nullptr);         /* use default character tables */
++  _re = pcre2_compile((PCRE2_SPTR)_pattern.c_str(), /* the pattern */
++                      PCRE2_ZERO_TERMINATED,
++                      0,                /* options */
++                      &errCode,         /* for error code */
++                      &errOffset,       /* for error offset */
++                      comp_ctxt);       /* compile context */
+ 
+   if (nullptr == _re) {
+-    AccessControlError("compile of regex '%s' at char %d: %s", _pattern.c_str(), errOffset, errPtr);
+-
+-    return false;
+-  }
+-
+-  _extra = pcre_study(_re, 0, &errPtr);
++    pcre2_get_error_message(errCode, errPtr, sizeof(errPtr));
++    AccessControlError("compile of regex '%s' at char %zu: %s", _pattern.c_str(), errOffset, errPtr);
+ 
+-  if ((nullptr == _extra) && (nullptr != errPtr) && (0 != *errPtr)) {
+-    AccessControlError("failed to study regex '%s': %s", _pattern.c_str(), errPtr);
+-
+-    pcre_free(_re);
+-    _re = nullptr;
+     return false;
+   }
+ 
+--- a/plugins/experimental/access_control/pattern.h
++++ b/plugins/experimental/access_control/pattern.h
+@@ -23,11 +23,10 @@
+ 
+ #pragma once
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#include "tscore/ink_memory.h"
++
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include "common.h"
+ 
+@@ -56,8 +55,7 @@ private:
+   bool compile();
+   void pcreFree();
+ 
+-  pcre *_re          = nullptr; /**< @brief PCRE compiled info structure, computed during initialization */
+-  pcre_extra *_extra = nullptr; /**< @brief PCRE study data block, computed during initialization */
++  pcre2_code *_re    = nullptr; /**< @brief PCRE compiled info structure, computed during initialization */
+ 
+   String _pattern;     /**< @brief PCRE pattern string, containing PCRE patterns and capturing groups. */
+   String _replacement; /**< @brief PCRE replacement string, containing $0..$9 to be replaced with content of the capturing groups */
+--- a/plugins/experimental/cookie_remap/cookie_remap.cc
++++ b/plugins/experimental/cookie_remap/cookie_remap.cc
+@@ -24,8 +24,11 @@
+ #include "cookiejar.h"
+ #include <ts/ts.h>
+ 
+-#include <pcre.h>
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ #include <ts/remap.h>
++#include <tscore/ink_defs.h>
++#include <tscore/ink_memory.h>
+ #include <yaml-cpp/yaml.h>
+ 
+ #include <string>
+@@ -261,11 +264,7 @@ public:
+   {
+     TSDebug(MY_NAME, "subop destructor called");
+     if (regex) {
+-      pcre_free(regex);
+-    }
+-
+-    if (regex_extra) {
+-      pcre_free(regex_extra);
++      pcre2_code_free(regex);
+     }
+   }
+ 
+@@ -378,23 +377,18 @@ public:
+   bool
+   setRegexMatch(const std::string &s)
+   {
+-    const char *error_comp  = nullptr;
+-    const char *error_study = nullptr;
+-    int erroffset;
++    int error;
++    PCRE2_SIZE erroffset;
+ 
+     op_type      = REGEXP;
+     regex_string = s;
+-    regex        = pcre_compile(regex_string.c_str(), 0, &error_comp, &erroffset, nullptr);
++    regex        = pcre2_compile((PCRE2_SPTR)regex_string.c_str(), PCRE2_ZERO_TERMINATED, 0, &error, &erroffset, comp_ctxt);
+ 
+     if (regex == nullptr) {
+       return false;
+     }
+-    regex_extra = pcre_study(regex, 0, &error_study);
+-    if ((regex_extra == nullptr) && (error_study != nullptr)) {
+-      return false;
+-    }
+ 
+-    if (pcre_fullinfo(regex, regex_extra, PCRE_INFO_CAPTURECOUNT, &regex_ccount) != 0) {
++    if (pcre2_pattern_info(regex, PCRE2_INFO_CAPTURECOUNT, &regex_ccount) != 0) {
+       return false;
+     }
+ 
+@@ -414,16 +408,22 @@ public:
+   }
+ 
+   int
+-  regexMatch(const char *str, int len, int ovector[]) const
++  regexMatch(const char *str, int len, PCRE2_SIZE ovector[] ATS_UNUSED) const
+   {
+-    return pcre_exec(regex,       // the compiled pattern
+-                     regex_extra, // Extra data from study (maybe)
+-                     str,         // the subject std::string
++    pcre2_match_data *md;
++    int rc;
++
++    md = pcre2_match_data_create(OVECCOUNT, gen_ctxt);
++    rc = pcre2_match(regex,       // the compiled pattern
++                     (PCRE2_SPTR)str, // the subject std::string
+                      len,         // the length of the subject
+                      0,           // start at offset 0 in the subject
+                      0,           // default options
+-                     ovector,     // output vector for substring information
+-                     OVECCOUNT);  // number of elements in the output vector
++                     md,          // match data
++                     match_ctxt); // match context
++    ovector = pcre2_get_ovector_pointer(md);
++    pcre2_match_data_free(md);
++    return rc;
+   };
+ 
+   void
+@@ -453,10 +453,9 @@ private:
+ 
+   std::string str_match;
+ 
+-  pcre *regex             = nullptr;
+-  pcre_extra *regex_extra = nullptr;
++  pcre2_code *regex       = nullptr;
+   std::string regex_string;
+-  int regex_ccount = 0;
++  uint32_t regex_ccount = 0;
+ 
+   std::string bucket;
+   unsigned int how_many = 0;
+@@ -687,7 +686,7 @@ public:
+ 
+       // OPERATION::regex matching
+       if (subop_type == REGEXP) {
+-        int ovector[OVECCOUNT];
++        PCRE2_SIZE *ovector = nullptr;
+         int ret = subop->regexMatch(string_to_match.c_str(), string_to_match.length(), ovector);
+ 
+         if (ret >= 0) {
+@@ -720,7 +719,7 @@ public:
+ 
+               if (ix <= subop->getRegexCcount()) { // Just skip an illegal regex group
+                 dest += sendto.substr(ppos, pos - ppos);
+-                dest += string_to_match.substr(ovector[ix * 2], ovector[ix * 2 + 1] - ovector[ix * 2]);
++                dest += string_to_match.substr((int)ovector[ix * 2], (int)(ovector[ix * 2 + 1] - ovector[ix * 2]));
+                 ppos = pos + 2;
+               } else {
+                 TSDebug(MY_NAME,
+--- a/plugins/experimental/geoip_acl/acl.cc
++++ b/plugins/experimental/geoip_acl/acl.cc
+@@ -170,20 +170,15 @@ RegexAcl::parse_line(const char *filenam
+ bool
+ RegexAcl::compile(const std::string &str, const char *filename, int lineno)
+ {
+-  const char *error;
+-  int erroffset;
++  PCRE2_UCHAR error[120];
++  int errcode;
++  PCRE2_SIZE erroffset;
+ 
+   _regex_s = str;
+-  _rex     = pcre_compile(_regex_s.c_str(), 0, &error, &erroffset, nullptr);
++  _rex     = pcre2_compile((PCRE2_SPTR)_regex_s.c_str(), PCRE2_ZERO_TERMINATED, 0, &errcode, &erroffset, comp_ctxt);
+ 
+-  if (nullptr != _rex) {
+-    _extra = pcre_study(_rex, 0, &error);
+-    if ((nullptr == _extra) && error && (*error != 0)) {
+-      TSError("[%s] Failed to study regular expression in %s:line %d at offset %d: %s", PLUGIN_NAME, filename, lineno, erroffset,
+-              error);
+-      return false;
+-    }
+-  } else {
++  if (nullptr == _rex) {
++    pcre2_get_error_message(errcode, error, sizeof(error));
+     TSError("[%s] Failed to compile regular expression in %s:line %d: %s", PLUGIN_NAME, filename, lineno, error);
+     return false;
+   }
+--- a/plugins/experimental/geoip_acl/acl.h
++++ b/plugins/experimental/geoip_acl/acl.h
+@@ -26,12 +26,10 @@
+ #include <ts/remap.h>
+ 
+ #include "tscore/ink_defs.h"
++#include "tscore/ink_memory.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include <string>
+ #include "lulu.h"
+@@ -96,7 +94,7 @@ protected:
+ class RegexAcl
+ {
+ public:
+-  RegexAcl(Acl *acl) : _rex(nullptr), _extra(nullptr), _next(nullptr), _acl(acl) {}
++  RegexAcl(Acl *acl) : _rex(nullptr), _next(nullptr), _acl(acl) {}
+   const std::string &
+   get_regex() const
+   {
+@@ -116,11 +114,18 @@ public:
+   bool
+   match(const char *str, int len) const
+   {
++    pcre2_match_data *md;
++    int ret;
++
+     if (0 == len) {
+       return false;
+     }
+ 
+-    return (pcre_exec(_rex, _extra, str, len, 0, PCRE_NOTEMPTY, nullptr, 0) != -1);
++    md = pcre2_match_data_create_from_pattern(_rex, gen_ctxt);
++    ret = pcre2_match(_rex, (PCRE2_SPTR)str, len, 0, PCRE2_NOTEMPTY, md, match_ctxt);
++    pcre2_match_data_free(md);
++
++    return (ret != -1);
+   }
+ 
+   void append(RegexAcl *ra);
+@@ -129,8 +134,7 @@ public:
+ private:
+   bool compile(const std::string &str, const char *filename, int lineno);
+   std::string _regex_s;
+-  pcre *_rex;
+-  pcre_extra *_extra;
++  pcre2_code *_rex;
+   RegexAcl *_next;
+   Acl *_acl;
+ };
+--- a/plugins/experimental/maxmind_acl/mmdb.cc
++++ b/plugins/experimental/maxmind_acl/mmdb.cc
+@@ -294,18 +294,14 @@ Acl::parseregex(const YAML::Node &regex,
+           plugin_regex temp;
+           auto temprule = i.as<std::vector<std::string>>();
+           temp._regex_s = temprule.back();
+-          const char *error;
+-          int erroffset;
+-          temp._rex = pcre_compile(temp._regex_s.c_str(), 0, &error, &erroffset, nullptr);
++          PCRE2_UCHAR error[120];
++          int err;
++          PCRE2_SIZE erroffset;
++          temp._rex = pcre2_compile((PCRE2_SPTR)temp._regex_s.c_str(), PCRE2_ZERO_TERMINATED, 0, &err, &erroffset, comp_ctxt);
+ 
+           // Compile the regex for this set of countries
+-          if (nullptr != temp._rex) {
+-            temp._extra = pcre_study(temp._rex, 0, &error);
+-            if ((nullptr == temp._extra) && error && (*error != 0)) {
+-              TSError("[%s] Failed to study regular expression in %s:%s", PLUGIN_NAME, temp._regex_s.c_str(), error);
+-              return;
+-            }
+-          } else {
++          if (nullptr == temp._rex) {
++            pcre2_get_error_message(err, error, sizeof(error));
+             TSError("[%s] Failed to compile regular expression in %s: %s", PLUGIN_NAME, temp._regex_s.c_str(), error);
+             return;
+           }
+@@ -507,6 +503,7 @@ Acl::eval_country(MMDB_entry_data_s *ent
+   bool ret     = false;
+   bool allow   = default_allow;
+   char *output = nullptr;
++  pcre2_match_data *md;
+ 
+   // We need to null terminate the iso_code ourselves, they are unterminated in the DBs
+   output = static_cast<char *>(malloc((sizeof(char) * (entry_data->data_size + 1))));
+@@ -526,10 +523,11 @@ Acl::eval_country(MMDB_entry_data_s *ent
+     ret = true;
+   }
+ 
++  md = pcre2_match_data_create(30, gen_ctxt);
+   if (nullptr != path && 0 != path_len) {
+     if (!allow_regex[output].empty()) {
+       for (auto &i : allow_regex[output]) {
+-        if (PCRE_ERROR_NOMATCH != pcre_exec(i._rex, i._extra, path, path_len, 0, PCRE_NOTEMPTY, nullptr, 0)) {
++        if (PCRE2_ERROR_NOMATCH != pcre2_match(i._rex, (PCRE2_SPTR)path, path_len, 0, PCRE2_NOTEMPTY, md, match_ctxt)) {
+           TSDebug(PLUGIN_NAME, "Got a regex allow hit on regex: %s, country: %s", i._regex_s.c_str(), output);
+           ret = true;
+         }
+@@ -537,7 +535,7 @@ Acl::eval_country(MMDB_entry_data_s *ent
+     }
+     if (!deny_regex[output].empty()) {
+       for (auto &i : deny_regex[output]) {
+-        if (PCRE_ERROR_NOMATCH != pcre_exec(i._rex, i._extra, path, path_len, 0, PCRE_NOTEMPTY, nullptr, 0)) {
++        if (PCRE2_ERROR_NOMATCH != pcre2_match(i._rex, (PCRE2_SPTR)path, path_len, 0, PCRE2_NOTEMPTY, md, match_ctxt)) {
+           TSDebug(PLUGIN_NAME, "Got a regex deny hit on regex: %s, country: %s", i._regex_s.c_str(), output);
+           ret = false;
+         }
+@@ -546,6 +544,7 @@ Acl::eval_country(MMDB_entry_data_s *ent
+   }
+ 
+   free(output);
++  pcre2_match_data_free(md);
+   return ret;
+ }
+ 
+--- a/plugins/experimental/maxmind_acl/mmdb.h
++++ b/plugins/experimental/maxmind_acl/mmdb.h
+@@ -38,19 +38,15 @@
+ #include <maxminddb.h>
+ #include "tscore/IpMap.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #define PLUGIN_NAME "maxmind_acl"
+ #define CONFIG_TMOUT 60000
+ 
+ typedef struct {
+   std::string _regex_s;
+-  pcre *_rex;
+-  pcre_extra *_extra;
++  pcre2_code *_rex;
+ } plugin_regex;
+ 
+ typedef enum { ALLOW_IP, DENY_IP, UNKNOWN_IP } ipstate;
+--- a/plugins/experimental/slice/Config.cc
++++ b/plugins/experimental/slice/Config.cc
+@@ -25,6 +25,7 @@
+ #include <string_view>
+ 
+ #include "ts/experimental.h"
++#include "tscore/ink_memory.h"
+ 
+ namespace
+ {
+@@ -34,15 +35,8 @@ constexpr std::string_view DefaultCrrIms
+ 
+ Config::~Config()
+ {
+-  if (nullptr != m_regex_extra) {
+-#ifndef PCRE_STUDY_JIT_COMPILE
+-    pcre_free(m_regex_extra);
+-#else
+-    pcre_free_study(m_regex_extra);
+-#endif
+-  }
+   if (nullptr != m_regex) {
+-    pcre_free(m_regex);
++    pcre2_code_free(m_regex);
+   }
+ }
+ 
+@@ -161,15 +155,14 @@ Config::fromArgs(int const argc, char co
+         break;
+       }
+ 
+-      const char *errptr;
+-      int erroffset;
++      int err;
++      PCRE2_SIZE erroffset;
+       m_regexstr = optarg;
+-      m_regex    = pcre_compile(m_regexstr.c_str(), 0, &errptr, &erroffset, nullptr);
++      m_regex    = pcre2_compile((PCRE2_SPTR)m_regexstr.c_str(), PCRE2_ZERO_TERMINATED, 0, &err, &erroffset, comp_ctxt);
+       if (nullptr == m_regex) {
+         ERROR_LOG("Invalid regex: '%s'", m_regexstr.c_str());
+       } else {
+         m_regex_type  = Exclude;
+-        m_regex_extra = pcre_study(m_regex, 0, &errptr);
+         DEBUG_LOG("Using regex for url exclude: '%s'", m_regexstr.c_str());
+       }
+     } break;
+@@ -179,15 +172,14 @@ Config::fromArgs(int const argc, char co
+         break;
+       }
+ 
+-      const char *errptr;
+-      int erroffset;
++      int err;
++      PCRE2_SIZE erroffset;
+       m_regexstr = optarg;
+-      m_regex    = pcre_compile(m_regexstr.c_str(), 0, &errptr, &erroffset, nullptr);
++      m_regex    = pcre2_compile((PCRE2_SPTR)m_regexstr.c_str(), PCRE2_ZERO_TERMINATED, 0, &err, &erroffset, comp_ctxt);
+       if (nullptr == m_regex) {
+         ERROR_LOG("Invalid regex: '%s'", m_regexstr.c_str());
+       } else {
+         m_regex_type  = Include;
+-        m_regex_extra = pcre_study(m_regex, 0, &errptr);
+         DEBUG_LOG("Using regex for url include: '%s'", m_regexstr.c_str());
+       }
+     } break;
+@@ -292,22 +284,25 @@ Config::canLogError()
+ bool
+ Config::matchesRegex(char const *const url, int const urllen) const
+ {
++  pcre2_match_data *md;
+   bool matches = true;
+ 
++  md = pcre2_match_data_create_from_pattern(m_regex, gen_ctxt);
+   switch (m_regex_type) {
+   case Exclude: {
+-    if (0 <= pcre_exec(m_regex, m_regex_extra, url, urllen, 0, 0, nullptr, 0)) {
++    if (0 <= pcre2_match(m_regex, (PCRE2_SPTR)url, urllen, 0, 0, md, match_ctxt)) {
+       matches = false;
+     }
+   } break;
+   case Include: {
+-    if (pcre_exec(m_regex, m_regex_extra, url, urllen, 0, 0, nullptr, 0) < 0) {
++    if (pcre2_match(m_regex, (PCRE2_SPTR)url, urllen, 0, 0, md, match_ctxt) < 0) {
+       matches = false;
+     }
+   } break;
+   default:
+     break;
+   }
++  pcre2_match_data_free(md);
+ 
+   return matches;
+ }
+--- a/plugins/experimental/slice/Config.h
++++ b/plugins/experimental/slice/Config.h
+@@ -20,11 +20,8 @@
+ 
+ #include "slice.h"
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include <string>
+ #include <mutex>
+@@ -40,8 +37,7 @@ struct Config {
+   std::string m_regexstr;  // regex string for things to slice (default all)
+   enum RegexType { None, Include, Exclude };
+   RegexType m_regex_type{None};
+-  pcre *m_regex{nullptr};
+-  pcre_extra *m_regex_extra{nullptr};
++  pcre2_code *m_regex{nullptr};
+   int m_paceerrsecs{0};   // -1 disable logging, 0 no pacing, max 60s
+   int m_prefetchcount{0}; // 0 disables prefetching
+   enum RefType { First, Relative };
+--- a/plugins/experimental/tls_bridge/regex.cc
++++ b/plugins/experimental/tls_bridge/regex.cc
+@@ -22,68 +22,57 @@
+  */
+ 
+ #include "regex.h"
++#include "tscore/ink_memory.h"
+ 
+-#ifdef PCRE_CONFIG_JIT
+ #include <pthread.h>
+ 
+ struct RegexThreadKey {
+-  RegexThreadKey() { pthread_key_create(&this->key, reinterpret_cast<void (*)(void *)>(&pcre_jit_stack_free)); }
++  RegexThreadKey() { pthread_key_create(&this->key, reinterpret_cast<void (*)(void *)>(&pcre2_jit_stack_free)); }
+   pthread_key_t key;
+ };
+ 
+ static RegexThreadKey k;
+ 
+-static pcre_jit_stack *
++static pcre2_jit_stack *
+ get_jit_stack(void *)
+ {
+-  pcre_jit_stack *jit_stack;
++  pcre2_jit_stack *jit_stack;
+ 
+-  if ((jit_stack = static_cast<pcre_jit_stack *>(pthread_getspecific(k.key))) == nullptr) {
+-    jit_stack = pcre_jit_stack_alloc(8192, 1024 * 1024); // 1 page min and 1MB max
++  if ((jit_stack = static_cast<pcre2_jit_stack *>(pthread_getspecific(k.key))) == nullptr) {
++    jit_stack = pcre2_jit_stack_create(8192, 1024 * 1024, gen_ctxt); // 1 page min and 1MB max
+     pthread_setspecific(k.key, (void *)jit_stack);
+   }
+ 
+   return jit_stack;
+ }
+-#endif
+ 
+ bool
+ Regex::compile(const char *pattern, const unsigned flags)
+ {
+-  const char *error;
+-  int erroffset;
+-  int options    = 0;
+-  int study_opts = 0;
++  int error;
++  PCRE2_SIZE erroffset;
++  uint32_t options = 0;
+ 
+   if (regex) {
+     return false;
+   }
+ 
+   if (flags & CASE_INSENSITIVE) {
+-    options |= PCRE_CASELESS;
++    options |= PCRE2_CASELESS;
+   }
+ 
+   if (flags & ANCHORED) {
+-    options |= PCRE_ANCHORED;
++    options |= PCRE2_ANCHORED;
+   }
+ 
+-  regex = pcre_compile(pattern, options, &error, &erroffset, nullptr);
+-  if (error) {
++  regex = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, options, &error, &erroffset, comp_ctxt);
++  if (0 != erroffset) {
+     regex = nullptr;
+     return false;
+   }
+ 
+-#ifdef PCRE_CONFIG_JIT
+-  study_opts |= PCRE_STUDY_JIT_COMPILE;
+-#endif
+-
+-  regex_extra = pcre_study(regex, study_opts, &error);
+-
+-#ifdef PCRE_CONFIG_JIT
+-  if (regex_extra) {
+-    pcre_assign_jit_stack(regex_extra, &get_jit_stack, nullptr);
+-  }
+-#endif
++  pcre2_jit_compile(regex, PCRE2_JIT_COMPLETE);
++  pcre2_jit_stack_assign(match_ctxt, &get_jit_stack, nullptr);
+ 
+   return true;
+ }
+@@ -92,7 +81,7 @@ int
+ Regex::get_capture_count()
+ {
+   int captures = -1;
+-  if (pcre_fullinfo(regex, regex_extra, PCRE_INFO_CAPTURECOUNT, &captures) != 0) {
++  if (pcre2_pattern_info(regex, PCRE2_INFO_CAPTURECOUNT, &captures) != 0) {
+     return -1;
+   }
+ 
+@@ -109,22 +98,18 @@ Regex::exec(std::string_view src) const
+ bool
+ Regex::exec(std::string_view src, int *ovector, int ovecsize) const
+ {
++  pcre2_match_data *md;
+   int rv;
+ 
+-  rv = pcre_exec(regex, regex_extra, src.data(), src.size(), 0, 0, ovector, ovecsize);
++  md = pcre2_match_data_create(ovecsize, gen_ctxt);
++  rv = pcre2_match(regex, (PCRE2_SPTR)src.data(), src.size(), 0, 0, md, match_ctxt);
++  pcre2_match_data_free(md);
+   return rv > 0 ? true : false;
+ }
+ 
+ Regex::~Regex()
+ {
+-  if (regex_extra) {
+-#ifdef PCRE_CONFIG_JIT
+-    pcre_free_study(regex_extra);
+-#else
+-    pcre_free(regex_extra);
+-#endif
+-  }
+   if (regex) {
+-    pcre_free(regex);
++    pcre2_code_free(regex);
+   }
+ }
+--- a/plugins/experimental/tls_bridge/regex.h
++++ b/plugins/experimental/tls_bridge/regex.h
+@@ -23,7 +23,8 @@
+ 
+ #pragma once
+ 
+-#include <pcre.h>
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ #include <algorithm>
+ #include <string_view>
+ 
+@@ -49,12 +50,10 @@ public:
+   ~Regex();
+ 
+ private:
+-  pcre *regex             = nullptr;
+-  pcre_extra *regex_extra = nullptr;
++  pcre2_code *regex       = nullptr;
+ };
+ 
+ inline Regex::Regex(self_type &&that)
+ {
+   std::swap(regex, that.regex);
+-  std::swap(regex_extra, that.regex_extra);
+ }
+--- a/plugins/experimental/url_sig/url_sig.c
++++ b/plugins/experimental/url_sig/url_sig.c
+@@ -24,6 +24,7 @@
+   })
+ 
+ #include "url_sig.h"
++#include "tscore/ink_memory.h"
+ 
+ #include <inttypes.h>
+ #include <stdio.h>
+@@ -41,11 +42,8 @@
+ #include <stdint.h>
+ #include <stdbool.h>
+ 
+-#ifdef HAVE_PCRE_PCRE_H
+-#include <pcre/pcre.h>
+-#else
+-#include <pcre.h>
+-#endif
++#define PCRE2_CODE_UNIT_WIDTH 8
++#include <pcre2.h>
+ 
+ #include <ts/ts.h>
+ #include <ts/remap.h>
+@@ -56,8 +54,7 @@ struct config {
+   TSHttpStatus err_status;
+   char *err_url;
+   char keys[MAX_KEY_NUM][MAX_KEY_LEN];
+-  pcre *regex;
+-  pcre_extra *regex_extra;
++  pcre2_code *regex;
+   int pristine_url_flag;
+   char *sig_anchor;
+   bool ignore_expiry;
+@@ -70,16 +67,8 @@ free_cfg(struct config *cfg)
+   TSfree(cfg->err_url);
+   TSfree(cfg->sig_anchor);
+ 
+-  if (cfg->regex_extra) {
+-#ifndef PCRE_STUDY_JIT_COMPILE
+-    pcre_free(cfg->regex_extra);
+-#else
+-    pcre_free_study(cfg->regex_extra);
+-#endif
+-  }
+-
+   if (cfg->regex) {
+-    pcre_free(cfg->regex);
++    pcre2_code_free(cfg->regex);
+   }
+ 
+   TSfree(cfg);
+@@ -213,23 +202,22 @@ TSRemapNewInstance(int argc, char *argv[
+       cfg->sig_anchor = TSstrndup(value, strlen(value));
+     } else if (strncmp(line, "excl_regex", 10) == 0) {
+       // compile and study regex
+-      const char *errptr;
+-      int erroffset, options = 0;
++      PCRE2_UCHAR errptr[120];
++      PCRE2_SIZE erroffset;
++      int error;
++      uint32_t options = 0;
+ 
+       if (cfg->regex) {
+         TSDebug(PLUGIN_NAME, "Skipping duplicate excl_regex");
+         continue;
+       }
+ 
+-      cfg->regex = pcre_compile(value, options, &errptr, &erroffset, NULL);
++      cfg->regex = pcre2_compile((PCRE2_SPTR)value, PCRE2_ZERO_TERMINATED, options, &error, &erroffset, comp_ctxt);
+       if (cfg->regex == NULL) {
+-        TSDebug(PLUGIN_NAME, "Regex compilation failed with error (%s) at character %d", errptr, erroffset);
++        pcre2_get_error_message(error, errptr, sizeof(errptr));
++        TSDebug(PLUGIN_NAME, "Regex compilation failed with error (%s) at character %zu", errptr, erroffset);
+       } else {
+-#ifdef PCRE_STUDY_JIT_COMPILE
+-        options = PCRE_STUDY_JIT_COMPILE;
+-#endif
+-        cfg->regex_extra = pcre_study(
+-          cfg->regex, options, &errptr); // We do not need to check the error here because we can still run without the studying?
++        pcre2_jit_compile(cfg->regex, PCRE2_JIT_COMPLETE);
+       }
+     } else if (strncmp(line, "ignore_expiry", 13) == 0) {
+       if (strncmp(value, "true", 4) == 0) {
+@@ -592,7 +580,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp,
+ 
+   if (cfg->regex) {
+     const int offset = 0, options = 0;
+-    int ovector[30];
++    pcre2_match_data *md;
+ 
+     /* Only search up to the first ? or # */
+     const char *base_url_end = url;
+@@ -601,9 +589,12 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp,
+     }
+     const int len = base_url_end - url;
+ 
+-    if (pcre_exec(cfg->regex, cfg->regex_extra, url, len, offset, options, ovector, 30) >= 0) {
++    md = pcre2_match_data_create(30, gen_ctxt);
++    if (pcre2_match(cfg->regex, (PCRE2_SPTR)url, len, offset, options, md, match_ctxt) >= 0) {
++      pcre2_match_data_free(md);
+       goto allow;
+     }
++    pcre2_match_data_free(md);
+   }
+ 
+   const char *query = strchr(url, '?');
+--- a/plugins/experimental/slice/Makefile.inc
++++ b/plugins/experimental/slice/Makefile.inc
+@@ -51,7 +51,7 @@ experimental_slice_test_content_range_SO
+   experimental/slice/unit-tests/test_content_range.cc \
+   experimental/slice/ContentRange.cc
+ 
+-experimental_slice_test_content_range_LDADD = @LIBPCRE@
++experimental_slice_test_content_range_LDADD = @LIBPCRE@ $(top_builddir)/src/tscore/libtscore.la
+ 
+ check_PROGRAMS += experimental/slice/test_range
+ 
+@@ -60,7 +60,7 @@ experimental_slice_test_range_SOURCES =
+   experimental/slice/unit-tests/test_range.cc \
+   experimental/slice/Range.cc
+ 
+-experimental_slice_test_range_LDADD = @LIBPCRE@
++experimental_slice_test_range_LDADD = @LIBPCRE@ $(top_builddir)/src/tscore/libtscore.la
+ 
+ check_PROGRAMS += experimental/slice/test_config
+ 
+@@ -69,4 +69,4 @@ experimental_slice_test_config_SOURCES =
+   experimental/slice/unit-tests/test_config.cc \
+   experimental/slice/Config.cc
+ 
+-experimental_slice_test_config_LDADD = @LIBPCRE@
++experimental_slice_test_config_LDADD = @LIBPCRE@ $(top_builddir)/src/tscore/libtscore.la
