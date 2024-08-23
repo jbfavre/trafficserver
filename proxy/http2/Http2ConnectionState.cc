@@ -260,6 +260,12 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     stream     = cstate.create_stream(stream_id, error);
     new_stream = true;
     if (!stream) {
+      // Terminate the connection with COMPRESSION_ERROR because we don't decompress the field block in this HEADERS frame.
+      // TODO: try to decompress to keep HPACK Dynamic Table in sync.
+      if (error.cls == Http2ErrorClass::HTTP2_ERROR_CLASS_STREAM) {
+        return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_COMPRESSION_ERROR, error.msg);
+      }
+
       return error;
     }
   }
@@ -308,7 +314,7 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     }
     // Protocol error if the stream depends on itself
     if (stream_id == params.priority.stream_dependency) {
-      return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_STREAM, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR,
+      return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_COMPRESSION_ERROR,
                         "recv headers self dependency");
     }
 
@@ -1248,6 +1254,12 @@ Http2ConnectionState::rcv_frame(const Http2Frame *frame)
               client_ip, session->get_connection_id(), stream_id, error.msg);
       }
       this->send_rst_stream_frame(stream_id, error.code);
+
+      // start closing stream on stream error
+      if (Http2Stream *stream = find_stream(stream_id); stream != nullptr) {
+        ink_assert(stream->get_state() == Http2StreamState::HTTP2_STREAM_STATE_CLOSED);
+        stream->initiating_close();
+      }
     }
   }
 }

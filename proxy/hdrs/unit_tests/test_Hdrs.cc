@@ -535,6 +535,73 @@ TEST_CASE("HdrTest", "[proxy][hdrtest]")
   mime_init();
   http_init();
 
+  SECTION("Field Char Check")
+  {
+    static struct {
+      std::string_view line;
+      ParseResult expected;
+    } test_cases[] = {
+      ////
+      // Field Name
+      {"Content-Length: 10\r\n", PARSE_RESULT_CONT},
+      {"Content-Length\x0b: 10\r\n", PARSE_RESULT_ERROR},
+      {"Content-Length\xff: 10\r\n", PARSE_RESULT_ERROR},
+      // Delimiters in field name
+      {"delimiter_\": 10\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_(: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_): 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_,: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_/: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_:: 0\r\n", PARSE_RESULT_CONT}, // Parsed as field name "delimiter_" and field value ": 0", which is valid
+      {"delimiter_;: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_<: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_=: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_>: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_?: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_@: 0\r\n", PARSE_RESULT_CONT}, // Not allowed by the spec, but we use it as internal header indicator
+      {"delimiter_[: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_\\: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_]: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_{: 0\r\n", PARSE_RESULT_ERROR},
+      {"delimiter_}: 0\r\n", PARSE_RESULT_ERROR},
+      ////
+      // Field Value
+      // SP
+      {"Content-Length: 10\r\n", PARSE_RESULT_CONT},
+      // HTAB
+      {"Foo: ab\td/cd\r\n", PARSE_RESULT_CONT},
+      // VCHAR
+      {"Foo: ab\x21/cd\r\n", PARSE_RESULT_CONT},
+      {"Foo: ab\x7e/cd\r\n", PARSE_RESULT_CONT},
+      // DEL
+      {"Foo: ab\x7f/cd\r\n", PARSE_RESULT_ERROR},
+      // obs-text
+      {"Foo: ab\x80/cd\r\n", PARSE_RESULT_CONT},
+      {"Foo: ab\xff/cd\r\n", PARSE_RESULT_CONT},
+      // control char
+      {"Content-Length: 10\x0b\r\n", PARSE_RESULT_ERROR},
+      {"Content-Length:\x0b 10\r\n", PARSE_RESULT_ERROR},
+      {"Foo: ab\x1d/cd\r\n", PARSE_RESULT_ERROR},
+    };
+
+    MIMEHdr hdr;
+    MIMEParser parser;
+    mime_parser_init(&parser);
+
+    for (const auto &t : test_cases) {
+      mime_parser_clear(&parser);
+
+      const char *start = t.line.data();
+      const char *end   = start + t.line.size();
+
+      int r = hdr.parse(&parser, &start, end, false, false, false);
+      if (r != t.expected) {
+        std::printf("Expected %s is %s, but not", t.line.data(), t.expected == PARSE_RESULT_ERROR ? "invalid" : "valid");
+        CHECK(false);
+      }
+    }
+  }
+
   SECTION("Test parse date")
   {
     static struct {
@@ -834,13 +901,11 @@ TEST_CASE("HdrTest", "[proxy][hdrtest]")
       "Cache-Control: private\r\n"
       "accept: foo\r\n"
       "accept: bar\n"
-      ": (null) field name\r\n"
       "aCCept: \n"
       "ACCEPT\r\n"
       "foo: bar\r\n"
       "foo: argh\r\n"
       "foo: three, four\r\n"
-      "word word: word \r\n"
       "accept: \"fazzle, dazzle\"\r\n"
       "accept: 1, 2, 3, 4, 5, 6, 7, 8\r\n"
       "continuation: part1\r\n"
