@@ -4,9 +4,11 @@ Origin: other
 Last-Update: 2018-09-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/tools/check-unused-dependencies
-+++ b/tools/check-unused-dependencies
-@@ -54,6 +54,8 @@ def get_dependencies(program):
+Index: trafficserver/tools/check-unused-dependencies
+===================================================================
+--- trafficserver.orig/tools/check-unused-dependencies	2024-08-23 18:47:34.800081036 +0200
++++ trafficserver/tools/check-unused-dependencies	2024-08-23 18:47:34.800081036 +0200
+@@ -54,6 +54,8 @@
                      'libgcc_s.so.',
                      'libm.so.',       # Why does Libtool call ld with -lm?
                      'libpthread.so.', # Because we add -lpthread to LIBS

@@ -6,9 +6,11 @@ Reviewed-by: Jean Baptiste Favre <jbfavre@debian.org>
 Last-Update: 2023-01-30
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/doc/admin-guide/configuration/cache-basics.en.rst
-+++ b/doc/admin-guide/configuration/cache-basics.en.rst
-@@ -54,7 +54,6 @@ overview illustrates how Traffic Server
+Index: trafficserver/doc/admin-guide/configuration/cache-basics.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/cache-basics.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuration/cache-basics.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -54,7 +54,6 @@
     below).
  
     .. figure:: /static/images/admin/cache_hit.jpg
@@ -16,7 +18,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        :alt: A cache hit
  
        A cache hit
-@@ -72,7 +71,6 @@ overview illustrates how Traffic Server
+@@ -72,7 +71,6 @@
     be served faster because the object is retrieved directly from cache.
  
     .. figure:: /static/images/admin/cache_miss.jpg
@@ -24,9 +26,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
        :alt: A cache miss
  
        A cache miss
---- a/doc/admin-guide/configuration/hierarchical-caching.en.rst
-+++ b/doc/admin-guide/configuration/hierarchical-caching.en.rst
-@@ -66,7 +66,6 @@ can now be served directly from the Traf
+Index: trafficserver/doc/admin-guide/configuration/hierarchical-caching.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/hierarchical-caching.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuration/hierarchical-caching.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -66,7 +66,6 @@
  is stale or expired).
  
  .. figure:: /static/images/admin/cachehrc.jpg
@@ -34,9 +38,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Parent caching
  
     Parent caching
---- a/doc/admin-guide/configuration/proxy-protocol.en.rst
-+++ b/doc/admin-guide/configuration/proxy-protocol.en.rst
-@@ -65,7 +65,6 @@ Example
+Index: trafficserver/doc/admin-guide/configuration/proxy-protocol.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/proxy-protocol.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuration/proxy-protocol.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -65,7 +65,6 @@
  As an example, consider the following topology:
  
  .. figure:: ../../static/images/admin/proxy-protocol.png
@@ -44,9 +50,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: PROXY protocol transformed into a Forwarded: header
  
     PROXY protocol header flow
---- a/doc/admin-guide/configuration/redirecting-http-requests.en.rst
-+++ b/doc/admin-guide/configuration/redirecting-http-requests.en.rst
-@@ -66,7 +66,6 @@ Traffic Server can act as the virtual or
+Index: trafficserver/doc/admin-guide/configuration/redirecting-http-requests.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/redirecting-http-requests.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuration/redirecting-http-requests.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -66,7 +66,6 @@
  origin servers, as shown in the figure below.
  
  .. figure:: /static/images/admin/revproxy.jpg
@@ -54,7 +62,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Traffic Server as reverse proxy for a pair of origin servers
  
     Traffic Server as reverse proxy for a pair of origin servers
-@@ -127,7 +126,6 @@ a web server. The figure below illustrat
+@@ -127,7 +126,6 @@
  proxy mode serves an HTTP request from a client browser.
  
  .. figure:: /static/images/admin/httprvs.jpg
@@ -62,9 +70,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: HTTP reverse proxy
  
     HTTP reverse proxy
---- a/doc/admin-guide/configuration/transparent-proxy.en.rst
-+++ b/doc/admin-guide/configuration/transparent-proxy.en.rst
-@@ -55,7 +55,6 @@ The general network structure that will
+Index: trafficserver/doc/admin-guide/configuration/transparent-proxy.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/transparent-proxy.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuration/transparent-proxy.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -55,7 +55,6 @@
  shown in the following figure.
  
  .. figure:: ../../static/images/admin/ats-basic-traffic.png
@@ -72,9 +82,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: ATS basic traffic flow of Transparent Proxy
  
     ATS basic traffic flow of Transparent Proxy
---- a/doc/admin-guide/configuration/transparent-proxy/bridge.en.rst
-+++ b/doc/admin-guide/configuration/transparent-proxy/bridge.en.rst
-@@ -58,7 +58,6 @@ Once the bridge is verified to work, thi
+Index: trafficserver/doc/admin-guide/configuration/transparent-proxy/bridge.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/transparent-proxy/bridge.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuration/transparent-proxy/bridge.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -58,7 +58,6 @@
  of interest.
  
  .. figure:: ../../../static/images/admin/ats-traffic-bridge.png
@@ -82,9 +94,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Picture of traffic flow through a bridge with ATS
  
     Picture of traffic flow through a bridge with ATS
---- a/doc/admin-guide/configuring-traffic-server.en.rst
-+++ b/doc/admin-guide/configuring-traffic-server.en.rst
-@@ -69,7 +69,6 @@ full restart of Traffic Server.
+Index: trafficserver/doc/admin-guide/configuring-traffic-server.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuring-traffic-server.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/configuring-traffic-server.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -69,7 +69,6 @@
  The following is a sample portion of :file:`records.config`:
  
  .. figure:: ../static/images/admin/records.jpg
@@ -92,9 +106,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Sample records.config file
  
     Sample records.config file
---- a/doc/admin-guide/layer-4-routing.en.rst
-+++ b/doc/admin-guide/layer-4-routing.en.rst
-@@ -29,7 +29,6 @@ destination. The initial data is then se
+Index: trafficserver/doc/admin-guide/layer-4-routing.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/layer-4-routing.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/layer-4-routing.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -29,7 +29,6 @@
  data read on one connection to the other and vice versa.
  
  .. figure:: ../uml/images/l4-basic-sequence.svg
@@ -102,7 +118,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  In this way it acts similarly to `nc <https://linux.die.net/man/1/nc>`__.
  
-@@ -82,7 +81,6 @@ services.
+@@ -82,7 +81,6 @@
  The basic set up is therefore
  
  .. figure:: ../uml/images/l4-example-cdn-layout.svg
@@ -110,7 +126,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     A Client connects to an edge |TS| which forwards the connection to the internal Service.
     The Client then negotiates TLS with the Service.
-@@ -119,7 +117,6 @@ In addition to this, in the :file:`recor
+@@ -119,7 +117,6 @@
  The sequence of network activity for a Client connecting to ``service-2`` is
  
  .. figure:: ../uml/images/l4-sni-routing-seq.svg
@@ -118,7 +134,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Note the destination for the outbound TCP connection and the HTTP ``CONNECT`` is the same. If this
  is a problem (which it will be in general) a plugin is needed to change the URL in the ``CONNECT``.
-@@ -139,7 +136,6 @@ Pre-warming TLS Tunnel reduces the laten
+@@ -139,7 +136,6 @@
  Routing). When this feature is enabled, each ET_NET thread makes TLS connections pool per routing type, SNI, and ALPN.
  
  .. figure:: ../uml/images/l4-pre-warming-overview.svg
@@ -126,9 +142,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Stats for connection pools are registered dynamically on start up. Details in :ref:`pre-warming-tls-tunnel-stats`.
  
---- a/doc/admin-guide/logging/examples.en.rst
-+++ b/doc/admin-guide/logging/examples.en.rst
-@@ -47,7 +47,6 @@ Netscape Common
+Index: trafficserver/doc/admin-guide/logging/examples.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/logging/examples.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/logging/examples.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -47,7 +47,6 @@
  The following figure shows a sample log entry in a Netscape Common log file.
  
  .. figure:: /static/images/admin/netscape_common_format.jpg
@@ -136,7 +154,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Sample Netscape Common log entry
  
  The numbered sections correspond to the following log fields in |TS|:
-@@ -82,7 +81,6 @@ Netscape Extended
+@@ -82,7 +81,6 @@
  The following figure shows a sample log entry in a Netscape Extended log file.
  
  .. figure:: /static/images/admin/netscape_extended_format.jpg
@@ -144,7 +162,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Sample Netscape Extended log entry
  
  In addition to fields 1-7 from the Netscape Common log format, the Extended
-@@ -129,7 +127,6 @@ Netscape Extended-2
+@@ -129,7 +127,6 @@
  The following figure shows a sample log entry in a Netscape Extended2 log file.
  
  .. figure:: /static/images/admin/netscape_extended2_format.jpg
@@ -152,7 +170,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Sample Netscape Extended-2 log entry
  
  In addition to fields 1-16 from the Netscape Common and Netscape Extended log
-@@ -168,7 +165,6 @@ Squid
+@@ -168,7 +165,6 @@
  The following figure shows a sample log entry in a Squid log file.
  
  .. figure:: /static/images/admin/squid_format.jpg
@@ -160,9 +178,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Sample Squid log entry
  
  The numbered sections correspond to the following log fields in |TS|:
---- a/doc/admin-guide/monitoring/monitoring/third-party/circonus.en.rst
-+++ b/doc/admin-guide/monitoring/monitoring/third-party/circonus.en.rst
-@@ -64,7 +64,6 @@ environment.
+Index: trafficserver/doc/admin-guide/monitoring/monitoring/third-party/circonus.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/monitoring/monitoring/third-party/circonus.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/monitoring/monitoring/third-party/circonus.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -64,7 +64,6 @@
  
     .. figure:: ../../../../static/images/admin/monitor/circonus/new-check-button.png
        :alt: Circonus New Check button
@@ -170,7 +190,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  #. For the check type, you should select *JSON* under the *Custom* list, and
     then choose the *Pull* type. The broker you choose to use is entirely up to
-@@ -73,7 +72,6 @@ environment.
+@@ -73,7 +72,6 @@
  
     .. figure:: ../../../../static/images/admin/monitor/circonus/check-config-1.png
        :alt: Choosing a check type
@@ -178,7 +198,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  #. Click on *Configure Check* to proceed.
  
-@@ -85,7 +83,6 @@ environment.
+@@ -85,7 +83,6 @@
  
     .. figure:: ../../../../static/images/admin/monitor/circonus/check-config-2.png
        :alt: Advanced check configuration
@@ -186,7 +206,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  #. Click on *Test Check* to proceed.
  
-@@ -96,7 +93,6 @@ environment.
+@@ -96,7 +93,6 @@
  
     .. figure:: ../../../../static/images/admin/monitor/circonus/check-config-3.png
        :alt: Check test
@@ -194,7 +214,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  #. You may want to limit the metrics you actually track from |TS|, since so
     many are made available. If so, simply uncheck those you aren't interested
-@@ -112,7 +108,6 @@ environment.
+@@ -112,7 +108,6 @@
  
     .. figure:: ../../../../static/images/admin/monitor/circonus/metric-grid.png
        :alt: Circonus metric grid
@@ -202,9 +222,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Congratulations! You're now ready to begin setting up alerts, visualizations,
  and dashboards for your |TS| statistics. You can repeat the above steps for any
---- a/doc/admin-guide/plugins/certifier.en.rst
-+++ b/doc/admin-guide/plugins/certifier.en.rst
-@@ -82,7 +82,6 @@ To use this plugin, enable it in a :file
+Index: trafficserver/doc/admin-guide/plugins/certifier.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/plugins/certifier.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/plugins/certifier.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -82,7 +82,6 @@
  One use case would be routing incoming CONNECT request to another port on |TS|. With the certifier generating a trusted certificate, other plugins can act with a similar behavior to Man-In-The-Middle (logging interesting data for example).
  
  .. uml::
@@ -212,9 +234,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     actor User
     participant Traffic_Server
---- a/doc/admin-guide/plugins/multiplexer.en.rst
-+++ b/doc/admin-guide/plugins/multiplexer.en.rst
-@@ -102,7 +102,6 @@ a chunk to be consumed. The local variab
+Index: trafficserver/doc/admin-guide/plugins/multiplexer.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/plugins/multiplexer.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/plugins/multiplexer.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -102,7 +102,6 @@
  :code:`TSIOBufferBlock`. The "size states" are marked blue.
  
  .. uml::
@@ -222,9 +246,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     @startuml
  
---- a/doc/admin-guide/plugins/prefetch.en.rst
-+++ b/doc/admin-guide/plugins/prefetch.en.rst
-@@ -81,7 +81,6 @@ The initial Prefetch plugin deployment g
+Index: trafficserver/doc/admin-guide/plugins/prefetch.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/plugins/prefetch.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/plugins/prefetch.en.rst	2024-08-23 18:47:35.052080890 +0200
+@@ -81,7 +81,6 @@
  It is worth mentioning that a small percentage of the requests did not follow a predictable pattern and were not handled by the plugin.
  
  .. figure:: ../../static/images/admin/prefetch_plugin_deployment.png
@@ -232,9 +258,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: prefetch plugin initial deployment
  
     Prefetch plugin initial deployment.
---- a/doc/admin-guide/security/index.en.rst
-+++ b/doc/admin-guide/security/index.en.rst
-@@ -72,7 +72,6 @@ termination option is enabled and config
+Index: trafficserver/doc/admin-guide/security/index.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/security/index.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/admin-guide/security/index.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -72,7 +72,6 @@
  Server connections only.
  
  .. figure:: ../../static/images/admin/ssl_c.jpg
@@ -242,7 +270,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Client and |TS| communication using SSL termination
  
     Client and |TS| communication using SSL termination
-@@ -164,7 +163,6 @@ origin server when the SSL termination o
+@@ -164,7 +163,6 @@
  Server/origin server connections.
  
  .. figure:: ../../static/images/admin/ssl_os.jpg
@@ -250,9 +278,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: |TS| and origin server communication using SSL termination
  
     |TS| and origin server communication using SSL termination
---- a/doc/developer-guide/cache-architecture/architecture.en.rst
-+++ b/doc/developer-guide/cache-architecture/architecture.en.rst
-@@ -64,7 +64,6 @@ line in the file defines a :term:`cache
+Index: trafficserver/doc/developer-guide/cache-architecture/architecture.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/cache-architecture/architecture.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/cache-architecture/architecture.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -64,7 +64,6 @@
  persistent store.
  
  .. figure:: images/cache-spans.png
@@ -260,7 +290,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     Two cache spans
  
-@@ -81,12 +80,10 @@ stripe is in a single cache span and par
+@@ -81,12 +80,10 @@
  If the cache volumes for the example cache spans were defined as:
  
  .. figure:: images/ats-cache-volume-definition.png
@@ -273,7 +303,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Cache stripes are the fundamental unit of cache for the implementation. A
  cached object is stored entirely in a single stripe, and therefore in a single
-@@ -116,7 +113,6 @@ file system. A cache stripe is structure
+@@ -116,7 +113,6 @@
  entire span block.
  
  .. figure:: images/span-header.svg
@@ -281,7 +311,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Stripe Structure
  ----------------
-@@ -179,7 +175,6 @@ volume size.  The exact memory allocated
+@@ -179,7 +175,6 @@
  seen if traffic_server is run with the 'cache_init' debug tag enabled.
  
  .. figure:: images/cache-directory-structure.png
@@ -289,7 +319,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Each entry stores an offset in the stripe and a size. The size stored in the
  directory entry is an :ref:`approximate size <dir-size>` which is at least as
-@@ -219,7 +214,6 @@ a stripe is chosen so that each segment
+@@ -219,7 +214,6 @@
  exceeding 65,535 (2\ :sup:`16`\ -1) entries in a segment.
  
  .. figure:: images/dir-segment-bucket.png
@@ -297,7 +327,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Each directory entry has a previous and next index value which is used to link
  entries in the same segment. Because no segment has more than 65,535 entries,
-@@ -241,7 +235,6 @@ bucket locality (that is, :term:`cache I
+@@ -241,7 +235,6 @@
  hash bucket will also tend to use the same directory bucket).
  
  .. figure:: images/dir-bucket-assign.png
@@ -305,7 +335,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Entries are removed from the free list when used and returned when no longer in
  use. When a :term:`fragment <cache fragment>` needs to be put in to the
-@@ -267,7 +260,6 @@ without the segment free lists. This mak
+@@ -267,7 +260,6 @@
  the directory but not that of the footer.
  
  .. figure:: images/cache-stripe-layout.png
@@ -313,7 +343,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  Each stripe has several values that describe its basic layout:
  
-@@ -297,7 +289,6 @@ The variable trailing section contains t
+@@ -297,7 +289,6 @@
  free lists for the segments.
  
  .. figure:: images/stripe-header.svg
@@ -321,7 +351,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  The trailing :member:`VolHeaderFooter::freelist` array overlays the disk storage with
  an entry for every segment, even though the array is declared to have length `1`.
-@@ -331,7 +322,6 @@ Instead it will be noted if the object i
+@@ -331,7 +322,6 @@
  read of the fragment fails.
  
  .. figure:: images/ats-cache-write-cursor.png
@@ -329,7 +359,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     The write cursor and documents in the cache.
  
-@@ -385,7 +375,6 @@ area of the on disk image, followed by i
+@@ -385,7 +375,6 @@
  if needed to store the object.
  
  .. figure:: images/cache-doc-layout-3-2-0.png
@@ -337,7 +367,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     ``Doc`` layout 3.2.0
  
-@@ -396,7 +385,6 @@ metadata to being directly incorporated
+@@ -396,7 +385,6 @@
  yielding a layout of the following form.
  
  .. figure:: images/cache-doc-layout-4-0-1.png
@@ -345,7 +375,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     ``Doc`` layout 4.0.1
  
-@@ -448,7 +436,6 @@ of a single object are ordered they are
+@@ -448,7 +436,6 @@
  different objects are interleaved as the data arrives in |TS|.
  
  .. figure:: images/cache-multi-fragment.png
@@ -353,9 +383,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     Multi-alternate and multi-fragment object storage
  
---- a/doc/developer-guide/cache-architecture/data-structures.en.rst
-+++ b/doc/developer-guide/cache-architecture/data-structures.en.rst
-@@ -23,7 +23,6 @@ Data Structures
+Index: trafficserver/doc/developer-guide/cache-architecture/data-structures.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/cache-architecture/data-structures.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/cache-architecture/data-structures.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -23,7 +23,6 @@
  ***************
  
  .. uml::
@@ -363,9 +395,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     hide empty members
  
---- a/doc/developer-guide/client-session-architecture.en.rst
-+++ b/doc/developer-guide/client-session-architecture.en.rst
-@@ -37,7 +37,6 @@ ProxySession
+Index: trafficserver/doc/developer-guide/client-session-architecture.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/client-session-architecture.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/client-session-architecture.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -37,7 +37,6 @@
  ------------------
  
  .. figure:: /static/images/sessions/session_hierarchy.png
@@ -373,7 +407,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: ProxySession hierarchy
  
  The ProxySession class abstracts the key features of a client session.  It contains zero or more ProxyTransaction objects.  It also has a reference to the associated NetVC (either UnixNetVConnection or SSLNetVConnection).  The session class is responsible for interfacing with the user agent protocol.
-@@ -50,7 +49,6 @@ ProxyTransaction
+@@ -50,7 +49,6 @@
  ----------------------
  
  .. figure:: /static/images/sessions/transaction_hierarchy.png
@@ -381,7 +415,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: ProxyTransaction hierarchy
  
  The ProxyTransaction class abstracts the key features of a client transaction.  It has a reference to its
-@@ -65,7 +63,6 @@ HTTP/1.x Objects
+@@ -65,7 +63,6 @@
  ----------------
  
  .. figure:: /static/images/sessions/http1_session_objects.png
@@ -389,7 +423,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: HTTP1 session objects
  
  This diagram shows the relationships between objects created as part of a HTTP/1.x session.  A NetVC
-@@ -88,7 +85,6 @@ HTTP/2 Objects
+@@ -88,7 +85,6 @@
  --------------
  
  .. figure:: /static/images/sessions/http2_session_objects.png
@@ -397,9 +431,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: HTTP/2 session objects
  
  This diagram shows the relationships between objects created as part of a HTTP/2 session.  It is very similar
---- a/doc/developer-guide/core-architecture/rpc.en.rst
-+++ b/doc/developer-guide/core-architecture/rpc.en.rst
-@@ -45,7 +45,6 @@ Runtime Structure
+Index: trafficserver/doc/developer-guide/core-architecture/rpc.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/core-architecture/rpc.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/core-architecture/rpc.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -45,7 +45,6 @@
  =================
  
  .. uml::
@@ -407,7 +443,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     hide empty members
  
-@@ -232,7 +231,6 @@ RPC API for |TServer| and |TManager|
+@@ -232,7 +231,6 @@
  ====================================
  
  .. figure:: ../../uml/images/RPC-states.svg
@@ -415,16 +451,20 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  |LM| and |PM| follow similar workflows. A manager will poll the socket for any messages. If it is able to read a message, it will handle it based on the :arg:`msg_id` from the :class:`MgmtMessageHdr` and select a callback to run asynchoronously. The async callback will add a response, if any, to an outgoing event queue within the class. A manager will continue to poll and read on the socket as long as there are messages available. Two things can stop a manager from polling.
  
---- a/doc/developer-guide/core-architecture/url_rewrite_architecture.en.rst
-+++ b/doc/developer-guide/core-architecture/url_rewrite_architecture.en.rst
-@@ -57,4 +57,3 @@ Implementation
+Index: trafficserver/doc/developer-guide/core-architecture/url_rewrite_architecture.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/core-architecture/url_rewrite_architecture.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/core-architecture/url_rewrite_architecture.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -57,4 +57,3 @@
        results can be efficiently assembled in to the output host name.
  
  .. figure:: /uml/images/url_rewrite.svg
 -   :align: center
---- a/doc/developer-guide/internal-libraries/AcidPtr.en.rst
-+++ b/doc/developer-guide/internal-libraries/AcidPtr.en.rst
-@@ -99,7 +99,6 @@ Use Cases
+Index: trafficserver/doc/developer-guide/internal-libraries/AcidPtr.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/internal-libraries/AcidPtr.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/internal-libraries/AcidPtr.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -99,7 +99,6 @@
  Implemented for use |ACIDPTR| interface in :class:`Extendible`. But could be used elsewhere without modification.
  
  .. uml::
@@ -432,7 +472,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     title Read while Write
  
-@@ -119,7 +118,6 @@ Implemented for use |ACIDPTR| interface
+@@ -119,7 +118,6 @@
  When the writer is done, :func:`~AcidCommitPtr::~AcidCommitPtr()` is called and its |AcidPtr| is updated to point at the written copy, so that future read requests will use it. Existing reader will continue to use the old data.
  
  .. uml::
@@ -440,7 +480,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     title Write Finalize
  
-@@ -135,7 +133,6 @@ When the writer is done, :func:`~AcidCom
+@@ -135,7 +133,6 @@
  
  
  .. uml::
@@ -448,7 +488,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     title AcidPtr Reader/Reader Contention
     box "MemLock"
-@@ -166,7 +163,6 @@ When the writer is done, :func:`~AcidCom
+@@ -166,7 +163,6 @@
  
  
  .. uml::
@@ -456,7 +496,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     Title AcidPtr Writer/Reader Contention
     box "MemLock"
-@@ -214,7 +210,6 @@ When the writer is done, :func:`~AcidCom
+@@ -214,7 +210,6 @@
  
  
  .. uml::
@@ -464,9 +504,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     Title AcidPtr Writer/Writer Contention
     box "MemLock"
---- a/doc/developer-guide/plugins/example-plugins/tls_bridge.en.rst
-+++ b/doc/developer-guide/plugins/example-plugins/tls_bridge.en.rst
-@@ -31,7 +31,6 @@ Description
+Index: trafficserver/doc/developer-guide/plugins/example-plugins/tls_bridge.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/plugins/example-plugins/tls_bridge.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/plugins/example-plugins/tls_bridge.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -31,7 +31,6 @@
  The tunnel is sustained by two instances of |TS|.
  
  .. uml::
@@ -474,7 +516,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     hide empty members
  
-@@ -197,7 +196,6 @@ intercept or change of the TLS exchange
+@@ -197,7 +196,6 @@
  this
  
  .. uml::
@@ -482,7 +524,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     actor Client
     participant "Ingress TS" as Ingress
-@@ -235,7 +233,6 @@ tunnel.
+@@ -235,7 +233,6 @@
  The overall exchange looks like the following:
  
  .. uml::
@@ -490,7 +532,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     @startuml
  
-@@ -273,7 +270,6 @@ The overall exchange looks like the foll
+@@ -273,7 +270,6 @@
  A detailed view of the plugin operation.
  
  .. figure:: ../../../uml/images/TLS-Bridge-Plugin.svg
@@ -498,7 +540,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  A sequence diagram focusing on the request / response data flow. There is a :code:`NetVConn` for the
  connection to the Peer |TS| which is omitted for clarity.
-@@ -288,7 +284,6 @@ means there was an error and the tunnel
+@@ -288,7 +284,6 @@
  response code is stored and used later during cleanup.
  
  .. figure:: ../../../uml/images/TLS-Bridge-Messages.svg
@@ -506,7 +548,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  A restartable state machine is used to recognize the end of the Peer |TS| response. The initial part
  of the response is easy because all that is needed is to wait until there is sufficient data for a
-@@ -296,7 +291,6 @@ minimal parse. The end can be an arbitra
+@@ -296,7 +291,6 @@
  socket read.
  
  .. uml::
@@ -514,9 +556,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     @startuml
     [*] -r> State_0
---- a/doc/developer-guide/plugins/getting-started/index.en.rst
-+++ b/doc/developer-guide/plugins/getting-started/index.en.rst
-@@ -83,7 +83,6 @@ call-back functions you've registered fo
+Index: trafficserver/doc/developer-guide/plugins/getting-started/index.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/plugins/getting-started/index.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/plugins/getting-started/index.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -83,7 +83,6 @@
  .. _PluginProcess:
  
  .. figure:: /static/images/sdk/plugin_process.jpg
@@ -524,7 +568,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Plugin Process
  
     Plugin Process
-@@ -130,7 +129,6 @@ The figure below, :ref:`possibleTSplugin
+@@ -130,7 +129,6 @@
  .. _possibleTSplugins:
  
  .. figure:: /static/images/sdk/Uses.jpg
@@ -532,9 +576,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Possible Traffic Server Plugins
  
     Possible Traffic Server Plugins
---- a/doc/developer-guide/plugins/hooks-and-transactions/trafficserver-timers.en.rst
-+++ b/doc/developer-guide/plugins/hooks-and-transactions/trafficserver-timers.en.rst
-@@ -30,7 +30,6 @@ The picture only depicts the HTTP transa
+Index: trafficserver/doc/developer-guide/plugins/hooks-and-transactions/trafficserver-timers.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/plugins/hooks-and-transactions/trafficserver-timers.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/plugins/hooks-and-transactions/trafficserver-timers.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -30,7 +30,6 @@
  states and other more detailed/internal timers in each individual state.
  
  .. figure:: ../../../static/images/admin/transaction_states_timers.svg
@@ -542,9 +588,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
     :alt: Transaction Timers in various states
  
     Transaction Timers in various states
---- a/doc/developer-guide/plugins/http-transformations/index.en.rst
-+++ b/doc/developer-guide/plugins/http-transformations/index.en.rst
-@@ -88,7 +88,6 @@ relationship between the transformation
+Index: trafficserver/doc/developer-guide/plugins/http-transformations/index.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/plugins/http-transformations/index.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/developer-guide/plugins/http-transformations/index.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -88,7 +88,6 @@
  
  .. figure:: /static/images/sdk/vconnection.jpg
     :alt: A Transformation and its VIOs
@@ -552,9 +600,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
     **A Transformation and its VIOs**
  
---- a/doc/release-notes/roadmap.en.rst
-+++ b/doc/release-notes/roadmap.en.rst
-@@ -59,7 +59,6 @@ Current Release Schedule and support
+Index: trafficserver/doc/release-notes/roadmap.en.rst
+===================================================================
+--- trafficserver.orig/doc/release-notes/roadmap.en.rst	2024-08-23 18:47:35.060080885 +0200
++++ trafficserver/doc/release-notes/roadmap.en.rst	2024-08-23 18:47:35.056080888 +0200
+@@ -59,7 +59,6 @@
  ------------------------------------
  
  .. figure:: images/roadmap.png
@@ -562,7 +612,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  **Note:** These are examples, only the first minor release number of each
  major LTS branch is guaranteed to be made. The dates for point releases
-@@ -76,7 +75,6 @@ it's pretty much business as usual, but
+@@ -76,7 +75,6 @@
  This git branch diagram shows an example how the git tree will be managed:
  
  .. figure:: images/git-versions.svg
