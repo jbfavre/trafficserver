@@ -1,3 +1,14 @@
+trafficserver (9.2.5+ds-0+deb12u1) bookworm-security; urgency=medium
+
+  * New upstream version 9.2.5+ds
+  * CVEs fix (Closes: #1077141)
+    - CVE-2023-38522: Incomplete field name check allows request smuggling
+    - CVE-2024-35161: Incomplete check for chunked trailer section allows
+      request smuggling
+    - CVE-2024-35296: Invalid Accept-Encoding can force forwarding requests
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 23 Aug 2024 20:20:06 +0200
+
 trafficserver (9.2.4+ds-0+deb12u1) bookworm-security; urgency=medium
 
   * New upstream version 9.2.4+ds
