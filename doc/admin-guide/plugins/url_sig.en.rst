@@ -22,6 +22,10 @@
 Signed URL Plugin
 *****************
 
+   .. note::
+
+    The URL Sig protocol is old and unlikely to be standardized. Prefer :doc:`uri_signing.en`.
+
 This plugin checks a signature query string on a URL and rejects (HTTP ``403``)
 or redirects (HTTP ``302``) when the check fails. The signature is based on a
 secret key that both a signing portal and the |TS| cache share. The algorithm
@@ -125,6 +129,12 @@ on our website ``foo.com`` we might have a remap line like this::
     map http://foo.com/download/ http://origin.server.tld/download/ \
         @plugin=url_sig.so @pparam=url_sig.config
 
+.. note::
+
+   To be consistent, the config file option `pristine = true` should
+   be preferred over using a plugin argument.
+
+
 Signing a URL
 =============
 
@@ -186,7 +196,7 @@ Key Index
 
 Parts
     Configures which components of the URL to use for signature verification.
-    The value of this parameter is a string of ones and zeroes, each enabling
+    The value of this parameter is a string of ones and zeros, each enabling
     or disabling the use of a URL part for signatures. The URL scheme (e.g.
     ``http://``) is never part of the signature. The first number of this
     parameter's value indicates whether to include the FQDN, and all remaining
@@ -253,6 +263,37 @@ Signature query parameters embedded in the URL path.
       --algorithm 1 --duration 86400 --key kSCE1_uBREdGI3TPnr_dXKc9f_J4ZV2f --pathparams --siganchor urlsig
 
       curl -s -o /dev/null -v --max-redirs 0 'http://test-remap.domain.com/vod/t;urlsig=O0U9MTQ2MzkyOTM4NTtBPTE7Sz0zO1A9MTtTPTIxYzk2YWRiZWZk'
+
+Other Config File Options
+=========================
+
+In addition to the keys and error_url, the following options are supported
+in the configuration file::
+
+    sig_anchor
+        signed anchor string token in url
+        default: no anchor
+
+    excl_regex
+        pcre regex for urls that aren't signed.
+        default: no regex
+
+    url_type
+        which url to match against
+        pristine or remap
+        default: remap
+
+     ignore_expiry
+        option which assists in testing where the timestamp check is skipped
+        DO NOT run with this set in production!
+        default: false
+
+Example::
+
+    sig_anchor = urlsig
+    excl_regex = (/crossdomain.xml|/clientaccesspolicy.xml|/test.html)
+    url_type = pristine
+    ignore_expiry = true
 
 
 Edge Cache Debugging
@@ -383,4 +424,3 @@ Example
     <
     { [data not shown]
     * Connection #0 to host localhost left intact
-

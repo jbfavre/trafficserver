@@ -21,6 +21,7 @@
   limitations under the License.
  */
 
+#include "tscore/ink_platform.h"
 #include "tscore/ink_sys_control.h"
 #include "tscore/ink_cap.h"
 #include "tscore/ink_lockfile.h"
@@ -28,6 +29,7 @@
 #include "tscore/ink_args.h"
 #include "tscore/ink_syslog.h"
 #include "tscore/runroot.h"
+#include "tscore/Filenames.h"
 
 #include "WebMgmtUtils.h"
 #include "MgmtUtils.h"
@@ -51,6 +53,8 @@
 #include "records/P_RecLocal.h"
 #include "DerivativeMetrics.h"
 
+#include <random>
+
 #if TS_USE_POSIX_CAP
 #include <sys/capability.h>
 #endif
@@ -59,7 +63,8 @@
 #include "tscore/bwf_std_format.h"
 
 #define FD_THROTTLE_HEADROOM (128 + 64) // TODO: consolidate with THROTTLE_FD_HEADROOM
-#define DIAGS_LOG_FILENAME "manager.log"
+#define DEFAULT_DIAGS_LOG_FILENAME "manager.log"
+static char diags_log_filename[PATH_NAME_MAX] = DEFAULT_DIAGS_LOG_FILENAME;
 
 #if ATOMIC_INT_LOCK_FREE != 2
 #error "Need lock free std::atomic<int>"
@@ -71,7 +76,7 @@ using namespace std::literals;
 LocalManager *lmgmt = nullptr;
 FileManager *configFiles;
 
-static void fileUpdated(char *fname, bool incVersion);
+static void fileUpdated(char *fname, char *configName);
 static void runAsUser(const char *userName);
 
 #if defined(freebsd)
@@ -80,17 +85,17 @@ extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer,
 
 static AppVersionInfo appVersionInfo; // Build info for this application
 
-static inkcoreapi DiagsConfig *diagsConfig;
-static char debug_tags[1024]  = "";
-static char action_tags[1024] = "";
-static int proxy_off          = false;
-static char bind_stdout[512]  = "";
-static char bind_stderr[512]  = "";
-
-static const char *mgmt_path = nullptr;
+static DiagsConfig *diagsConfig = nullptr;
+static char debug_tags[1024]    = "";
+static char action_tags[1024]   = "";
+static int proxy_off            = false;
+static int listen_off           = false;
+static char bind_stdout[512]    = "";
+static char bind_stderr[512]    = "";
+static const char *mgmt_path    = nullptr;
 
 // By default, set the current directory as base
-static const char *recs_conf = "records.config";
+static const char *recs_conf = ts::filename::RECORDS;
 
 static int fds_limit;
 
@@ -128,7 +133,7 @@ rotateLogs()
 
   // Now we can actually roll the logs (if necessary)
   if (diags->should_roll_diagslog()) {
-    mgmt_log("Rotated %s", DIAGS_LOG_FILENAME);
+    mgmt_log("Rotated %s", diags_log_filename);
   }
 
   if (diags->should_roll_outputlog()) {
@@ -142,7 +147,7 @@ rotateLogs()
     if (kill(tspid, SIGUSR2) != 0) {
       mgmt_log("Could not send SIGUSR2 to TS: %s", strerror(errno));
     } else {
-      mgmt_log("Succesfully sent SIGUSR2 to TS!");
+      mgmt_log("Successfully sent SIGUSR2 to TS!");
     }
   }
 }
@@ -195,7 +200,7 @@ waited_enough()
     return false;
   }
 
-  return (lmgmt->mgmt_shutdown_triggered_at + timeout >= time(nullptr));
+  return (timeout ? (lmgmt->mgmt_shutdown_triggered_at + timeout <= time(nullptr)) : false);
 }
 
 static void
@@ -217,7 +222,7 @@ check_lockfile()
   } else {
     char *reason = strerror(-err);
     if (err == 0) {
-      fprintf(stderr, "FATAL: Lockfile '%s' says server already running as PID %ld\n", lockfile, (long)holding_pid);
+      fprintf(stderr, "FATAL: Lockfile '%s' says server already running as PID %ld\n", lockfile, static_cast<long>(holding_pid));
       mgmt_log("FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
     } else {
       fprintf(stderr, "FATAL: Can't open server lockfile '%s' (%s)\n", lockfile, (reason ? reason : "Unknown Reason"));
@@ -237,7 +242,7 @@ check_lockfile()
     fprintf(stderr, "FATAL: Can't acquire manager lockfile '%s'", lockfile);
     mgmt_log("FATAL: Can't acquire manager lockfile '%s'", lockfile);
     if (err == 0) {
-      fprintf(stderr, " (Lock file held by process ID %ld)\n", (long)holding_pid);
+      fprintf(stderr, " (Lock file held by process ID %ld)\n", static_cast<long>(holding_pid));
       mgmt_log(" (Lock file held by process ID %d)\n", holding_pid);
     } else if (reason) {
       fprintf(stderr, " (%s)\n", reason);
@@ -308,7 +313,7 @@ initSignalHandlers()
 
   // Block the delivery of any signals we are not catching
   //
-  //  except for SIGALARM since we use it
+  //  except for SIGALRM since we use it
   //    to break out of deadlock on semaphore
   //    we share with the proxy
   //
@@ -393,8 +398,9 @@ set_process_limits(RecInt fds_throttle)
 
     lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(maxfiles * file_max_pct);
     if (setrlimit(RLIMIT_NOFILE, &lim) == 0 && getrlimit(RLIMIT_NOFILE, &lim) == 0) {
-      fds_limit = (int)lim.rlim_cur;
-      syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
+      fds_limit = static_cast<int>(lim.rlim_cur);
+      syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, static_cast<int>(lim.rlim_cur),
+             static_cast<int>(lim.rlim_max));
     }
   }
 
@@ -402,8 +408,9 @@ set_process_limits(RecInt fds_throttle)
     if (fds_throttle > (int)(lim.rlim_cur + FD_THROTTLE_HEADROOM)) {
       lim.rlim_cur = (lim.rlim_max = (rlim_t)fds_throttle);
       if (!setrlimit(RLIMIT_NOFILE, &lim) && !getrlimit(RLIMIT_NOFILE, &lim)) {
-        fds_limit = (int)lim.rlim_cur;
-        syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
+        fds_limit = static_cast<int>(lim.rlim_cur);
+        syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, static_cast<int>(lim.rlim_cur),
+               static_cast<int>(lim.rlim_max));
       }
     }
   }
@@ -487,14 +494,18 @@ main(int argc, const char **argv)
   char *tsArgs       = nullptr;
   int disable_syslog = false;
   char userToRunAs[MAX_LOGIN + 1];
-  RecInt fds_throttle = -1;
+  RecInt fds_throttle        = -1;
+  bool printed_unrecoverable = false;
 
   ArgumentDescription argument_descriptions[] = {
     {"proxyOff", '-', "Disable proxy", "F", &proxy_off, nullptr, nullptr},
+    {"listenOff", '-', "Disable traffic manager listen to proxy ports", "F", &listen_off, nullptr, nullptr},
     {"path", '-', "Path to the management socket", "S*", &mgmt_path, nullptr, nullptr},
     {"recordsConf", '-', "Path to records.config", "S*", &recs_conf, nullptr, nullptr},
     {"tsArgs", '-', "Additional arguments for traffic_server", "S*", &tsArgs, nullptr, nullptr},
     {"proxyPort", '-', "HTTP port descriptor", "S*", &proxy_port, nullptr, nullptr},
+    {"maxRecords", 'm', "Max number of librecords metrics and configurations (default & minimum: 1600)", "I", &max_records_entries,
+     "PROXY_MAX_RECORDS", nullptr},
     {TM_OPT_BIND_STDOUT, '-', "Regular file to bind stdout to", "S512", &bind_stdout, "PROXY_BIND_STDOUT", nullptr},
     {TM_OPT_BIND_STDERR, '-', "Regular file to bind stderr to", "S512", &bind_stderr, "PROXY_BIND_STDERR", nullptr},
 #if TS_USE_DIAGS
@@ -536,8 +547,7 @@ main(int argc, const char **argv)
 
   // Bootstrap the Diags facility so that we can use it while starting
   //  up the manager
-  diagsConfig = new DiagsConfig("Manager", DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
-  diags       = diagsConfig->diags;
+  diagsConfig = new DiagsConfig("Manager", DEFAULT_DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
   diags->set_std_output(StdStream::STDOUT, bind_stdout);
   diags->set_std_output(StdStream::STDERR, bind_stderr);
 
@@ -546,12 +556,17 @@ main(int argc, const char **argv)
 
   init_dirs(); // setup critical directories, needs LibRecords
 
-  if (RecGetRecordString("proxy.config.admin.user_id", userToRunAs, sizeof(userToRunAs)) != TS_ERR_OKAY ||
+  if (RecGetRecordString("proxy.config.admin.user_id", userToRunAs, sizeof(userToRunAs)) != REC_ERR_OKAY ||
       strlen(userToRunAs) == 0) {
     mgmt_fatal(0, "proxy.config.admin.user_id is not set\n");
   }
 
   RecGetRecordInt("proxy.config.net.connections_throttle", &fds_throttle);
+  RecInt listen_per_thread = 0;
+  RecGetRecordInt("proxy.config.exec_thread.listen", &listen_per_thread);
+  if (listen_per_thread > 0) { // Turn off listening. Traffic server is going to listen on all the threads.
+    listen_off = true;
+  }
 
   set_process_limits(fds_throttle); // as root
 
@@ -572,17 +587,23 @@ main(int argc, const char **argv)
 #endif
   ts_host_res_global_init();
   ts_session_protocol_well_known_name_indices_init();
-  lmgmt = new LocalManager(proxy_off == false);
+  lmgmt = new LocalManager(proxy_off == false, listen_off == false);
   RecLocalInitMessage();
   lmgmt->initAlarm();
 
-  if (diags) {
-    delete diagsConfig;
-  }
   // INKqa11968: need to set up callbacks and diags data structures
   // using configuration in records.config
-  diagsConfig = new DiagsConfig("Manager", DIAGS_LOG_FILENAME, debug_tags, action_tags, true);
-  diags       = diagsConfig->diags;
+  REC_ReadConfigString(diags_log_filename, "proxy.node.config.manager_log_filename", sizeof(diags_log_filename));
+  if (strnlen(diags_log_filename, sizeof(diags_log_filename)) == 0) {
+    strncpy(diags_log_filename, DEFAULT_DIAGS_LOG_FILENAME, sizeof(diags_log_filename));
+  }
+  DiagsConfig *old_diagsconfig = diagsConfig;
+  diagsConfig                  = new DiagsConfig("Manager", diags_log_filename, debug_tags, action_tags, true);
+  if (old_diagsconfig) {
+    delete old_diagsconfig;
+    old_diagsconfig = nullptr;
+  }
+
   RecSetDiags(diags);
   diags->set_std_output(StdStream::STDOUT, bind_stdout);
   diags->set_std_output(StdStream::STDERR, bind_stderr);
@@ -669,14 +690,12 @@ main(int argc, const char **argv)
   mode_t oldmask = umask(0);
   mode_t newmode = api_socket_is_restricted() ? 00700 : 00777;
 
-  int mgmtapiFD         = -1; // FD for the api interface to issue commands
-  int eventapiFD        = -1; // FD for the api and clients to handle event callbacks
-  char mgmtapiFailMsg[] = "Traffic server management API service Interface Failed to Initialize.";
+  int mgmtapiFD  = -1; // FD for the api interface to issue commands
+  int eventapiFD = -1; // FD for the api and clients to handle event callbacks
 
   mgmtapiFD = bind_unix_domain_socket(apisock.c_str(), newmode);
   if (mgmtapiFD == -1) {
     mgmt_log("[WebIntrMain] Unable to set up socket for handling management API calls. API socket path = %s\n", apisock.c_str());
-    lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_WEB_ERROR, mgmtapiFailMsg);
   }
 
   eventapiFD = bind_unix_domain_socket(eventsock.c_str(), newmode);
@@ -699,9 +718,18 @@ main(int argc, const char **argv)
 
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.draining", 0, RECP_NON_PERSISTENT);
 
-  const int MAX_SLEEP_S      = 60; // Max sleep duration
-  int sleep_time             = 0;  // sleep_time given in sec
-  uint64_t last_start_epoc_s = 0;  // latest start attempt in seconds since epoc
+  int sleep_time             = 0; // sleep_time given in sec
+  uint64_t last_start_epoc_s = 0; // latest start attempt in seconds since epoc
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<> dis(0.0, 0.5);
+
+  RecInt sleep_ceiling = 60;
+  RecGetRecordInt("proxy.node.config.manager_exponential_sleep_ceiling", &sleep_ceiling);
+  RecInt retry_cap = 0; // 0  means no cap.
+  RecGetRecordInt("proxy.node.config.manager_retry_cap", &retry_cap);
+  bool ignore_retry_cap{retry_cap <= 0};
 
   DerivativeMetrics derived; // This is simple class to calculate some useful derived metrics
 
@@ -709,7 +737,7 @@ main(int argc, const char **argv)
     lmgmt->processEventQueue();
     lmgmt->pollMgmtProcessServer();
 
-    // Handle rotation of output log (aka traffic.out) as well as DIAGS_LOG_FILENAME (aka manager.log)
+    // Handle rotation of output log (aka traffic.out) as well as DEFAULT_DIAGS_LOG_FILENAME (aka manager.log)
     rotateLogs();
 
     // Check for a SIGHUP
@@ -789,12 +817,19 @@ main(int argc, const char **argv)
       break;
     }
 
-    if (lmgmt->run_proxy && !lmgmt->processRunning() && lmgmt->proxy_recoverable) { /* Make sure we still have a proxy up */
+    if (lmgmt->run_proxy && !lmgmt->processRunning() && lmgmt->proxy_recoverable &&
+        (retry_cap > 0 || ignore_retry_cap)) { /* Make sure we still have a proxy up */
       const uint64_t now = static_cast<uint64_t>(time(nullptr));
-      if (sleep_time && ((now - last_start_epoc_s) < MAX_SLEEP_S)) {
-        mgmt_log("Relaunching proxy after %d sec...", sleep_time);
-        millisleep(1000 * sleep_time); // we use millisleep instead of sleep because it doesnt interfere with signals
-        sleep_time = std::min(sleep_time * 2, MAX_SLEEP_S);
+      if (sleep_time && ((now - last_start_epoc_s) < static_cast<uint64_t>(sleep_ceiling))) {
+        const auto variance = dis(gen);
+        // We add a bit of variance to the regular sleep time.
+        const int mod_sleep_time = sleep_time + static_cast<int>(sleep_time * variance);
+        mgmt_log("Relaunching proxy after %d sec..", mod_sleep_time);
+        if (!ignore_retry_cap && sleep_time >= sleep_ceiling) {
+          --retry_cap;
+        }
+        millisleep((1000 * mod_sleep_time)); // we use millisleep instead of sleep because it doesnt interfere with signals
+        sleep_time = std::min<int>(sleep_time * 2, sleep_ceiling);
       } else {
         sleep_time = 1;
       }
@@ -804,9 +839,12 @@ main(int argc, const char **argv)
       } else {
         just_started++;
       }
-    } else { /* Give the proxy a chance to fire up */
-      if (!lmgmt->proxy_recoverable) {
+    } else {
+      // Even if we shouldn't try to start the proxy again, leave manager around to
+      // avoid external automated restarts
+      if (!lmgmt->proxy_recoverable && !printed_unrecoverable) {
         mgmt_log("[main] Proxy is un-recoverable. Proxy will not be relaunched.\n");
+        printed_unrecoverable = true;
       }
 
       just_started++;
@@ -896,6 +934,22 @@ SignalHandler(int sig)
     return;
   }
 
+  if (sig == SIGUSR2) {
+    fprintf(stderr, "[TrafficManager] ==> received SIGUSR2, rotating the logs.\n");
+    mgmt_log("[TrafficManager] ==> received SIGUSR2, rotating the logs.\n");
+    if (lmgmt && lmgmt->watched_process_pid != -1) {
+      kill(lmgmt->watched_process_pid, sig);
+    }
+    diags->set_std_output(StdStream::STDOUT, bind_stdout);
+    diags->set_std_output(StdStream::STDERR, bind_stderr);
+    if (diags->reseat_diagslog()) {
+      Note("Reseated %s", diags_log_filename);
+    } else {
+      Note("Could not reseat %s", diags_log_filename);
+    }
+    return;
+  }
+
   fprintf(stderr, "[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
   mgmt_log("[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
 
@@ -924,6 +978,8 @@ SignalHandler(int sig)
   case SIGXCPU:
   case SIGXFSZ:
     abort();
+  case SIGTERM:
+    ::exit(0);
   default:
     fprintf(stderr, "[TrafficManager] ==> signal #%d\n", sig);
     mgmt_log("[TrafficManager] ==> signal #%d\n", sig);
@@ -948,56 +1004,15 @@ SigChldHandler(int /* sig ATS_UNUSED */)
 }
 
 void
-fileUpdated(char *fname, bool incVersion)
+fileUpdated(char *fname, char *configName)
 {
-  if (strcmp(fname, "remap.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.url_remap.filename");
-
-  } else if (strcmp(fname, "socks.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.socks.socks_config_file");
-
-  } else if (strcmp(fname, "records.config") == 0) {
-    lmgmt->signalFileChange("records.config", incVersion);
-
-  } else if (strcmp(fname, "cache.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.cache.control.filename");
-
-  } else if (strcmp(fname, "parent.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.http.parent_proxy.file");
-
-  } else if (strcmp(fname, "ip_allow.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.cache.ip_allow.filename");
-
-  } else if (strcmp(fname, "storage.config") == 0) {
-    mgmt_log("[fileUpdated] storage.config changed, need restart auto-rebuild mode\n");
-
-  } else if (strcmp(fname, "volume.config") == 0) {
-    mgmt_log("[fileUpdated] volume.config changed, need restart\n");
-
-  } else if (strcmp(fname, "hosting.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.cache.hosting_filename");
-
-  } else if (strcmp(fname, "logging.yaml") == 0) {
-    lmgmt->signalFileChange("proxy.config.log.config.filename");
-
-  } else if (strcmp(fname, "splitdns.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.dns.splitdns.filename");
-
-  } else if (strcmp(fname, "plugin.config") == 0) {
-    mgmt_log("[fileUpdated] plugin.config file has been modified\n");
-
-  } else if (strcmp(fname, "ssl_multicert.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.ssl.server.multicert.filename");
-
-  } else if (strcmp(fname, "proxy.config.body_factory.template_sets_dir") == 0) {
-    lmgmt->signalFileChange("proxy.config.body_factory.template_sets_dir");
-
-  } else if (strcmp(fname, "proxy.config.ssl.server.ticket_key.filename") == 0) {
-    lmgmt->signalFileChange("proxy.config.ssl.server.ticket_key.filename");
-  } else if (strcmp(fname, SSL_SERVER_NAME_CONFIG) == 0) {
-    lmgmt->signalFileChange("proxy.config.ssl.servername.filename");
+  // If there is no config name recorded, assume this file is not reloadable
+  // Just log a message
+  if (configName == nullptr || configName[0] == '\0') {
+    mgmt_log("[fileUpdated] %s changed, need restart", fname);
   } else {
-    mgmt_log("[fileUpdated] Unknown config file updated '%s'\n", fname);
+    // Signal based on the config entry that has the changed file name
+    lmgmt->signalFileChange(configName);
   }
   return;
 } /* End fileUpdate */
@@ -1034,7 +1049,21 @@ restoreCapabilities()
   };
   static int const CAP_COUNT = sizeof(cap_list) / sizeof(*cap_list);
 
-  cap_set_flag(cap_set, CAP_EFFECTIVE, CAP_COUNT, cap_list, CAP_SET);
+  for (int i = 0; i < CAP_COUNT; i++) {
+    if (cap_set_flag(cap_set, CAP_EFFECTIVE, 1, cap_list + i, CAP_SET) < 0) {
+      Warning("restore CAP_EFFECTIVE failed for option %d", i);
+    }
+    if (cap_set_proc(cap_set) == -1) { // it failed, back out
+      cap_set_flag(cap_set, CAP_EFFECTIVE, 1, cap_list + i, CAP_CLEAR);
+    }
+  }
+  for (int i : cap_list) {
+    cap_flag_value_t val;
+    if (cap_get_flag(cap_set, i, CAP_EFFECTIVE, &val) < 0) {
+    } else {
+      Warning("CAP_EFFECTIVE offiset %d is %s", i, val == CAP_SET ? "set" : "unset");
+    }
+  }
   zret = cap_set_proc(cap_set);
   cap_free(cap_set);
   return zret;

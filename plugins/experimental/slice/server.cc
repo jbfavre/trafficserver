@@ -20,6 +20,7 @@
 
 #include "Config.h"
 #include "ContentRange.h"
+#include "HttpHeader.h"
 #include "response.h"
 #include "transfer.h"
 #include "util.h"
@@ -110,6 +111,16 @@ handleFirstServerHeader(Data *const data, TSCont const contp)
     // Should run TSVIONSetBytes(output_io, hlen + bodybytes);
     int64_t const hlen = TSHttpHdrLengthGet(header.m_buffer, header.m_lochdr);
     int64_t const clen = contentLengthFrom(header);
+    if (TS_HTTP_STATUS_OK == header.status() && data->onlyHeader()) {
+      DEBUG_LOG("HEAD/PURGE request stripped Range header: expects 200");
+      data->m_bytestosend   = hlen;
+      data->m_blockexpected = 0;
+      TSVIONBytesSet(output_vio, hlen);
+      TSHttpHdrPrint(header.m_buffer, header.m_lochdr, output_buf);
+      data->m_bytessent = hlen;
+      TSVIOReenable(output_vio);
+      return HeaderState::Good;
+    }
     DEBUG_LOG("Passthru bytes: header: %" PRId64 " body: %" PRId64, hlen, clen);
     if (clen != INT64_MAX) {
       TSVIONBytesSet(output_vio, hlen + clen);
@@ -173,9 +184,6 @@ handleFirstServerHeader(Data *const data, TSCont const contp)
   data->m_lastmodifiedlen = sizeof(data->m_lastmodified);
   header.valueForKey(TS_MIME_FIELD_LAST_MODIFIED, TS_MIME_LEN_LAST_MODIFIED, data->m_lastmodified, &data->m_lastmodifiedlen);
 
-  // size of the first block payload
-  data->m_blockexpected = blockcr.rangeSize();
-
   // Now we can set up the expected client response
   if (TS_HTTP_STATUS_PARTIAL_CONTENT == data->m_statustype) {
     ContentRange respcr;
@@ -211,11 +219,24 @@ handleFirstServerHeader(Data *const data, TSCont const contp)
   // add the response header length to the total bytes to send
   int const hbytes = TSHttpHdrLengthGet(header.m_buffer, header.m_lochdr);
 
-  TSVIONBytesSet(output_vio, hbytes + bodybytes);
-  data->m_bytestosend = hbytes + bodybytes;
+  // HEAD request only sends header
+  if (data->onlyHeader()) {
+    data->m_bytestosend   = hbytes;
+    data->m_blockexpected = 0;
+  } else {
+    // GET request sends header + object
+    data->m_bytestosend   = hbytes + bodybytes;
+    data->m_blockexpected = blockcr.rangeSize();
+  }
+  TSVIONBytesSet(output_vio, data->m_bytestosend);
   TSHttpHdrPrint(header.m_buffer, header.m_lochdr, output_buf);
   data->m_bytessent = hbytes;
   TSVIOReenable(output_vio);
+
+  if (data->m_config->m_prefetchcount > 0 && data->m_blocknum == data->m_req_range.firstBlockFor(data->m_config->m_blockbytes) &&
+      header.hasKey(SLICE_CRR_HEADER.data(), SLICE_CRR_HEADER.size())) {
+    data->m_prefetchable = true;
+  }
 
   return HeaderState::Good;
 }
@@ -223,9 +244,9 @@ handleFirstServerHeader(Data *const data, TSCont const contp)
 void
 logSliceError(char const *const message, Data const *const data, HttpHeader const &header_resp)
 {
-  Config *const config = data->m_config;
+  Config *const conf = data->m_config;
 
-  bool const logToError = config->canLogError();
+  bool const logToError = conf->canLogError();
 
   // always write block stitch errors while in debug mode
   if (!logToError && !TSIsDebugTagSet(PLUGIN_NAME)) {
@@ -259,7 +280,7 @@ logSliceError(char const *const message, Data const *const data, HttpHeader cons
   // raw range request
   char rangestr[1024];
   int rangelen = sizeof(rangestr);
-  header_req.valueForKey(SLICER_MIME_FIELD_INFO, strlen(SLICER_MIME_FIELD_INFO), rangestr, &rangelen);
+  header_req.valueForKey(conf->m_skip_header.data(), conf->m_skip_header.size(), rangestr, &rangelen);
 
   // Normalized range request
   ContentRange const crange(data->m_req_range.m_beg, data->m_req_range.m_end, data->m_contentlen);
@@ -268,8 +289,8 @@ logSliceError(char const *const message, Data const *const data, HttpHeader cons
   crange.toStringClosed(normstr, &normlen);
 
   // block range request
-  int64_t const blockbeg = data->m_blocknum * data->m_config->m_blockbytes;
-  int64_t const blockend = std::min(blockbeg + data->m_config->m_blockbytes, data->m_contentlen);
+  int64_t const blockbeg = data->m_blocknum * conf->m_blockbytes;
+  int64_t const blockend = std::min(blockbeg + conf->m_blockbytes, data->m_contentlen);
 
   // Block response data
   TSHttpStatus const statusgot = header_resp.status();
@@ -343,6 +364,9 @@ handleNextServerHeader(Data *const data, TSCont const contp)
 
   switch (header.status()) {
   case TS_HTTP_STATUS_NOT_FOUND:
+    if (data->onlyHeader()) {
+      return false;
+    }
     // need to reissue reference slice
     logSliceError("404 internal block response (asset gone)", data, header);
     same = false;
@@ -350,6 +374,9 @@ handleNextServerHeader(Data *const data, TSCont const contp)
   case TS_HTTP_STATUS_PARTIAL_CONTENT:
     break;
   default:
+    if (data->onlyHeader() && header.status() == TS_HTTP_STATUS_OK) {
+      return true;
+    }
     DEBUG_LOG("Non 206/404 internal block response encountered");
     return false;
     break;
@@ -416,8 +443,9 @@ handleNextServerHeader(Data *const data, TSCont const contp)
 
       // add special CRR IMS header to the request
       HttpHeader headerreq(data->m_req_hdrmgr.m_buffer, data->m_req_hdrmgr.m_lochdr);
-      if (!headerreq.setKeyTime(X_CRR_IMS_HEADER.data(), X_CRR_IMS_HEADER.size(), dateims)) {
-        ERROR_LOG("Failed setting '%.*s'", (int)X_CRR_IMS_HEADER.size(), X_CRR_IMS_HEADER.data());
+      Config const *const conf = data->m_config;
+      if (!headerreq.setKeyTime(conf->m_crr_ims_header.data(), conf->m_crr_ims_header.size(), dateims)) {
+        ERROR_LOG("Failed setting '%s'", conf->m_crr_ims_header.c_str());
         return false;
       }
 
@@ -438,8 +466,9 @@ handleNextServerHeader(Data *const data, TSCont const contp)
 
       // add special CRR IMS header to the request
       HttpHeader headerreq(data->m_req_hdrmgr.m_buffer, data->m_req_hdrmgr.m_lochdr);
-      if (!headerreq.setKeyTime(X_CRR_IMS_HEADER.data(), X_CRR_IMS_HEADER.size(), dateims)) {
-        ERROR_LOG("Failed setting '%.*s'", (int)X_CRR_IMS_HEADER.size(), X_CRR_IMS_HEADER.data());
+      Config const *const conf = data->m_config;
+      if (!headerreq.setKeyTime(conf->m_crr_ims_header.data(), conf->m_crr_ims_header.size(), dateims)) {
+        ERROR_LOG("Failed setting '%s'", conf->m_crr_ims_header.c_str());
         return false;
       }
 
@@ -466,6 +495,11 @@ handleNextServerHeader(Data *const data, TSCont const contp)
   }
 
   data->m_blockexpected = blockcr.rangeSize();
+
+  if (data->m_config->m_prefetchcount > 0 && data->m_blocknum == data->m_req_range.firstBlockFor(data->m_config->m_blockbytes) &&
+      header.hasKey(SLICE_CRR_HEADER.data(), SLICE_CRR_HEADER.size())) {
+    data->m_prefetchable = true;
+  }
 
   return true;
 }
@@ -606,7 +640,7 @@ handle_server_resp(TSCont contp, TSEvent event, Data *const data)
     // corner condition, good source header + 0 length aborted content
     // results in no header being read, just an EOS.
     // trying to delete the upstream will crash ATS (??)
-    if (0 == data->m_blockexpected) {
+    if (0 == data->m_blockexpected && !data->onlyHeader()) {
       shutdown(contp, data); // this will crash if first block
       return;
     }
@@ -636,14 +670,18 @@ handle_server_resp(TSCont contp, TSEvent event, Data *const data)
       data->m_blocknum = firstblock;
     }
 
-    // continue processing blocks?
-    if (data->m_req_range.blockIsInside(data->m_config->m_blockbytes, data->m_blocknum)) {
+    // continue processing blocks if more requests need to be made
+    // HEAD requests only has one slice block
+    if (data->m_req_range.blockIsInside(data->m_config->m_blockbytes, data->m_blocknum) &&
+        data->m_method_type != TS_HTTP_METHOD_HEAD) {
       // Don't immediately request the next slice if the client
       // isn't keeping up
 
-      if (data->m_dnstream.m_write.isOpen()) {
-        bool start_next_block = true;
-
+      bool start_next_block = false;
+      if (data->m_method_type == TS_HTTP_METHOD_PURGE) {
+        // for PURGE requests, clients won't request more data (no body content)
+        start_next_block = true;
+      } else if (data->m_dnstream.m_write.isOpen()) {
         // check throttle condition
         TSVIO const output_vio    = data->m_dnstream.m_write.m_vio;
         int64_t const output_done = TSVIONDoneGet(output_vio);
@@ -652,16 +690,16 @@ handle_server_resp(TSCont contp, TSEvent event, Data *const data)
         int64_t const buffered    = output_sent - output_done;
 
         if (threshout < buffered) {
-          start_next_block = false;
           DEBUG_LOG("%p handle_server_resp: throttling %" PRId64, data, buffered);
+        } else {
+          start_next_block = true;
         }
-
-        if (start_next_block) {
-          if (!request_block(contp, data)) {
-            data->m_blockstate = BlockState::Fail;
-            abort(contp, data);
-            return;
-          }
+      }
+      if (start_next_block) {
+        if (!request_block(contp, data)) {
+          data->m_blockstate = BlockState::Fail;
+          abort(contp, data);
+          return;
         }
       }
     } else {

@@ -113,6 +113,9 @@ union head_p {
  * -> A -> B -> C -> D
  * If the version check is not there, the list will look like
  * -> C -> D after the pop, which will result in the loss of "B"
+ *
+ * For more information, see:  https://en.wikipedia.org/wiki/ABA_problem .
+ * (Versioning is a case of the "tagged state reference" workaround.)
  */
 #define ZERO_HEAD_P(_x)
 
@@ -136,11 +139,49 @@ union head_p {
 #define SET_FREELIST_POINTER_VERSION(_x, _p, _v) \
   (_x).s.pointer = _p;                           \
   (_x).s.version = _v
-#elif defined(__x86_64__) || defined(__ia64__) || defined(__powerpc64__) || defined(__aarch64__) || defined(__mips64)
+#elif defined(__x86_64__) || defined(__ia64__) || defined(__powerpc64__) || defined(__mips64)
+/* Layout of FREELIST_POINTER
+ *
+ *  0 ~ 47 bits : 48 bits, Virtual Address
+ * 48 ~ 62 bits : 15 bits, Freelist Version
+ *      63 bits :  1 bits, The type of Virtual Address (0 = user space, 1 = kernel space)
+ */
+/* Detect which shift is implemented by the simple expression ((~0 >> 1) < 0):
+ *
+ * If the shift is 'logical' the highest order bit of the left side of the comparison is 0 so the result is positive.
+ * If the shift is 'arithmetic' the highest order bit of the left side is 1 so the result is negative.
+ */
+#if ((~0 >> 1) < 0)
+/* the shift is `arithmetic' */
 #define FREELIST_POINTER(_x) \
-  ((void *)(((((intptr_t)(_x).data) << 16) >> 16) | (((~((((intptr_t)(_x).data) << 16 >> 63) - 1)) >> 48) << 48))) // sign extend
-#define FREELIST_VERSION(_x) (((intptr_t)(_x).data) >> 48)
-#define SET_FREELIST_POINTER_VERSION(_x, _p, _v) (_x).data = ((((intptr_t)(_p)) & 0x0000FFFFFFFFFFFFULL) | (((_v)&0xFFFFULL) << 48))
+  ((void *)((((intptr_t)(_x).data) & 0x0000FFFFFFFFFFFFLL) | ((((intptr_t)(_x).data) >> 63) << 48))) // sign extend
+#else
+/* the shift is `logical' */
+#define FREELIST_POINTER(_x) \
+  ((void *)((((intptr_t)(_x).data) & 0x0000FFFFFFFFFFFFLL) | ((~((((intptr_t)(_x).data) >> 63) - 1)) << 48)))
+#endif
+
+#define FREELIST_VERSION(_x) ((((intptr_t)(_x).data) & 0x7FFF000000000000LL) >> 48)
+#define SET_FREELIST_POINTER_VERSION(_x, _p, _v) (_x).data = ((((intptr_t)(_p)) & 0x8000FFFFFFFFFFFFLL) | (((_v)&0x7FFFLL) << 48))
+#elif defined(__aarch64__)
+/* Layout of FREELIST_POINTER
+ *
+ *  0 ~ 51 bits : 52 bits, Virtual Address
+ * 52 ~ 62 bits : 11 bits, Freelist Version
+ *      63 bits :  1 bits, The type of Virtual Address (0 = user space, 1 = kernel space)
+ */
+#if ((~0 >> 1) < 0)
+/* the shift is `arithmetic' */
+#define FREELIST_POINTER(_x) \
+  ((void *)((((intptr_t)(_x).data) & 0x000FFFFFFFFFFFFFLL) | ((((intptr_t)(_x).data) >> 63) << 52))) // sign extend
+#else
+/* the shift is `logical' */
+#define FREELIST_POINTER(_x) \
+  ((void *)((((intptr_t)(_x).data) & 0x000FFFFFFFFFFFFFLL) | ((~((((intptr_t)(_x).data) >> 63) - 1)) << 52)))
+#endif
+
+#define FREELIST_VERSION(_x) ((((intptr_t)(_x).data) & 0x7FF0000000000000LL) >> 52)
+#define SET_FREELIST_POINTER_VERSION(_x, _p, _v) (_x).data = ((((intptr_t)(_p)) & 0x800FFFFFFFFFFFFFLL) | (((_v)&0x7FFLL) << 52))
 #else
 #error "unsupported processor"
 #endif
@@ -156,24 +197,21 @@ struct _InkFreeList {
 typedef struct ink_freelist_ops InkFreeListOps;
 typedef struct _InkFreeList InkFreeList;
 
-extern const ink_freelist_ops *freelist_global_ops;
-extern const ink_freelist_ops *freelist_class_ops;
-
 const InkFreeListOps *ink_freelist_malloc_ops();
 const InkFreeListOps *ink_freelist_freelist_ops();
-void ink_freelist_init_ops(int nofl_global, int nofl_class);
+void ink_freelist_init_ops(int nofl_class, int nofl_proxy);
 
 /*
  * alignment must be a power of 2
  */
 InkFreeList *ink_freelist_create(const char *name, uint32_t type_size, uint32_t chunk_size, uint32_t alignment);
 
-inkcoreapi void ink_freelist_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32_t chunk_size, uint32_t alignment);
-inkcoreapi void ink_freelist_madvise_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32_t chunk_size,
-                                          uint32_t alignment, int advice);
-inkcoreapi void *ink_freelist_new(InkFreeList *f, const InkFreeListOps *ops);
-inkcoreapi void ink_freelist_free(InkFreeList *f, void *item, const InkFreeListOps *ops);
-inkcoreapi void ink_freelist_free_bulk(InkFreeList *f, void *head, void *tail, size_t num_item, const InkFreeListOps *ops);
+void ink_freelist_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32_t chunk_size, uint32_t alignment);
+void ink_freelist_madvise_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32_t chunk_size, uint32_t alignment,
+                               int advice);
+void *ink_freelist_new(InkFreeList *f);
+void ink_freelist_free(InkFreeList *f, void *item);
+void ink_freelist_free_bulk(InkFreeList *f, void *head, void *tail, size_t num_item);
 void ink_freelists_dump(FILE *f);
 void ink_freelists_dump_baselinerel(FILE *f);
 void ink_freelists_snap_baseline();
@@ -192,10 +230,13 @@ struct InkAtomicList {
 #define INK_ATOMICLIST_EMPTY(_x) (!((FREELIST_POINTER((_x.head)))))
 #endif
 
-inkcoreapi void ink_atomiclist_init(InkAtomicList *l, const char *name, uint32_t offset_to_next);
-inkcoreapi void *ink_atomiclist_push(InkAtomicList *l, void *item);
+// WARNING: the "name" string is not copied, it has to be a statically-stored constant string.
+//
+void ink_atomiclist_init(InkAtomicList *l, const char *name, uint32_t offset_to_next);
+
+void *ink_atomiclist_push(InkAtomicList *l, void *item);
 void *ink_atomiclist_pop(InkAtomicList *l);
-inkcoreapi void *ink_atomiclist_popall(InkAtomicList *l);
+void *ink_atomiclist_popall(InkAtomicList *l);
 /*
  * WARNING WARNING WARNING WARNING WARNING WARNING WARNING
  * only if only one thread is doing pops it is possible to have a "remove"

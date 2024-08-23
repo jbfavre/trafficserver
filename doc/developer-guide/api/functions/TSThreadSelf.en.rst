@@ -24,9 +24,14 @@ TSThreadSelf
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 .. function:: TSThread TSThreadSelf(void)
 
 Description
 ===========
+
+Return an instance of :type:`TSThread` that identifies the current thread. This must be called from
+within a |TS| create thread context. That is any thread created by the |TS| core or via the |TS| API.

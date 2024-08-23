@@ -15,53 +15,38 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 */
+
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <stdexcept>
+#include <getopt.h>
 
 #include "ts/ts.h"
 #include "ts/remap.h"
 
-#include "tscore/ink_atomic.h"
-
 #include "parser.h"
 #include "ruleset.h"
 #include "resources.h"
+#include "conditions.h"
+#include "conditions_geo.h"
 
 // Debugs
 const char PLUGIN_NAME[]     = "header_rewrite";
 const char PLUGIN_NAME_DBG[] = "dbg_header_rewrite";
 
-// Geo information, currently only Maxmind. These have to be initialized when the plugin loads.
-#if HAVE_GEOIP_H
-#include <GeoIP.h>
-
-GeoIP *gGeoIP[NUM_DB_TYPES];
+static std::once_flag initGeoLibs;
 
 static void
-initGeoIP()
+initGeoLib(const std::string &dbPath)
 {
-  GeoIPDBTypes dbs[] = {GEOIP_COUNTRY_EDITION, GEOIP_COUNTRY_EDITION_V6, GEOIP_ASNUM_EDITION, GEOIP_ASNUM_EDITION_V6};
-
-  for (unsigned i = 0; i < sizeof(dbs) / sizeof(dbs[0]); ++i) {
-    if (!gGeoIP[dbs[i]] && GeoIP_db_avail(dbs[i])) {
-      // GEOIP_STANDARD seems to break threaded apps...
-      gGeoIP[dbs[i]] = GeoIP_open_type(dbs[i], GEOIP_MMAP_CACHE);
-
-      char *db_info = GeoIP_database_info(gGeoIP[dbs[i]]);
-      TSDebug(PLUGIN_NAME, "initialized GeoIP-DB[%d] %s", dbs[i], db_info);
-      free(db_info);
-    }
-  }
-}
-
-#else
-
-static void
-initGeoIP()
-{
-}
+  TSDebug(PLUGIN_NAME, "Loading geo db %s", dbPath.c_str());
+#if TS_USE_HRW_GEOIP
+  GeoIPConditionGeo::initLibrary(dbPath);
+#elif TS_USE_HRW_MAXMINDDB
+  MMConditionGeo::initLibrary(dbPath);
 #endif
+}
 
 // Forward declaration for the main continuation.
 static int cont_rewrite_headers(TSCont, TSEvent, void *);
@@ -236,7 +221,7 @@ RulesConfig::parse_config(const std::string &fname, TSHttpHookID default_hook)
         }
       }
     } catch (std::runtime_error &e) {
-      TSError("[%s] header_rewrite configuration exception: %s", PLUGIN_NAME, e.what());
+      TSError("[%s] header_rewrite configuration exception: %s in file: %s", PLUGIN_NAME, e.what(), fname.c_str());
       delete rule;
       return false;
     }
@@ -317,6 +302,8 @@ cont_rewrite_headers(TSCont contp, TSEvent event, void *edata)
   return 0;
 }
 
+static const struct option longopt[] = {{"geo-db-path", required_argument, nullptr, 'm'}, {nullptr, no_argument, nullptr, '\0'}};
+
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the InkAPI plugin for the global hooks we support.
 //
@@ -331,24 +318,45 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TS_SUCCESS != TSPluginRegister(&info)) {
     TSError("[%s] plugin registration failed", PLUGIN_NAME);
+    return;
   }
+
+  std::string geoDBpath;
+  while (true) {
+    int opt = getopt_long(argc, const_cast<char *const *>(argv), "m:", longopt, nullptr);
+
+    switch (opt) {
+    case 'm': {
+      geoDBpath = optarg;
+    } break;
+    }
+    if (opt == -1) {
+      break;
+    }
+  }
+
+  if (!geoDBpath.empty() && geoDBpath.find('/') != 0) {
+    geoDBpath = std::string(TSConfigDirGet()) + '/' + geoDBpath;
+  }
+
+  TSDebug(PLUGIN_NAME, "Global geo db %s", geoDBpath.c_str());
+
+  std::call_once(initGeoLibs, [&geoDBpath]() { initGeoLib(geoDBpath); });
 
   // Parse the global config file(s). All rules are just appended
   // to the "global" Rules configuration.
   RulesConfig *conf = new RulesConfig;
   bool got_config   = false;
 
-  initGeoIP();
-
-  for (int i = 1; i < argc; ++i) {
+  for (int i = optind; i < argc; ++i) {
     // Parse the config file(s). Note that multiple config files are
     // just appended to the configurations.
     TSDebug(PLUGIN_NAME, "Loading global configuration file %s", argv[i]);
     if (conf->parse_config(argv[i], TS_HTTP_READ_RESPONSE_HDR_HOOK)) {
-      TSDebug(PLUGIN_NAME, "Succesfully loaded global config file %s", argv[i]);
+      TSDebug(PLUGIN_NAME, "Successfully loaded global config file %s", argv[i]);
       got_config = true;
     } else {
-      TSError("[header_rewrite] failed to parse configuration file %s", argv[i]);
+      TSError("[%s] failed to parse configuration file %s", PLUGIN_NAME, argv[i]);
     }
   }
 
@@ -358,7 +366,7 @@ TSPluginInit(int argc, const char *argv[])
 
     for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {
       if (conf->rule(i)) {
-        TSDebug(PLUGIN_NAME, "Adding global ruleset to hook=%s", TSHttpHookNameLookup((TSHttpHookID)i));
+        TSDebug(PLUGIN_NAME, "Adding global ruleset to hook=%s", TSHttpHookNameLookup(static_cast<TSHttpHookID>(i)));
         TSHttpHookAdd(static_cast<TSHttpHookID>(i), contp);
       }
     }
@@ -391,7 +399,6 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
-  initGeoIP();
   TSDebug(PLUGIN_NAME, "Remap plugin is successfully initialized");
 
   return TS_SUCCESS;
@@ -407,16 +414,45 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
     return TS_ERROR;
   }
 
+  // argv contains the "to" and "from" URLs. Skip the first so that the
+  // second one poses as the program name.
+  --argc;
+  ++argv;
+
+  std::string geoDBpath;
+  while (true) {
+    int opt = getopt_long(argc, (char *const *)argv, "m:", longopt, nullptr);
+
+    switch (opt) {
+    case 'm': {
+      geoDBpath = optarg;
+    } break;
+    }
+    if (opt == -1) {
+      break;
+    }
+  }
+
+  if (!geoDBpath.empty()) {
+    if (geoDBpath.find('/') != 0) {
+      geoDBpath = std::string(TSConfigDirGet()) + '/' + geoDBpath;
+    }
+
+    TSDebug(PLUGIN_NAME, "Remap geo db %s", geoDBpath.c_str());
+
+    std::call_once(initGeoLibs, [&geoDBpath]() { initGeoLib(geoDBpath); });
+  }
+
   RulesConfig *conf = new RulesConfig;
 
-  for (int i = 2; i < argc; ++i) {
+  for (int i = optind; i < argc; ++i) {
     TSDebug(PLUGIN_NAME, "Loading remap configuration file %s", argv[i]);
     if (!conf->parse_config(argv[i], TS_REMAP_PSEUDO_HOOK)) {
       TSError("[%s] Unable to create remap instance", PLUGIN_NAME);
       delete conf;
       return TS_ERROR;
     } else {
-      TSDebug(PLUGIN_NAME, "Succesfully loaded remap config file %s", argv[i]);
+      TSDebug(PLUGIN_NAME, "Successfully loaded remap config file %s", argv[i]);
     }
   }
 
@@ -424,7 +460,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSE
   if (TSIsDebugTagSet(PLUGIN_NAME)) {
     for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {
       if (conf->rule(i)) {
-        TSDebug(PLUGIN_NAME, "Adding remap ruleset to hook=%s", TSHttpHookNameLookup((TSHttpHookID)i));
+        TSDebug(PLUGIN_NAME, "Adding remap ruleset to hook=%s", TSHttpHookNameLookup(static_cast<TSHttpHookID>(i)));
       }
     }
   }
@@ -459,12 +495,12 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {
     if (conf->rule(i)) {
       TSHttpTxnHookAdd(rh, static_cast<TSHttpHookID>(i), conf->continuation());
-      TSDebug(PLUGIN_NAME, "Added remapped TXN hook=%s", TSHttpHookNameLookup((TSHttpHookID)i));
+      TSDebug(PLUGIN_NAME, "Added remapped TXN hook=%s", TSHttpHookNameLookup(static_cast<TSHttpHookID>(i)));
     }
   }
 
   // Now handle the remap specific rules for the "remap hook" (which is not a real hook).
-  // This is sufficiently differen than the normal cont_rewrite_headers() callback, and
+  // This is sufficiently different than the normal cont_rewrite_headers() callback, and
   // we can't (shouldn't) schedule this as a TXN hook.
   RuleSet *rule = conf->rule(TS_REMAP_PSEUDO_HOOK);
   Resources res(rh, rri);

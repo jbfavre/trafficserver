@@ -30,11 +30,11 @@
 
 #define PLUGIN_NAME "block_errors"
 #define PLUGIN_NAME_CLEAN "block_clean"
-static uint32_t RESET_LIMIT           = 1000;
-static uint32_t TIMEOUT_CYCLES        = 4;
-static int StatCountBlocks            = -1;
-static const bool shutdown_connection = true;
-static bool enabled                   = true;
+static uint32_t RESET_LIMIT     = 1000;
+static uint32_t TIMEOUT_CYCLES  = 4;
+static int StatCountBlocks      = -1;
+static bool shutdown_connection = false;
+static bool enabled             = true;
 
 //-------------------------------------------------------------------------
 static int
@@ -52,6 +52,8 @@ msg_hook(TSCont *contp, TSEvent event, void *edata)
     RESET_LIMIT = atoi(data.data());
   } else if (tag == "block_errors.cycles") {
     TIMEOUT_CYCLES = atoi(data.data());
+  } else if (tag == "block_errors.shutdown") {
+    shutdown_connection = static_cast<bool>(atoi(data.data()));
   } else {
     TSDebug(PLUGIN_NAME, "msg_hook: unknown message tag '%s'", tag.data());
     TSError("block_errors: unknown message tag '%s'", tag.data());
@@ -170,12 +172,6 @@ handle_start_hook(TSCont *contp, TSEvent event, void *edata)
 
   // get the ip address
   const sockaddr *addr = TSNetVConnRemoteAddrGet(vconn);
-  if (addr == nullptr) {
-    // only needed for 8.1x, 9.2.x and 10.x always returns an address
-    TSDebug(PLUGIN_NAME, "unable to get remote address");
-    TSVConnReenable(vconn);
-    return 0;
-  }
   IpAddr ipaddr(addr);
 
   // get the count for the ip address
@@ -199,7 +195,7 @@ handle_start_hook(TSCont *contp, TSEvent event, void *edata)
       // downgrade the connection
       TSDebug(PLUGIN_NAME, "ip=%s count=%d is over the limit, downgrading connection", ipaddr_to_string(ipaddr, address).c_str(),
               count);
-      // TSVConnProtocolDisable(vconn, TS_ALPN_PROTOCOL_HTTP_2_0);
+      TSVConnProtocolDisable(vconn, TS_ALPN_PROTOCOL_HTTP_2_0);
     }
   }
 
@@ -241,14 +237,8 @@ handle_close_hook(TSCont *contp, TSEvent event, void *edata)
   // count the error if there is a transaction error CANCEL or a session error ENHANCE_YOUR_CALM
   // https://www.rfc-editor.org/rfc/rfc9113.html#name-error-codes
   if ((transaction.cls == 2 && transaction.code == 8) || (session.cls == 1 && session.code == 11)) {
-    TSHttpSsn ssn = TSHttpTxnSsnGet(txnp);
-    TSVConn vconn = TSHttpSsnClientVConnGet(ssn);
-    if (vconn == nullptr) {
-      // only needed for 8.1x, 9.2.x and 10.x always returns a vconn
-      TSDebug(PLUGIN_NAME, "unable to get the vconn");
-      TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
-      return 0;
-    }
+    TSHttpSsn ssn        = TSHttpTxnSsnGet(txnp);
+    TSVConn vconn        = TSHttpSsnClientVConnGet(ssn);
     const sockaddr *addr = TSNetVConnRemoteAddrGet(vconn);
     IpAddr ipaddr(addr);
     uint32_t count = ip_table.increment(ipaddr);
@@ -290,11 +280,12 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   // set the reset and timeout values
-  if (argc == 4) {
-    RESET_LIMIT    = atoi(argv[1]);
-    TIMEOUT_CYCLES = atoi(argv[2]);
-    enabled        = static_cast<bool>(atoi(argv[3]));
-  } else if (argc > 1 && argc < 4) {
+  if (argc == 5) {
+    RESET_LIMIT         = atoi(argv[1]);
+    TIMEOUT_CYCLES      = atoi(argv[2]);
+    shutdown_connection = static_cast<bool>(atoi(argv[3]));
+    enabled             = static_cast<bool>(atoi(argv[4]));
+  } else if (argc > 1 && argc < 5) {
     TSDebug(PLUGIN_NAME,
             "block_errors: invalid number of arguments, using the defaults - usage: block_errors.so <reset limit> <timeout "
             "cycles> <shutdown connection> <enabled>");
@@ -314,5 +305,5 @@ TSPluginInit(int argc, const char *argv[])
   TSLifecycleHookAdd(TS_LIFECYCLE_MSG_HOOK, TSContCreate(reinterpret_cast<TSEventFunc>(msg_hook), nullptr));
 
   // schedule cleanup on task thread every 60 seconds
-  TSContScheduleEvery(TSContCreate(reinterpret_cast<TSEventFunc>(clean_table), TSMutexCreate()), 60 * 1000, TS_THREAD_POOL_TASK);
+  TSContScheduleEveryOnPool(TSContCreate((TSEventFunc)clean_table, TSMutexCreate()), 60 * 1000, TS_THREAD_POOL_TASK);
 }

@@ -15,7 +15,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
     TS Sphinx Directives
     ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,6 +33,7 @@ from sphinx.roles import XRefRole
 from sphinx.locale import _
 import sphinx
 
+import os
 import subprocess
 import re
 
@@ -44,8 +44,10 @@ try:
     def is_string_type(s):
         return isinstance(s, basestring)
 except NameError:
+
     def is_string_type(s):
         return isinstance(s, str)
+
 
 class TSConfVar(std.Target):
     """
@@ -104,7 +106,7 @@ class TSConfVar(std.Target):
         title['first'] = False
         title['objtype'] = 'cv'
         self.add_name(title)
-        title.set_class('ts-cv-title')
+        title['classes'].append('ts-cv-title')
 
         # Finally, add a desc_name() node to display the name of the
         # configuration variable.
@@ -113,10 +115,10 @@ class TSConfVar(std.Target):
         node.append(title)
 
         if ('class' in self.options):
-            title.set_class(self.options.get('class'))
+            title['classes'].append(self.options.get('class'))
         # This has to be a distinct node before the title. if nested then
         # the browser will scroll forward to just past the title.
-        anchor = nodes.target('', '', names=[cv_name])
+        nodes.target('', '', names=[cv_name])
         # Second (optional) arg is 'msgNode' - no idea what I should pass for that
         # or if it even matters, although I now think it should not be used.
         self.state.document.note_explicit_target(title)
@@ -159,6 +161,7 @@ class TSConfVar(std.Target):
 
 
 class TSConfVarRef(XRefRole):
+
     def process_link(self, env, ref_node, explicit_title_p, title, target):
         return title, target
 
@@ -168,7 +171,10 @@ def metrictypes(typename):
 
 
 def metricunits(unitname):
-    return directives.choice(unitname.lower(), ('ratio', 'percent', 'kbits', 'mbits', 'bytes', 'kbytes', 'mbytes', 'nanoseconds', 'microseconds', 'milliseconds', 'seconds'))
+    return directives.choice(
+        unitname.lower(), (
+            'ratio', 'percent', 'kbits', 'mbits', 'bytes', 'kbytes', 'mbytes', 'nanoseconds', 'microseconds', 'milliseconds',
+            'seconds'))
 
 
 class TSStat(std.Target):
@@ -230,7 +236,7 @@ class TSStat(std.Target):
         title['first'] = False
         title['objtype'] = 'stat'
         self.add_name(title)
-        title.set_class('ts-stat-title')
+        title['classes'].append('ts-stat-title')
 
         # Finally, add a desc_name() node to display the name of the
         # configuration variable.
@@ -240,7 +246,7 @@ class TSStat(std.Target):
 
         # This has to be a distinct node before the title. if nested then
         # the browser will scroll forward to just past the title.
-        anchor = nodes.target('', '', names=[stat_name])
+        nodes.target('', '', names=[stat_name])
         # Second (optional) arg is 'msgNode' - no idea what I should pass for that
         # or if it even matters, although I now think it should not be used.
         self.state.document.note_explicit_target(title)
@@ -250,8 +256,8 @@ class TSStat(std.Target):
         fl.append(self.make_field('Collection', stat_group))
         if ('type' in self.options):
             fl.append(self.make_field('Type', self.options['type']))
-        if ('unit' in self.options):
-            fl.append(self.make_field('Units', self.options['unit']))
+        if ('units' in self.options):
+            fl.append(self.make_field('Units', self.options['units']))
         fl.append(self.make_field('Datatype', stat_type))
         if ('introduced' in self.options and len(self.options['introduced']) > 0):
             fl.append(self.make_field('Introduced', self.options['introduced']))
@@ -287,6 +293,7 @@ class TSStat(std.Target):
 
 
 class TSStatRef(XRefRole):
+
     def process_link(self, env, ref_node, explicit_title_p, title, target):
         return title, target
 
@@ -305,15 +312,9 @@ class TrafficServerDomain(Domain):
         'stat': ObjType(_('statistic'), 'stat')
     }
 
-    directives = {
-        'cv': TSConfVar,
-        'stat': TSStat
-    }
+    directives = {'cv': TSConfVar, 'stat': TSStat}
 
-    roles = {
-        'cv': TSConfVarRef(),
-        'stat': TSStatRef()
-    }
+    roles = {'cv': TSConfVarRef(), 'stat': TSStatRef()}
 
     initial_data = {
         'cv': {},  # full name -> docname
@@ -366,6 +367,7 @@ class TrafficServerDomain(Domain):
             for var, doc in self.data['stat'].iteritems():
                 yield var, var, 'stat', doc, var, 1
     except AttributeError:
+
         def get_objects(self):
             for var, doc in self.data['cv'].items():
                 yield var, var, 'cv', doc, var, 1
@@ -374,16 +376,19 @@ class TrafficServerDomain(Domain):
 
 
 # get the branch this documentation is building for in X.X.x form
-with open('../configure.ac', 'r') as f:
+REPO_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.environ['DOCUTILSCONFIG'])))
+CONFIGURE_AC = os.path.join(REPO_ROOT, 'configure.ac')
+with open(CONFIGURE_AC, 'r') as f:
     contents = f.read()
     match = re.compile(r'm4_define\(\[TS_VERSION_S],\[(.*?)]\)').search(contents)
     autoconf_version = '.'.join(match.group(1).split('.', 2)[:2] + ['x'])
 
 # get the current branch the local repository is on
-git_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+REPO_GIT_DIR = os.path.join(REPO_ROOT, ".git")
+git_branch = subprocess.check_output(['git', '--git-dir', REPO_GIT_DIR, 'rev-parse', '--abbrev-ref', 'HEAD'])
 
 
-def make_github_link(name, rawtext, text, lineno, inliner, options={}, content=[]):
+def make_github_link(name, rawtext, text, lineno, inliner, options=None, content=None):
     """
     This docutils role lets us link to source code via the handy :ts:git: markup.
     Link references are rooted at the top level source directory. All links resolve
@@ -399,6 +404,10 @@ def make_github_link(name, rawtext, text, lineno, inliner, options={}, content=[
 
             If you want to contribute, take a look at :ts:git:`CONTRIBUTING.md`.
     """
+    if options is None:
+        options = {}
+    if content is None:
+        content = []
     url = 'https://github.com/apache/trafficserver/blob/{}/{}'
     ref = autoconf_version if autoconf_version == git_branch else 'master'
     node = nodes.reference(rawtext, text, refuri=url.format(ref, text), **options)
@@ -406,9 +415,7 @@ def make_github_link(name, rawtext, text, lineno, inliner, options={}, content=[
 
 
 def setup(app):
-    app.add_crossref_type('configfile', 'file',
-                          objname='Configuration file',
-                          indextemplate='pair: %s; Configuration files')
+    app.add_crossref_type('configfile', 'file', objname='Configuration file', indextemplate='pair: %s; Configuration files')
 
     # Very ugly, but as of Sphinx 1.8 it must be done. There is an `override` option to add_crossref_type
     # but it only applies to the directive, not the role (`file` in this case). If this isn't cleared
@@ -417,9 +424,7 @@ def setup(app):
     # names are disjoint sets.
     del app.registry.domain_roles['std']['file']
 
-    app.add_crossref_type('logfile', 'file',
-                          objname='Log file',
-                          indextemplate='pair: %s; Log files')
+    app.add_crossref_type('logfile', 'file', objname='Log file', indextemplate='pair: %s; Log files')
 
     rst.roles.register_generic_role('arg', nodes.emphasis)
     rst.roles.register_generic_role('const', nodes.literal)

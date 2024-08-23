@@ -1,4 +1,3 @@
-
 '''
 '''
 #  Licensed to the Apache Software Foundation (ASF) under one
@@ -17,16 +16,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-
-import os
 Test.Summary = '''
 Test a basic null transform plugin
 '''
 
-# Need Curl
-Test.SkipUnless(
-    Condition.HasProgram("curl", "curl needs to be installed on system for this test to work")
-)
+Test.SkipUnless(Condition.PluginExists('null_transform.so'))
+
 Test.ContinueOnFail = True
 
 # Define default ATS
@@ -34,28 +29,21 @@ ts = Test.MakeATSProcess("ts")
 server = Test.MakeOriginServer("server")
 
 Test.testName = ""
-request_header = {"headers": "GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n",
-                  "timestamp": "1469733493.993",
-                  "body": ""
-                  }
+request_header = {"headers": "GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
 # Expected response from origin server
-response_header = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
-                   "timestamp": "1469733493.993",
-
-                   "body": "This is expected response."}
+response_header = {
+    "headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
+    "timestamp": "1469733493.993",
+    "body": "This is expected response."
+}
 
 # Add response the server dictionary
 server.addResponse("sessionfile.log", request_header, response_header)
-ts.Disk.records_config.update({
-    'proxy.config.diags.debug.enabled': 1,
-    'proxy.config.diags.debug.tags': 'null_transform'
-})
-ts.Disk.remap_config.AddLine(
-    'map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port)
-)
+ts.Disk.records_config.update({'proxy.config.diags.debug.enabled': 1, 'proxy.config.diags.debug.tags': 'null_transform'})
+ts.Disk.remap_config.AddLine('map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port))
 
 # Load plugin
-Test.PreparePlugin(os.path.join(Test.Variables.AtsTestToolsDir, 'plugins', 'null_transform.c'), ts)
+Test.PrepareInstalledPlugin('null_transform.so', ts)
 
 # www.example.com Host
 tr = Test.AddTestRun()
@@ -68,4 +56,4 @@ tr.Processes.Default.Streams.stderr = "gold/null_transform-200.gold"
 tr.StillRunningAfter = server
 
 # Check Plugin Loading Information
-ts.Streams.All = "gold/null_transform-tag.gold"
+ts.Disk.traffic_out.Content = "gold/null_transform-tag.gold"

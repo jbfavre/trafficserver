@@ -1,5 +1,5 @@
 '''
-Test the 408 reponse header.
+Test the 408 response header.
 '''
 #  Licensed to the Apache Software Foundation (ASF) under one
 #  or more contributor license agreements.  See the NOTICE file
@@ -18,7 +18,7 @@ Test the 408 reponse header.
 #  limitations under the License.
 
 import os
-import subprocess
+import sys
 
 Test.Summary = '''
 Check 408 response header for protocol stack data.
@@ -36,11 +36,9 @@ request_header = {"headers": "GET / HTTP/1.1\r\nHost: {}\r\n\r\n".format(HTTP_40
 response_header = {"headers": "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", "timestamp": "1469733493.993", "body": ""}
 server.addResponse("sessionlog.json", request_header, response_header)
 
-ts.Disk.remap_config.AddLine(
-    'map http://{0} http://127.0.0.1:{1}'.format(HTTP_408_HOST, server.Variables.Port)
-)
+ts.Disk.remap_config.AddLine('map http://{0} http://127.0.0.1:{1}'.format(HTTP_408_HOST, server.Variables.Port))
 
-TIMEOUT=2
+TIMEOUT = 2
 ts.Disk.records_config.update({
     'proxy.config.http.transaction_no_activity_timeout_in': TIMEOUT,
 })
@@ -51,8 +49,8 @@ Test.Setup.Copy('data')
 tr = Test.AddTestRun()
 tr.Processes.Default.StartBefore(server)
 tr.Processes.Default.StartBefore(Test.Processes.ts)
-tr.Processes.Default.Command = 'python tcp_client.py 127.0.0.1 {0} {1} --delay-after-send {2}'\
-        .format(ts.Variables.port, 'data/{0}.txt'.format(HTTP_408_HOST), TIMEOUT + 2)
+DELAY = TIMEOUT + 2
+tr.Processes.Default.Command = f'{sys.executable} tcp_client.py 127.0.0.1 {ts.Variables.port} data/{HTTP_408_HOST}.txt --delay-after-send {DELAY}'
 tr.Processes.Default.ReturnCode = 0
 tr.Processes.Default.TimeOut = 10
 tr.Processes.Default.Streams.stdout = "http408.gold"

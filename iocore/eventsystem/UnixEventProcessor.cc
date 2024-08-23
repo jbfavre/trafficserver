@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-#include "P_EventSystem.h" /* MAGIC_EDITING_TAG */
+#include "P_EventSystem.h"
 #include <sched.h>
 #if TS_USE_HWLOC
 #if HAVE_ALLOCA_H
@@ -30,6 +30,7 @@
 #include <hwloc.h>
 #endif
 #include "tscore/ink_defs.h"
+#include "tscore/ink_hw.h"
 #include "tscore/hugepages.h"
 
 /// Global singleton.
@@ -37,7 +38,7 @@ class EventProcessor eventProcessor;
 
 class ThreadAffinityInitializer : public Continuation
 {
-  typedef ThreadAffinityInitializer self;
+  using self = ThreadAffinityInitializer;
 
 public:
   /// Default construct.
@@ -46,7 +47,7 @@ public:
   void init();
   /// Set the affinity for the current thread.
   int set_affinity(int, Event *);
-  /// Allocate a stack.
+  /// Allocate a stack and set guard pages.
   /// @internal This is the external entry point and is different depending on
   /// whether HWLOC is enabled.
   void *alloc_stack(EThread *t, size_t stacksize);
@@ -54,7 +55,8 @@ public:
 protected:
   /// Allocate a hugepage stack.
   /// If huge pages are not enable, allocate a basic stack.
-  void *alloc_hugepage_stack(size_t stacksize);
+  void *do_alloc_stack(size_t stacksize);
+  void setup_stack_guard(void *stack, int stackguard_pages);
 
 #if TS_USE_HWLOC
 
@@ -135,10 +137,55 @@ public:
 } Thread_Init_Func;
 } // namespace
 
-void *
-ThreadAffinityInitializer::alloc_hugepage_stack(size_t stacksize)
+void
+ThreadAffinityInitializer::setup_stack_guard(void *stack, int stackguard_pages)
 {
-  return ats_hugepage_enabled() ? ats_alloc_hugepage(stacksize) : ats_memalign(ats_pagesize(), stacksize);
+#if !(defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__arm64__) || defined(__aarch64__) || \
+      defined(__mips__) || defined(__powerpc64__))
+#error Unknown stack growth direction.  Determine the stack growth direction of your platform.
+// If your stack grows upwards, you need to change this function and the calculation of stack_begin in do_alloc_stack.
+#endif
+  // Assumption: stack grows down
+  if (stackguard_pages <= 0) {
+    return;
+  }
+
+  size_t pagesize  = ats_hugepage_enabled() ? ats_hugepage_size() : ats_pagesize();
+  size_t guardsize = stackguard_pages * pagesize;
+  int ret          = mprotect(stack, guardsize, 0);
+  if (ret != 0) {
+    Fatal("Failed to set up stack guard pages: %s (%d)", strerror(errno), errno);
+  }
+}
+
+void *
+ThreadAffinityInitializer::do_alloc_stack(size_t stacksize)
+{
+  size_t pagesize = ats_hugepage_enabled() ? ats_hugepage_size() : ats_pagesize();
+  int stackguard_pages;
+  REC_ReadConfigInteger(stackguard_pages, "proxy.config.thread.default.stackguard_pages");
+  ink_release_assert(stackguard_pages >= 0);
+
+  size_t size    = INK_ALIGN(stacksize + stackguard_pages * pagesize, pagesize);
+  int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+#ifdef MAP_HUGETLB
+  if (ats_hugepage_enabled()) {
+    mmap_flags |= MAP_HUGETLB;
+  }
+#endif
+  void *stack_and_guard = mmap(nullptr, size, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
+  if (stack_and_guard == MAP_FAILED) {
+    Error("Failed to allocate stack pages: size = %zu", size);
+    return nullptr;
+  }
+
+  setup_stack_guard(stack_and_guard, stackguard_pages);
+
+  void *stack_begin = static_cast<char *>(stack_and_guard) + stackguard_pages * pagesize;
+  Debug("iocore_thread", "Allocated %zu bytes (%zu bytes in guard pages) for stack {%p-%p guard, %p-%p stack}", size,
+        stackguard_pages * pagesize, stack_and_guard, stack_begin, stack_begin, static_cast<char *>(stack_begin) + stacksize);
+
+  return stack_begin;
 }
 
 #if TS_USE_HWLOC
@@ -193,7 +240,7 @@ ThreadAffinityInitializer::set_affinity(int, Event *)
     hwloc_obj_t obj = hwloc_get_obj_by_type(ink_get_topology(), obj_type, t->id % obj_count);
 #if HWLOC_API_VERSION >= 0x00010100
     int cpu_mask_len = hwloc_bitmap_snprintf(nullptr, 0, obj->cpuset) + 1;
-    char *cpu_mask   = (char *)alloca(cpu_mask_len);
+    char *cpu_mask   = static_cast<char *>(alloca(cpu_mask_len));
     hwloc_bitmap_snprintf(cpu_mask, cpu_mask_len, obj->cpuset);
     Debug("iocore_thread", "EThread: %p %s: %d CPU Mask: %s\n", t, obj_name, obj->logical_index, cpu_mask);
 #else
@@ -238,7 +285,7 @@ ThreadAffinityInitializer::alloc_numa_stack(EThread *t, size_t stacksize)
   }
 
   // Alloc our stack
-  stack = this->alloc_hugepage_stack(stacksize);
+  stack = this->do_alloc_stack(stacksize);
 
   if (mem_policy != HWLOC_MEMBIND_DEFAULT) {
     // Now let's set it back to default for this thread.
@@ -259,7 +306,7 @@ ThreadAffinityInitializer::alloc_numa_stack(EThread *t, size_t stacksize)
 void *
 ThreadAffinityInitializer::alloc_stack(EThread *t, size_t stacksize)
 {
-  return this->obj_count > 0 ? this->alloc_numa_stack(t, stacksize) : this->alloc_hugepage_stack(stacksize);
+  return this->obj_count > 0 ? this->alloc_numa_stack(t, stacksize) : this->do_alloc_stack(stacksize);
 }
 
 #else
@@ -278,7 +325,7 @@ ThreadAffinityInitializer::set_affinity(int, Event *)
 void *
 ThreadAffinityInitializer::alloc_stack(EThread *, size_t stacksize)
 {
-  return this->alloc_hugepage_stack(stacksize);
+  return this->do_alloc_stack(stacksize);
 }
 
 #endif // TS_USE_HWLOC
@@ -380,6 +427,7 @@ EventProcessor::spawn_event_threads(EventType ev_type, int n_threads, size_t sta
   }
   tg->_count = n_threads;
   n_ethreads += n_threads;
+  schedule_spawn(&thread_started, ev_type);
 
   // Separate loop to avoid race conditions between spawn events and updating the thread table for
   // the group. Some thread set up depends on knowing the total number of threads but that can't be
@@ -403,8 +451,7 @@ EventProcessor::initThreadState(EThread *t)
 {
   // Run all thread type initialization continuations that match the event types for this thread.
   for (int i = 0; i < MAX_EVENT_TYPES; ++i) {
-    if (t->is_event_type(i)) { // that event type done here, roll thread start events of that type.
-      ++thread_group[i]._started;
+    if (t->is_event_type(i)) {
       // To avoid race conditions on the event in the spawn queue, create a local one to actually send.
       // Use the spawn queue event as a read only model.
       Event *nev = eventAllocator.alloc();
@@ -497,4 +544,25 @@ EventProcessor::spawn_thread(Continuation *cont, const char *thr_name, size_t st
   e->ethread->start(thr_name, nullptr, stacksize);
 
   return e;
+}
+
+bool
+EventProcessor::has_tg_started(int etype)
+{
+  return thread_group[etype]._started == thread_group[etype]._count;
+}
+
+void
+thread_started(EThread *t)
+{
+  // Find what type of thread this is, and increment the "_started" counter of that thread type.
+  for (int i = 0; i < MAX_EVENT_TYPES; ++i) {
+    if (t->is_event_type(i)) {
+      if (++eventProcessor.thread_group[i]._started == eventProcessor.thread_group[i]._count &&
+          eventProcessor.thread_group[i]._afterStartCallback != nullptr) {
+        eventProcessor.thread_group[i]._afterStartCallback();
+      }
+      break;
+    }
+  }
 }

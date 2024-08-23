@@ -25,6 +25,7 @@
 
 #include "P_RefCountCache.h"
 
+#include <utility>
 #include <vector>
 
 // This continuation is responsible for persisting RefCountCache to disk
@@ -57,7 +58,7 @@ public:
   int write_to_disk(const void *, size_t);
 
   RefCountCacheSerializer(Continuation *acont, RefCountCache<C> *cc, int frequency, std::string dirname, std::string filename);
-  ~RefCountCacheSerializer();
+  ~RefCountCacheSerializer() override;
 
 private:
   std::vector<RefCountCacheHashEntry *> partition_items;
@@ -85,10 +86,10 @@ RefCountCacheSerializer<C>::RefCountCacheSerializer(Continuation *acont, RefCoun
     cache(cc),
     cont(acont),
     fd(-1),
-    dirname(dirname),
-    filename(filename),
+    dirname(std::move(dirname)),
+    filename(std::move(filename)),
     time_per_partition(HRTIME_SECONDS(frequency) / cc->partition_count()),
-    start(Thread::get_hrtime()),
+    start(ink_get_hrtime()),
     total_items(0),
     total_size(0),
     rsb(cc->get_rsb())
@@ -117,7 +118,9 @@ template <class C> RefCountCacheSerializer<C>::~RefCountCacheSerializer()
 
   // Note that we have to do the unlink before we send the completion event, otherwise
   // we could unlink the sync file out from under another serializer.
-  cont->handleEvent(REFCOUNT_CACHE_EVENT_SYNC, nullptr);
+
+  // Schedule off the REFCOUNT event, so the continuation gets properly locked
+  this_ethread()->schedule_imm(cont, REFCOUNT_CACHE_EVENT_SYNC);
 }
 
 template <class C>
@@ -152,7 +155,7 @@ template <class C>
 int
 RefCountCacheSerializer<C>::write_partition(int /* event */, Event *e)
 {
-  int curr_time = Thread::get_hrtime() / HRTIME_SECOND;
+  int curr_time = ink_get_hrtime() / HRTIME_SECOND;
 
   // write the partition to disk
   // for item in this->partitionItems
@@ -195,7 +198,7 @@ RefCountCacheSerializer<C>::write_partition(int /* event */, Event *e)
   SET_HANDLER(&RefCountCacheSerializer::pause_event);
 
   // Figure out how much time we spent
-  ink_hrtime elapsed          = Thread::get_hrtime() - this->start;
+  ink_hrtime elapsed          = ink_get_hrtime() - this->start;
   ink_hrtime expected_elapsed = (this->partition * this->time_per_partition);
 
   // If we were quicker than our pace-- lets reschedule in the future
@@ -289,14 +292,14 @@ RefCountCacheSerializer<C>::finalize_sync()
     return error;
   }
 
-  // Don't bother checking for errors on the close since theere's nothing we can do about it at
+  // Don't bother checking for errors on the close since there's nothing we can do about it at
   // this point anyway.
   socketManager.close(dirfd);
   socketManager.close(this->fd);
   this->fd = -1;
 
   if (this->rsb) {
-    RecSetRawStatCount(this->rsb, refcountcache_last_sync_time, Thread::get_hrtime() / HRTIME_SECOND);
+    RecSetRawStatCount(this->rsb, refcountcache_last_sync_time, ink_get_hrtime() / HRTIME_SECOND);
     RecSetRawStatCount(this->rsb, refcountcache_last_total_items, this->total_items);
     RecSetRawStatCount(this->rsb, refcountcache_last_total_size, this->total_size);
   }

@@ -25,16 +25,7 @@
 
 #include "tscore/ink_string++.h"
 #include "MIME.h"
-#include "tscore/RawHashTable.h"
 #include "tscore/Diags.h"
-
-struct HttpBodySetRawData {
-  unsigned int magic;
-  char *set_name;
-  char *content_language;
-  char *content_charset;
-  RawHashTable *table_of_pages;
-};
 
 class HttpCompat
 {
@@ -53,7 +44,7 @@ public:
   static void parse_mime_type_with_len(const char *mime_string, int mime_string_len, char *type, char *subtype, int type_len,
                                        int subtype_len);
 
-  static bool do_header_values_rfc2068_14_43_match(MIMEField *hv1, MIMEField *hv2);
+  static bool do_vary_header_values_match(MIMEField *hv1, MIMEField *hv2);
 
   static float find_Q_param_in_strlist(StrList *strlist);
 
@@ -62,9 +53,6 @@ public:
 
   static float match_accept_charset(const char *charset_str, int charset_len, StrList *acpt_charset_list, int *matching_index,
                                     bool ignore_wildcards = false);
-
-  static const char *determine_set_by_language(RawHashTable *table_of_sets, StrList *acpt_language_list, StrList *acpt_charset_list,
-                                               float *Q_best_ptr, int *La_best_ptr, int *Lc_best_ptr, int *I_best_ptr);
 
   static void
   parse_comma_list(StrList *list, const char *comma_list_str)

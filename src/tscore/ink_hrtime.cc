@@ -39,8 +39,10 @@
 #include <sys/sysctl.h>
 #endif
 #endif
-#include <string.h>
+#include <cstring>
 #include <sys/time.h>
+
+int gSystemClock = 0; // 0 == CLOCK_REALTIME, the default
 
 char *
 int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_chars, unsigned int req_width, char pad_char)
@@ -49,18 +51,19 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
   char local_buf[local_buf_size];
   bool using_local_buffer = false;
   bool negative           = false;
-  char *out_buf;
+  char *out_buf           = buf;
+  char *working_buf;
 
   if (buf_size < 22) {
     // int64_t may not fit in provided buffer, use the local one
-    out_buf            = &local_buf[local_buf_size - 1];
+    working_buf        = &local_buf[local_buf_size - 1];
     using_local_buffer = true;
   } else {
-    out_buf = &buf[buf_size - 1];
+    working_buf = &buf[buf_size - 1];
   }
 
   unsigned int num_chars = 1; // includes eos
-  *out_buf--             = 0;
+  *working_buf--         = 0;
 
   if (val < 0) {
     val      = -val;
@@ -68,11 +71,11 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
   }
 
   if (val < 10) {
-    *out_buf-- = '0' + (char)val;
+    *working_buf-- = '0' + static_cast<char>(val);
     ++num_chars;
   } else {
     do {
-      *out_buf-- = (char)(val % 10) + '0';
+      *working_buf-- = static_cast<char>(val % 10) + '0';
       val /= 10;
       ++num_chars;
     } while (val);
@@ -83,10 +86,10 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
   if (req_width) {
     // add minus sign if padding character is not 0
     if (negative && pad_char != '0') {
-      *out_buf = '-';
+      *working_buf = '-';
       ++num_chars;
     } else {
-      out_buf++;
+      working_buf++;
     }
     if (req_width > buf_size) {
       req_width = buf_size;
@@ -96,19 +99,19 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
       num_padding = req_width - num_chars;
       switch (num_padding) {
       case 3:
-        *--out_buf = pad_char;
+        *--working_buf = pad_char;
         // fallthrough
 
       case 2:
-        *--out_buf = pad_char;
+        *--working_buf = pad_char;
         // fallthrough
 
       case 1:
-        *--out_buf = pad_char;
+        *--working_buf = pad_char;
         break;
 
       default:
-        for (unsigned int i = 0; i < num_padding; ++i, *--out_buf = pad_char) {
+        for (unsigned int i = 0; i < num_padding; ++i, *--working_buf = pad_char) {
           ;
         }
       }
@@ -117,23 +120,23 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
     // add minus sign if padding character is 0
     if (negative && pad_char == '0') {
       if (num_padding) {
-        *out_buf = '-'; // overwrite padding
+        *working_buf = '-'; // overwrite padding
       } else {
-        *--out_buf = '-';
+        *--working_buf = '-';
         ++num_chars;
       }
     }
   } else if (negative) {
-    *out_buf = '-';
+    *working_buf = '-';
     ++num_chars;
   } else {
-    out_buf++;
+    working_buf++;
   }
 
   if (using_local_buffer) {
     if (num_chars <= buf_size) {
-      memcpy(buf, out_buf, num_chars);
-      out_buf = buf;
+      memcpy(buf, working_buf, num_chars);
+      // out_buf is already pointing to buf
     } else {
       // data does not fit return nullptr
       out_buf = nullptr;
@@ -143,6 +146,7 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
   if (total_chars) {
     *total_chars = num_chars;
   }
+
   return out_buf;
 }
 
@@ -171,63 +175,8 @@ squid_timestamp_to_buf(char *buf, unsigned int buf_size, long timestamp_sec, lon
     memcpy(buf, ts_s, chars_to_write);
     res = chars_to_write;
   } else {
-    res = -((int)chars_to_write);
+    res = -(static_cast<int>(chars_to_write));
   }
 
   return res;
 }
-
-#ifdef USE_TIME_STAMP_COUNTER_HRTIME
-uint32_t
-init_hrtime_TCS()
-{
-  int freqlen = sizeof(hrtime_freq);
-  if (sysctlbyname("machdep.tsc_freq", &hrtime_freq, (size_t *)&freqlen, nullptr, 0) < 0) {
-    perror("sysctl: machdep.tsc_freq");
-    exit(1);
-  }
-  hrtime_freq_float = (double)1000000000 / (double)hrtime_freq;
-  return hrtime_freq;
-}
-
-double hrtime_freq_float = 0.5; // 500 Mhz
-uint32_t hrtime_freq     = init_hrtime_TCS();
-#endif
-
-#ifdef NEED_HRTIME_BASIS
-timespec timespec_basis;
-ink_hrtime hrtime_offset;
-ink_hrtime hrtime_basis = init_hrtime_basis();
-
-ink_hrtime
-init_hrtime_basis()
-{
-  ink_hrtime t1, t2, b, now;
-  timespec ts;
-#ifdef USE_TIME_STAMP_COUNTER_HRTIME
-  init_hrtime_TCS();
-#endif
-  do {
-    t1 = ink_get_hrtime_internal();
-#if HAVE_CLOCK_GETTIME
-    ink_assert(!clock_gettime(CLOCK_REALTIME, &timespec_basis));
-#else
-    {
-      struct timeval tnow;
-      ink_assert(!gettimeofday(&tnow, nullptr));
-      timespec_basis.tv_sec  = tnow.tv_sec;
-      timespec_basis.tv_nsec = tnow.tv_usec * 1000;
-    }
-#endif
-    t2 = ink_get_hrtime_internal();
-    // accuracy must be at least 100 microseconds
-  } while (t2 - t1 > HRTIME_USECONDS(100));
-  b   = (t2 + t1) / 2;
-  now = ink_hrtime_from_timespec(&timespec_basis);
-  ts  = ink_hrtime_to_timespec(now);
-  ink_assert(ts.tv_sec == timespec_basis.tv_sec && ts.tv_nsec == timespec_basis.tv_nsec);
-  hrtime_offset = now - b;
-  hrtime_basis  = b;
-  return b;
-}
-#endif

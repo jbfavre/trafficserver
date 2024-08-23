@@ -23,6 +23,36 @@
 #include "catch.hpp"
 
 #include "URL.h"
+#include "tscore/CryptoHash.h"
+
+TEST_CASE("ValidateURL", "[proxy][validurl]")
+{
+  static const struct {
+    const char *const text;
+    bool valid;
+  } http_validate_hdr_field_test_case[] = {{"yahoo", true},
+                                           {"yahoo.com", true},
+                                           {"yahoo.wow.com", true},
+                                           {"yahoo.wow.much.amaze.com", true},
+                                           {"209.131.52.50", true},
+                                           {"192.168.0.1", true},
+                                           {"localhost", true},
+                                           {"3ffe:1900:4545:3:200:f8ff:fe21:67cf", true},
+                                           {"fe80:0:0:0:200:f8ff:fe21:67cf", true},
+                                           {"fe80::200:f8ff:fe21:67cf", true},
+                                           {"<svg onload=alert(1)>", false}, // Sample host header XSS attack
+                                           {"jlads;f8-9349*(D&F*D(234jD*(FSD*(VKLJ#(*$@()#$)))))", false},
+                                           {"\"\t\n", false},
+                                           {"!@#$%^ &*(*&^%$#@#$%^&*(*&^%$#))", false},
+                                           {":):(:O!!!!!!", false}};
+  for (auto i : http_validate_hdr_field_test_case) {
+    const char *const txt = i.text;
+    if (validate_host_name({txt}) != i.valid) {
+      std::printf("Validation of FQDN (host) header: \"%s\", expected %s, but not\n", txt, (i.valid ? "true" : "false"));
+      CHECK(false);
+    }
+  }
+}
 
 TEST_CASE("Validate Scheme", "[proxy][validscheme]")
 {
@@ -45,103 +75,87 @@ TEST_CASE("Validate Scheme", "[proxy][validscheme]")
   }
 }
 
-struct get_hash_test_case {
-  const std::string description;
-  const std::string uri_1;
-  const std::string uri_2;
-  const bool has_equal_hash;
-};
-
-constexpr bool HAS_EQUAL_HASH = true;
-
-// clang-format off
-std::vector<get_hash_test_case> get_hash_test_cases = {
-  {
-    "No encoding: equal hashes",
-    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    HAS_EQUAL_HASH,
-  },
-  {
-    "Scheme encoded: equal hashes",
-    "http%3C://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    "http<://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    HAS_EQUAL_HASH,
-  },
-  {
-    "Host encoded: equal hashes",
-    "http://one%2Eexample.com/a/path?name=value#some=value?with_question#fragment",
-    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    HAS_EQUAL_HASH,
-  },
-  {
-    "Path encoded: differing hashes",
-    "http://one.example.com/a%2Fpath?name=value#some=value?with_question#fragment",
-    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    !HAS_EQUAL_HASH,
-  },
-  {
-    "Query = encoded: differing hashes",
-    "http://one.example.com/a/path?name%3Dvalue#some=value?with_question#fragment",
-    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
-    !HAS_EQUAL_HASH,
-  },
-  {
-    "Query internal encoded: differing hashes",
-    "http://one.example.com/a/path?name=valu%5D#some=value?with_question#fragment",
-    "http://one.example.com/a/path?name=valu]#some=value?with_question#fragment",
-    !HAS_EQUAL_HASH,
-  },
-  {
-    "Fragment encoded: fragment is not part of the hash",
-    "http://one.example.com/a/path?name=value#some=value?with_question#frag%7Dent",
-    "http://one.example.com/a/path?name=value#some=value?with_question/frag}ent",
-    HAS_EQUAL_HASH,
-  },
-  {
-    "Username encoded: equal hashes",
-    "mysql://my%7Eser:mypassword@localhost/mydatabase",
-    "mysql://my~ser:mypassword@localhost/mydatabase",
-    HAS_EQUAL_HASH,
-  },
-  {
-    "Password encoded: equal hashes",
-    "mysql://myuser:mypa%24sword@localhost/mydatabase",
-    "mysql://myuser:mypa$sword@localhost/mydatabase",
-    HAS_EQUAL_HASH,
-  },
-};
-
-/** Return the hash related to a URI.
-  *
-  * @param[in] uri The URI to hash.
-  * @return The hash of the URI.
- */
-CryptoHash
-get_hash(const std::string &uri)
+namespace UrlImpl
 {
-  URL url;
-  HdrHeap *heap = new_HdrHeap();
-  url.create(heap);
-  url.parse(uri.c_str(), uri.length());
-  CryptoHash hash;
-  url.hash_get(&hash);
-  heap->destroy();
-  return hash;
+bool url_is_strictly_compliant(const char *start, const char *end);
+bool url_is_mostly_compliant(const char *start, const char *end);
+} // namespace UrlImpl
+using namespace UrlImpl;
+
+TEST_CASE("ParseRulesStrictURI", "[proxy][parseuri]")
+{
+  const struct {
+    const char *const uri;
+    bool valid;
+  } http_strict_uri_parsing_test_case[] = {{"//index.html", true},
+                                           {"/home", true},
+                                           {"/path/data?key=value#id", true},
+                                           {"/ABCDEFGHIJKLMNOPQRSTUVWXYZ", true},
+                                           {"/abcdefghijklmnopqrstuvwxyz", true},
+                                           {"/abcde fghijklmnopqrstuvwxyz", false},
+                                           {"/abcde\tfghijklmnopqrstuvwxyz", false},
+                                           {"/abcdefghijklmnopqrstuvwxyz", false},
+                                           {"/0123456789", true},
+                                           {":/?#[]@", true},
+                                           {"!$&'()*+,;=", true},
+                                           {"-._~", true},
+                                           {"%", true},
+                                           {"\n", false},
+                                           {"\"", false},
+                                           {"<", false},
+                                           {">", false},
+                                           {"\\", false},
+                                           {"^", false},
+                                           {"`", false},
+                                           {"{", false},
+                                           {"|", false},
+                                           {"}", false},
+                                           {"é", false}};
+
+  for (auto i : http_strict_uri_parsing_test_case) {
+    const char *const uri = i.uri;
+    if (url_is_strictly_compliant(uri, uri + strlen(uri)) != i.valid) {
+      std::printf("Strictly parse URI: \"%s\", expected %s, but not\n", uri, (i.valid ? "true" : "false"));
+      CHECK(false);
+    }
+  }
 }
 
-TEST_CASE("UrlHashGet", "[url][hash_get]")
+TEST_CASE("ParseRulesMostlyStrictURI", "[proxy][parseuri]")
 {
-  for (auto const &test_case : get_hash_test_cases) {
-    std::string description = test_case.description + ": " + test_case.uri_1 + " vs " + test_case.uri_2;
-    SECTION(description) {
-      CryptoHash hash1 = get_hash(test_case.uri_1);
-      CryptoHash hash2 = get_hash(test_case.uri_2);
-      if (test_case.has_equal_hash) {
-        CHECK(hash1 == hash2);
-      } else {
-        CHECK(hash1 != hash2);
-      }
+  const struct {
+    const char *const uri;
+    bool valid;
+  } http_mostly_strict_uri_parsing_test_case[] = {{"//index.html", true},
+                                                  {"/home", true},
+                                                  {"/path/data?key=value#id", true},
+                                                  {"/ABCDEFGHIJKLMNOPQRSTUVWXYZ", true},
+                                                  {"/abcdefghijklmnopqrstuvwxyz", true},
+                                                  {"/abcde fghijklmnopqrstuvwxyz", false},
+                                                  {"/abcde\tfghijklmnopqrstuvwxyz", false},
+                                                  {"/abcdefghijklmnopqrstuvwxyz", false},
+                                                  {"/0123456789", true},
+                                                  {":/?#[]@", true},
+                                                  {"!$&'()*+,;=", true},
+                                                  {"-._~", true},
+                                                  {"%", true},
+                                                  {"\n", false},
+                                                  {"\"", true},
+                                                  {"<", true},
+                                                  {">", true},
+                                                  {"\\", true},
+                                                  {"^", true},
+                                                  {"`", true},
+                                                  {"{", true},
+                                                  {"|", true},
+                                                  {"}", true},
+                                                  {"é", false}}; // Non-printable ascii
+
+  for (auto i : http_mostly_strict_uri_parsing_test_case) {
+    const char *const uri = i.uri;
+    if (url_is_mostly_compliant(uri, uri + strlen(uri)) != i.valid) {
+      std::printf("Mostly strictly parse URI: \"%s\", expected %s, but not\n", uri, (i.valid ? "true" : "false"));
+      CHECK(false);
     }
   }
 }
@@ -358,50 +372,48 @@ std::vector<url_parse_test_case> url_parse_test_cases = {
     IS_VALID
   },
 
-  // XXX - Tests didn't pass before this change, so commenting out for now.
   // Again, URL::parse drops a final '?'.
-  // {
-  //   "https://www.example.com?",
-  //   "https://www.example.com",
-  //   VERIFY_HOST_CHARACTERS,
-  //   "https://www.example.com?/",
-  //   IS_VALID,
-  //   IS_VALID
-  // },
-  // {
-  //   "https://www.example.com?name=value",
-  //   "https://www.example.com?name=value",
-  //   VERIFY_HOST_CHARACTERS,
-  //   "https://www.example.com?name=value/",
-  //   IS_VALID,
-  //   IS_VALID
-  // },
-  // {
-  //   "https://www.example.com?name=value/",
-  //   "https://www.example.com?name=value/",
-  //   VERIFY_HOST_CHARACTERS,
-  //   "https://www.example.com?name=value/",
-  //   IS_VALID,
-  //   IS_VALID
-  // },
+  {
+    "https://www.example.com?",
+    "https://www.example.com",
+    VERIFY_HOST_CHARACTERS,
+    "https://www.example.com?/",
+    IS_VALID,
+    IS_VALID
+  },
+  {
+    "https://www.example.com?name=value",
+    "https://www.example.com?name=value",
+    VERIFY_HOST_CHARACTERS,
+    "https://www.example.com?name=value/",
+    IS_VALID,
+    IS_VALID
+  },
+  {
+    "https://www.example.com?name=value/",
+    "https://www.example.com?name=value/",
+    VERIFY_HOST_CHARACTERS,
+    "https://www.example.com?name=value/",
+    IS_VALID,
+    IS_VALID
+  },
 
   // URL::parse also drops the final '#'.
-  // {
-  //   "https://www.example.com#",
-  //   "https://www.example.com",
-  //   VERIFY_HOST_CHARACTERS,
-  //   "https://www.example.com#/",
-  //   IS_VALID,
-  //   IS_VALID
-  // },
-  // {
-  //   "https://www.example.com#some=value",
-  //   "https://www.example.com#some=value",
-  //   VERIFY_HOST_CHARACTERS,
-  //   "https://www.example.com#some=value/",
-  //   IS_VALID,
-  //   IS_VALID
-  // },
+  {
+    "https://www.example.com#",
+    "https://www.example.com",
+    VERIFY_HOST_CHARACTERS,
+    "https://www.example.com#/",
+    IS_VALID,
+    IS_VALID
+  },
+  {
+    "https://www.example.com#some=value",
+    "https://www.example.com#some=value",
+    VERIFY_HOST_CHARACTERS,
+    "https://www.example.com#some=value/",
+    IS_VALID,
+    IS_VALID},
   {
     "https://www.example.com/a/path#",
     "https://www.example.com/a/path",
@@ -500,15 +512,19 @@ test_parse(url_parse_test_case const &test_case, bool parse_function)
   HdrHeap *heap = new_HdrHeap();
   url.create(heap);
   ParseResult result = PARSE_RESULT_OK;
-  if (test_case.verify_host_characters) {
-    result = url.parse(test_case.input_uri.c_str(), test_case.input_uri.size());
-  } else {
-    heap->destroy();
-    return;
-    // result = url.parse_no_host_check(test_case.input_uri.c_str(), test_case.input_uri.size());
+  if (parse_function == URL_PARSE) {
+    if (test_case.verify_host_characters) {
+      result = url.parse(test_case.input_uri);
+    } else {
+      result = url.parse_no_host_check(test_case.input_uri);
+    }
+  } else if (parse_function == URL_PARSE_REGEX) {
+    result = url.parse_regex(test_case.input_uri);
   }
   bool expected_is_valid = test_case.is_valid;
-
+  if (parse_function == URL_PARSE_REGEX) {
+    expected_is_valid = test_case.is_valid_regex;
+  }
   if (expected_is_valid && result != PARSE_RESULT_DONE) {
     std::printf("Parse URI: \"%s\", expected it to be valid but it was parsed invalid (%d)\n", test_case.input_uri.c_str(), result);
     CHECK(false);
@@ -522,8 +538,13 @@ test_parse(url_parse_test_case const &test_case, bool parse_function)
     int offset = 0;
     url.print(buf, sizeof(buf), &index, &offset);
     std::string printed_url{buf, static_cast<size_t>(index)};
-    CHECK(test_case.expected_printed_url == printed_url);
-    CHECK(test_case.expected_printed_url.size() == printed_url.size());
+    if (parse_function == URL_PARSE) {
+      CHECK(test_case.expected_printed_url == printed_url);
+      CHECK(test_case.expected_printed_url.size() == printed_url.size());
+    } else if (parse_function == URL_PARSE_REGEX) {
+      CHECK(test_case.expected_printed_url_regex == printed_url);
+      CHECK(test_case.expected_printed_url_regex.size() == printed_url.size());
+    }
   }
   heap->destroy();
 }
@@ -532,5 +553,107 @@ TEST_CASE("UrlParse", "[proxy][parseurl]")
 {
   for (auto const &test_case : url_parse_test_cases) {
     test_parse(test_case, URL_PARSE);
+    test_parse(test_case, URL_PARSE_REGEX);
+  }
+}
+
+struct get_hash_test_case {
+  const std::string description;
+  const std::string uri_1;
+  const std::string uri_2;
+  const bool has_equal_hash;
+};
+
+constexpr bool HAS_EQUAL_HASH = true;
+
+// clang-format off
+std::vector<get_hash_test_case> get_hash_test_cases = {
+  {
+    "No encoding: equal hashes",
+    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    HAS_EQUAL_HASH,
+  },
+  {
+    "Scheme encoded: equal hashes",
+    "http%3C://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    "http<://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    HAS_EQUAL_HASH,
+  },
+  {
+    "Host encoded: equal hashes",
+    "http://one%2Eexample.com/a/path?name=value#some=value?with_question#fragment",
+    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    HAS_EQUAL_HASH,
+  },
+  {
+    "Path encoded: differing hashes",
+    "http://one.example.com/a%2Fpath?name=value#some=value?with_question#fragment",
+    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    !HAS_EQUAL_HASH,
+  },
+  {
+    "Query = encoded: differing hashes",
+    "http://one.example.com/a/path?name%3Dvalue#some=value?with_question#fragment",
+    "http://one.example.com/a/path?name=value#some=value?with_question#fragment",
+    !HAS_EQUAL_HASH,
+  },
+  {
+    "Query internal encoded: differing hashes",
+    "http://one.example.com/a/path?name=valu%5D#some=value?with_question#fragment",
+    "http://one.example.com/a/path?name=valu]#some=value?with_question#fragment",
+    !HAS_EQUAL_HASH,
+  },
+  {
+    "Fragment encoded: fragment is not part of the hash",
+    "http://one.example.com/a/path?name=value#some=value?with_question#frag%7Dent",
+    "http://one.example.com/a/path?name=value#some=value?with_question/frag}ent",
+    HAS_EQUAL_HASH,
+  },
+  {
+    "Username encoded: equal hashes",
+    "mysql://my%7Eser:mypassword@localhost/mydatabase",
+    "mysql://my~ser:mypassword@localhost/mydatabase",
+    HAS_EQUAL_HASH,
+  },
+  {
+    "Password encoded: equal hashes",
+    "mysql://myuser:mypa%24sword@localhost/mydatabase",
+    "mysql://myuser:mypa$sword@localhost/mydatabase",
+    HAS_EQUAL_HASH,
+  },
+};
+
+/** Return the hash related to a URI.
+  *
+  * @param[in] uri The URI to hash.
+  * @return The hash of the URI.
+ */
+CryptoHash
+get_hash(const std::string &uri)
+{
+  URL url;
+  HdrHeap *heap = new_HdrHeap();
+  url.create(heap);
+  url.parse(uri);
+  CryptoHash hash;
+  url.hash_get(&hash);
+  heap->destroy();
+  return hash;
+}
+
+TEST_CASE("UrlHashGet", "[url][hash_get]")
+{
+  for (auto const &test_case : get_hash_test_cases) {
+    std::string description = test_case.description + ": " + test_case.uri_1 + " vs " + test_case.uri_2;
+    SECTION(description) {
+      CryptoHash hash1 = get_hash(test_case.uri_1);
+      CryptoHash hash2 = get_hash(test_case.uri_2);
+      if (test_case.has_equal_hash) {
+        CHECK(hash1 == hash2);
+      } else {
+        CHECK(hash1 != hash2);
+      }
+    }
   }
 }

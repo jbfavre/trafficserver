@@ -30,16 +30,16 @@
 class TestHttpDataFetcher : public HttpDataFetcher
 {
 public:
-  TestHttpDataFetcher() : _n_pending_requests(0), _return_data(true) {}
+  TestHttpDataFetcher() {}
   bool
-  addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = nullptr)
+  addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = nullptr) override
   {
     ++_n_pending_requests;
     return true;
   }
 
   DataStatus
-  getRequestStatus(const std::string &url) const
+  getRequestStatus(const std::string &url) const override
   {
     if (_return_data) {
       return STATUS_DATA_AVAILABLE;
@@ -49,13 +49,13 @@ public:
   }
 
   int
-  getNumPendingRequests() const
+  getNumPendingRequests() const override
   {
     return _n_pending_requests;
   };
 
   bool
-  getContent(const std::string &url, const char *&content, int &content_len) const
+  getContent(const std::string &url, const char *&content, int &content_len) const override
   {
     TestHttpDataFetcher &curr_obj = const_cast<TestHttpDataFetcher &>(*this);
     --curr_obj._n_pending_requests;
@@ -84,7 +84,7 @@ public:
   };
 
 private:
-  int _n_pending_requests;
+  int _n_pending_requests = 0;
   std::string _data;
-  bool _return_data;
+  bool _return_data = true;
 };

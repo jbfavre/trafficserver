@@ -106,29 +106,7 @@ typedef timestruc_t ink_timestruc;
 //////////////////////////////////////////////////////////////////////////////
 #if defined(POSIX_THREAD)
 
-static inline void
-ink_thread_key_create(ink_thread_key *key, void (*destructor)(void *value))
-{
-  ink_assert(!pthread_key_create(key, destructor));
-}
-
-static inline void
-ink_thread_setspecific(ink_thread_key key, void *value)
-{
-  ink_assert(!pthread_setspecific(key, value));
-}
-
-static inline void *
-ink_thread_getspecific(ink_thread_key key)
-{
-  return pthread_getspecific(key);
-}
-
-static inline void
-ink_thread_key_delete(ink_thread_key key)
-{
-  ink_assert(!pthread_key_delete(key));
-}
+// NOTE(cmcfarlen): removed posix thread local key functions, use thread_local
 
 static inline void
 ink_thread_create(ink_thread *tid, void *(*f)(void *), void *a, int detached, size_t stacksize, void *stack)
@@ -192,6 +170,9 @@ ink_thread_self()
 static inline ink_thread
 ink_thread_null()
 {
+  // The implementation of ink_thread (the alias of pthread_t) is different on platforms
+  // - e.g. `struct pthread *` on Unix and `unsigned long int` on Linux
+  // NOLINTNEXTLINE(modernize-use-nullptr)
   return (ink_thread)0;
 }
 

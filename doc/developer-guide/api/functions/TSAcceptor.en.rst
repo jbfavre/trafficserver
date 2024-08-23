@@ -26,7 +26,9 @@ Traffic Server API's related to Accept objects
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 .. function:: TSAcceptor TSAcceptorGet(TSVConn sslp)
 .. function:: TSAcceptor TSAcceptorGetbyID(int id)
@@ -42,8 +44,7 @@ An acceptor thread listens for incoming connections and creates the virtual conn
 
 :func:`TSAcceptorGet` returns :type:`TSAcceptor` object that created :arg:`sslp`.
 
-:func:`TSAcceptorGetbyID` returns the :type:`TSAcceptor` object identified by :arg:`id`. :type:`TSAcceptor` represents the acceptor object created by the core
-traffic server.
+:func:`TSAcceptorGetbyID` returns the :type:`TSAcceptor` object identified by :arg:`id`. :type:`TSAcceptor` represents the acceptor object created by the server.
 
 :func:`TSAcceptorIDGet` returns the Integer number that identifies :arg:`acceptor`. All the cloned :type:`TSAcceptor` objects will have the same identifying number.
 

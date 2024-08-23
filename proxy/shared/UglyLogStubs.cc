@@ -25,6 +25,7 @@
 // TODO: Clean up the dependency mess, and get rid of this.
 
 #include "tscore/ink_platform.h"
+#include "tscore/ink_uuid.h"
 #include "LogObject.h"
 
 #if defined(solaris)
@@ -66,29 +67,22 @@ ConfigUpdateCbTable::invoke(const char * /* name ATS_UNUSED */)
 }
 
 struct Machine {
+  IpEndpoint ip;
+  IpEndpoint ip4;
+  IpEndpoint ip6;
+
+  std::string host_name{"test.host.com"};
+  std::string ip_hex_string;
+  ATSUuid uuid;
+
   static Machine *instance();
 };
+
 Machine *
 Machine::instance()
 {
-  ink_release_assert(false);
-  return nullptr;
-}
-
-#include "LogCollationAccept.h"
-LogCollationAccept::LogCollationAccept(int port) : Continuation(new_ProxyMutex()), m_port(port) {}
-LogCollationAccept::~LogCollationAccept() {}
-
-#include "LogCollationClientSM.h"
-LogCollationClientSM::LogCollationClientSM(LogHost *log_host) : Continuation(new_ProxyMutex()), m_log_host(log_host) {}
-
-LogCollationClientSM::~LogCollationClientSM() {}
-
-int
-LogCollationClientSM::send(LogBuffer * /* log_buffer ATS_UNUSED */)
-{
-  ink_release_assert(false);
-  return 0;
+  static Machine _instance;
+  return &_instance;
 }
 
 NetAccept *
@@ -100,6 +94,12 @@ UnixNetProcessor::createNetAccept(const NetProcessor::AcceptOptions &opt)
 
 void
 UnixNetProcessor::init()
+{
+  ink_release_assert(false);
+}
+
+void
+UnixNetProcessor::init_socks()
 {
   ink_release_assert(false);
 }
@@ -117,12 +117,12 @@ NetProcessor::AcceptOptions::reset()
   accept_threads        = 0;
   ip_family             = AF_INET;
   etype                 = ET_NET;
-  f_callback_on_open    = false;
   recv_bufsize          = 0;
   send_bufsize          = 0;
   sockopt_flags         = 0;
   packet_mark           = 0;
   packet_tos            = 0;
+  packet_notsent_lowat  = 0;
   f_inbound_transparent = false;
   return *this;
 }

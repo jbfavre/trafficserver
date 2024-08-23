@@ -42,15 +42,9 @@ ts.Disk.records_config.update({
 # The following rule adds X-First and X-Last headers
 ts.Setup.CopyAs('rules/rule_l_value.conf', Test.RunDirectory)
 
-ts.Disk.plugin_config.AddLine(
-    'header_rewrite.so {0}/rule_l_value.conf'.format(Test.RunDirectory)
-)
-ts.Disk.remap_config.AddLine(
-    'map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port)
-)
-ts.Disk.remap_config.AddLine(
-    'map http://www.example.com:8080 http://127.0.0.1:{0}'.format(server.Variables.Port)
-)
+ts.Disk.plugin_config.AddLine('header_rewrite.so {0}/rule_l_value.conf'.format(Test.RunDirectory))
+ts.Disk.remap_config.AddLine('map http://www.example.com http://127.0.0.1:{0}'.format(server.Variables.Port))
+ts.Disk.remap_config.AddLine('map http://www.example.com:8080 http://127.0.0.1:{0}'.format(server.Variables.Port))
 
 # [L] test
 tr = Test.AddTestRun("Header Rewrite End [L]")
@@ -61,4 +55,4 @@ tr.Processes.Default.StartBefore(server, ready=When.PortOpen(server.Variables.Po
 tr.Processes.Default.StartBefore(Test.Processes.ts)
 tr.Processes.Default.Streams.stderr = "gold/header_rewrite-l_value.gold"
 tr.StillRunningAfter = server
-ts.Streams.All = "gold/header_rewrite-tag.gold"
+ts.Disk.traffic_out.Content = "gold/header_rewrite-tag.gold"

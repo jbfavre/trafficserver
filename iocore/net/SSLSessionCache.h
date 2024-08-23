@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include "tscore/Map.h"
 #include "tscore/List.h"
 #include "tscore/ink_mutex.h"
 #include "P_EventSystem.h"
@@ -30,8 +29,23 @@
 #include "P_SSLUtils.h"
 #include "ts/apidefs.h"
 #include <openssl/ssl.h>
+#include <mutex>
+#include <shared_mutex>
 
 #define SSL_MAX_SESSION_SIZE 256
+#define SSL_MAX_ORIG_SESSION_SIZE 4096
+
+struct ssl_session_cache_exdata {
+  ssl_curve_id curve = 0;
+};
+
+inline void
+hash_combine(uint64_t &seed, uint64_t hash)
+{
+  // using boost's version of hash combine, substituting magic number with a 64bit version
+  // https://www.boost.org/doc/libs/1_43_0/doc/html/hash/reference.html#boost.hash_combine
+  seed ^= hash + 0x9E3779B97F4A7C15 + (seed << 6) + (seed >> 2);
+}
 
 struct SSLSessionID : public TSSslSessionID {
   SSLSessionID(const unsigned char *s, size_t l)
@@ -39,6 +53,7 @@ struct SSLSessionID : public TSSslSessionID {
     len = l;
     ink_release_assert(l <= sizeof(bytes));
     memcpy(bytes, s, l);
+    hash();
   }
 
   SSLSessionID(const SSLSessionID &other)
@@ -47,6 +62,7 @@ struct SSLSessionID : public TSSslSessionID {
       memcpy(bytes, other.bytes, other.len);
 
     len = other.len;
+    hash();
   }
 
   bool
@@ -98,10 +114,14 @@ struct SSLSessionID : public TSSslSessionID {
   uint64_t
   hash() const
   {
-    // because the session ids should be uniformly random let's just use the last 64 bits as the hash.
-    // The first bytes could be interpreted as a name, and so not random.
+    // because the session ids should be uniformly random, we can treat the bits as a hash value
+    // however we need to combine them if the length is longer than 64bits
     if (len >= sizeof(uint64_t)) {
-      return *reinterpret_cast<uint64_t *>(const_cast<char *>(bytes + len - sizeof(uint64_t)));
+      uint64_t seed = 0;
+      for (uint64_t i = 0; i < len; i += sizeof(uint64_t)) {
+        hash_combine(seed, static_cast<uint64_t>(bytes[i]));
+      }
+      return seed;
     } else if (len) {
       return static_cast<uint64_t>(bytes[0]);
     } else {
@@ -116,9 +136,10 @@ public:
   SSLSessionID session_id;
   Ptr<IOBufferData> asn1_data; /* this is the ASN1 representation of the SSL_CTX */
   size_t len_asn1_data;
+  Ptr<IOBufferData> extra_data;
 
-  SSLSession(const SSLSessionID &id, Ptr<IOBufferData> ssl_asn1_data, size_t len_asn1)
-    : session_id(id), asn1_data(ssl_asn1_data), len_asn1_data(len_asn1)
+  SSLSession(const SSLSessionID &id, const Ptr<IOBufferData> &ssl_asn1_data, size_t len_asn1, Ptr<IOBufferData> &exdata)
+    : session_id(id), asn1_data(ssl_asn1_data), len_asn1_data(len_asn1), extra_data(exdata)
   {
   }
 
@@ -130,31 +151,68 @@ class SSLSessionBucket
 public:
   SSLSessionBucket();
   ~SSLSessionBucket();
-  void insertSession(const SSLSessionID &, SSL_SESSION *ctx);
-  bool getSession(const SSLSessionID &, SSL_SESSION **ctx);
-  int getSessionBuffer(const SSLSessionID &, char *buffer, int &len);
-  void removeSession(const SSLSessionID &);
+  void insertSession(const SSLSessionID &sid, SSL_SESSION *sess, SSL *ssl);
+  bool getSession(const SSLSessionID &sid, SSL_SESSION **sess, ssl_session_cache_exdata **data);
+  int getSessionBuffer(const SSLSessionID &sid, char *buffer, int &len);
+  void removeSession(const SSLSessionID &sid);
 
 private:
   /* these method must be used while hold the lock */
   void print(const char *) const;
-  void removeOldestSession();
+  void removeOldestSession(const std::unique_lock<std::shared_mutex> &lock);
 
-  Ptr<ProxyMutex> mutex;
-  CountQueue<SSLSession> queue;
+  mutable std::shared_mutex mutex;
+  CountQueue<SSLSession> bucket_que;
+  std::map<SSLSessionID, SSLSession *> bucket_map;
 };
 
 class SSLSessionCache
 {
 public:
-  bool getSession(const SSLSessionID &sid, SSL_SESSION **sess) const;
+  bool getSession(const SSLSessionID &sid, SSL_SESSION **sess, ssl_session_cache_exdata **data) const;
   int getSessionBuffer(const SSLSessionID &sid, char *buffer, int &len) const;
-  void insertSession(const SSLSessionID &sid, SSL_SESSION *sess);
+  void insertSession(const SSLSessionID &sid, SSL_SESSION *sess, SSL *ssl);
   void removeSession(const SSLSessionID &sid);
   SSLSessionCache();
   ~SSLSessionCache();
 
+  SSLSessionCache(const SSLSessionCache &) = delete;
+  SSLSessionCache &operator=(const SSLSessionCache &) = delete;
+
 private:
-  SSLSessionBucket *session_bucket;
+  SSLSessionBucket *session_bucket = nullptr;
   size_t nbuckets;
+};
+
+class SSLOriginSession
+{
+public:
+  std::string key;
+  ssl_curve_id curve_id;
+  std::shared_ptr<SSL_SESSION> shared_sess = nullptr;
+
+  SSLOriginSession(const std::string &lookup_key, ssl_curve_id curve, std::shared_ptr<SSL_SESSION> session)
+    : key(lookup_key), curve_id(curve), shared_sess(session)
+  {
+  }
+
+  LINK(SSLOriginSession, link);
+};
+
+class SSLOriginSessionCache
+{
+public:
+  SSLOriginSessionCache();
+  ~SSLOriginSessionCache();
+
+  void insert_session(const std::string &lookup_key, SSL_SESSION *sess, SSL *ssl);
+  std::shared_ptr<SSL_SESSION> get_session(const std::string &lookup_key, ssl_curve_id *curve);
+  void remove_session(const std::string &lookup_key);
+
+private:
+  void remove_oldest_session(const std::unique_lock<std::shared_mutex> &lock);
+
+  mutable std::shared_mutex mutex;
+  CountQueue<SSLOriginSession> orig_sess_que;
+  std::map<std::string, SSLOriginSession *> orig_sess_map;
 };

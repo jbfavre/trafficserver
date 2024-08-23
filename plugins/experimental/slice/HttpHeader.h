@@ -36,7 +36,8 @@
 
 #include <string>
 
-static char const *const SLICER_MIME_FIELD_INFO = "X-Slicer-Info";
+constexpr std::string_view SLICE_CRR_HEADER = {"Slice-Crr-Status"};
+constexpr std::string_view SLICE_CRR_VAL    = "1";
 
 /**
   Designed to be a cheap throwaway struct which allows a
@@ -118,7 +119,7 @@ struct HttpHeader {
                    char *const valstr,  // <-- return string value
                    int *const vallen,   // <-- pass in capacity, returns len of string
                    int const index = -1 // retrieves all values
-                   ) const;
+  ) const;
 
   /**
     Sets or adds a key/value

@@ -28,8 +28,6 @@
  * authentication scheme does not require them.  This implementation is
  * intended for web-related use, and line breaks are not implemented.
  *
- * These routines return char*'s to malloc-ed strings.  The caller is
- * responsible for freeing the strings.
  */
 #include "tscore/ink_platform.h"
 #include "tscore/ink_base64.h"
@@ -44,7 +42,7 @@ ats_base64_encode(const unsigned char *inBuffer, size_t inBufferSize, char *outB
   char *obuf                   = outBuffer;
   char in_tail[4];
 
-  if (outBufSize < ATS_BASE64_ENCODE_DSTLEN(inBufferSize)) {
+  if (outBufSize < ats_base64_encode_dstlen(inBufferSize)) {
     return false;
   }
 
@@ -97,11 +95,11 @@ ats_base64_encode(const unsigned char *inBuffer, size_t inBufferSize, char *outB
 bool
 ats_base64_encode(const char *inBuffer, size_t inBufferSize, char *outBuffer, size_t outBufSize, size_t *length)
 {
-  return ats_base64_encode((const unsigned char *)inBuffer, inBufferSize, outBuffer, outBufSize, length);
+  return ats_base64_encode(reinterpret_cast<const unsigned char *>(inBuffer), inBufferSize, outBuffer, outBufSize, length);
 }
 
 /*-------------------------------------------------------------------------
-  This is a reentrant, and malloc free implemetnation of ats_base64_decode.
+  This is a reentrant, and malloc free implementation of ats_base64_decode.
   -------------------------------------------------------------------------*/
 #ifdef DECODE
 #undef DECODE
@@ -130,20 +128,20 @@ ats_base64_decode(const char *inBuffer, size_t inBufferSize, unsigned char *outB
   int inputBytesDecoded = 0;
 
   // Make sure there is sufficient space in the output buffer
-  if (outBufSize < ATS_BASE64_DECODE_DSTLEN(inBufferSize)) {
+  if (outBufSize < ats_base64_decode_dstlen(inBufferSize)) {
     return false;
   }
 
   // Ignore any trailing ='s or other undecodable characters.
   // TODO: Perhaps that ought to be an error instead?
-  while (printableToSixBit[(uint8_t)inBuffer[inBytes]] <= MAX_PRINT_VAL) {
+  while (inBytes < inBufferSize && printableToSixBit[static_cast<uint8_t>(inBuffer[inBytes])] <= MAX_PRINT_VAL) {
     ++inBytes;
   }
 
   for (size_t i = 0; i < inBytes; i += 4) {
-    buf[0] = (unsigned char)(DECODE(inBuffer[0]) << 2 | DECODE(inBuffer[1]) >> 4);
-    buf[1] = (unsigned char)(DECODE(inBuffer[1]) << 4 | DECODE(inBuffer[2]) >> 2);
-    buf[2] = (unsigned char)(DECODE(inBuffer[2]) << 6 | DECODE(inBuffer[3]));
+    buf[0] = static_cast<unsigned char>(DECODE(inBuffer[0]) << 2 | DECODE(inBuffer[1]) >> 4);
+    buf[1] = static_cast<unsigned char>(DECODE(inBuffer[1]) << 4 | DECODE(inBuffer[2]) >> 2);
+    buf[2] = static_cast<unsigned char>(DECODE(inBuffer[2]) << 6 | DECODE(inBuffer[3]));
 
     buf += 3;
     inBuffer += 4;

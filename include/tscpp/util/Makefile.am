@@ -19,4 +19,8 @@
 library_includedir=$(includedir)/tscpp/util
 
 library_include_HEADERS = \
-        TextView.h
+	IntrusiveDList.h \
+	LocalBuffer.h \
+	PostScript.h \
+	TextView.h \
+	TsSharedMutex.h

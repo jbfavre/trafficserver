@@ -24,7 +24,9 @@ TSfwrite
 Synopsis
 ========
 
-`#include <ts/ts.h>`
+.. code-block:: cpp
+
+    #include <ts/ts.h>
 
 .. function:: ssize_t TSfwrite(TSFile filep, const void * buf, size_t length)
 
@@ -44,4 +46,4 @@ The behavior is undefined if length is greater than SSIZE_MAX.
 Return Value
 ============
 
-Returns the number of bytes actually written, or -1 if an error occured.
+Returns the number of bytes actually written, or -1 if an error occurred.

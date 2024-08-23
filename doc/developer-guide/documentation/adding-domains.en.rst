@@ -65,7 +65,7 @@ will construct classes which allow us to document variables thusly::
     .. ts:variable:: http_enabled http integer
        :deprecated:
 
-       Enables (any postive, non-zero value) or disables (any zero or negative
+       Enables (any positive, non-zero value) or disables (any zero or negative
        value) processing of HTTP requests.
 
 And referencing of those variables defined with this domain via::
@@ -209,7 +209,7 @@ Our variables domain might have the following ``run`` method:
         title['first'] = False
         title['objtype'] = node['objtype']
         self.add_name(title)
-        title.set_class('ts-variable-title')
+        title['classes'] = 'ts-variable-title'
 
         title += sphinx.addnodes.desc_name(var_name, var_name)
         node.append(title)

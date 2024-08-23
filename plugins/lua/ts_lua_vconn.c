@@ -6,7 +6,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
+
   http://www.apache.org/licenses/LICENSE-2.0
+
   Unless required by applicable law or agreed to in writing, software
   distributed under the License is distributed on an "AS IS" BASIS,
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,6 +21,7 @@
 
 #include "ts_lua_util.h"
 
+static int ts_lua_vconn_disable_h2(lua_State *L);
 static int ts_lua_vconn_get_remote_addr(lua_State *L);
 static int ts_lua_vconn_get_fd(lua_State *L);
 
@@ -27,6 +30,9 @@ ts_lua_inject_vconn_api(lua_State *L)
 {
   lua_newtable(L);
 
+  lua_pushcfunction(L, ts_lua_vconn_disable_h2);
+  lua_setfield(L, -2, "disable_h2");
+
   lua_pushcfunction(L, ts_lua_vconn_get_remote_addr);
   lua_setfield(L, -2, "get_remote_addr");
 
@@ -34,6 +40,18 @@ ts_lua_inject_vconn_api(lua_State *L)
   lua_setfield(L, -2, "get_fd");
 
   lua_setfield(L, -2, "vconn");
+}
+
+static int
+ts_lua_vconn_disable_h2(lua_State *L)
+{
+  ts_lua_vconn_ctx *vconn_ctx;
+
+  GET_VCONN_CONTEXT(vconn_ctx, L);
+
+  TSVConnProtocolDisable(vconn_ctx->vconn, TS_ALPN_PROTOCOL_HTTP_2_0);
+
+  return 0;
 }
 
 static int

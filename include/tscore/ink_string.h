@@ -48,10 +48,10 @@
  *===========================================================================*/
 /* these are supposed to be fast */
 
-inkcoreapi char *ink_memcpy_until_char(char *dst, char *src, unsigned int n, unsigned char c);
-inkcoreapi char *ink_string_concatenate_strings(char *dest, ...);
-inkcoreapi char *ink_string_concatenate_strings_n(char *dest, int n, ...);
-inkcoreapi char *ink_string_append(char *dest, char *src, int n);
+char *ink_memcpy_until_char(char *dst, char *src, unsigned int n, unsigned char c);
+char *ink_string_concatenate_strings(char *dest, ...);
+char *ink_string_concatenate_strings_n(char *dest, int n, ...);
+char *ink_string_append(char *dest, char *src, int n);
 
 /*
  * Copy src to string dst of size siz.  At most siz-1 characters
@@ -75,12 +75,6 @@ size_t ink_strlcpy(char *dst, const char *str, size_t siz);
 #else
 size_t ink_strlcat(char *dst, const char *str, size_t siz);
 #endif
-
-inkcoreapi int ink_strcasecmp(const char *a, const char *b);
-inkcoreapi int ink_strncasecmp(const char *a, const char *b, unsigned int max);
-
-/* Convert from UTF-8 to latin-1/iso-8859-1.  This can be lossy. */
-void ink_utf8_to_latin1(const char *in, int inlen, char *out, int *outlen);
 
 /*===========================================================================*
 

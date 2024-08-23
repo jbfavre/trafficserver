@@ -27,6 +27,7 @@
 
 
 ***************************************************************************/
+#include "tscore/ink_sock.h"
 #include "tscore/ink_platform.h"
 #include "tscore/ink_assert.h"
 #include "tscore/ink_string.h"
@@ -50,7 +51,7 @@ check_valid_sockaddr(sockaddr *sa, char *file, int line)
   if (port > 20000) {
     cerr << "[byteordering] In " << file << ", line " << line << " the IP port ";
     cerr << "was found to be " << port << "(in host byte order).\n";
-    cerr << "[byteordering] This seems inplausible, so check for byte order problems\n";
+    cerr << "[byteordering] This seems implausible, so check for byte order problems\n";
   }
 }
 #else
@@ -58,7 +59,7 @@ check_valid_sockaddr(sockaddr *sa, char *file, int line)
 #endif
 
 int
-safe_setsockopt(int s, int level, int optname, char *optval, int optlevel)
+safe_setsockopt(int s, int level, int optname, const void *optval, int optlevel)
 {
   int r;
   do {
@@ -68,11 +69,11 @@ safe_setsockopt(int s, int level, int optname, char *optval, int optlevel)
 }
 
 int
-safe_getsockopt(int s, int level, int optname, char *optval, int *optlevel)
+safe_getsockopt(int s, int level, int optname, void *optval, int *optlevel)
 {
   int r;
   do {
-    r = getsockopt(s, level, optname, optval, (socklen_t *)optlevel);
+    r = getsockopt(s, level, optname, optval, reinterpret_cast<socklen_t *>(optlevel));
   } while (r < 0 && (errno == EAGAIN || errno == EINTR));
   return r;
 }
@@ -112,6 +113,29 @@ safe_clr_fl(int fd, int arg)
 }
 
 int
+safe_write(int fd, const char *buffer, int len)
+{
+  int num_written = 0;
+  while (num_written < len) {
+    int const ret = write(fd, buffer + num_written, len - num_written);
+    if (ret == -1) {
+      if (errno == EAGAIN || errno == EINTR) {
+        // The errno indicates that we should attempt the write again. Poll
+        // until the socket is ready for writing then try again.
+        if (write_ready(fd) != 1) {
+          return -1;
+        }
+        continue;
+      }
+      // Some unexpected errno was encountered.
+      return ret;
+    }
+    num_written += ret;
+  }
+  return num_written;
+}
+
+int
 safe_nonblocking(int fd)
 {
   return safe_set_fl(fd, O_NONBLOCK);
@@ -121,25 +145,6 @@ int
 safe_blocking(int fd)
 {
   return safe_clr_fl(fd, O_NONBLOCK);
-}
-
-int
-write_ready(int fd, int timeout_msec)
-{
-  struct pollfd p;
-  p.events = POLLOUT;
-  p.fd     = fd;
-  int r    = poll(&p, 1, timeout_msec);
-  if (r <= 0) {
-    return r;
-  }
-  if (p.revents & (POLLERR | POLLNVAL)) {
-    return -1;
-  }
-  if (p.revents & (POLLOUT | POLLHUP)) {
-    return 1;
-  }
-  return 0;
 }
 
 int
@@ -156,6 +161,25 @@ read_ready(int fd, int timeout_msec)
     return -1;
   }
   if (p.revents & (POLLIN | POLLHUP)) {
+    return 1;
+  }
+  return 0;
+}
+
+int
+write_ready(int fd, int timeout_msec)
+{
+  struct pollfd p;
+  p.events = POLLOUT;
+  p.fd     = fd;
+  int r    = poll(&p, 1, timeout_msec);
+  if (r <= 0) {
+    return r;
+  }
+  if (p.revents & (POLLERR | POLLNVAL)) {
+    return -1;
+  }
+  if (p.revents & POLLOUT) {
     return 1;
   }
   return 0;
@@ -197,7 +221,7 @@ safe_getsockname(int s, struct sockaddr *name, int *namelen)
 {
   int r;
   do {
-    r = getsockname(s, name, (socklen_t *)namelen);
+    r = getsockname(s, name, reinterpret_cast<socklen_t *>(namelen));
   } while (r < 0 && (errno == EAGAIN || errno == EINTR));
   return r;
 }
@@ -207,7 +231,7 @@ safe_getpeername(int s, struct sockaddr *name, int *namelen)
 {
   int r;
   do {
-    r = getpeername(s, name, (socklen_t *)namelen);
+    r = getpeername(s, name, reinterpret_cast<socklen_t *>(namelen));
   } while (r < 0 && (errno == EAGAIN || errno == EINTR));
   return r;
 }
@@ -312,7 +336,7 @@ bind_unix_domain_socket(const char *path, mode_t mode)
     goto fail;
   }
 
-  if (bind(sockfd, (struct sockaddr *)&sockaddr, socklen) < 0) {
+  if (bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), socklen) < 0) {
     goto fail;
   }
 

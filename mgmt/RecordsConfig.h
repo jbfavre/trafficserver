@@ -23,8 +23,10 @@
 
 #pragma once
 
-//#include "MgmtDefs.h"
 #include "records/P_RecCore.h"
+
+// This is to manage the librecords table sizes. Not awesome, but better than the earlier recompiling of ATS requirement...
+extern int max_records_entries;
 
 enum RecordRequiredType {
   RR_NULL,    // config is _not_ required to be defined in records.config
@@ -47,6 +49,4 @@ struct RecordElement {
 typedef void (*RecordElementCallback)(const RecordElement *, void *);
 void RecordsConfigIterate(RecordElementCallback, void *);
 
-void LibRecordsConfigInit();                 // initializes RecordsConfigIndex
-void RecordsConfigOverrideFromEnvironment(); // Override records from the environment
-void test_librecords();
+void LibRecordsConfigInit(); // initializes RecordsConfigIndex
